@@ -1723,6 +1723,38 @@
         address: wrap.querySelector('#m-address').value.trim(),
         hamlet: wrap.querySelector('#m-hamlet').value,
         project: wrap.querySelector('#m-project').value,
+        principal: parseFloat(wrap.querySelector('#m-principal').value) || 0,
+        rate: parseFloat(wrap.querySelector('#m-rate').value) || 0,
+        loanDate: wrap.querySelector('#m-loanDate').value,
+        dueDate: wrap.querySelector('#m-dueDate').value,
+        fundSource: wrap.querySelector('#m-fundSource').value.trim(),
+        prevBalance: parseFloat(wrap.querySelector('#m-prevBalance').value) || 0,
+        isExtended: wrap.querySelector('#m-isExtended').checked,
+        extensionDueDate: wrap.querySelector('#m-extensionDueDate').value,
+        interestPaid: parseFloat(wrap.querySelector('#m-interestPaid').value) || 0,
+        principalPaid: parseFloat(wrap.querySelector('#m-principalPaid').value) || 0,
+        checked: wrap.querySelector('#m-checked').checked,
+        note: wrap.querySelector('#m-note').value.trim()
+      };
+
+      if (isNew) {
+        state.borrowers.push(updated);
+      } else {
+        state.borrowers = state.borrowers.map(x => x.id === updated.id ? updated : x);
+      }
+      
+      await cSetRecord('borrowers', updated.id, updated);
+      await pushLog(isNew ? 'thêm hộ vay' : 'chỉnh sửa hộ vay', `hộ ${updated.name} — gốc ${money(updated.principal)}`);
+      close(); 
+      render();
+    };
+  }
+
+  boot();
+})();
+</script>.trim(),
+        hamlet: wrap.querySelector('#m-hamlet').value,
+        project: wrap.querySelector('#m-project').value,
         principal: parseFloat(wrap.querySelector('#m-principal').value)||0,
         rate: parseFloat(wrap.querySelector('#m-rate').value)||0,
         loanDate: wrap.querySelector('#m-loanDate').value,
