@@ -1,0 +1,1749 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- ================= FIREBASE SDK (Realtime Database) ================= -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  /* =====================================================================
+     CẤU HÌNH FIREBASE — THAY CÁC GIÁ TRỊ BÊN DƯỚI BẰNG THÔNG SỐ DỰ ÁN
+     FIREBASE THẬT CỦA ĐỒNG CHÍ (lấy tại Firebase Console > Project settings
+     > General > Your apps > SDK setup and configuration).
+     Sau khi thay xong, toàn bộ dữ liệu "Sổ vay vốn / Chi tiêu Xã / Nhật ký /
+     Thùng rác / Cộng tác viên" sẽ tự động lưu & đồng bộ realtime trên
+     Firebase Realtime Database. Dữ liệu module "Thu – Chi nội bộ" KHÔNG
+     dùng cấu hình này — xem phần LOCAL-ONLY STORAGE bên dưới.
+  ===================================================================== */
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "000000000000",
+    appId: "1:000000000000:web:xxxxxxxxxxxxxxxxxxxxxx"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const rtdb = firebase.database();
+</script>
+<style>
+  :root{
+    --paper:#FBF7EE;
+    --paper-2:#F3EEE0;
+    --ink:#25321F;
+    --rice-dark:#2F4A3C;
+    --rice:#3E6350;
+    --moss:#6B8F71;
+    --gold:#C79A2B;
+    --gold-soft:#E9D9AC;
+    --clay:#B5551F;
+    --line:#DCD4BE;
+    --yellow:#E8B93B;
+    --orange:#DD7A34;
+    --red:#C1443C;
+    --green:#4C7A52;
+    --white:#FFFEFB;
+    --shadow: 0 1px 2px rgba(37,50,31,.06), 0 4px 14px rgba(37,50,31,.06);
+    --r: 10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  #root{
+    font-family:'Be Vietnam Pro',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    line-height:1.4;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,h3{font-family:'Be Vietnam Pro',sans-serif; margin:0; letter-spacing:-.01em;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  /* ---- layout shells ---- */
+  .center-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+  .auth-card{
+    background:var(--white); border:1px solid var(--line); border-radius:16px;
+    padding:40px 36px; max-width:420px; width:100%; box-shadow:var(--shadow);
+    text-align:center;
+  }
+  .rice-badge{
+    width:56px; height:56px; margin:0 auto 16px; border-radius:14px;
+    background:linear-gradient(145deg,var(--rice),var(--rice-dark));
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+  }
+  .auth-card h1{font-size:20px; color:var(--rice-dark); margin-bottom:6px;}
+  .auth-card p.sub{color:#7A7A66; font-size:13.5px; margin:0 0 24px;}
+  .field{margin-bottom:14px; text-align:left;}
+  .field label{display:block; font-size:12.5px; font-weight:600; color:var(--rice-dark); margin-bottom:5px;}
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+    background:var(--paper); font-size:14px; color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--gold-soft); border-color:var(--gold);}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 18px; border-radius:8px; border:1px solid transparent;
+    font-size:13.5px; font-weight:600; transition:.15s;
+  }
+  .btn-primary{background:var(--rice-dark); color:var(--white);}
+  .btn-primary:hover{background:var(--rice);}
+  .btn-gold{background:var(--gold); color:#3A2C05;}
+  .btn-gold:hover{filter:brightness(1.06);}
+  .btn-ghost{background:transparent; border-color:var(--line); color:var(--rice-dark);}
+  .btn-ghost:hover{background:var(--paper-2);}
+  .btn-danger{background:var(--red); color:var(--white);}
+  .btn-danger:hover{filter:brightness(1.08);}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .btn-sm{padding:6px 10px; font-size:12px; border-radius:6px;}
+
+  /* ---- app shell ---- */
+  .app-shell{display:flex; min-height:100vh;}
+  .sidebar{
+    width:220px; flex-shrink:0; background:var(--rice-dark); color:var(--paper);
+    display:flex; flex-direction:column; padding:22px 14px;
+  }
+  .sidebar .brand{display:flex; align-items:center; gap:10px; padding:0 6px 20px; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:16px;}
+  .sidebar .brand .ico{font-size:22px;}
+  .sidebar .brand .txt{font-size:13.5px; font-weight:700; line-height:1.25;}
+  .sidebar .brand .txt small{display:block; font-weight:400; opacity:.7; font-size:11px;}
+  .nav-item{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px;
+    color:rgba(255,255,255,.78); font-size:13.5px; font-weight:500; margin-bottom:2px; border:none; background:none; width:100%; text-align:left;
+  }
+  .nav-item .badge{margin-left:auto; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:20px;}
+  .nav-item:hover{background:rgba(255,255,255,.08); color:#fff;}
+  .nav-item.active{background:var(--gold); color:#3A2C05;}
+  .sidebar .foot{margin-top:auto; padding-top:14px; border-top:1px solid rgba(255,255,255,.12); font-size:11.5px; color:rgba(255,255,255,.55);}
+
+  .main{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 26px; border-bottom:1px solid var(--line); background:var(--white);
+  }
+  .topbar h2{font-size:18px; color:var(--rice-dark);}
+  .topbar .sub{font-size:12px; color:#8A8570; margin-top:2px;}
+  .top-actions{display:flex; align-items:center; gap:10px; position:relative;}
+  .content{padding:22px 26px; overflow:auto;}
+
+  .bell-btn{position:relative; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:16px;}
+  .bell-dot{position:absolute; top:4px; right:5px; width:8px; height:8px; border-radius:50%; background:var(--red); border:2px solid var(--white);}
+  .bell-panel{
+    position:absolute; top:44px; right:0; width:340px; max-height:420px; overflow:auto;
+    background:var(--white); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); z-index:50;
+  }
+  .bell-panel .bp-head{padding:12px 14px; font-weight:700; font-size:13px; border-bottom:1px solid var(--line); color:var(--rice-dark);}
+  .bell-item{padding:11px 14px; border-bottom:1px solid var(--paper-2); font-size:12.5px; display:flex; gap:8px;}
+  .bell-item .dotc{width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0;}
+  .bell-empty{padding:26px 14px; text-align:center; color:#9A9580; font-size:12.5px;}
+
+  .avatar{width:32px; height:32px; border-radius:50%; background:var(--gold-soft); color:#5c4813; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;}
+
+  /* dashboard */
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:22px;}
+  .stat-card{border-radius:14px; padding:18px 20px; color:#fff; position:relative; overflow:hidden;}
+  .stat-card .num{font-family:'JetBrains Mono',monospace; font-size:34px; font-weight:700; line-height:1;}
+  .stat-card .lbl{font-size:12.5px; margin-top:6px; opacity:.92; font-weight:600;}
+  .stat-card .sub{font-size:11px; opacity:.75; margin-top:3px;}
+  .stat-yellow{background:linear-gradient(135deg,#E8B93B,#C99420);}
+  .stat-orange{background:linear-gradient(135deg,#DD7A34,#B8591C);}
+  .stat-red{background:linear-gradient(135deg,#C1443C,#96271F);}
+
+  .panel{background:var(--white); border:1px solid var(--line); border-radius:14px; margin-bottom:18px;}
+  .panel-head{padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;}
+  .panel-head h3{font-size:14.5px; color:var(--rice-dark);}
+  .panel-body{padding:16px 18px;}
+
+  table{width:100%; border-collapse:collapse; font-size:12.8px;}
+  th{text-align:left; padding:9px 10px; background:var(--paper-2); color:var(--rice-dark); font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.02em; white-space:nowrap; position:sticky; top:0;}
+  td{padding:9px 10px; border-bottom:1px solid var(--paper-2); white-space:nowrap;}
+  tr:hover td{background:#FCFAF3;}
+  .table-wrap{overflow:auto; max-height:60vh; border:1px solid var(--line); border-radius:10px;}
+  .money{font-family:'JetBrains Mono',monospace; font-weight:600;}
+  .pill{display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:700;}
+  .pill-green{background:#E3EFE2; color:var(--green);}
+  .pill-red{background:#F7E1DF; color:var(--red);}
+  .pill-orange{background:#FBE7D6; color:var(--orange);}
+  .pill-gray{background:var(--paper-2); color:#8A8570;}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px;}
+  .toolbar input, .toolbar select{padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:12.8px; background:var(--white);}
+  .spacer{flex:1;}
+
+  .modal-bg{position:fixed; inset:0; background:rgba(37,50,31,.45); display:flex; align-items:flex-start; justify-content:center; padding:40px 20px; overflow:auto; z-index:100;}
+  .modal{background:var(--white); border-radius:16px; width:100%; max-width:720px; box-shadow:var(--shadow);}
+  .modal-head{padding:18px 22px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;}
+  .modal-head h3{font-size:16px; color:var(--rice-dark);}
+  .modal-close{background:none; border:none; font-size:20px; color:#9A9580;}
+  .modal-body{padding:20px 22px; max-height:70vh; overflow:auto;}
+  .modal-foot{padding:16px 22px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:10px;}
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px;}
+  .form-grid .full{grid-column:1/-1;}
+  .divider-lbl{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--gold); margin:16px 0 8px; display:flex; align-items:center; gap:8px;}
+  .divider-lbl::after{content:''; flex:1; height:1px; background:var(--line);}
+
+  .quarter-bar{display:flex; gap:4px; margin-bottom:6px;}
+  .quarter-bar .qseg{flex:1; height:8px; border-radius:4px; background:var(--paper-2); position:relative;}
+  .quarter-bar .qseg.active{background:var(--gold);}
+  .checkbox-row{display:flex; align-items:center; gap:8px;}
+
+  .empty-state{text-align:center; padding:50px 20px; color:#9A9580;}
+  .empty-state .e-ico{font-size:34px; margin-bottom:10px;}
+
+  .kv-row{display:flex; justify-content:space-between; padding:6px 0; font-size:13px; border-bottom:1px dashed var(--line);}
+  .kv-row b{font-family:'JetBrains Mono',monospace;}
+
+  .tag-role{font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; background:var(--gold-soft); color:#5c4813;}
+  .tag-role.owner{background:var(--rice-dark); color:#fff;}
+  .tag-role.viewer{background:var(--paper-2); color:#8A8570;}
+
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:6px;}
+
+  @media (max-width:820px){
+    .app-shell{flex-direction:column;}
+    .sidebar{width:100%; flex-direction:row; overflow:auto; padding:10px;}
+    .sidebar .brand{display:none;}
+    .nav-item{flex-shrink:0; width:auto;}
+    .grid3{grid-template-columns:1fr;}
+    .form-grid{grid-template-columns:1fr;}
+  }
+
+  /* ---- backup panel ---- */
+  .backup-actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;}
+
+  /* ---- print area (khổ A4, ẩn trên màn hình) ---- */
+  #print-area{display:none;}
+  #print-area .print-header{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; font-size:13px; margin-bottom:6px;}
+  #print-area .print-header-right{text-align:right;}
+  #print-area .print-divider{margin-top:4px;}
+  #print-area .print-title{text-align:center; font-size:16px; margin:18px 0 16px; letter-spacing:.01em;}
+  #print-area .print-sec{font-size:13.5px; margin:16px 0 8px; text-decoration:underline;}
+  #print-area table.print-table{width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:4px;}
+  #print-area table.print-table th, #print-area table.print-table td{border:1px solid #333; padding:5px 8px; text-align:left;}
+  #print-area table.print-table td:last-child, #print-area table.print-table th:last-child{text-align:right;}
+  #print-area .print-signdate{text-align:right; font-style:italic; margin-top:26px; font-size:13px;}
+  #print-area .print-signblock{display:flex; justify-content:space-between; margin-top:6px; font-size:13px;}
+  #print-area .print-sign-col{width:46%; text-align:center;}
+  #print-area .print-sign-note{font-style:italic; font-size:12px; margin-top:2px;}
+  #print-area .print-sign-space{height:70px;}
+
+  @media print{
+    body *{ visibility:hidden; }
+    #print-area, #print-area *{ visibility:visible; }
+    #print-area{ display:block; position:absolute; left:0; top:0; width:100%; padding:0 8mm; color:#000; }
+    .no-print{ display:none !important; }
+    @page{ size:A4 portrait; margin:15mm 12mm; }
+  }
+</style>
+<div id="root"></div>
+<div id="print-area"></div>
+
+<script>
+(function(){
+  const root = document.getElementById('root');
+  const money = n => (Math.round((n||0)) ).toLocaleString('vi-VN') + ' đ';
+  const fmtDate = d => { if(!d) return '—'; const x=new Date(d); return x.toLocaleDateString('vi-VN'); };
+  const todayStr = () => new Date().toISOString().slice(0,10);
+  const uid = () => Math.random().toString(36).slice(2,10);
+  const daysBetween = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
+
+  // =====================================================================
+  // ---------- LỚP LƯU TRỮ ĐÁM MÂY (Firebase Realtime Database) ----------
+  // Toàn bộ dữ liệu NGHIỆP VỤ CHUNG của một Xã (config, borrowers, expenses,
+  // trash, activityLog, collaborators) được lưu dưới nhánh:
+  //     data/{wardId}/...
+  // Nhờ vậy nhiều Xã có thể dùng chung 1 đường link web mà dữ liệu tách biệt
+  // hoàn toàn (mỗi Xã có một "Mã định danh cấp Xã" — wardId — riêng).
+  // =====================================================================
+  function wardId(){ return state.identity && state.identity.wardId; }
+  function wref(sub){ return rtdb.ref(`data/${wardId()}/${sub}`); }
+
+  function snapToArray(val){ return val ? Object.values(val) : []; }
+  function byId(list){ const o={}; (list||[]).forEach(x=>{ if(x && x.id) o[x.id]=x; }); return o; }
+
+  // Đọc 1 lần (dùng khi cần kiểm tra dữ liệu trước khi quyết định vào app/onboarding)
+  async function cGetOnce(sub, fallback){
+    try{ const snap = await wref(sub).get(); return snap.exists() ? snap.val() : fallback; }
+    catch(e){ console.error('Firebase đọc lỗi:', sub, e); return fallback; }
+  }
+  // Ghi đè toàn bộ nhánh (dùng cho config, hoặc khôi phục sao lưu)
+  async function cSet(sub, value){
+    try{ await wref(sub).set(value); }catch(e){ console.error('Firebase set lỗi:', sub, e); alert('Không thể lưu dữ liệu lên máy chủ. Vui lòng kiểm tra kết nối mạng / cấu hình Firebase.'); }
+  }
+  // Cập nhật một phần của nhánh (merge, không ghi đè các trường khác)
+  async function cUpdate(sub, partial){
+    try{ await wref(sub).update(partial); }catch(e){ console.error('Firebase update lỗi:', sub, e); }
+  }
+  // Ghi/thêm 1 bản ghi trong 1 tập hợp (borrowers/{id}, expenses/{id}, trash/{id}...)
+  async function cSetRecord(sub, id, record){
+    try{ await wref(sub).child(id).set(record); }catch(e){ console.error('Firebase set record lỗi:', sub, id, e); }
+  }
+  // Xoá 1 bản ghi khỏi 1 tập hợp
+  async function cRemoveRecord(sub, id){
+    try{ await wref(sub).child(id).remove(); }catch(e){ console.error('Firebase remove lỗi:', sub, id, e); }
+  }
+  // Thêm bản ghi mới với key tự sinh bởi Firebase (dùng cho Nhật ký hoạt động)
+  async function cPush(sub, value){
+    try{ const ref = wref(sub).push(); await ref.set(value); return ref.key; }
+    catch(e){ console.error('Firebase push lỗi:', sub, e); }
+  }
+
+  // ---------- LẮNG NGHE REALTIME (onValue) ----------
+  // Thay cho polling — mọi thay đổi từ bất kỳ thiết bị nào (Xã/Ấp) sẽ đẩy
+  // xuống ngay lập tức cho tất cả các thiết bị khác đang mở ứng dụng.
+  let realtimeUnsubs = [];
+  function attachRealtime(){
+    detachRealtime();
+    const bind = (sub, applyFn) => {
+      const ref = wref(sub);
+      const cb = snap => { applyFn(snap.val()); render(); };
+      ref.on('value', cb);
+      realtimeUnsubs.push(()=>ref.off('value', cb));
+    };
+    bind('config', v => { state.config = v; });
+    bind('borrowers', v => { state.borrowers = snapToArray(v); });
+    bind('expenses', v => { state.expenses = snapToArray(v); });
+    bind('trash', v => { state.trash = snapToArray(v); });
+    bind('collaborators', v => { state.collaborators = v || {}; });
+    // Nhật ký: chỉ lấy 500 dòng gần nhất, sắp xếp mới nhất lên đầu
+    const logRef = wref('activityLog').limitToLast(500);
+    const logCb = snap => { state.log = snapToArray(snap.val()).sort((a,b)=> new Date(b.time)-new Date(a.time)); render(); };
+    logRef.on('value', logCb);
+    realtimeUnsubs.push(()=>logRef.off('value', logCb));
+  }
+  function detachRealtime(){ realtimeUnsubs.forEach(off=>off()); realtimeUnsubs = []; }
+
+  // =====================================================================
+  // ---------- LỚP LƯU TRỮ NỘI BỘ (chỉ trên máy — KHÔNG lên đám mây) -----
+  // Dùng riêng cho module "Thu – Chi nội bộ" và cho "identity" (thông tin
+  // đăng nhập của riêng thiết bị này). Dùng localStorage thật của trình
+  // duyệt — không bao giờ gửi lên Firebase hay bất kỳ máy chủ nào.
+  // =====================================================================
+  function lget(key, fallback){
+    try{ const v = localStorage.getItem(key); return v!==null ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  }
+  function lset(key, value){
+    try{
+      if(value===null || value===undefined) localStorage.removeItem(key);
+      else localStorage.setItem(key, JSON.stringify(value));
+    }catch(e){ console.error('localStorage set lỗi', e); }
+  }
+  // Namespace theo wardId để nhiều Xã dùng chung 1 máy/trình duyệt không đụng dữ liệu của nhau
+  function localKey(name){ return `hnd_local_${wardId()||'chung'}_${name}`; }
+
+  // ---------- export / print / backup helpers ----------
+  function downloadBlob(filename, content, mime){
+    const blob = new Blob([content], {type: mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  }
+
+  function htmlToWordDoc(title, bodyHtml){
+    return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8"><title>${title}</title>
+    <style>
+      body{font-family:'Times New Roman',serif; font-size:13px; color:#111;}
+      h1,h2{text-align:center;}
+      table{border-collapse:collapse; width:100%; margin-bottom:10px;}
+      td,th{border:1px solid #333; padding:5px 8px; font-size:12.5px;}
+      .sign-row{width:100%; margin-top:30px;}
+      .sign-col{display:inline-block; width:46%; text-align:center; vertical-align:top;}
+    </style></head>
+    <body>${bodyHtml}</body></html>`;
+  }
+
+  function exportBorrowersExcel(list){
+    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+    const rows = list.map(b=>({
+      'Họ và tên': b.name||'',
+      'CCCD': b.cccd||'',
+      'Số điện thoại': b.phone||'',
+      'Địa chỉ': b.address||'',
+      'Người bảo lãnh': b.guarantor||'',
+      'Ấp / Khu dân cư': b.hamlet||'',
+      'Phương án vay vốn': b.project||'',
+      'Số tiền gốc (đ)': Math.round(parseFloat(b.principal)||0),
+      'Lãi suất (%/năm)': parseFloat(b.rate)||0,
+      'Ngày vay': fmtDate(b.loanDate),
+      'Ngày đến hạn (gốc)': fmtDate(b.dueDate),
+      'Nguồn vốn': b.fundSource||'',
+      'Dư kỳ trước (đ)': Math.round(parseFloat(b.prevBalance)||0),
+      'Lãi đã đóng (đ)': Math.round(parseFloat(b.interestPaid)||0),
+      'Gốc đã đóng (đ)': Math.round(parseFloat(b.principalPaid)||0),
+      'Đang gia hạn': b.isExtended? 'Có':'Không',
+      'Hạn gia hạn mới': fmtDate(b.extensionDueDate),
+      'Ghi chú': b.note||'',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows.length? rows : [{'Thông báo':'Không có dữ liệu theo bộ lọc hiện tại'}]);
+    ws['!cols'] = Object.keys(rows[0]||{'x':1}).map(()=>({wch:20}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'So vay von');
+    XLSX.writeFile(wb, `So-vay-von_${todayStr()}.xlsx`);
+  }
+
+  function exportBorrowersWord(list){
+    const rows = list.map(b=>`<tr>
+      <td>${b.name||''}</td><td>${b.cccd||''}</td><td>${b.phone||''}</td>
+      <td>${b.hamlet||''}</td><td>${b.project||''}</td>
+      <td>${money(b.principal)}</td><td>${(b.rate||0)}%/năm</td>
+      <td>${fmtDate(b.loanDate)}</td><td>${fmtDate(b.dueDate)}</td>
+      <td>${b.note||''}</td>
+    </tr>`).join('');
+    const html = `<h2>SỔ VAY VỐN — HỘI NÔNG DÂN XÃ ${(state.config.wardName||'').toUpperCase()}</h2>
+    <p style="text-align:center;">Xuất ngày ${fmtDate(todayStr())} — Tổng số hộ: ${list.length}</p>
+    <table><thead><tr><th>Họ tên</th><th>CCCD</th><th>SĐT</th><th>Ấp</th><th>Phương án vay</th><th>Số tiền gốc</th><th>Lãi suất</th><th>Ngày vay</th><th>Đến hạn</th><th>Ghi chú</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="10">Không có dữ liệu theo bộ lọc hiện tại</td></tr>'}</tbody></table>`;
+    downloadBlob(`So-vay-von_${todayStr()}.doc`, htmlToWordDoc('Sổ vay vốn', html), 'application/msword');
+  }
+
+  function reportPeriodTitle(){
+    const {from,to} = acctPeriodRange();
+    let periodLabel;
+    if(state.acctMode==='quarter') periodLabel = (state.config.quarters[state.acctQuarter].label||'').toUpperCase();
+    else if(state.acctMode==='year') periodLabel = 'CẢ NĂM';
+    else periodLabel = 'TOÀN BỘ THỜI GIAN';
+    const year = (to || todayStr()).slice(0,4);
+    return {periodLabel, year, from, to};
+  }
+
+  function buildReportHtml(){
+    const cfg = state.config;
+    const ov = computeProjectOverview();
+    const {from,to} = acctPeriodRange();
+    const acct = computeAcctTotals(from,to);
+    const retain = cfg.retainPercent||0;
+    const {periodLabel, year} = reportPeriodTitle();
+    const now = new Date();
+    const otherTotal = Object.entries(acct.chiByCategory).filter(([k])=>k.startsWith(CAT_OTHER+':')).reduce((s,[,v])=>s+v,0);
+    return `
+      <div class="print-header">
+        <div class="print-header-left">
+          <div><b>HỘI NÔNG DÂN XÃ ${(cfg.wardName||'...').toUpperCase()}</b></div>
+          <div>BAN CHẤP HÀNH</div>
+        </div>
+        <div class="print-header-right">
+          <div><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b></div>
+          <div><b>Độc lập - Tự do - Hạnh phúc</b></div>
+          <div class="print-divider">-----------------</div>
+        </div>
+      </div>
+      <h2 class="print-title">BÁO CÁO TÌNH HÌNH VAY VỐN VÀ QUYẾT TOÁN THU - CHI TÀI CHÍNH<br>${periodLabel} / NĂM ${year}</h2>
+
+      <div class="print-sec">I. Tình hình vay vốn toàn xã</div>
+      <table class="print-table">
+        <tr><td>Tổng số phương án vay đang hoạt động</td><td>${ov.activeCount}</td></tr>
+        <tr><td>Tổng số phương án vay đã tất toán</td><td>${ov.settledCount}</td></tr>
+        <tr><td>Tổng số hộ đang dư nợ toàn xã</td><td>${ov.totalBorrowers}</td></tr>
+        <tr><td>Tổng dư nợ gốc toàn xã</td><td>${money(ov.totalOutstanding)}</td></tr>
+      </table>
+      <table class="print-table">
+        <thead><tr><th>Phương án vay</th><th>Ấp</th><th>Phát vay</th><th>Đã thu hồi</th><th>Dư nợ còn lại</th><th>Trạng thái</th></tr></thead>
+        <tbody>${ov.list.length? ov.list.map(p=>`<tr><td>${p.name}</td><td>${p.hamlets}</td><td>${money(p.disbursed)}</td><td>${money(p.recovered)}</td><td>${money(p.outstanding)}</td><td>${p.status}</td></tr>`).join('') : '<tr><td colspan="6">Chưa có dữ liệu</td></tr>'}</tbody>
+      </table>
+
+      <div class="print-sec">II. Quyết toán Thu - Chi tài chính kỳ ${fmtDate(from)} → ${fmtDate(to)}</div>
+      <table class="print-table">
+        <tr><td>Tổng số tiền lãi đã thu (toàn xã)</td><td>${money(acct.thu)}</td></tr>
+        <tr><td>Các ấp giữ lại (${retain}%)</td><td>${money(acct.giuLaiAp)}</td></tr>
+        <tr><td>Xã được giữ lại (${100-retain}%)</td><td>${money(acct.xaNhan)}</td></tr>
+        <tr><td>Chi về cho các khu dân cư / ấp</td><td>${money(acct.chiByCategory[CAT_HAMLET]||0)}</td></tr>
+        <tr><td>Chi họp hành / hội nghị</td><td>${money(acct.chiByCategory[CAT_MEETING]||0)}</td></tr>
+        <tr><td>Chi mua văn phòng phẩm</td><td>${money(acct.chiByCategory[CAT_SUPPLIES]||0)}</td></tr>
+        <tr><td>Chi công tác tập huấn</td><td>${money(acct.chiByCategory[CAT_TRAINING]||0)}</td></tr>
+        <tr><td>Chi bồi dưỡng cán bộ hoạt động quỹ</td><td>${money(acct.chiByCategory[CAT_BONUS]||0)}</td></tr>
+        <tr><td>Chi khác</td><td>${money(otherTotal)}</td></tr>
+        <tr><td><b>Tổng cộng đã chi</b></td><td><b>${money(acct.chiTotal)}</b></td></tr>
+        <tr><td><b>Số dư tồn quỹ Xã còn lại</b></td><td><b>${money(acct.tonQuy)}</b></td></tr>
+      </table>
+
+      <div class="print-signdate">${cfg.wardName? cfg.wardName+', ':''}ngày ${now.getDate()} tháng ${now.getMonth()+1} năm ${now.getFullYear()}</div>
+      <div class="print-signblock">
+        <div class="print-sign-col"><b>Người lập biểu</b><div class="print-sign-note">(Ký, ghi rõ họ tên)</div><div class="print-sign-space"></div></div>
+        <div class="print-sign-col"><b>TM. BAN CHẤP HÀNH<br>CHỦ TỊCH</b><div class="print-sign-note">(Ký tên, đóng dấu)</div><div class="print-sign-space"></div></div>
+      </div>`;
+  }
+
+  function printReport(){
+    const area = document.getElementById('print-area');
+    if(area) area.innerHTML = buildReportHtml();
+    window.print();
+  }
+
+  function exportReportWord(){
+    downloadBlob(`Bao-cao-tai-chinh_${todayStr()}.doc`, htmlToWordDoc('Báo cáo tài chính', buildReportHtml()), 'application/msword');
+  }
+
+  function exportBackupJSON(){
+    const backup = {
+      _type: 'quan-ly-tai-chinh-hoi-nong-dan-backup',
+      exportedAt: new Date().toISOString(),
+      config: state.config,
+      borrowers: state.borrowers,
+      expenses: state.expenses,
+      trash: state.trash,
+      activityLog: state.log,
+      collaborators: state.collaborators,
+    };
+    downloadBlob(`Sao-luu-du-lieu_${todayStr()}.json`, JSON.stringify(backup, null, 2), 'application/json');
+  }
+
+  async function importBackupJSON(file){
+    if(!file) return;
+    try{
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if(!data || !data.config || !Array.isArray(data.borrowers)){ alert('File sao lưu không hợp lệ hoặc không đúng định dạng.'); return; }
+      if(!confirm(`Khôi phục sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại của Xã "${wardId()}" trên đám mây (hộ vay, chi tiêu, cấu hình, nhật ký, thùng rác) bằng dữ liệu trong file sao lưu. Bạn có chắc chắn muốn tiếp tục?`)) return;
+      await cSet('config', data.config);
+      await cSet('borrowers', byId(data.borrowers||[]));
+      await cSet('expenses', byId(data.expenses||[]));
+      await cSet('trash', byId(data.trash||[]));
+      await cSet('activityLog', byId(data.activityLog||[]));
+      await cSet('collaborators', data.collaborators||{});
+      await pushLog('khôi phục', 'toàn bộ dữ liệu từ file sao lưu');
+      alert('Khôi phục dữ liệu thành công! Các thiết bị khác đang mở app sẽ tự động cập nhật theo.');
+      // dữ liệu trên màn hình sẽ tự cập nhật qua các listener onValue (attachRealtime)
+    }catch(e){
+      alert('Không đọc được file sao lưu. Vui lòng kiểm tra lại file .json.');
+    }
+  }
+
+  // ---------- expense categories (Chi tiêu xã) ----------
+  const CAT_HAMLET = 'Trích về cho các khu dân cư/Ấp';
+  const CAT_MEETING = 'Chi họp hành / Hội nghị';
+  const CAT_SUPPLIES = 'Mua văn phòng phẩm';
+  const CAT_TRAINING = 'Chi công tác tập huấn';
+  const CAT_BONUS = 'Chi bồi dưỡng cán bộ hoạt động quỹ';
+  const CAT_OTHER = 'Chi khác';
+  const EXPENSE_CATEGORIES = [CAT_HAMLET, CAT_MEETING, CAT_SUPPLIES, CAT_TRAINING, CAT_BONUS, CAT_OTHER];
+
+  // ---------- app state ----------
+  let state = {
+    view:'boot',
+    identity:null,        // {email, name}
+    config:null,          // shared core config
+    borrowers:[],
+    expenses:[],          // shared: khoản chi tiêu xã
+    trash:[],
+    log:[],
+    collaborators:{},     // shared {email: {name, role}}
+    activeTab:'dashboard',
+    reportMode:'quarter',
+    reportQuarter:'q1',
+    reportFrom:'', reportTo:'',
+    reportScope:'all', reportScopeVal:'',
+    search:'', filterHamlet:'', filterProject:'',
+    acctMode:'year',       // kỳ hạch toán xã: 'year' | 'quarter' | 'all'
+    acctQuarter:'q1',
+    expSearch:'', expFilterCat:'',
+    modal:null,           // {type:'borrower'|'expense'|'onboarding'|'settings'|'trashConfirm', payload}
+    bellOpen:false,
+  };
+
+  function myRole(){
+    if(!state.identity || !state.config) return null;
+    if(state.identity.email === state.config.ownerEmail) return 'owner';
+    const c = state.collaborators[emailToKey(state.identity.email)];
+    return c ? c.role : 'viewer';
+  }
+  function canEdit(){ const r = myRole(); return r==='owner' || r==='editor'; }
+  function isOwner(){ return myRole()==='owner'; }
+
+  async function pushLog(action, target){
+    const entry = { id:uid(), time:new Date().toISOString(), user: state.identity.email, userName: state.identity.name, action, target };
+    // Dùng push() để Firebase tự sinh key — mọi thiết bị đang mở sẽ nhận
+    // ngay bản ghi mới qua listener onValue (không cần ghi đè cả mảng).
+    await cPush('activityLog', entry);
+  }
+
+  const IDENTITY_KEY = 'hnd_identity'; // chỉ lưu trên máy này (localStorage), không đưa lên đám mây
+
+  async function boot(){
+    state.identity = lget(IDENTITY_KEY, null);
+    if(!state.identity){ state.view='login'; render(); return; }
+    await enterWorkspace();
+  }
+
+  // Sau khi có identity (đã biết wardId) -> kiểm tra Xã này đã có cấu hình
+  // trên Firebase chưa, rồi bật realtime sync hoặc chuyển sang onboarding.
+  async function enterWorkspace(){
+    state.config = await cGetOnce('config', null);
+    if(!state.config){
+      state.view = 'onboarding';
+    } else {
+      state.view = 'app';
+      attachRealtime();
+    }
+    render();
+  }
+
+  // ---------- interest engine ----------
+  function periodRange(){
+    if(state.reportMode==='quarter'){
+      const q = state.config.quarters[state.reportQuarter];
+      return { from:q.start, to:q.end };
+    }
+    return { from: state.reportFrom, to: state.reportTo };
+  }
+  function calcInterest(b, from, to){
+    if(!from || !to) return {days:0, interest:0, due:0};
+    const days = Math.max(0, daysBetween(from, to));
+    const rate = parseFloat(b.rate)||0;
+    const principal = parseFloat(b.principal)||0;
+    const interest = principal * (rate/100) * (days/365);
+    const prev = parseFloat(b.prevBalance)||0;
+    return { days, interest: Math.round(interest), due: Math.round(interest + prev) };
+  }
+  function interestStatus(b, due){
+    const paid = parseFloat(b.interestPaid)||0;
+    const diff = Math.round(paid - due);
+    if(diff===0) return {label:'Đã đóng đủ', cls:'pill-green', diff:0};
+    if(diff<0) return {label:`Còn thiếu ${money(-diff)}`, cls:'pill-red', diff};
+    return {label:`Đóng thừa ${money(diff)}`, cls:'pill-orange', diff};
+  }
+  function principalStatus(b){
+    const principal = parseFloat(b.principal)||0;
+    const paid = parseFloat(b.principalPaid)||0;
+    const diff = Math.round(paid - principal);
+    if(diff===0) return {label:'Đã đóng đủ', cls:'pill-green'};
+    if(diff<0) return {label:`Còn thiếu ${money(-diff)}`, cls:'pill-red'};
+    return {label:`Đóng thừa ${money(diff)}`, cls:'pill-orange'};
+  }
+
+  // ---------- notifications engine ----------
+  function computeAlerts(){
+    const alerts = [];
+    const today = new Date(todayStr());
+    if(!state.config) return alerts;
+    // quarter end reminder (interest)
+    Object.entries(state.config.quarters||{}).forEach(([qk,q])=>{
+      if(!q.end) return;
+      const d = daysBetween(todayStr(), q.end);
+      if(d===15 || (d>=0 && d<=15)){
+        alerts.push({color:'orange', text:`Sắp hết ${q.label||qk.toUpperCase()} (còn ${d} ngày) — nhắc thu lãi định kỳ`, key:'q-'+qk});
+      }
+    });
+    state.borrowers.forEach(b=>{
+      if(b.dueDate){
+        const d = daysBetween(todayStr(), b.dueDate);
+        if(d>=0 && d<=15) alerts.push({color:'red', text:`Gốc của ${b.name} (${b.hamlet}) đến hạn còn ${d} ngày`, key:'p-'+b.id});
+        else if(d>0 && d<=30) alerts.push({color:'orange', text:`Gốc của ${b.name} (${b.hamlet}) đến hạn còn ${d} ngày`, key:'p-'+b.id});
+        else if(d>0 && d<=60) alerts.push({color:'yellow', text:`Gốc của ${b.name} (${b.hamlet}) đến hạn còn ${d} ngày`, key:'p-'+b.id});
+      }
+      if(b.isExtended && b.extensionDueDate){
+        const d = daysBetween(todayStr(), b.extensionDueDate);
+        if(d>=0 && d<=15) alerts.push({color:'red', text:`Gia hạn của ${b.name} sắp hết (còn ${d} ngày)`, key:'e-'+b.id});
+        else if(d>0 && d<=30) alerts.push({color:'orange', text:`Gia hạn của ${b.name} sắp hết (còn ${d} ngày)`, key:'e-'+b.id});
+      }
+    });
+    return alerts;
+  }
+  function dashboardCounts(alerts){
+    // one borrower counted at its most severe color among principal/extension alerts
+    const sevMap = {};
+    alerts.forEach(a=>{
+      if(!a.key.startsWith('p-') && !a.key.startsWith('e-')) return;
+      const id = a.key.slice(2);
+      const rank = {yellow:1, orange:2, red:3};
+      if(!sevMap[id] || rank[a.color] > rank[sevMap[id]]) sevMap[id] = a.color;
+    });
+    const counts = {yellow:0, orange:0, red:0};
+    Object.values(sevMap).forEach(c=>counts[c]++);
+    return counts;
+  }
+
+  // ---------- accounting engine (Thu - Chi cấp Xã) ----------
+  function acctPeriodRange(mode, quarterKey){
+    mode = mode || state.acctMode; quarterKey = quarterKey || state.acctQuarter;
+    const q = state.config.quarters;
+    if(mode==='all') return { from:'2000-01-01', to: todayStr() };
+    if(mode==='quarter') return { from:q[quarterKey].start, to:q[quarterKey].end };
+    // year: từ đầu Quý 1 đến cuối Quý 4
+    return { from:q.q1.start, to:q.q4.end };
+  }
+  function computeAcctTotals(from, to){
+    const retain = state.config.retainPercent||0;
+    const activeBorrowers = state.borrowers.filter(b=>!b.deleted);
+    const thu = activeBorrowers.reduce((s,b)=> s + calcInterest(b, from, to).due, 0);
+    const giuLaiAp = Math.round(thu*retain/100);
+    const xaNhan = Math.round(thu - giuLaiAp);
+    const activeExpenses = state.expenses.filter(e=>!e.deleted && e.date && e.date>=from && e.date<=to);
+    const chiTotal = activeExpenses.reduce((s,e)=> s + (parseFloat(e.amount)||0), 0);
+    const chiByCategory = {};
+    const chiByHamlet = {};
+    activeExpenses.forEach(e=>{
+      const label = e.purpose===CAT_OTHER ? `${CAT_OTHER}: ${e.purposeOther||'(chưa ghi rõ)'}` : e.purpose;
+      chiByCategory[label] = (chiByCategory[label]||0) + (parseFloat(e.amount)||0);
+      if(e.purpose===CAT_HAMLET){
+        const h = e.hamlet || '—';
+        chiByHamlet[h] = (chiByHamlet[h]||0) + (parseFloat(e.amount)||0);
+      }
+    });
+    return { thu, xaNhan, giuLaiAp, chiTotal, chiByCategory, chiByHamlet, tonQuy: Math.round(xaNhan - chiTotal), expenses: activeExpenses };
+  }
+
+  // ---------- báo cáo tổng quan toàn xã (theo phương án vay) ----------
+  function computeProjectOverview(){
+    const active = state.borrowers.filter(b=>!b.deleted);
+    const byProject = {};
+    active.forEach(b=>{
+      const p = b.project || '—';
+      if(!byProject[p]) byProject[p] = { name:p, hamlets:new Set(), disbursed:0, recovered:0 };
+      byProject[p].hamlets.add(b.hamlet||'—');
+      byProject[p].disbursed += parseFloat(b.principal)||0;
+      byProject[p].recovered += parseFloat(b.principalPaid)||0;
+    });
+    const list = Object.values(byProject).map(p=>{
+      const outstanding = Math.max(0, Math.round(p.disbursed - p.recovered));
+      return {
+        name: p.name,
+        hamlets: [...p.hamlets].join(', '),
+        disbursed: Math.round(p.disbursed),
+        recovered: Math.round(p.recovered),
+        outstanding,
+        status: outstanding>0 ? 'Đang hoạt động' : 'Đã tất toán',
+      };
+    }).sort((a,b)=>a.name.localeCompare(b.name));
+    const activeCount = list.filter(p=>p.status==='Đang hoạt động').length;
+    const settledCount = list.filter(p=>p.status==='Đã tất toán').length;
+    const totalBorrowers = active.filter(b=> ((parseFloat(b.principal)||0) - (parseFloat(b.principalPaid)||0)) > 0 ).length;
+    const totalOutstanding = list.reduce((s,p)=>s+p.outstanding,0);
+    return { list, activeCount, settledCount, totalBorrowers, totalOutstanding };
+  }
+
+  // ---------- activity feed for bell (recent + alerts) ----------
+  function bellItems(){
+    const alerts = computeAlerts().map(a=>({type:'alert', ...a}));
+    const recentLogs = state.log.slice(0,8).map(l=>({
+      type:'log', color:'gray',
+      text: `${l.userName||l.user} đã ${l.action} — ${l.target}`,
+      time: l.time
+    }));
+    return [...alerts.map(a=>({...a,time:null})), ...recentLogs];
+  }
+
+  // ================= RENDER =================
+  function render(){
+    if(state.view==='login') return renderLogin();
+    if(state.view==='onboarding') return renderOnboarding();
+    if(state.view==='app') return renderApp();
+    root.innerHTML = '<div class="center-screen">Đang tải…</div>';
+  }
+
+  function renderLogin(){
+    root.innerHTML = `
+      <div class="center-screen">
+        <div class="auth-card">
+          <div class="rice-badge">🌾</div>
+          <h1>Quản lý Công tác Hội Nông dân cấp xã</h1>
+          <p class="sub">Đăng nhập để quản lý quỹ hỗ trợ nông dân, thu chi nội bộ, vốn vay, lãi suất và báo cáo địa phương</p>
+          <div class="field"><label>Họ và tên</label><input id="li-name" placeholder="Nguyễn Văn A"></div>
+          <div class="field"><label>Email</label><input id="li-email" placeholder="ten@gmail.com" type="email"></div>
+          <div class="field">
+            <label>Mã định danh cấp Xã *</label>
+            <input id="li-wardid" placeholder="vd: xabinhminh" style="text-transform:lowercase;">
+          </div>
+          <p class="sub" style="margin-top:-8px; margin-bottom:16px; font-size:11.5px; text-align:left;">
+            Chỉ gồm chữ thường không dấu, số, gạch dưới/gạch ngang. Cán bộ Xã tự đặt mã này khi thiết lập lần đầu; cán bộ Ấp/cộng tác viên nhập <b>đúng mã Xã đã cung cấp</b> để vào chung một cơ sở dữ liệu.
+          </p>
+          <button class="btn btn-gold btn-block" id="li-btn">🔒 Đăng nhập bằng Google (giả lập)</button>
+          <p class="sub" style="margin-top:16px; font-size:11.5px;">Đây là bản mô phỏng đăng nhập trong môi trường artifact — không kết nối OAuth Google thật.</p>
+        </div>
+      </div>`;
+    document.getElementById('li-btn').onclick = async ()=>{
+      const name = document.getElementById('li-name').value.trim();
+      const email = document.getElementById('li-email').value.trim().toLowerCase();
+      const wid = document.getElementById('li-wardid').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
+      if(!name || !email){ alert('Vui lòng nhập đầy đủ họ tên và email.'); return; }
+      if(!wid || wid.length<3){ alert('Vui lòng nhập Mã định danh cấp Xã hợp lệ (tối thiểu 3 ký tự, chỉ gồm chữ thường/số/gạch dưới/gạch ngang).'); return; }
+      state.identity = {name, email, wardId: wid};
+      lset(IDENTITY_KEY, state.identity);
+      await enterWorkspace();
+    };
+  }
+
+  function renderOnboarding(){
+    const cfg = state.config || { hamlets:[], projects:[], quarters:{
+      q1:{label:'Quý 1', start:'2026-01-01', end:'2026-03-31'}, q2:{label:'Quý 2', start:'2026-04-01', end:'2026-06-30'},
+      q3:{label:'Quý 3', start:'2026-07-01', end:'2026-09-30'}, q4:{label:'Quý 4', start:'2026-10-01', end:'2026-12-31'}
+    }, retainPercent:30, wardName:'', ownerEmail: state.identity.email, officerTitle:'' };
+    root.innerHTML = `
+      <div class="center-screen">
+        <div class="auth-card" style="max-width:640px; text-align:left;">
+          <div class="rice-badge" style="margin:0 0 14px;">⚙️</div>
+          <h1 style="text-align:left;">Thiết lập cơ sở dữ liệu lõi</h1>
+          <p class="sub" style="text-align:left;">Thiết lập lần đầu cho địa phương — có thể chỉnh sửa lại sau trong mục Cài đặt.</p>
+
+          <div class="form-grid">
+            <div class="field"><label>Chức vụ cán bộ</label><input id="ob-title" placeholder="Chủ tịch Hội Nông dân xã..." value="${cfg.officerTitle||''}"></div>
+            <div class="field"><label>Xã / Phường / Thị trấn</label><input id="ob-ward" placeholder="Xã Bình Minh" value="${cfg.wardName||''}"></div>
+            <div class="field full">
+              <label>Mã định danh cấp Xã (đường dẫn lưu dữ liệu trên đám mây) *</label>
+              <input id="ob-wardid" placeholder="vd: xabinhminh" value="${state.identity.wardId||''}" style="text-transform:lowercase;">
+              <p class="sub" style="margin:4px 0 0; font-size:11.5px;">
+                Dữ liệu sẽ lưu tại <span class="mono">data/${state.identity.wardId||'...'}/...</span> trên Firebase. Hãy cung cấp đúng mã này cho các cán bộ Ấp khác để họ đăng nhập vào chung dữ liệu của Xã. Chỉ gồm chữ thường, số, gạch dưới/gạch ngang.
+              </p>
+            </div>
+          </div>
+
+          <div class="divider-lbl">Khu dân cư (ấp / thôn / khu phố / xóm)</div>
+          <div class="field"><textarea id="ob-hamlets" rows="2" placeholder="Ấp 1, Ấp 2, Ấp 3...">${(cfg.hamlets||[]).join(', ')}</textarea></div>
+          <p class="sub" style="margin:-6px 0 0; font-size:11.5px;">Nhập cách nhau bởi dấu phẩy, hãy thêm dấu phẩy vào ạ</p>
+
+          <div class="divider-lbl">Phương án vay vốn hiện hành</div>
+          <div class="field"><textarea id="ob-projects" rows="2" placeholder="Phương án vay chăn nuôi bò, Phương án vay trồng rau sạch...">${(cfg.projects||[]).join(', ')}</textarea></div>
+          <p class="sub" style="margin:-6px 0 0; font-size:11.5px;">Nhập cách nhau bởi dấu phẩy, hãy thêm dấu phẩy vào ạ</p>
+
+          <div class="divider-lbl">Mốc thời gian 4 Quý trong năm</div>
+          <div class="form-grid">
+            ${['q1','q2','q3','q4'].map(q=>`
+              <div style="border:1px solid var(--line); border-radius:10px; padding:10px 12px;">
+                <label style="font-size:12.5px; font-weight:700; color:var(--rice-dark);">${cfg.quarters[q].label}</label>
+                <div style="display:flex; gap:8px; margin-top:6px;">
+                  <input type="date" id="ob-${q}-start" value="${cfg.quarters[q].start||''}">
+                  <input type="date" id="ob-${q}-end" value="${cfg.quarters[q].end||''}">
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <div class="divider-lbl">Tỷ lệ giữ lại tại ấp</div>
+          <div class="field"><input type="number" id="ob-retain" value="${cfg.retainPercent}" min="0" max="100"> <span class="sub">% tổng lãi ấp thu được — phần còn lại nộp lên xã</span></div>
+
+          <button class="btn btn-primary btn-block" id="ob-save" style="margin-top:8px;">Hoàn tất thiết lập</button>
+        </div>
+      </div>`;
+    document.getElementById('ob-save').onclick = async ()=>{
+      const wid = document.getElementById('ob-wardid').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
+      if(!wid || wid.length<3){ alert('Vui lòng nhập Mã định danh cấp Xã hợp lệ (tối thiểu 3 ký tự, chỉ gồm chữ thường/số/gạch dưới/gạch ngang).'); return; }
+      // Nếu đổi mã Xã so với lúc đăng nhập, cập nhật lại identity cục bộ (localStorage) trước khi ghi lên Firebase
+      if(wid !== state.identity.wardId){
+        state.identity = {...state.identity, wardId: wid};
+        lset(IDENTITY_KEY, state.identity);
+      }
+      const newCfg = {
+        wardName: document.getElementById('ob-ward').value.trim(),
+        officerTitle: document.getElementById('ob-title').value.trim(),
+        hamlets: document.getElementById('ob-hamlets').value.split(',').map(s=>s.trim()).filter(Boolean),
+        projects: document.getElementById('ob-projects').value.split(',').map(s=>s.trim()).filter(Boolean),
+        quarters: {
+          q1:{label:'Quý 1', start:document.getElementById('ob-q1-start').value, end:document.getElementById('ob-q1-end').value},
+          q2:{label:'Quý 2', start:document.getElementById('ob-q2-start').value, end:document.getElementById('ob-q2-end').value},
+          q3:{label:'Quý 3', start:document.getElementById('ob-q3-start').value, end:document.getElementById('ob-q3-end').value},
+          q4:{label:'Quý 4', start:document.getElementById('ob-q4-start').value, end:document.getElementById('ob-q4-end').value},
+        },
+        retainPercent: parseFloat(document.getElementById('ob-retain').value)||0,
+        ownerEmail: cfg.ownerEmail,
+      };
+      state.config = newCfg;
+      await cSet('config', newCfg); // ghi lên data/{wardId}/config trên Firebase
+      state.view = 'app';
+      attachRealtime();
+      render();
+    };
+  }
+
+  function navItems(){
+    const alerts = computeAlerts();
+    const counts = dashboardCounts(alerts);
+    const totalWarn = counts.yellow+counts.orange+counts.red;
+    return [
+      {id:'dashboard', ico:'📊', label:'Tổng quan'},
+      {id:'data', ico:'📋', label:'Sổ vay vốn'},
+      {id:'expenses', ico:'💰', label:'Chi tiêu & Hạch toán Xã'},
+      {id:'reports', ico:'🧾', label:'Báo cáo lãi'},
+      {id:'internal', ico:'🔒', label:'Thu – Chi nội bộ'},
+      {id:'members', ico:'🪪', label:'Hồ sơ hội viên'},
+      {id:'strength', ico:'💪', label:'Thực lực Hội'},
+      {id:'trash', ico:'🗑️', label:'Thùng rác', badge: state.trash.length||null},
+      {id:'log', ico:'🕘', label:'Nhật ký hoạt động'},
+      {id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'},
+      {id:'guide', ico:'📖', label:'Hướng dẫn sử dụng'},
+      {id:'about', ico:'ℹ️', label:'Thông tin phần mềm'},
+    ];
+  }
+
+  function renderApp(){
+    const role = myRole();
+    const alerts = computeAlerts();
+    root.innerHTML = `
+      <div class="app-shell">
+        <div class="sidebar">
+          <div class="brand"><div class="ico">🌾</div><div class="txt">Hội Nông dân<small>${state.config.wardName||''}</small></div></div>
+          ${navItems().map(n=>`
+            <button class="nav-item ${state.activeTab===n.id?'active':''}" data-tab="${n.id}">
+              <span>${n.ico}</span><span>${n.label}</span>
+              ${n.badge?`<span class="badge">${n.badge}</span>`:''}
+            </button>`).join('')}
+          <div class="foot">Đăng nhập: ${state.identity.email}<br>Vai trò: ${role==='owner'?'Chủ tài khoản':role==='editor'?'Cộng tác viên (sửa)':'Chỉ xem'}
+            <div style="margin-top:8px;"><button class="btn btn-ghost btn-sm" id="logout-btn" style="color:#fff; border-color:rgba(255,255,255,.3);">Đăng xuất</button></div>
+          </div>
+        </div>
+        <div class="main">
+          <div class="topbar">
+            <div><h2>${navItems().find(n=>n.id===state.activeTab).label}</h2><div class="sub">${state.config.wardName||'Chưa đặt tên xã'} · ${state.borrowers.filter(b=>!b.deleted).length} hộ vay đang theo dõi</div></div>
+            <div class="top-actions">
+              <button class="bell-btn" id="bell-btn">🔔${alerts.length?`<span class="bell-dot"></span>`:''}</button>
+              <div class="avatar">${(state.identity.name||'?')[0].toUpperCase()}</div>
+              ${state.bellOpen? renderBellPanel() : ''}
+            </div>
+          </div>
+          <div class="content" id="content"></div>
+        </div>
+      </div>`;
+    document.querySelectorAll('.nav-item').forEach(el=>{
+      el.onclick = ()=>{ state.activeTab = el.dataset.tab; state.bellOpen=false; render(); };
+    });
+    document.getElementById('bell-btn').onclick = (e)=>{ e.stopPropagation(); state.bellOpen = !state.bellOpen; render(); };
+    document.getElementById('logout-btn').onclick = async ()=>{
+      detachRealtime();
+      state.identity = null; lset(IDENTITY_KEY, null);
+      state.config = null; state.borrowers=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
+      state.view='login'; render();
+    };
+    document.addEventListener('click', ()=>{ if(state.bellOpen){ state.bellOpen=false; render(); } }, {once:true});
+
+    const content = document.getElementById('content');
+    if(state.activeTab==='dashboard') renderDashboard(content, alerts);
+    else if(state.activeTab==='data') renderDataTab(content);
+    else if(state.activeTab==='expenses') renderExpensesTab(content);
+    else if(state.activeTab==='reports') renderReportsTab(content);
+    else if(state.activeTab==='internal') renderInternalTab(content);
+    else if(state.activeTab==='members') renderMembersTab(content);
+    else if(state.activeTab==='strength') renderStrengthTab(content);
+    else if(state.activeTab==='trash') renderTrashTab(content);
+    else if(state.activeTab==='log') renderLogTab(content);
+    else if(state.activeTab==='settings') renderSettingsTab(content);
+    else if(state.activeTab==='guide') renderGuideTab(content);
+    else if(state.activeTab==='about') renderAboutTab(content);
+
+    // Chỉ dựng modal khi chưa có modal nào đang mở trên màn hình — tránh bị
+    // dựng chồng nhiều lớp modal mỗi khi có dữ liệu mới đẩy về qua realtime.
+    if(state.modal && !document.querySelector('.modal-bg')){
+      if(state.modal.type==='expense') renderExpenseModal();
+      else renderModal();
+    }
+  }
+
+  function renderBellPanel(){
+    const items = bellItems();
+    return `<div class="bell-panel" onclick="event.stopPropagation()">
+      <div class="bp-head">Thông báo & Cảnh báo</div>
+      ${items.length? items.map(it=>`
+        <div class="bell-item">
+          <span class="dotc" style="background:${it.color==='gray'?'#C9C4AE':it.color==='red'?'var(--red)':it.color==='orange'?'var(--orange)':it.color==='yellow'?'var(--yellow)':'var(--moss)'}"></span>
+          <div>${it.text}${it.time?`<div style="color:#9A9580; font-size:11px; margin-top:2px;">${new Date(it.time).toLocaleString('vi-VN')}</div>`:''}</div>
+        </div>`).join('') : `<div class="bell-empty">Không có thông báo nào</div>`}
+    </div>`;
+  }
+
+  function renderDashboard(el, alerts){
+    const counts = dashboardCounts(alerts);
+    const active = state.borrowers.filter(b=>!b.deleted);
+    const totalPrincipal = active.reduce((s,b)=>s+ (parseFloat(b.principal)||0),0);
+    el.innerHTML = `
+      <div class="grid3">
+        <div class="stat-card stat-yellow"><div class="num mono">${counts.yellow}</div><div class="lbl">🟡 Sắp đến hạn (≤60 ngày)</div><div class="sub">Cảnh báo sớm — cần chuẩn bị thu hồi vốn</div></div>
+        <div class="stat-card stat-orange"><div class="num mono">${counts.orange}</div><div class="lbl">🟠 Cận hạn (≤30 ngày)</div><div class="sub">Cần liên hệ hộ vay đôn đốc</div></div>
+        <div class="stat-card stat-red"><div class="num mono">${counts.red}</div><div class="lbl">🔴 Khẩn cấp (≤15 ngày)</div><div class="sub">Ưu tiên xử lý ngay</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Tổng quan vốn vay</h3></div>
+        <div class="panel-body">
+          <div class="kv-row"><span>Tổng số hộ vay đang theo dõi</span><b>${active.length}</b></div>
+          <div class="kv-row"><span>Tổng dư nợ gốc</span><b>${money(totalPrincipal)}</b></div>
+          <div class="kv-row"><span>Số ấp / khu dân cư</span><b>${(state.config.hamlets||[]).length}</b></div>
+          <div class="kv-row"><span>Số phương án vay vốn</span><b>${(state.config.projects||[]).length}</b></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Danh sách cảnh báo hiện tại</h3></div>
+        <div class="panel-body">
+          ${alerts.length? alerts.map(a=>`<div class="kv-row"><span>${a.text}</span><span class="pill ${a.color==='red'?'pill-red':a.color==='orange'?'pill-orange':'pill-gray'}">${a.color==='yellow'?'Vàng':a.color==='orange'?'Cam':'Đỏ'}</span></div>`).join('') : `<div class="empty-state"><div class="e-ico">✅</div>Không có cảnh báo nào vào lúc này</div>`}
+        </div>
+      </div>`;
+  }
+
+  function borrowerRowStatus(b){
+    const {from,to} = periodRange();
+    const calc = calcInterest(b, from, to);
+    return {calc, iStatus: interestStatus(b, calc.due), pStatus: principalStatus(b)};
+  }
+
+  function renderDataTab(el){
+    const hamlets = state.config.hamlets||[];
+    const projects = state.config.projects||[];
+    let list = state.borrowers.filter(b=>!b.deleted);
+    if(state.search) list = list.filter(b=> (b.name+b.cccd+b.phone).toLowerCase().includes(state.search.toLowerCase()));
+    if(state.filterHamlet) list = list.filter(b=>b.hamlet===state.filterHamlet);
+    if(state.filterProject) list = list.filter(b=>b.project===state.filterProject);
+
+    el.innerHTML = `
+      <div class="toolbar">
+        <input id="f-search" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:220px;">
+        <select id="f-hamlet"><option value="">Tất cả ấp</option>${hamlets.map(h=>`<option ${state.filterHamlet===h?'selected':''}>${h}</option>`).join('')}</select>
+        <select id="f-project"><option value="">Tất cả phương án vay</option>${projects.map(p=>`<option ${state.filterProject===p?'selected':''}>${p}</option>`).join('')}</select>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost btn-sm" id="exp-excel-btn">⬇️ Xuất file Excel Sổ Vay Vốn</button>
+        <button class="btn btn-ghost btn-sm" id="exp-word-btn">⬇️ Xuất file Word</button>
+        ${canEdit()? `<button class="btn btn-primary" id="add-btn">+ Thêm hộ vay</button>` : ''}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th></th><th>Họ tên</th><th>Ấp</th><th>Phương án vay</th><th>Gốc</th><th>Lãi suất</th><th>Ngày vay</th><th>Đến hạn</th>
+            <th>Trạng thái gốc</th><th>Trạng thái lãi (kỳ hiện chọn)</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${list.length? list.map(b=>{
+              const st = borrowerRowStatus(b);
+              return `<tr>
+                <td><input type="checkbox" data-check="${b.id}" ${b.checked?'checked':''} ${canEdit()?'':'disabled'}></td>
+                <td><b>${b.name}</b><div class="sub" style="color:#9A9580;">${b.cccd||''}</div></td>
+                <td>${b.hamlet||'—'}</td>
+                <td>${b.project||'—'}</td>
+                <td class="money">${money(b.principal)}</td>
+                <td class="money">${b.rate||0}%/năm</td>
+                <td>${fmtDate(b.loanDate)}</td>
+                <td>${fmtDate(b.dueDate)}</td>
+                <td><span class="pill ${b.status2||st.pStatus.cls}">${st.pStatus.label}</span></td>
+                <td><span class="pill ${st.iStatus.cls}">${st.iStatus.label}</span></td>
+                <td><button class="btn btn-ghost btn-sm" data-view="${b.id}">Xem/Sửa</button></td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="11"><div class="empty-state"><div class="e-ico">🌾</div>Chưa có hộ vay nào — bấm "Thêm hộ vay" để bắt đầu</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>`;
+    document.getElementById('f-search').oninput = e=>{ state.search=e.target.value; renderDataTab(el); };
+    document.getElementById('f-hamlet').onchange = e=>{ state.filterHamlet=e.target.value; renderDataTab(el); };
+    document.getElementById('f-project').onchange = e=>{ state.filterProject=e.target.value; renderDataTab(el); };
+    document.getElementById('exp-excel-btn').onclick = ()=> exportBorrowersExcel(list);
+    document.getElementById('exp-word-btn').onclick = ()=> exportBorrowersWord(list);
+    const addBtn = document.getElementById('add-btn');
+    if(addBtn) addBtn.onclick = ()=>{ state.modal={type:'borrower', payload:null}; render(); };
+    document.querySelectorAll('[data-view]').forEach(b=>{
+      b.onclick = ()=>{ state.modal={type:'borrower', payload: state.borrowers.find(x=>x.id===b.dataset.view)}; render(); };
+    });
+    document.querySelectorAll('[data-check]').forEach(cb=>{
+      cb.onchange = async ()=>{
+        const b = state.borrowers.find(x=>x.id===cb.dataset.check);
+        b.checked = cb.checked;
+        await cSetRecord('borrowers', b.id, b);
+        await pushLog('cập nhật', `tích chọn hộ ${b.name}`);
+      };
+    });
+  }
+
+  function acctPeriodSelectorHtml(prefix){
+    const q = state.config.quarters;
+    return `
+      <select id="${prefix}-mode">
+        <option value="year" ${state.acctMode==='year'?'selected':''}>Cả năm (Quý 1 → Quý 4)</option>
+        <option value="quarter" ${state.acctMode==='quarter'?'selected':''}>Theo Quý</option>
+        <option value="all" ${state.acctMode==='all'?'selected':''}>Toàn bộ từ trước đến nay</option>
+      </select>
+      ${state.acctMode==='quarter' ? `
+        <select id="${prefix}-quarter">
+          ${['q1','q2','q3','q4'].map(k=>`<option value="${k}" ${state.acctQuarter===k?'selected':''}>${q[k].label} (${fmtDate(q[k].start)} → ${fmtDate(q[k].end)})</option>`).join('')}
+        </select>` : ''}
+    `;
+  }
+  function bindAcctPeriodSelector(prefix, onChange){
+    document.getElementById(`${prefix}-mode`).onchange = e=>{ state.acctMode = e.target.value; onChange(); };
+    const qsel = document.getElementById(`${prefix}-quarter`);
+    if(qsel) qsel.onchange = e=>{ state.acctQuarter = e.target.value; onChange(); };
+  }
+
+  function emptyExpense(){
+    return { id: uid(), date: todayStr(), purpose: CAT_MEETING, purposeOther:'', hamlet:(state.config.hamlets||[])[0]||'', amount:0, note:'' };
+  }
+
+  function renderExpensesTab(el){
+    const {from,to} = acctPeriodRange();
+    const acct = computeAcctTotals(from,to);
+    let list = state.expenses.filter(e=>!e.deleted);
+    if(state.expSearch) list = list.filter(e => (e.note+e.purposeOther+e.hamlet).toLowerCase().includes(state.expSearch.toLowerCase()));
+    if(state.expFilterCat) list = list.filter(e=>e.purpose===state.expFilterCat);
+    list = [...list].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+
+    el.innerHTML = `
+      <div class="panel"><div class="panel-head"><h3>Kỳ hạch toán đang xem</h3></div>
+        <div class="panel-body"><div class="toolbar" style="margin:0;">${acctPeriodSelectorHtml('exp')}</div>
+          <div class="sub" style="margin-top:8px;">Khoảng áp dụng: <b>${fmtDate(from)} → ${fmtDate(to)}</b></div>
+        </div>
+      </div>
+
+      <div class="grid3">
+        <div class="stat-card" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));">
+          <div class="num mono">${money(acct.xaNhan)}</div>
+          <div class="lbl">Tổng lãi trích về cho Xã</div>
+          <div class="sub">= Tổng lãi thu được × (100% − ${state.config.retainPercent||0}% ấp giữ lại)</div>
+        </div>
+        <div class="stat-card" style="background:linear-gradient(135deg,var(--clay),#7d3813);">
+          <div class="num mono">${money(acct.chiTotal)}</div>
+          <div class="lbl">Tổng số tiền Xã đã chi</div>
+          <div class="sub">Cộng dồn từ các khoản chi trong kỳ</div>
+        </div>
+        <div class="stat-card" style="background:linear-gradient(135deg,${acct.tonQuy>=0?'var(--green)':'var(--red)'},${acct.tonQuy>=0?'#2f4f34':'#7a231d'});">
+          <div class="num mono">${money(acct.tonQuy)}</div>
+          <div class="lbl">Tồn quỹ Xã</div>
+          <div class="sub">= Tổng nhận về − Tổng đã chi</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <input id="e-search" placeholder="🔎 Tìm theo ghi chú, ấp..." value="${state.expSearch}" style="min-width:220px;">
+        <select id="e-cat"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option ${state.expFilterCat===c?'selected':''}>${c}</option>`).join('')}</select>
+        <div class="spacer"></div>
+        ${canEdit()? `<button class="btn btn-primary" id="add-exp-btn">+ Thêm khoản chi mới</button>` : ''}
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Ngày chi</th><th>Nội dung / Mục đích</th><th>Địa bàn (Ấp)</th><th>Số tiền</th><th>Ghi chú</th><th></th></tr></thead>
+          <tbody>
+            ${list.length? list.map(e=>`
+              <tr>
+                <td>${fmtDate(e.date)}</td>
+                <td>${e.purpose===CAT_OTHER? `${CAT_OTHER}: ${e.purposeOther||''}` : e.purpose}</td>
+                <td>${e.purpose===CAT_HAMLET? (e.hamlet||'—') : '—'}</td>
+                <td class="money">${money(e.amount)}</td>
+                <td>${e.note||'—'}</td>
+                <td><button class="btn btn-ghost btn-sm" data-view-exp="${e.id}">Xem/Sửa</button></td>
+              </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state"><div class="e-ico">💰</div>Chưa có khoản chi nào trong kỳ này</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>`;
+
+    bindAcctPeriodSelector('exp', ()=>renderExpensesTab(el));
+    document.getElementById('e-search').oninput = e=>{ state.expSearch=e.target.value; renderExpensesTab(el); };
+    document.getElementById('e-cat').onchange = e=>{ state.expFilterCat=e.target.value; renderExpensesTab(el); };
+    const addBtn = document.getElementById('add-exp-btn');
+    if(addBtn) addBtn.onclick = ()=>{ state.modal={type:'expense', payload:null}; render(); };
+    document.querySelectorAll('[data-view-exp]').forEach(b=>{
+      b.onclick = ()=>{ state.modal={type:'expense', payload: state.expenses.find(x=>x.id===b.dataset.viewExp)}; render(); };
+    });
+  }
+
+  function renderExpenseModal(){
+    const isNew = !state.modal.payload;
+    const e0 = state.modal.payload ? {...state.modal.payload} : emptyExpense();
+    const hamlets = state.config.hamlets||[];
+    const readonly = !canEdit();
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal">
+        <div class="modal-head"><h3>${isNew?'Thêm khoản chi mới':'Chi tiết khoản chi'}</h3><button class="modal-close" id="em-close">✕</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field"><label>Ngày chi *</label><input type="date" id="em-date" value="${e0.date}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Số tiền chi (đ) *</label><input type="number" id="em-amount" value="${e0.amount}" ${readonly?'disabled':''}></div>
+            <div class="field full"><label>Nội dung công việc / Mục đích chi *</label>
+              <select id="em-purpose" ${readonly?'disabled':''}>${EXPENSE_CATEGORIES.map(c=>`<option ${e0.purpose===c?'selected':''}>${c}</option>`).join('')}</select>
+            </div>
+            <div class="field full" id="em-hamlet-wrap" style="${e0.purpose===CAT_HAMLET?'':'display:none;'}">
+              <label>Trích về cho khu dân cư (Ấp) nào *</label>
+              <select id="em-hamlet" ${readonly?'disabled':''}>${hamlets.map(h=>`<option ${e0.hamlet===h?'selected':''}>${h}</option>`).join('')}</select>
+            </div>
+            <div class="field full" id="em-other-wrap" style="${e0.purpose===CAT_OTHER?'':'display:none;'}">
+              <label>Nội dung mục chi khác (ghi rõ) *</label>
+              <input id="em-other" value="${e0.purposeOther||''}" placeholder="Ví dụ: Sửa chữa trụ sở..." ${readonly?'disabled':''}>
+            </div>
+            <div class="field full"><label>Ghi chú chi tiết (người nhận tiền, số hoá đơn/biên nhận...)</label><textarea id="em-note" rows="2" ${readonly?'disabled':''}>${e0.note||''}</textarea></div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          ${(!isNew && canEdit()) ? `<button class="btn btn-danger" id="em-delete" style="margin-right:auto;">Xoá (chuyển vào thùng rác)</button>` : ''}
+          <button class="btn btn-ghost" id="em-cancel">Đóng</button>
+          ${canEdit() ? `<button class="btn btn-primary" id="em-save">${isNew?'Thêm khoản chi':'Lưu thay đổi'}</button>` : ''}
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=>{ wrap.remove(); state.modal=null; };
+    wrap.querySelector('#em-close').onclick = close;
+    wrap.querySelector('#em-cancel').onclick = close;
+    wrap.onclick = (ev)=>{ if(ev.target===wrap) close(); };
+
+    const purposeSel = wrap.querySelector('#em-purpose');
+    purposeSel.onchange = ()=>{
+      wrap.querySelector('#em-hamlet-wrap').style.display = purposeSel.value===CAT_HAMLET ? '' : 'none';
+      wrap.querySelector('#em-other-wrap').style.display = purposeSel.value===CAT_OTHER ? '' : 'none';
+    };
+
+    const delBtn = wrap.querySelector('#em-delete');
+    if(delBtn) delBtn.onclick = async ()=>{
+      if(!confirm('Chuyển khoản chi này vào thùng rác?')) return;
+      state.expenses = state.expenses.filter(x=>x.id!==e0.id);
+      const trashed = {...e0, _kind:'expense', deleted:true, deletedAt:new Date().toISOString(), deletedBy: state.identity.email, deletedByName: state.identity.name};
+      state.trash.push(trashed);
+      await cRemoveRecord('expenses', e0.id);
+      await cSetRecord('trash', trashed.id, trashed);
+      await pushLog('xoá khoản chi', `${money(e0.amount)} — ${e0.purpose}`);
+      close(); render();
+    };
+
+    const saveBtn = wrap.querySelector('#em-save');
+    if(saveBtn) saveBtn.onclick = async ()=>{
+      const date = wrap.querySelector('#em-date').value;
+      const amount = parseFloat(wrap.querySelector('#em-amount').value)||0;
+      const purpose = wrap.querySelector('#em-purpose').value;
+      const hamlet = wrap.querySelector('#em-hamlet').value;
+      const purposeOther = wrap.querySelector('#em-other').value.trim();
+      const note = wrap.querySelector('#em-note').value.trim();
+      if(!date){ alert('Vui lòng chọn ngày chi.'); return; }
+      if(!amount || amount<=0){ alert('Vui lòng nhập số tiền chi hợp lệ.'); return; }
+      if(purpose===CAT_HAMLET && !hamlet){ alert('Vui lòng chọn ấp nhận tiền.'); return; }
+      if(purpose===CAT_OTHER && !purposeOther){ alert('Vui lòng ghi rõ nội dung mục chi khác.'); return; }
+      const updated = { ...e0, date, amount, purpose, hamlet: purpose===CAT_HAMLET?hamlet:'', purposeOther: purpose===CAT_OTHER?purposeOther:'', note };
+      if(isNew){ state.expenses.push(updated); }
+      else { state.expenses = state.expenses.map(x=>x.id===updated.id? updated : x); }
+      await cSetRecord('expenses', updated.id, updated);
+      await pushLog(isNew?'thêm khoản chi':'chỉnh sửa khoản chi', `${money(updated.amount)} — ${updated.purpose}`);
+      close(); render();
+    };
+  }
+
+  function renderReportsTab(el){
+    const q = state.config.quarters;
+    const {from,to} = periodRange();
+    const active = state.borrowers.filter(b=>!b.deleted);
+    const rows = active.map(b=>({ b, ...calcInterest(b, from, to) }));
+    const totalInterest = rows.reduce((s,r)=>s+r.due,0);
+    const retain = state.config.retainPercent||0;
+
+    const byProject = {};
+    const byHamlet = {};
+    rows.forEach(r=>{
+      const p = r.b.project||'—'; byProject[p]=(byProject[p]||0)+r.due;
+      const h = r.b.hamlet||'—'; byHamlet[h]=(byHamlet[h]||0)+r.due;
+    });
+
+    const ov = computeProjectOverview();
+
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>📊 Báo cáo tình hình vay vốn toàn xã</h3></div>
+        <div class="panel-body">
+          <div class="grid3" style="margin-bottom:16px;">
+            <div class="stat-card stat-yellow"><div class="num mono">${ov.activeCount}</div><div class="lbl">Phương án vay đang hoạt động</div></div>
+            <div class="stat-card" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));"><div class="num mono">${ov.settledCount}</div><div class="lbl">Phương án vay đã tất toán</div></div>
+            <div class="stat-card stat-orange"><div class="num mono">${ov.totalBorrowers}</div><div class="lbl">Hộ đang dư nợ toàn xã</div></div>
+          </div>
+          <div class="kv-row"><span>Tổng số tiền dư nợ gốc toàn xã</span><b>${money(ov.totalOutstanding)}</b></div>
+          <div class="table-wrap" style="margin-top:12px;">
+            <table>
+              <thead><tr><th>Phương án vay</th><th>Ấp</th><th>Phát vay ban đầu</th><th>Đã thu hồi gốc</th><th>Dư nợ còn lại</th><th>Trạng thái</th></tr></thead>
+              <tbody>
+                ${ov.list.length? ov.list.map(p=>`<tr><td>${p.name}</td><td>${p.hamlets}</td><td class="money">${money(p.disbursed)}</td><td class="money">${money(p.recovered)}</td><td class="money">${money(p.outstanding)}</td><td><span class="pill ${p.status==='Đang hoạt động'?'pill-orange':'pill-green'}">${p.status}</span></td></tr>`).join('') : `<tr><td colspan="6"><div class="empty-state">Chưa có dữ liệu phương án vay</div></td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar no-print" style="margin-bottom:18px;">
+        <button class="btn btn-gold" id="btn-print-report">🖨️ In báo cáo / Xuất PDF</button>
+        <button class="btn btn-ghost" id="btn-word-report">⬇️ Xuất file Word báo cáo</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Chọn kỳ tính lãi</h3></div>
+        <div class="panel-body">
+          <div class="toolbar" style="margin-bottom:6px;">
+            <select id="rp-mode">
+              <option value="quarter" ${state.reportMode==='quarter'?'selected':''}>Theo Quý (dùng mốc đã cấu hình)</option>
+              <option value="custom" ${state.reportMode==='custom'?'selected':''}>Theo khoảng ngày tuỳ chọn</option>
+            </select>
+            ${state.reportMode==='quarter' ? `
+              <select id="rp-quarter">
+                ${['q1','q2','q3','q4'].map(k=>`<option value="${k}" ${state.reportQuarter===k?'selected':''}>${q[k].label} (${fmtDate(q[k].start)} → ${fmtDate(q[k].end)})</option>`).join('')}
+              </select>` : `
+              <input type="date" id="rp-from" value="${state.reportFrom}"> <span style="align-self:center;">→</span> <input type="date" id="rp-to" value="${state.reportTo}">`}
+          </div>
+          <div class="sub">Khoảng thời gian áp dụng: <b>${fmtDate(from)} → ${fmtDate(to)}</b> (${daysBetween(from||todayStr(),to||todayStr())} ngày)</div>
+        </div>
+      </div>
+
+      <div class="grid3">
+        <div class="panel" style="grid-column:span 1;"><div class="panel-head"><h3>Tổng lãi toàn xã</h3></div><div class="panel-body">
+          <div class="kv-row"><span>Tổng lãi phải đóng</span><b>${money(totalInterest)}</b></div>
+          <div class="kv-row"><span>Xã được nhận (${100-retain}%)</span><b>${money(totalInterest*(100-retain)/100)}</b></div>
+          <div class="kv-row"><span>Các ấp giữ lại (${retain}%)</span><b>${money(totalInterest*retain/100)}</b></div>
+        </div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Theo phương án vay</h3></div>
+        <div class="panel-body">
+          ${Object.keys(byProject).length? Object.entries(byProject).map(([k,v])=>`<div class="kv-row"><span>${k}</span><b>${money(v)}</b></div>`).join('') : '<div class="empty-state">Chưa có dữ liệu</div>'}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Theo ấp — nộp xã / giữ lại</h3></div>
+        <div class="panel-body">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Ấp</th><th>Tổng lãi</th><th>Giữ lại (${retain}%)</th><th>Nộp xã (${100-retain}%)</th></tr></thead>
+            <tbody>
+              ${Object.keys(byHamlet).length? Object.entries(byHamlet).map(([k,v])=>`
+                <tr><td>${k}</td><td class="money">${money(v)}</td><td class="money">${money(v*retain/100)}</td><td class="money">${money(v*(100-retain)/100)}</td></tr>
+              `).join('') : `<tr><td colspan="4"><div class="empty-state">Chưa có dữ liệu</div></td></tr>`}
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Chi tiết lãi từng người</h3></div>
+        <div class="panel-body">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Họ tên</th><th>Ấp</th><th>Phương án vay</th><th>Gốc</th><th>Số ngày</th><th>Lãi tính kỳ này</th><th>Dư kỳ trước</th><th>Tổng phải đóng</th><th>Trạng thái</th></tr></thead>
+            <tbody>
+              ${rows.length? rows.map(r=>{
+                const st = interestStatus(r.b, r.due);
+                return `<tr><td>${r.b.name}</td><td>${r.b.hamlet||'—'}</td><td>${r.b.project||'—'}</td><td class="money">${money(r.b.principal)}</td><td>${r.days}</td><td class="money">${money(r.interest)}</td><td class="money">${money(r.b.prevBalance||0)}</td><td class="money">${money(r.due)}</td><td><span class="pill ${st.cls}">${st.label}</span></td></tr>`;
+              }).join('') : `<tr><td colspan="9"><div class="empty-state">Chưa có dữ liệu</div></td></tr>`}
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+
+      ${renderAcctReportPanel()}`;
+
+    document.getElementById('rp-mode').onchange = e=>{ state.reportMode=e.target.value; renderReportsTab(el); };
+    const rq = document.getElementById('rp-quarter'); if(rq) rq.onchange = e=>{ state.reportQuarter=e.target.value; renderReportsTab(el); };
+    const rf = document.getElementById('rp-from'); if(rf) rf.onchange = e=>{ state.reportFrom=e.target.value; renderReportsTab(el); };
+    const rt = document.getElementById('rp-to'); if(rt) rt.onchange = e=>{ state.reportTo=e.target.value; renderReportsTab(el); };
+    bindAcctPeriodSelector('acr', ()=>renderReportsTab(el));
+    document.getElementById('btn-print-report').onclick = printReport;
+    document.getElementById('btn-word-report').onclick = exportReportWord;
+  }
+
+  function renderAcctReportPanel(){
+    const {from,to} = acctPeriodRange();
+    const acct = computeAcctTotals(from,to);
+    const retain = state.config.retainPercent||0;
+    const catOrder = [CAT_MEETING, CAT_SUPPLIES, CAT_TRAINING, CAT_BONUS];
+    const otherEntries = Object.entries(acct.chiByCategory).filter(([k])=>k.startsWith(CAT_OTHER+':'));
+    return `
+      <div class="panel" style="border:1.5px solid var(--gold);">
+        <div class="panel-head"><h3>🧾 Báo cáo Thu – Chi Hạch toán Tài chính Xã</h3></div>
+        <div class="panel-body">
+          <div class="toolbar" style="margin-bottom:6px;">${acctPeriodSelectorHtml('acr')}</div>
+          <div class="sub" style="margin-bottom:14px;">Kỳ báo cáo: <b>${fmtDate(from)} → ${fmtDate(to)}</b></div>
+
+          <div class="divider-lbl">Phần Thu</div>
+          <div class="kv-row"><span>Tổng số tiền lãi đã thu (toàn xã, các phương án vay)</span><b>${money(acct.thu)}</b></div>
+          <div class="kv-row"><span>Số tiền nộp lên trên / các ấp giữ lại (${retain}%)</span><b>${money(acct.giuLaiAp)}</b></div>
+          <div class="kv-row"><span>Số tiền Xã được giữ lại (${100-retain}%)</span><b>${money(acct.xaNhan)}</b></div>
+
+          <div class="divider-lbl">Phần Chi (gộp theo nội dung công việc)</div>
+          <div class="kv-row"><span>Tổng tiền đã đưa về cho các khu dân cư</span><b>${money(acct.chiByCategory[CAT_HAMLET]||0)}</b></div>
+          ${Object.keys(acct.chiByHamlet).length? `
+            <div style="margin:4px 0 10px 14px; padding-left:10px; border-left:2px solid var(--line);">
+              ${Object.entries(acct.chiByHamlet).map(([h,v])=>`<div class="kv-row" style="border-bottom:none; padding:3px 0;"><span>↳ ${h}</span><b>${money(v)}</b></div>`).join('')}
+            </div>` : ''}
+          <div class="kv-row"><span>Tổng tiền chi Họp hành / Hội nghị</span><b>${money(acct.chiByCategory[CAT_MEETING]||0)}</b></div>
+          <div class="kv-row"><span>Tổng tiền chi Văn phòng phẩm</span><b>${money(acct.chiByCategory[CAT_SUPPLIES]||0)}</b></div>
+          <div class="kv-row"><span>Tổng tiền chi Tập huấn</span><b>${money(acct.chiByCategory[CAT_TRAINING]||0)}</b></div>
+          <div class="kv-row"><span>Tổng tiền chi Bồi dưỡng cán bộ hoạt động quỹ</span><b>${money(acct.chiByCategory[CAT_BONUS]||0)}</b></div>
+          <div class="kv-row"><span>Tổng tiền Chi khác</span><b>${money(otherEntries.reduce((s,[,v])=>s+v,0))}</b></div>
+          ${otherEntries.length? `
+            <div style="margin:4px 0 10px 14px; padding-left:10px; border-left:2px solid var(--line);">
+              ${otherEntries.map(([k,v])=>`<div class="kv-row" style="border-bottom:none; padding:3px 0;"><span>↳ ${k.replace(CAT_OTHER+': ','')}</span><b>${money(v)}</b></div>`).join('')}
+            </div>` : ''}
+          <div class="kv-row"><span><b>Tổng cộng đã chi</b></span><b>${money(acct.chiTotal)}</b></div>
+
+          <div class="divider-lbl">Kết luận</div>
+          <div class="kv-row" style="font-size:15px; border-bottom:none; padding-top:10px;">
+            <span><b>Số dư tồn quỹ Xã còn lại</b></span>
+            <span class="pill ${acct.tonQuy>=0?'pill-green':'pill-red'}" style="font-size:14px; padding:5px 14px;">${money(acct.tonQuy)}</span>
+          </div>
+          <p class="sub" style="margin-top:10px;">Số liệu trên có thể dùng trực tiếp để báo cáo quyết toán quỹ Hội Nông dân Xã trong kỳ đã chọn.</p>
+        </div>
+      </div>`;
+  }
+
+  // ---------------------------------------------------------------------
+  // Module "Thu – Chi nội bộ": CHỦ Ý không đi qua lớp Firebase (cGet*/cSet*)
+  // ở trên. Toàn bộ dữ liệu của module này chỉ đọc/ghi bằng lget()/lset()
+  // (localStorage thật của trình duyệt) nên KHÔNG rời khỏi máy tính đang
+  // sử dụng và KHÔNG đồng bộ giữa các thiết bị — đúng như nội dung giải
+  // thích bảo mật hiển thị cho người dùng bên dưới.
+  // Khoá lưu: hnd_local_{wardId}_internalTx (xem hàm localKey()).
+  // ---------------------------------------------------------------------
+  function renderInternalTab(el){
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>🔒 Thu – Chi nội bộ</h3></div>
+        <div class="panel-body">
+          <div class="empty-state">
+            <div class="e-ico">🚧</div>
+            <p style="max-width:480px; margin:0 auto;">Dữ liệu của Thu – Chi nội bộ được lưu <b>chỉ trên máy tính này</b> (bằng bộ nhớ cục bộ của trình duyệt), <b>không</b> đưa lên cơ sở dữ liệu đám mây Firebase như các mục còn lại của phần mềm, đảm bảo tính riêng tư tuyệt đối và không đồng bộ giữa các thiết bị.</p>
+            <p style="font-weight:700; color:var(--rice-dark); margin-top:14px; letter-spacing:.02em;">TÍNH NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderMembersTab(el){
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>🪪 Hồ sơ hội viên</h3></div>
+        <div class="panel-body">
+          <div class="empty-state">
+            <div class="e-ico">🚧</div>
+            <p style="font-weight:700; color:var(--rice-dark); letter-spacing:.02em;">TÍNH NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderStrengthTab(el){
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>💪 Thực lực Hội</h3></div>
+        <div class="panel-body">
+          <div class="empty-state">
+            <div class="e-ico">🚧</div>
+            <p style="font-weight:700; color:var(--rice-dark); letter-spacing:.02em;">TÍNH NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderGuideTab(el){
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>📖 Hướng dẫn sử dụng</h3></div>
+        <div class="panel-body">
+          <div class="empty-state">
+            <div class="e-ico">📖</div>
+            <p>rỗng để sau này nâng cấp thêm</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderAboutTab(el){
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>ℹ️ Thông tin phần mềm</h3></div>
+        <div class="panel-body">
+          <div class="empty-state">
+            <div class="e-ico">ℹ️</div>
+            <p>rỗng để sau này nâng cấp thêm</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function trashLabel(item){
+    const kind = item._kind || 'borrower'; // dữ liệu cũ chưa có _kind mặc định là hộ vay
+    if(kind==='expense') return `${money(item.amount)} — ${item.purpose===CAT_OTHER? (item.purposeOther||CAT_OTHER) : item.purpose}`;
+    return `${item.name} (${item.hamlet||'—'})`;
+  }
+  function renderTrashTab(el){
+    el.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Loại</th><th>Nội dung</th><th>Người xoá</th><th>Thời điểm xoá</th><th></th></tr></thead>
+        <tbody>
+          ${state.trash.length? state.trash.map(item=>{
+            const kind = item._kind || 'borrower';
+            return `
+            <tr>
+              <td><span class="pill ${kind==='expense'?'pill-orange':'pill-gray'}">${kind==='expense'?'Khoản chi':'Hộ vay'}</span></td>
+              <td>${trashLabel(item)}</td>
+              <td>${item.deletedByName||item.deletedBy}</td><td>${new Date(item.deletedAt).toLocaleString('vi-VN')}</td>
+              <td style="display:flex; gap:6px;">
+                ${(isOwner() || item.deletedBy===state.identity.email) ? `<button class="btn btn-ghost btn-sm" data-restore="${item.id}" data-kind="${kind}">↩ Khôi phục</button>`:''}
+                ${isOwner() ? `<button class="btn btn-danger btn-sm" data-purge="${item.id}" data-kind="${kind}">Xoá vĩnh viễn</button>`:''}
+              </td>
+            </tr>`;
+          }).join('') : `<tr><td colspan="5"><div class="empty-state"><div class="e-ico">🗑️</div>Thùng rác trống</div></td></tr>`}
+        </tbody>
+      </table></div>`;
+    document.querySelectorAll('[data-restore]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        const id = btn.dataset.restore;
+        const kind = btn.dataset.kind;
+        const idx = state.trash.findIndex(x=>x.id===id);
+        const item = state.trash[idx];
+        delete item.deleted; delete item.deletedAt; delete item.deletedBy; delete item.deletedByName; delete item._kind;
+        state.trash.splice(idx,1);
+        await cRemoveRecord('trash', id);
+        if(kind==='expense'){
+          state.expenses.push(item);
+          await cSetRecord('expenses', item.id, item);
+          await pushLog('khôi phục khoản chi', trashLabel({...item, _kind:'expense'}));
+        } else {
+          state.borrowers.push(item);
+          await cSetRecord('borrowers', item.id, item);
+          await pushLog('khôi phục', `hộ ${item.name}`);
+        }
+        renderTrashTab(el);
+      };
+    });
+    document.querySelectorAll('[data-purge]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        if(!confirm('Xoá vĩnh viễn dữ liệu này? Hành động không thể hoàn tác.')) return;
+        const id = btn.dataset.purge;
+        const kind = btn.dataset.kind;
+        const item = state.trash.find(x=>x.id===id);
+        state.trash = state.trash.filter(x=>x.id!==id);
+        await cRemoveRecord('trash', id);
+        await pushLog(kind==='expense'?'xoá vĩnh viễn khoản chi':'xoá vĩnh viễn', trashLabel(item));
+        renderTrashTab(el);
+      };
+    });
+  }
+
+  function renderLogTab(el){
+    el.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Hành động</th></tr></thead>
+        <tbody>
+          ${state.log.length? state.log.map(l=>`<tr><td>${new Date(l.time).toLocaleString('vi-VN')}</td><td>${l.userName||''} <span class="sub">(${l.user})</span></td><td>${l.action} — ${l.target}</td></tr>`).join('') : `<tr><td colspan="3"><div class="empty-state">Chưa có hoạt động nào</div></td></tr>`}
+        </tbody>
+      </table></div>`;
+  }
+
+  // Firebase Realtime Database không cho phép '.', '#', '$', '[', ']' trong key
+  // -> mã hoá email thành key an toàn, và lưu email gốc trong chính bản ghi.
+  function emailToKey(email){ return email.replace(/[.#$\[\]]/g, c => ({'.':',', '#':'~h~', '$':'~d~', '[':'~lb~', ']':'~rb~'})[c]); }
+
+  function renderSettingsTab(el){
+    const cfg = state.config;
+    el.innerHTML = `
+      <div class="panel"><div class="panel-head"><h3>Thông tin địa phương</h3></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="field"><label>Xã / Phường / Thị trấn</label><input id="st-ward" value="${cfg.wardName||''}" ${isOwner()?'':'disabled'}></div>
+            <div class="field"><label>Tỷ lệ ấp giữ lại (%)</label><input type="number" id="st-retain" value="${cfg.retainPercent}" ${isOwner()?'':'disabled'}></div>
+            <div class="field full"><label>Danh sách ấp</label><textarea id="st-hamlets" rows="2" ${isOwner()?'':'disabled'}>${(cfg.hamlets||[]).join(', ')}</textarea>
+              <p class="sub" style="margin:4px 0 0; font-size:11.5px;">Nhập cách nhau bởi dấu phẩy, hãy thêm dấu phẩy vào ạ</p></div>
+            <div class="field full"><label>Danh sách phương án vay</label><textarea id="st-projects" rows="2" ${isOwner()?'':'disabled'}>${(cfg.projects||[]).join(', ')}</textarea>
+              <p class="sub" style="margin:4px 0 0; font-size:11.5px;">Nhập cách nhau bởi dấu phẩy, hãy thêm dấu phẩy vào ạ</p></div>
+          </div>
+          <div class="divider-lbl">Mốc 4 quý</div>
+          <div class="form-grid">
+            ${['q1','q2','q3','q4'].map(q=>`
+              <div style="border:1px solid var(--line); border-radius:10px; padding:10px 12px;">
+                <label style="font-size:12.5px; font-weight:700; color:var(--rice-dark);">${cfg.quarters[q].label}</label>
+                <div style="display:flex; gap:8px; margin-top:6px;">
+                  <input type="date" id="st-${q}-start" value="${cfg.quarters[q].start||''}" ${isOwner()?'':'disabled'}>
+                  <input type="date" id="st-${q}-end" value="${cfg.quarters[q].end||''}" ${isOwner()?'':'disabled'}>
+                </div>
+              </div>`).join('')}
+          </div>
+          ${isOwner()? `<button class="btn btn-primary" id="st-save" style="margin-top:16px;">Lưu thay đổi</button>` : `<p class="sub" style="margin-top:12px;">Chỉ chủ tài khoản mới có quyền chỉnh sửa cấu hình lõi.</p>`}
+        </div>
+      </div>
+
+      <div class="panel"><div class="panel-head"><h3>Chia sẻ quyền truy cập</h3></div>
+        <div class="panel-body">
+          <div class="kv-row"><span>Chủ tài khoản</span><span class="tag-role owner">Owner</span></div>
+          <div class="kv-row"><span>${cfg.ownerEmail}</span><span></span></div>
+          ${Object.entries(state.collaborators).map(([key,c])=>`
+            <div class="kv-row"><span>${c.name||c.email||key} <span class="sub">(${c.email||key})</span></span>
+              <span style="display:flex; gap:8px; align-items:center;">
+                <span class="tag-role ${c.role}">${c.role==='editor'?'Editor':'Viewer'}</span>
+                ${isOwner()?`<button class="btn btn-ghost btn-sm" data-rm="${key}">Gỡ</button>`:''}
+              </span>
+            </div>`).join('')}
+          ${isOwner() ? `
+            <div class="divider-lbl">Thêm cộng tác viên</div>
+            <div class="toolbar">
+              <input id="cb-email" placeholder="email@gmail.com" style="min-width:220px;">
+              <select id="cb-role"><option value="viewer">Chỉ xem (Viewer)</option><option value="editor">Sửa (Editor)</option></select>
+              <button class="btn btn-primary btn-sm" id="cb-add">+ Thêm</button>
+            </div>
+            <p class="sub">Người được thêm sẽ có đúng vai trò này khi đăng nhập bằng email tương ứng.</p>
+          ` : ''}
+        </div>
+      </div>
+
+      <div class="panel"><div class="panel-head"><h3>🛡️ Bảo hiểm &amp; An toàn Dữ liệu</h3></div>
+        <div class="panel-body">
+          <p class="sub" style="margin:0 0 4px;">Sao lưu định kỳ để phòng trường hợp mất dữ liệu, đổi máy tính, hoặc xoá cache trình duyệt.</p>
+          <div class="backup-actions">
+            <button class="btn btn-gold" id="bk-export-btn">⬇️ Tải file sao lưu dữ liệu (.json)</button>
+            <button class="btn btn-ghost" id="bk-import-btn">⬆️ Nhập dữ liệu từ file sao lưu</button>
+            <input type="file" id="bk-import-file" accept="application/json,.json" style="display:none;">
+          </div>
+          <p class="sub" style="margin-top:10px;">Lưu ý: nhập dữ liệu từ file sao lưu sẽ <b>ghi đè toàn bộ</b> dữ liệu hiện tại (hộ vay, chi tiêu, cấu hình, nhật ký, thùng rác) về đúng trạng thái đã lưu trong file.</p>
+        </div>
+      </div>`;
+
+    document.getElementById('bk-export-btn').onclick = exportBackupJSON;
+    document.getElementById('bk-import-btn').onclick = ()=> document.getElementById('bk-import-file').click();
+    document.getElementById('bk-import-file').onchange = (e)=> importBackupJSON(e.target.files[0]);
+
+    if(isOwner()){
+      document.getElementById('st-save').onclick = async ()=>{
+        cfg.wardName = document.getElementById('st-ward').value.trim();
+        cfg.retainPercent = parseFloat(document.getElementById('st-retain').value)||0;
+        cfg.hamlets = document.getElementById('st-hamlets').value.split(',').map(s=>s.trim()).filter(Boolean);
+        cfg.projects = document.getElementById('st-projects').value.split(',').map(s=>s.trim()).filter(Boolean);
+        ['q1','q2','q3','q4'].forEach(q=>{
+          cfg.quarters[q].start = document.getElementById(`st-${q}-start`).value;
+          cfg.quarters[q].end = document.getElementById(`st-${q}-end`).value;
+        });
+        await cSet('config', cfg);
+        await pushLog('cập nhật', 'cấu hình hệ thống');
+        renderSettingsTab(el);
+      };
+      const addBtn = document.getElementById('cb-add');
+      if(addBtn) addBtn.onclick = async ()=>{
+        const email = document.getElementById('cb-email').value.trim().toLowerCase();
+        const role = document.getElementById('cb-role').value;
+        if(!email) return;
+        const key = emailToKey(email);
+        state.collaborators[key] = {role, name:'', email};
+        await cSetRecord('collaborators', key, state.collaborators[key]);
+        await pushLog('chia sẻ quyền', `${role} cho ${email}`);
+        renderSettingsTab(el);
+      };
+      document.querySelectorAll('[data-rm]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          const key = btn.dataset.rm;
+          const email = (state.collaborators[key]&&state.collaborators[key].email) || key;
+          delete state.collaborators[key];
+          await cRemoveRecord('collaborators', key);
+          await pushLog('thu hồi quyền', email);
+          renderSettingsTab(el);
+        };
+      });
+    }
+  }
+
+  // ---------- borrower modal ----------
+  function emptyBorrower(){
+    return { id: uid(), name:'', cccd:'', phone:'', address:'', guarantor:'', project: (state.config.projects||[])[0]||'',
+      hamlet:(state.config.hamlets||[])[0]||'', principal:0, rate:6.5, loanDate: todayStr(), dueDate:'', fundSource:'',
+      checked:false, note:'', prevBalance:0, interestPaid:0, principalPaid:0, isExtended:false, extensionDueDate:'' };
+  }
+
+  function renderModal(){
+    const isNew = !state.modal.payload;
+    const b = state.modal.payload ? {...state.modal.payload} : emptyBorrower();
+    const hamlets = state.config.hamlets||[]; const projects = state.config.projects||[];
+    const readonly = !canEdit();
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal">
+        <div class="modal-head"><h3>${isNew? 'Thêm hộ vay mới':'Chi tiết hộ vay'}</h3><button class="modal-close" id="md-close">✕</button></div>
+        <div class="modal-body">
+          <div class="divider-lbl">Thông tin cá nhân</div>
+          <div class="form-grid">
+            <div class="field"><label>Họ và tên *</label><input id="m-name" value="${b.name}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>CCCD</label><input id="m-cccd" value="${b.cccd}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Số điện thoại</label><input id="m-phone" value="${b.phone}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Người bảo lãnh</label><input id="m-guarantor" value="${b.guarantor}" ${readonly?'disabled':''}></div>
+            <div class="field full"><label>Địa chỉ cụ thể</label><input id="m-address" value="${b.address}" ${readonly?'disabled':''}></div>
+          </div>
+
+          <div class="divider-lbl">Thông tin khoản vay</div>
+          <div class="form-grid">
+            <div class="field"><label>Ấp / khu dân cư</label><select id="m-hamlet" ${readonly?'disabled':''}>${hamlets.map(h=>`<option ${b.hamlet===h?'selected':''}>${h}</option>`).join('')}</select></div>
+            <div class="field"><label>Phương án vay vốn</label><select id="m-project" ${readonly?'disabled':''}>${projects.map(p=>`<option ${b.project===p?'selected':''}>${p}</option>`).join('')}</select></div>
+            <div class="field"><label>Số tiền gốc (đ)</label><input type="number" id="m-principal" value="${b.principal}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Lãi suất (%/năm)</label><input type="number" step="0.01" id="m-rate" value="${b.rate}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Ngày vay</label><input type="date" id="m-loanDate" value="${b.loanDate}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Ngày đến hạn (gốc)</label><input type="date" id="m-dueDate" value="${b.dueDate}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Nguồn vốn</label><input id="m-fundSource" value="${b.fundSource}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Tiền dư kỳ trước (+ thiếu / − thừa)</label><input type="number" id="m-prevBalance" value="${b.prevBalance}" ${readonly?'disabled':''}></div>
+          </div>
+
+          <div class="divider-lbl">Gia hạn (nếu có)</div>
+          <div class="checkbox-row" style="margin-bottom:8px;"><input type="checkbox" id="m-isExtended" ${b.isExtended?'checked':''} ${readonly?'disabled':''}> <label style="margin:0;">Hộ này đang trong diện gia hạn</label></div>
+          <div class="field"><label>Hạn gia hạn mới</label><input type="date" id="m-extensionDueDate" value="${b.extensionDueDate}" ${readonly?'disabled':''}></div>
+
+          <div class="divider-lbl">Đóng tiền luỹ kế trong kỳ</div>
+          <div class="form-grid">
+            <div class="field"><label>Tiền lãi đã đóng</label><input type="number" id="m-interestPaid" value="${b.interestPaid}" ${readonly?'disabled':''}></div>
+            <div class="field"><label>Tiền gốc đã đóng</label><input type="number" id="m-principalPaid" value="${b.principalPaid}" ${readonly?'disabled':''}></div>
+          </div>
+
+          <div class="checkbox-row" style="margin:10px 0;"><input type="checkbox" id="m-checked" ${b.checked?'checked':''} ${readonly?'disabled':''}> <label style="margin:0;">Ô tích chọn (đánh dấu theo dõi riêng)</label></div>
+
+          <div class="field full"><label>Ghi chú riêng</label><textarea id="m-note" rows="2" ${readonly?'disabled':''}>${b.note}</textarea></div>
+
+          ${!isNew? (()=>{ const st = borrowerRowStatus(b); return `
+            <div class="divider-lbl">Tính lãi theo kỳ đang chọn ở tab Báo cáo</div>
+            <div class="kv-row"><span>Số ngày trong kỳ</span><b>${st.calc.days}</b></div>
+            <div class="kv-row"><span>Lãi tính được</span><b>${money(st.calc.interest)}</b></div>
+            <div class="kv-row"><span>Tổng phải đóng (gồm dư kỳ trước)</span><b>${money(st.calc.due)}</b></div>
+            <div class="kv-row"><span>Trạng thái lãi</span><span class="pill ${st.iStatus.cls}">${st.iStatus.label}</span></div>
+            <div class="kv-row"><span>Trạng thái gốc</span><span class="pill ${st.pStatus.cls}">${st.pStatus.label}</span></div>
+          `; })() : ''}
+        </div>
+        <div class="modal-foot">
+          ${(!isNew && canEdit()) ? `<button class="btn btn-danger" id="m-delete" style="margin-right:auto;">Xoá (chuyển vào thùng rác)</button>` : ''}
+          <button class="btn btn-ghost" id="m-cancel">Đóng</button>
+          ${canEdit() ? `<button class="btn btn-primary" id="m-save">${isNew?'Thêm hộ vay':'Lưu thay đổi'}</button>` : ''}
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=>{ wrap.remove(); state.modal=null; };
+    wrap.querySelector('#md-close').onclick = close;
+    wrap.querySelector('#m-cancel').onclick = close;
+    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+
+    const delBtn = wrap.querySelector('#m-delete');
+    if(delBtn) delBtn.onclick = async ()=>{
+      if(!confirm('Chuyển hộ vay này vào thùng rác?')) return;
+      state.borrowers = state.borrowers.filter(x=>x.id!==b.id);
+      const trashed = {...b, _kind:'borrower', deleted:true, deletedAt:new Date().toISOString(), deletedBy: state.identity.email, deletedByName: state.identity.name};
+      state.trash.push(trashed);
+      await cRemoveRecord('borrowers', b.id);
+      await cSetRecord('trash', trashed.id, trashed);
+      await pushLog('xoá', `hộ ${b.name}`);
+      close(); render();
+    };
+
+    const saveBtn = wrap.querySelector('#m-save');
+    if(saveBtn) saveBtn.onclick = async ()=>{
+      const name = wrap.querySelector('#m-name').value.trim();
+      if(!name){ alert('Vui lòng nhập họ và tên.'); return; }
+      const updated = {
+        ...b,
+        name,
+        cccd: wrap.querySelector('#m-cccd').value.trim(),
+        phone: wrap.querySelector('#m-phone').value.trim(),
+        guarantor: wrap.querySelector('#m-guarantor').value.trim(),
+        address: wrap.querySelector('#m-address').value.trim(),
+        hamlet: wrap.querySelector('#m-hamlet').value,
+        project: wrap.querySelector('#m-project').value,
+        principal: parseFloat(wrap.querySelector('#m-principal').value)||0,
+        rate: parseFloat(wrap.querySelector('#m-rate').value)||0,
+        loanDate: wrap.querySelector('#m-loanDate').value,
+        dueDate: wrap.querySelector('#m-dueDate').value,
+        fundSource: wrap.querySelector('#m-fundSource').value.trim(),
+        prevBalance: parseFloat(wrap.querySelector('#m-prevBalance').value)||0,
+        isExtended: wrap.querySelector('#m-isExtended').checked,
+        extensionDueDate: wrap.querySelector('#m-extensionDueDate').value,
+        interestPaid: parseFloat(wrap.querySelector('#m-interestPaid').value)||0,
+        principalPaid: parseFloat(wrap.querySelector('#m-principalPaid').value)||0,
+        checked: wrap.querySelector('#m-checked').checked,
+        note: wrap.querySelector('#m-note').value.trim(),
+      };
+      if(isNew){ state.borrowers.push(updated); }
+      else { state.borrowers = state.borrowers.map(x=>x.id===updated.id? updated : x); }
+      await cSetRecord('borrowers', updated.id, updated);
+      await pushLog(isNew?'thêm mới':'chỉnh sửa', `hộ ${updated.name}`);
+      close(); render();
+    };
+  }
+
+  boot();
+})();
+</script>
