@@ -328,17 +328,36 @@
 
   // =====================================================================
   // ---------- LỚP LƯU TRỮ ĐÁM MÂY (Firebase Realtime Database) ----------
-  // Toàn bộ dữ liệu NGHIỆP VỤ CHUNG của một Xã (config, borrowers, expenses,
-  // trash, activityLog, collaborators) được lưu dưới nhánh:
-  //     data/{wardId}/...
-  // Nhờ vậy nhiều Xã có thể dùng chung 1 đường link web mà dữ liệu tách biệt
-  // hoàn toàn (mỗi Xã có một "Mã định danh cấp Xã" — wardId — riêng).
+  // KIẾN TRÚC "CON TRỎ / MÃ ẨN" — đúng như yêu cầu: mỗi mã định danh (wardId) luôn đi kèm
+  // 1 "Mã ẩn" (secretId) CỐ ĐỊNH, không bao giờ đổi và không ai nhìn thấy được:
+  //   • data/{wardId}/config  — CHỈ là "con trỏ/nhãn" nhỏ gọn, cho phép gõ đúng wardId là tìm ra
+  //     Xã. wardId có thể đổi tên, bị xoá, hay được cấp lại cho người khác sau này — đây là phần
+  //     DUY NHẤT bị ảnh hưởng khi đổi tên mã.
+  //   • secretdata/{secretId}/{borrowers,expenses,trash,activityLog,collaborators} — TOÀN BỘ dữ
+  //     liệu nghiệp vụ thật, được neo theo Mã ẩn VĨNH VIỄN. Dù wardId có đổi tên, bị xoá rồi cấp
+  //     lại cho người khác (tái sử dụng chuỗi ký tự) thì dữ liệu thật ở đây KHÔNG BAO GIỜ bị đụng
+  //     tới, bị mất, hay bị lẫn với dữ liệu của người khác — vì mỗi secretId là duy nhất tuyệt đối
+  //     và chỉ được sinh ra đúng 1 lần khi mã được thiết lập lần đầu (xem genSecretId()). Sau này
+  //     nâng cấp gói VIP/PRO cho 1 mã cụ thể cũng là gắn cờ VIP vào ĐÚNG secretId này.
   // =====================================================================
   function wardId(){ return state.identity && state.identity.wardId; }
-  function wref(sub){ return rtdb.ref(`data/${wardId()}/${sub}`); }
-  // Phiên bản tổng quát — thao tác với BẤT KỲ mã xã nào (không nhất thiết là mã đang active),
-  // dùng cho màn hình "Ví mã xã" (đa mã xã / multi-tenant): kiểm tra mã tồn tại chưa, xoá/khôi phục...
-  function wrefFor(wid, sub){ return rtdb.ref(`data/${wid}/${sub}`); }
+  // "Mã ẩn" đang active — bảo lãnh toàn bộ dữ liệu thật của mã xã hiện tại. Có fallback về wardId
+  // cho các mã xã kiểu CŨ (tạo trước khi có kiến trúc này) chưa có sẵn field secretId.
+  function secretId(){ return (state.config && state.config.secretId) || wardId(); }
+  function wref(sub){
+    if(sub === 'config') return rtdb.ref(`data/${wardId()}/config`);
+    return rtdb.ref(`secretdata/${secretId()}/${sub}`);
+  }
+  // CHỈ dùng cho sub="config" — thao tác "con trỏ" của BẤT KỲ wardId nào (không nhất thiết đang
+  // active), dùng ở màn hình "Ví mã xã" (đa mã xã / multi-tenant): kiểm tra mã tồn tại chưa, xoá/
+  // khôi phục con trỏ... Dữ liệu THẬT không bao giờ được truy cập qua wardId — dùng srefFor().
+  function wrefFor(wid, sub){
+    if(sub !== 'config') throw new Error('wrefFor() chỉ dùng cho sub="config". Dữ liệu thật phải truy cập theo Mã ẩn — dùng srefFor(secretId, sub).');
+    return rtdb.ref(`data/${wid}/config`);
+  }
+  // Truy cập dữ liệu thật theo ĐÚNG 1 secretId đã biết trước (không phụ thuộc mã xã đang active) —
+  // dùng khi cần thao tác dữ liệu của một mã KHÔNG PHẢI mã đang mở (vd: sau khi khôi phục xong).
+  function srefFor(sid, sub){ return rtdb.ref(`secretdata/${sid}/${sub}`); }
   async function cGetOnceFor(wid, sub, fallback){
     try{ const snap = await wrefFor(wid, sub).get(); return snap.exists() ? snap.val() : fallback; }
     catch(e){ console.error('Firebase đọc lỗi:', wid, sub, e); return fallback; }
@@ -642,7 +661,12 @@
       const data = JSON.parse(text);
       if(!data || !data.config || !Array.isArray(data.borrowers)){ alert('File sao lưu không hợp lệ hoặc không đúng định dạng.'); return; }
       if(!confirm(`Khôi phục sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại của ${adminLevelLabel()} "${wardId()}" trên đám mây (hộ vay, chi tiêu, cấu hình, nhật ký, thùng rác) bằng dữ liệu trong file sao lưu. Bạn có chắc chắn muốn tiếp tục?`)) return;
-      await cSet('config', data.config);
+      // "Mã ẩn" (secretId) và Chủ mã (ownerEmail) thuộc về "con trỏ" ĐANG active — TUYỆT ĐỐI không
+      // để file sao lưu (vốn có thể được xuất ra từ một mã KHÁC, mang secretId khác) ghi đè mất,
+      // nếu không dữ liệu vừa nhập (borrowers/expenses...) sẽ bị lưu lệch sang đúng secretId cũ chứ
+      // không phải secretId của mã đang mở, gây "ông nói gà bà nói vịt" giữa con trỏ và dữ liệu thật.
+      const importedCfg = { ...data.config, secretId: state.config.secretId, ownerEmail: state.config.ownerEmail };
+      await cSet('config', importedCfg);
       await cSet('borrowers', byId(data.borrowers||[]));
       await cSet('expenses', byId(data.expenses||[]));
       await cSet('trash', byId(data.trash||[]));
@@ -858,6 +882,65 @@
   function myWardsRef(){ return rtdb.ref(`users/${emailToKey(state.identity.email)}/wards`); }
   function myDeletedWardsRef(){ return rtdb.ref(`users/${emailToKey(state.identity.email)}/deletedWards`); }
 
+  // ---------------------------------------------------------------------
+  // YÊU CẦU 1 — Kiểm tra & cấp Mã định danh NGẪU NHIÊN khi người dùng bỏ qua
+  // bước tạo/tham gia mã. Quy tắc trùng lặp áp dụng CHUNG cho mọi cách tạo mã
+  // (tự gõ hay hệ thống sinh ngẫu nhiên):
+  //   - Một mã bị coi là "đã bị chiếm" nếu nó đang hoạt động HOẶC đang nằm trong
+  //     Thùng rác CÁ NHÂN của bất kỳ tài khoản nào (users/{email}/deletedWards).
+  //   - NGOẠI LỆ: mã đang nằm trong "Thùng rác hệ thống" (superadmin/trashWards —
+  //     tức chủ website đã xác nhận xoá lần 2) được coi là đã thả tự do, có thể
+  //     dùng lại để tạo mã mới.
+  // ---------------------------------------------------------------------
+  async function isWardIdTaken(wid){
+    const cfg = await cGetOnceFor(wid, 'config', null);
+    if(!cfg) return false; // chưa từng tồn tại, hoặc đã bị Chủ website xoá vĩnh viễn (purge) -> coi như trống
+    if(!cfg.deleted) return true; // đang hoạt động bình thường -> chắc chắn đã bị chiếm
+    // Đang ở trạng thái "đã xoá" — chỉ được coi là TRỐNG nếu nó đang nằm trong Thùng rác hệ thống.
+    try{
+      const sysSnap = await rtdb.ref(`superadmin/trashWards/${wid}`).get();
+      if(sysSnap.exists()) return false; // Ngoại lệ: đã thả tự do
+    }catch(e){ /* không đọc được (không phải site owner) -> coi như KHÔNG được thả tự do, an toàn hơn */ }
+    return true; // đang nằm trong thùng rác cá nhân của ai đó -> vẫn coi là đã bị chiếm
+  }
+  const RANDOM_WID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  function randomWardIdCandidate(len){
+    let s = '';
+    for(let i=0;i<len;i++) s += RANDOM_WID_CHARS[Math.floor(Math.random()*RANDOM_WID_CHARS.length)];
+    return s;
+  }
+  // Sinh 1 Mã định danh ngẫu nhiên 4 ký tự (chữ + số) CHƯA TỪNG bị chiếm — dò thử nhiều lần,
+  // nếu cực hiếm vẫn trùng liên tục thì tăng dần độ dài để chắc chắn luôn tìm ra mã trống.
+  async function generateUniqueRandomWardId(){
+    for(let attempt=0; attempt<40; attempt++){
+      const candidate = randomWardIdCandidate(4);
+      if(!(await isWardIdTaken(candidate))) return candidate;
+    }
+    for(let len=5; len<=8; len++){
+      for(let attempt=0; attempt<40; attempt++){
+        const candidate = randomWardIdCandidate(len);
+        if(!(await isWardIdTaken(candidate))) return candidate;
+      }
+    }
+    return 'x' + Date.now().toString(36).slice(-7); // vét cạn cuối cùng, gần như không bao giờ chạm tới
+  }
+  // Cấp ngay 1 Mã định danh ngẫu nhiên cho tài khoản đang đăng nhập, biến họ thành CHỦ MÃ của
+  // mã này, rồi đưa vào màn hình "Thiết lập cơ sở dữ liệu lõi" — dùng cho nút
+  // "🎲 Làm việc mà không cần mã (mã tạo ngẫu nhiên)" ở cả màn Welcome lẫn Ví mã xã.
+  async function createRandomWardAndOnboard(){
+    const wid = await generateUniqueRandomWardId();
+    const emailKey = emailToKey(state.identity.email);
+    await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'owner', wardName:'', addedAt:new Date().toISOString(), autoRandom:true});
+    state.identity.wardId = wid;
+    setActiveWardCache(wid);
+    state._pendingAccessCode = '';
+    state._pendingSecretId = genSecretId();
+    state.config = null; state.borrowers=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
+    state.view = 'onboarding';
+    render();
+    return wid;
+  }
+
   async function loadWallet(){
     const wardsSnap = await myWardsRef().get().catch(()=>null);
     const wardsObj = (wardsSnap && wardsSnap.exists()) ? wardsSnap.val() : {};
@@ -909,20 +992,23 @@
   async function joinOrCreateWard(widRaw, password){
     const wid = (widRaw||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
     if(!wid || wid.length<3){ alert('Vui lòng nhập Mã định danh hợp lệ (tối thiểu 3 ký tự, chỉ gồm chữ thường/số/gạch dưới/gạch ngang).'); return false; }
-    const existingCfg = await cGetOnceFor(wid, 'config', null);
     const emailKey = emailToKey(state.identity.email);
-    if(!existingCfg){
-      // Mã chưa tồn tại -> tài khoản này trở thành CHỦ MÃ, cần thiết lập cơ bản (onboarding)
+    const taken = await isWardIdTaken(wid);
+    if(!taken){
+      // Mã chưa từng tồn tại, hoặc đã được thả tự do (đang ở Thùng rác hệ thống) -> tài khoản này
+      // trở thành CHỦ MÃ mới, cần thiết lập cơ bản (onboarding)
       await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'owner', wardName:'', addedAt:new Date().toISOString()});
       state.identity.wardId = wid;
       setActiveWardCache(wid);
       state._pendingAccessCode = password || '';
+      state._pendingSecretId = genSecretId();
       state.config = null;
       state.view = 'onboarding';
       render();
       return true;
     }
-    if(existingCfg.deleted){ alert('Mã xã này đã bị Chủ mã xoá, không thể tham gia. Vui lòng hỏi lại Chủ mã hoặc tạo mã khác.'); return false; }
+    const existingCfg = await cGetOnceFor(wid, 'config', null);
+    if(existingCfg.deleted){ alert('Mã xã này hiện không khả dụng (đã bị xoá). Vui lòng liên hệ Chủ mã hoặc chọn mã khác.'); return false; }
     if(existingCfg.ownerEmail === state.identity.email){
       // Đã là Chủ mã của mã này (chỉ thiếu bản ghi trong Ví, ví dụ đăng nhập máy mới) -> tự phục hồi
       await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'owner', wardName: existingCfg.wardName||'', addedAt:new Date().toISOString()});
@@ -948,8 +1034,7 @@
   async function createWardStrict(widRaw, password){
     const wid = normalizeWardIdStr(widRaw);
     if(!wid || wid.length<3){ alert('Vui lòng nhập Mã định danh hợp lệ (tối thiểu 3 ký tự, chỉ gồm chữ thường/số/gạch dưới/gạch ngang).'); return false; }
-    const existing = await cGetOnceFor(wid, 'config', null);
-    if(existing && !existing.deleted){ alert('Mã định danh này đã tồn tại, vui lòng thay đổi ký tự khác để tránh trùng lặp'); return false; }
+    if(await isWardIdTaken(wid)){ alert('Mã này đã bị trùng với mã hiện có, hoặc trong thùng rác của ai đó, vui lòng thay đổi ký tự!'); return false; }
     const emailKey = emailToKey(state.identity.email);
     await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'owner', wardName:'', addedAt:new Date().toISOString()});
     state.identity.wardId = wid;
@@ -1032,6 +1117,7 @@
     state.log = demo.log;
     state.activeTab = 'dashboard';
     state.view = 'app';
+    state._showPreviewWelcome = true; // yêu cầu 5: bật popup chào mừng ngay lần vào đầu tiên
     render();
   }
   function exitPreviewMode(){
@@ -1061,6 +1147,32 @@
     render();
   }
 
+  // Yêu cầu 2: cho phép Chủ mã đổi hẳn TÊN Mã định danh đang dùng (kể cả từ mã ngẫu nhiên 4 ký tự
+  // sang tên tự chọn). Nhờ kiến trúc "Mã ẩn" (secretId) bảo lãnh dữ liệu thật, việc đổi tên CHỈ cần
+  // di chuyển đúng 1 "con trỏ" (config) nhỏ gọn sang wardId mới — TOÀN BỘ dữ liệu thật (hộ vay, chi
+  // tiêu, thùng rác, nhật ký...) ở secretdata/{secretId}/... không hề bị đụng tới, tuyệt đối an toàn.
+  async function renameOwnWardId(newWidRaw){
+    const newWid = normalizeWardIdStr(newWidRaw);
+    if(!newWid || newWid.length<3){ alert('Vui lòng nhập Mã định danh hợp lệ (tối thiểu 3 ký tự, chỉ gồm chữ thường/số/gạch dưới/gạch ngang).'); return false; }
+    const oldWid = wardId();
+    if(newWid === oldWid){ alert('Mã mới trùng với mã hiện tại, không có gì để đổi.'); return false; }
+    if(await isWardIdTaken(newWid)){ alert('Mã này đã bị trùng với mã hiện có, hoặc trong thùng rác của ai đó, vui lòng thay đổi ký tự!'); return false; }
+    if(!confirm(`Đổi tên mã định danh từ "${oldWid}" sang "${newWid}"?\n\nDữ liệu (hộ vay, chi tiêu, nhật ký...) hoàn toàn KHÔNG bị ảnh hưởng — luôn được "Mã ẩn" cố định phía sau bảo lãnh nguyên vẹn. Các Khách đang dùng mã cũ để tham gia sẽ cần được bạn cung cấp lại mã mới "${newWid}" để tiếp tục truy cập. Bạn có chắc chắn?`)) return false;
+    await pushLog('đổi tên mã định danh', `${oldWid} → ${newWid}`); // secretId không đổi nên nhật ký vẫn đúng chỗ
+    const movedCfg = { ...state.config }; // chỉ copy "con trỏ" — secretId bên trong giữ nguyên, không đổi
+    await rtdb.ref(`data/${newWid}/config`).set(movedCfg);
+    await rtdb.ref(`data/${oldWid}`).remove(); // chỉ xoá con trỏ cũ, KHÔNG đụng tới secretdata/
+    const emailKey = emailToKey(state.identity.email);
+    await rtdb.ref(`users/${emailKey}/wards/${oldWid}`).remove();
+    await rtdb.ref(`users/${emailKey}/wards/${newWid}`).set({kind:'owner', wardName:(state.config&&state.config.wardName)||'', addedAt:new Date().toISOString()});
+    detachRealtime();
+    state.identity.wardId = newWid;
+    setActiveWardCache(newWid);
+    lset(IDENTITY_KEY, state.identity);
+    await enterWard(newWid);
+    return true;
+  }
+
   // Rời mã xã đang xem, quay về Ví mã xã (KHÔNG đăng xuất tài khoản Google)
   async function exitToWallet(){
     detachRealtime();
@@ -1076,14 +1188,25 @@
   // ---- Xoá / khôi phục mã xã (chuỗi 3 tầng: đang dùng -> thùng rác cá nhân -> thùng rác hệ thống) ----
   async function ownerDeleteWard(wid){
     const w = state.myWards.find(x=>x.wardId===wid);
-    if(!confirm(`Xoá mã xã "${wid}"${w&&w.wardName?` (${w.wardName})`:''} sẽ đưa vào Thùng rác của bạn và văng toàn bộ Khách đang sài ké ra ngoài. Dữ liệu KHÔNG bị mất, có thể khôi phục sau. Bạn có chắc chắn?`)) return;
+    if(!confirm(`Xoá mã xã "${wid}"${w&&w.wardName?` (${w.wardName})`:''}? Dữ liệu sẽ mất theo mã này khỏi giao diện làm việc (và văng toàn bộ Khách đang sài ké ra ngoài) — muốn khôi phục, vào mục "🗑️ Mã xã đã xoá của tôi" (Thùng rác chứa mã). Bạn có chắc chắn?`)) return;
     const cfg = await cGetOnceFor(wid, 'config', {});
     cfg.deleted = true; cfg.deletedAt = new Date().toISOString(); cfg.deletedBy = state.identity.email;
     await wrefFor(wid, 'config').set(cfg);
     const emailKey = emailToKey(state.identity.email);
     await rtdb.ref(`users/${emailKey}/wards/${wid}`).remove();
     await rtdb.ref(`users/${emailKey}/deletedWards/${wid}`).set({wardId:wid, wardName:cfg.wardName||(w&&w.wardName)||'', deletedAt:new Date().toISOString()});
-    if(wardId()===wid){ await kickToWalletSilent(); } else { await loadWallet(); render(); }
+    const wasActive = wardId()===wid;
+    await loadWallet();
+    // Yêu cầu 2 (trường hợp đặc biệt): nếu vừa xoá xong mà không còn làm Chủ của bất kỳ mã nào nữa
+    // -> lập tức tự động cấp một Mã định danh ngẫu nhiên mới để họ luôn có nơi lưu dữ liệu.
+    const stillOwnsAny = state.myWards.some(x=>x.kind==='owner');
+    if(!stillOwnsAny){
+      detachRealtime();
+      await createRandomWardAndOnboard();
+      alert('Mã định danh ngẫu nhiên mới đã được tự động tạo để bạn lưu cơ sở dữ liệu hoàn toàn mới, bạn có thể đổi tên mã ngẫu nhiên này bất cứ lúc nào trong phần Cài đặt.');
+      return;
+    }
+    if(wasActive){ await kickToWalletSilent(); } else { render(); }
   }
   async function guestRemoveWard(wid){
     if(!confirm('Xoá mã xã này khỏi danh sách của bạn? Bạn có thể tham gia lại bất cứ lúc nào bằng đúng mã xã (và mật khẩu, nếu có).')) return;
@@ -1107,9 +1230,18 @@
     await loadWallet(); render();
   }
   async function purgeDeletedWardToSuperadmin(wid){
-    if(!confirm('Xoá vĩnh viễn: mã này sẽ KHÔNG còn trong thùng rác của bạn nữa (chỉ Quản trị viên trang web mới khôi phục được cho bạn). Bạn có chắc chắn?')) return;
+    if(!confirm('Xoá vĩnh viễn: mã này sẽ KHÔNG còn trong thùng rác của bạn nữa (chỉ Quản trị viên trang web mới khôi phục được cho bạn). Dữ liệu thật vẫn được "Mã ẩn" bảo lãnh an toàn tuyệt đối. Bạn có chắc chắn?')) return;
     const entry = state.myDeletedWards.find(x=>x.wardId===wid);
-    await rtdb.ref(`superadmin/trashWards/${wid}`).set({wardId:wid, wardName:(entry&&entry.wardName)||'', ownerEmail: state.identity.email, deletedAt:new Date().toISOString()});
+    // Chụp lại TOÀN BỘ "con trỏ" config (bao gồm Mã ẩn/secretId) NGAY LÚC NÀY — vì kể từ khi vào
+    // Thùng rác hệ thống, chuỗi wid này được coi là "thả tự do" nên CÓ THỂ bị người khác xin lại để
+    // tạo mã mới (ghi đè lên data/{wid}/config). Nhờ lưu sẵn snapshot này, sau này khôi phục vẫn luôn
+    // dựng lại đúng con trỏ trỏ về ĐÚNG secretId cũ — dữ liệu thật không bao giờ bị ảnh hưởng.
+    const cfgSnapshot = await cGetOnceFor(wid, 'config', null);
+    await rtdb.ref(`superadmin/trashWards/${wid}`).set({
+      wardId:wid, wardName:(entry&&entry.wardName)||(cfgSnapshot&&cfgSnapshot.wardName)||'',
+      ownerEmail: state.identity.email, deletedAt:new Date().toISOString(),
+      configSnapshot: cfgSnapshot || null,
+    });
     await rtdb.ref(`users/${emailToKey(state.identity.email)}/deletedWards/${wid}`).remove();
     await loadWallet(); render();
   }
@@ -1117,12 +1249,42 @@
   async function superRestoreWard(wid){
     const entry = state.sysTrash.find(x=>x.wardId===wid);
     if(!entry) return;
-    await rtdb.ref(`users/${emailToKey(entry.ownerEmail)}/deletedWards/${wid}`).set({wardId:wid, wardName:entry.wardName||'', deletedAt: entry.deletedAt||new Date().toISOString()});
+    // Yêu cầu 1: mã trong Thùng rác hệ thống được coi là "đã thả tự do" nên rất có thể đã bị người
+    // khác tạo trùng trong lúc chờ khôi phục. Trước khi khôi phục, phải dò xem có bị trùng không
+    // (kể cả trong thùng rác cá nhân của bất kỳ ai); nếu trùng thì tự đổi tên "con trỏ" theo công
+    // thức "tênmã + 001", nếu vẫn trùng thì tăng dần 002, 003... Nhờ dữ liệu thật luôn được "Mã ẩn"
+    // (secretId) cố định bảo lãnh — hoàn toàn tách biệt khỏi chuỗi wardId — nên dù có bị đổi tên con
+    // trỏ, dữ liệu gốc (hộ vay, chi tiêu, nhật ký...) vẫn nguyên vẹn 100%, không hề bị mất hay lẫn
+    // với dữ liệu của người đang chiếm cái tên cũ.
+    let finalWid = wid;
+    let renamed = false;
+    if(await isWardIdTaken(wid)){
+      renamed = true;
+      let n = 1;
+      while(await isWardIdTaken(`${wid}${String(n).padStart(3,'0')}`)) n++;
+      finalWid = `${wid}${String(n).padStart(3,'0')}`;
+    }
+    if(entry.configSnapshot){
+      // Dựng lại đúng "con trỏ" trỏ về ĐÚNG Mã ẩn (secretId) cũ -> toàn bộ dữ liệu thật hiện ra
+      // nguyên vẹn ngay lập tức, bất kể con trỏ dùng tên nào.
+      const restoredCfg = { ...entry.configSnapshot, deleted:false };
+      delete restoredCfg.deletedAt; delete restoredCfg.deletedBy;
+      await rtdb.ref(`data/${finalWid}/config`).set(restoredCfg);
+    }
+    if(renamed){
+      alert(`Lưu ý: mã "${wid}" hiện đã có người khác đang sử dụng (do đã được thả tự do khi đưa vào Thùng rác hệ thống), nên con trỏ khôi phục sẽ dùng tên mới "${finalWid}". Yên tâm: TOÀN BỘ dữ liệu gốc (hộ vay, chi tiêu, nhật ký...) vẫn còn nguyên vẹn 100% vì luôn được "Mã ẩn" cố định bảo lãnh — hoàn toàn không bị mất hay lẫn với mã đang hoạt động kia.`);
+    }
+    await rtdb.ref(`users/${emailToKey(entry.ownerEmail)}/deletedWards/${finalWid}`).set({wardId:finalWid, wardName:(entry.configSnapshot&&entry.configSnapshot.wardName)||entry.wardName||'', deletedAt: entry.deletedAt||new Date().toISOString()});
     await rtdb.ref(`superadmin/trashWards/${wid}`).remove();
     await loadWallet(); render();
   }
   async function superPurgeForever(wid){
     if(!confirm('XOÁ VĨNH VIỄN — TOÀN BỘ dữ liệu (hộ vay, chi tiêu, nhật ký, cộng tác viên...) của mã xã này trên đám mây sẽ bị xoá sạch, KHÔNG THỂ khôi phục. Bạn có chắc chắn tuyệt đối?')) return;
+    // Dữ liệu thật nằm ở secretdata/{secretId}/... (không phải data/{wid}/...) — phải lấy đúng
+    // Mã ẩn từ snapshot đã chụp lúc đưa vào Thùng rác hệ thống để xoá đúng chỗ.
+    const entry = state.sysTrash.find(x=>x.wardId===wid);
+    const sid = entry && entry.configSnapshot && entry.configSnapshot.secretId;
+    if(sid) await rtdb.ref(`secretdata/${sid}`).remove();
     await rtdb.ref(`data/${wid}`).remove();
     await rtdb.ref(`superadmin/trashWards/${wid}`).remove();
     await loadWallet(); render();
@@ -1375,14 +1537,15 @@
           <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="btn btn-primary btn-block" id="wc-mode-new">➕ Tạo mã định danh cấp xã mới</button>
             <button class="btn btn-gold btn-block" id="wc-mode-join">🔑 Tham gia bằng mã định danh cấp xã</button>
-            <button class="btn btn-ghost btn-block" id="wc-mode-skip">Bỏ qua thiết lập mã định danh</button>
+            <button class="btn btn-ghost btn-block" id="wc-mode-random">🎲 Làm việc mà không cần mã (mã tạo ngẫu nhiên)</button>
           </div>
           <p class="sub" style="margin-top:10px; font-size:11.5px; text-align:left;">
             Mã định danh cấp xã/phường là "chìa khoá" để kết nối dữ liệu chung của một địa phương. Nếu bạn <b>tạo mã mới</b>
             (mã chưa từng tồn tại), bạn sẽ là <b>CHỦ MÃ</b> — người duy nhất có quyền cấu hình và cấp quyền cho người khác.
             Nếu bạn <b>tham gia bằng mã đã có</b>, bạn sẽ là <b>KHÁCH</b> — chỉ thao tác được trong phạm vi Chủ mã cho phép.
-            Bạn cũng có thể <b>bỏ qua</b> bước này và thiết lập sau trong mục "Cài đặt &amp; Chia sẻ" — riêng phần
-            Thu–Chi nội bộ trên máy vẫn dùng được ngay.
+            Nếu chưa muốn nghĩ tên mã, hệ thống có thể <b>tự động cấp ngay một mã ngẫu nhiên 4 ký tự</b> để bạn có nơi lưu dữ
+            liệu ngay lập tức — bạn vẫn có toàn quyền sử dụng mọi công cụ như Chủ mã, và có thể đổi sang tên dễ nhớ hơn bất
+            cứ lúc nào sau này trong mục "Cài đặt &amp; Chia sẻ".
           </p>
 
           <div id="wc-subarea" style="margin-top:6px;"></div>
@@ -1401,18 +1564,12 @@
       return true;
     };
 
-    // "Bỏ qua thiết lập mã định danh": KHÔNG còn vào thẳng app nữa — chuyển sang màn hình
-    // "Thiết lập cơ sở dữ liệu lõi" (dùng chung với luồng Tạo mã mới) để BẮT BUỘC điền các
-    // Thông tin cơ bản (loại xã/phường, tên xã/phường, tỉnh/thành phố, khu dân cư cấp dưới...)
-    // trước khi được vào giao diện chính (yêu cầu 3 & 4). Vì không có Mã định danh, dữ liệu
-    // này sẽ được lưu cục bộ trên máy (không đẩy lên Firebase).
-    document.getElementById('wc-mode-skip').onclick = ()=>{
+    // Yêu cầu 1: đã BỎ HOÀN TOÀN khái niệm "mã rỗng bị hạn chế module" — bấm nút này sẽ được
+    // TỰ ĐỘNG CẤP một Mã định danh ngẫu nhiên 4 ký tự (không trùng lặp) rồi vào thẳng màn hình
+    // thiết lập thông tin cơ bản cho mã đó, hoàn toàn full quyền như mọi Chủ mã khác.
+    document.getElementById('wc-mode-random').onclick = async ()=>{
       if(!saveNameTitle()) return;
-      state.identity.wardId = ''; setActiveWardCache('');
-      state.config = null;
-      state._onboardingSkipWard = true;
-      state.view = 'onboarding';
-      render();
+      await createRandomWardAndOnboard();
     };
     document.getElementById('wc-mode-new').onclick = ()=>{
       const area = document.getElementById('wc-subarea');
@@ -1508,13 +1665,29 @@
       <div class="divider-lbl">Các mã xã của tôi (${rows.length})</div>
       ${rows.length? rows.map(rowHtml).join('') : '<div class="empty-state" style="padding:14px 0;">Bạn chưa sở hữu hoặc tham gia mã xã nào.</div>'}
 
-      <div class="divider-lbl">Thêm / Tham gia mã xã</div>
+      <button class="btn btn-gold ${embedded?'':'btn-block'}" id="ww-random" style="margin-top:4px;">🎲 Làm việc mà không cần mã (mã tạo ngẫu nhiên)</button>
+
+      <div class="divider-lbl">Tạo mã mới / Tham gia bằng mã đã có</div>
       <div class="form-grid">
         <div class="field"><label>Mã định danh cấp Xã/Phường</label><input id="ww-wardid" placeholder="vd: xabinhminh" style="text-transform:lowercase;"></div>
         <div class="field"><label>Mật khẩu mã xã (nếu có)</label><input id="ww-pass" type="password" placeholder="Để trống nếu không có"></div>
       </div>
-      <p class="sub" style="margin:-6px 0 12px;">Mã chưa tồn tại → bạn trở thành <b>CHỦ MÃ</b> và tạo mới. Mã đã có → bạn tham gia với vai trò <b>KHÁCH</b>.</p>
-      <button class="btn btn-primary ${embedded?'':'btn-block'}" id="ww-join">+ Tham gia / Tạo mã định danh cấp xã mới</button>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="ww-create" style="flex:1; min-width:160px;">➕ Tạo mã mới</button>
+        <button class="btn btn-ghost" id="ww-joinbtn" style="flex:1; min-width:160px;">🔑 Tham gia bằng mã này</button>
+      </div>
+
+      <div style="background:rgba(47,74,60,.06); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-top:14px;">
+        <b style="font-size:13px; color:var(--rice-dark);">💡 Mã định danh cấp Xã/Phường là gì?</b>
+        <p class="sub" style="margin:6px 0 0; font-size:11.5px; line-height:1.6;">
+          Đây là "chìa khoá" để kết nối dữ liệu chung của một địa phương trên đám mây. Ai <b>tạo mã mới</b> (mã chưa từng tồn tại)
+          sẽ trở thành <b>CHỦ MÃ</b> — người duy nhất có toàn quyền cấu hình và cấp quyền Xem/Sửa cho người khác. Ai
+          <b>tham gia bằng mã đã có</b> (đúng mã + mật khẩu, nếu có) sẽ là <b>KHÁCH</b> — chỉ thao tác trong phạm vi được Chủ mã cho phép.
+          Một tài khoản Google có thể sở hữu/tham gia <b>nhiều mã</b> cùng lúc và chuyển qua lại thoải mái ở Ví mã xã này.
+          Nếu chưa muốn nghĩ tên mã, hãy dùng nút <b>"🎲 Làm việc mà không cần mã"</b> ở trên — hệ thống sẽ tự cấp ngay một mã
+          ngẫu nhiên để bạn có nơi lưu dữ liệu ngay lập tức, và có thể đổi sang tên dễ nhớ hơn bất cứ lúc nào sau này trong Cài đặt.
+        </p>
+      </div>
 
       <div class="divider-lbl" id="ww-trash-toggle" style="cursor:pointer; user-select:none;">🗑️ Mã xã đã xoá của tôi (${state.myDeletedWards.length}) ${state.walletTrashOpen?'▴':'▾'}</div>
       <div id="ww-trash-body" style="${state.walletTrashOpen?'':'display:none;'}">
@@ -1525,6 +1698,7 @@
               <button class="btn btn-ghost btn-sm" data-purge-ward="${d.wardId}" style="color:var(--red);">Xoá vĩnh viễn</button>
             </span>
           </div>`).join('') : '<div class="sub" style="padding:6px 0 14px;">Trống.</div>'}
+        <p class="sub" style="margin:6px 0 0; font-size:11.5px;">💬 Để khôi phục lại mã định danh đã bị xoá vĩnh viễn, vui lòng liên hệ với chủ website này!</p>
       </div>
 
       ${isSiteOwner() ? `
@@ -1566,11 +1740,20 @@
         if(embedded){ /* renderSettingsTab tự render lại thông qua các hàm trên khi cần */ }
       };
     });
-    mountEl.querySelector('#ww-join').onclick = async ()=>{
+    mountEl.querySelector('#ww-random').onclick = async ()=>{ await createRandomWardAndOnboard(); };
+    // Yêu cầu 4: tách riêng "Tạo mã mới" và "Tham gia bằng mã này" — mỗi nút có logic RIÊNG,
+    // dùng chung hàm createWardStrict/joinWardStrict (đã có cảnh báo lỗi tương ứng khi thất bại).
+    mountEl.querySelector('#ww-create').onclick = async ()=>{
       const wid = mountEl.querySelector('#ww-wardid').value;
       const pass = mountEl.querySelector('#ww-pass').value;
       if(!wid.trim()){ alert('Vui lòng nhập mã xã.'); return; }
-      await joinOrCreateWard(wid, pass);
+      await createWardStrict(wid, pass);
+    };
+    mountEl.querySelector('#ww-joinbtn').onclick = async ()=>{
+      const wid = mountEl.querySelector('#ww-wardid').value;
+      const pass = mountEl.querySelector('#ww-pass').value;
+      if(!wid.trim()){ alert('Vui lòng nhập mã xã.'); return; }
+      await joinWardStrict(wid, pass);
     };
     mountEl.querySelector('#ww-trash-toggle').onclick = ()=>{ state.walletTrashOpen = !state.walletTrashOpen; render(); };
     mountEl.querySelectorAll('[data-restore-ward]').forEach(btn=> btn.onclick = ()=> restoreDeletedWard(btn.dataset.restoreWard));
@@ -1586,23 +1769,19 @@
     return `Danh sách các ${label.toLowerCase()}`;
   }
 
-  // Màn hình "Thiết lập ban đầu" — dùng chung cho 2 luồng:
-  //   1) Vừa TẠO MÃ ĐỊNH DANH MỚI (createWardStrict) -> state.identity.wardId đã có, sẽ lưu lên Firebase.
-  //   2) Bấm "Bỏ qua thiết lập mã định danh" ở màn Welcome (state._onboardingSkipWard=true) -> không có
-  //      Mã định danh nào, dữ liệu bắt buộc sẽ được lưu CỤC BỘ trên máy (identity.localProfile) để dùng
-  //      tạm cho Thu–Chi nội bộ, và có thể tái sử dụng sau này nếu họ tạo/tham gia mã.
+  // Màn hình "Thiết lập ban đầu" — dùng cho MỌI trường hợp một mã định danh CHƯA từng thiết lập
+  // (state.config === null) dù là: vừa tạo mã tự chọn, vừa được cấp mã ngẫu nhiên, hay chọn vào một
+  // mã đã tạo trước đó nhưng chưa từng hoàn tất thiết lập (yêu cầu 6). Luôn có sẵn 1 Mã định danh
+  // thật (wardId) — không còn khái niệm "mã rỗng" nữa (yêu cầu 1).
   // Yêu cầu 3 & 4: tách rõ "Thông tin cơ bản (bắt buộc)" và "Thiết lập nâng cao (có thể bỏ qua)";
   // cả 2 nút ở khối nâng cao đều dẫn tới cùng 1 kết quả — lưu dữ liệu bắt buộc + dữ liệu nâng cao (đã gõ
   // hoặc mặc định nếu bỏ trống) rồi vào thẳng giao diện chính.
   function renderOnboarding(){
-    const skipWardMode = !!state._onboardingSkipWard && !wardId();
-    const lp = (state.identity && state.identity.localProfile) || {};
-    const cfg = state.config || { hamlets: lp.hamlets||[], projects: lp.projects||[], quarters: lp.quarters || {
+    const cfg = state.config || { hamlets:[], projects:[], quarters:{
       q1:{label:'Quý 1', start:'2026-01-01', end:'2026-03-31'}, q2:{label:'Quý 2', start:'2026-04-01', end:'2026-06-30'},
       q3:{label:'Quý 3', start:'2026-07-01', end:'2026-09-30'}, q4:{label:'Quý 4', start:'2026-10-01', end:'2026-12-31'}
-    }, retainPercent: (lp.retainPercent!=null? lp.retainPercent : 30), wardName: lp.wardName||'', adminLevel: lp.adminLevel||'Xã',
-      subAdminType: lp.subAdminType||'Ấp', subAdminCustom: lp.subAdminCustom||'', provinceType: lp.provinceType||'', provinceName: lp.provinceName||'',
-      ownerEmail: state.identity.email, officerTitle: lp.officerTitle||'' };
+    }, retainPercent:30, wardName:'', adminLevel:'Xã', subAdminType:'Ấp', subAdminCustom:'', provinceType:'', provinceName:'',
+      ownerEmail: state.identity.email, officerTitle:'' };
     const curLevel = ADMIN_LEVEL_OPTIONS.includes(cfg.adminLevel) ? cfg.adminLevel : 'Xã';
     const curSub = SUB_ADMIN_OPTIONS.includes(cfg.subAdminType) ? cfg.subAdminType : 'Ấp';
     const curProvinceType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType : 'Tỉnh';
@@ -1612,12 +1791,6 @@
           <div class="rice-badge" style="margin:0 0 14px;">⚙️</div>
           <h1 style="text-align:left;">Thiết lập cơ sở dữ liệu lõi</h1>
           <p class="sub" style="text-align:left;">Thiết lập lần đầu cho địa phương — có thể chỉnh sửa lại sau trong mục Cài đặt.</p>
-
-          ${skipWardMode? `
-          <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:4px;">
-            <b style="font-size:13px; color:var(--rice-dark);">Bạn đã chọn bỏ qua bước kết nối Mã định danh cấp Xã.</b>
-            <p class="sub" style="margin:4px 0 0; font-size:11.5px;">Thông tin bên dưới sẽ được lưu trên thiết bị này để dùng cho phần Thu–Chi nội bộ. Bạn có thể tạo hoặc tham gia Mã định danh bất cứ lúc nào sau này (mục "🗂️ Chọn / thêm mã xã").</p>
-          </div>` : ''}
 
           <div class="divider-lbl" id="ob-required-anchor">📌 Thông tin cơ bản (bắt buộc)</div>
           <div class="form-grid">
@@ -1639,14 +1812,13 @@
             <div class="field"><label>Chức vụ cán bộ</label><input id="ob-title" placeholder="Chủ tịch Hội Nông dân... (có thể để trống)" value="${cfg.officerTitle||''}"></div>
           </div>
 
-          ${!skipWardMode? `
           <div class="field full" style="margin-top:4px;">
-            <label>Mã định danh cấp Xã/Phường (đường dẫn lưu dữ liệu trên đám mây)</label>
+            <label>Mã định danh cấp Xã/Phường đang sử dụng</label>
             <input value="${state.identity.wardId||''}" disabled style="text-transform:lowercase; opacity:.75;">
             <p class="sub" style="margin:4px 0 0; font-size:11.5px;">
-              Dữ liệu sẽ lưu tại <span class="mono">data/${state.identity.wardId||'...'}/...</span> trên Firebase. Hãy cung cấp đúng mã này (và mật khẩu, nếu bạn đặt) cho các cán bộ khác để họ tham gia chung dữ liệu.
+              Dữ liệu sẽ lưu tại <span class="mono">data/${state.identity.wardId||'...'}/...</span> trên Firebase. Hãy cung cấp đúng mã này (và mật khẩu, nếu bạn đặt) cho các cán bộ khác để họ tham gia chung dữ liệu. Bạn có thể đổi sang tên khác bất cứ lúc nào trong mục Cài đặt.
             </p>
-          </div>` : ''}
+          </div>
 
           <div style="border:1px dashed var(--gold); border-radius:12px; padding:14px 16px; margin-top:20px; background:rgba(199,154,43,.06);">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
@@ -1686,7 +1858,8 @@
       </div>`;
 
     // Ép trình duyệt cuộn xuống phần "Thông tin cơ bản (bắt buộc)" ngay khi vào màn hình này
-    // (chỉ đến được đây sau khi bấm [Tạo mã định danh mới] hoặc [Bỏ qua thiết lập mã định danh] — yêu cầu 3).
+    // (chỉ đến được đây sau khi bấm [Tạo mã định danh mới] / [Làm việc không cần mã] / chọn vào
+    // một mã chưa từng thiết lập — yêu cầu 3 & 6).
     const anchorEl = document.getElementById('ob-required-anchor');
     if(anchorEl) setTimeout(()=> anchorEl.scrollIntoView({behavior:'smooth', block:'start'}), 60);
 
@@ -1747,18 +1920,6 @@
         retainPercent: parseFloat(document.getElementById('ob-retain').value)||0,
       };
 
-      if(skipWardMode){
-        // Không có Mã định danh -> lưu CỤC BỘ trên thiết bị (không đẩy lên Firebase)
-        state.identity.localProfile = { ...baseFields, savedAt: new Date().toISOString() };
-        lset(IDENTITY_KEY, state.identity);
-        lset(seenWelcomeKey(state.identity.email), true);
-        delete state._onboardingSkipWard;
-        state.view = 'app';
-        state.activeTab = 'internal';
-        render();
-        return;
-      }
-
       const newCfg = {
         ...baseFields,
         ownerEmail: cfg.ownerEmail,
@@ -1788,13 +1949,6 @@
   }
 
   function navItems(){
-    if(!wardId()){
-      return [
-        {id:'internal', ico:'🔒', label:'Thu – Chi nội bộ'},
-        {id:'guide', ico:'📖', label:'Hướng dẫn sử dụng'},
-        {id:'about', ico:'ℹ️', label:'Thông tin phần mềm'},
-      ];
-    }
     const items = [];
     if(canViewModule('data')){
       items.push({id:'dashboard', ico:'📊', label:'Tổng quan'});
@@ -1807,6 +1961,8 @@
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
     if(isOwner()) items.push({id:'log', ico:'🕘', label:'Nhật ký hoạt động'});
+    // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — nằm ngay phía trên "Cài đặt & Chia sẻ"
+    items.push({id:'survey', ico:'📝', label:'Biểu mẫu khảo sát'});
     if(isOwner() || settingsPerm()!=='none') items.push({id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'});
     items.push({id:'guide', ico:'📖', label:'Hướng dẫn sử dụng'});
     items.push({id:'about', ico:'ℹ️', label:'Thông tin phần mềm'});
@@ -1845,7 +2001,7 @@
           <div class="foot">${state.identity.email?`Đăng nhập: ${state.identity.email}`:'Chưa đăng nhập Google'}<br>Vai trò: ${roleLabel}
             <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
               ${state.previewMode? '' : hasIdentityEmail
-                ? (wardId()? `<button class="btn btn-ghost btn-sm" id="ward-logout-btn" style="color:#fff; border-color:rgba(255,255,255,.3);">🔁 Đăng xuất cơ sở dữ liệu cấp xã</button>` : `<button class="btn btn-ghost btn-sm" id="ward-goto-wallet" style="color:#fff; border-color:rgba(255,255,255,.3);">🗂️ Chọn / thêm mã xã</button>`)
+                ? (wardId()? `<button class="btn btn-ghost btn-sm" id="ward-logout-btn" style="color:#fff; border-color:rgba(255,255,255,.3);">🔁 Thoát khỏi mã định danh</button>` : `<button class="btn btn-ghost btn-sm" id="ward-goto-wallet" style="color:#fff; border-color:rgba(255,255,255,.3);">🗂️ Chọn / thêm mã xã</button>`)
                 : `<button class="btn btn-ghost btn-sm" id="codeguest-logout-btn" style="color:#fff; border-color:rgba(255,255,255,.3);">↩ Rời mã xã này</button>`}
               ${state.previewMode
                 ? `<button class="btn btn-ghost btn-sm" id="logout-btn" style="color:#fff; border-color:rgba(255,255,255,.3);">Thoát môi trường tham quan</button>`
@@ -1903,6 +2059,7 @@
     else if(state.activeTab==='strength') renderStrengthTab(content);
     else if(state.activeTab==='trash') renderTrashTab(content);
     else if(state.activeTab==='log') renderLogTab(content);
+    else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
     else if(state.activeTab==='about') renderAboutTab(content);
@@ -1919,6 +2076,38 @@
     if(state.previewMode){
       content.querySelectorAll('button, input, select, textarea').forEach(elx=>{ elx.disabled = true; });
     }
+
+    // Yêu cầu 5: bảng phụ chào mừng khi vào môi trường tham quan (chỉ hiện 1 lần ngay khi vào)
+    if(state.previewMode && state._showPreviewWelcome && !document.querySelector('.modal-bg')){
+      renderPreviewWelcomePopup();
+    }
+  }
+
+  // Yêu cầu 5: Popup chào mừng môi trường tham quan — 2 nút [Xem hướng dẫn] / [Bỏ qua]
+  function renderPreviewWelcomePopup(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:440px;">
+        <div class="modal-body" style="text-align:center; padding:28px 24px;">
+          <div class="rice-badge" style="margin:0 auto 12px;">🌾</div>
+          <h3 style="margin:0 0 10px;">Chúc đồng chí một ngày làm việc vui vẻ!</h3>
+          <p class="sub" style="margin:0 0 20px; font-size:13.5px; line-height:1.6;">Đây là môi trường tham quan, đồng chí có muốn xem hướng dẫn cụ thể không?</p>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-ghost" id="pw-skip" style="flex:1;">Bỏ qua</button>
+            <button class="btn btn-primary" id="pw-guide" style="flex:1;">Xem hướng dẫn</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=>{ state._showPreviewWelcome = false; wrap.remove(); };
+    wrap.querySelector('#pw-skip').onclick = close;
+    wrap.querySelector('#pw-guide').onclick = ()=>{
+      state._showPreviewWelcome = false;
+      wrap.remove();
+      state.activeTab = 'guide';
+      render();
+    };
   }
 
   function renderBellPanel(){
@@ -2410,6 +2599,24 @@
       </div>`;
   }
 
+  // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — hiện thông báo đang nâng cấp
+  function renderSurveyTab(el){
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>📝 Biểu mẫu khảo sát</h3></div>
+        <div class="panel-body">
+          <div class="empty-state" style="padding:44px 20px; text-align:center;">
+            <div class="e-ico">📝</div>
+            <p style="font-size:14.5px; line-height:1.7; max-width:540px; margin:0 auto;">
+              Giúp bạn tạo các biểu mẫu để khảo sát hội viên, nhân dân, hoặc lấy ý kiến hoặc trình báo từ người khác,
+              hoặc tạo bài kiểm tra, người được khảo sát sẽ được tham gia khảo sát / làm bài kiểm tra bằng đường link do bạn cung cấp!
+            </p>
+            <p style="margin-top:16px; font-weight:800; color:var(--rice-dark); font-size:16px; letter-spacing:.3px;">HỆ THỐNG NÀY ĐANG NÂNG CẤP!</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function renderGuideTab(el){
     el.innerHTML = `
       <div class="panel">
@@ -2631,6 +2838,15 @@
       ${isOwner() ? `
       <div class="panel"><div class="panel-head"><h3>🔐 Bảo mật mã xã</h3></div>
         <div class="panel-body">
+          <div class="divider-lbl" style="margin-top:0;">Tên Mã định danh</div>
+          <div class="kv-row"><span>Mã định danh hiện tại</span><b class="mono">${wardId()}</b></div>
+          <div class="toolbar">
+            <input id="sec-wid" placeholder="Mã định danh mới (vd: xabinhminh)" style="min-width:240px; text-transform:lowercase;">
+            <button class="btn btn-primary btn-sm" id="sec-wid-save">Đổi tên mã</button>
+          </div>
+          <p class="sub" style="margin:6px 0 14px;">Ví dụ đang dùng mã ngẫu nhiên (4 ký tự) do hệ thống cấp, bạn có thể đổi sang tên mã dễ nhớ hơn bất cứ lúc nào. Sau khi đổi, hãy cung cấp lại mã mới cho các Khách đang tham gia để họ tiếp tục truy cập.</p>
+
+          <div class="divider-lbl">Mật khẩu Mã định danh</div>
           <div class="kv-row"><span>Mật khẩu mã xã hiện tại</span><b>${cfg.accessCode? '•••••• (đã đặt)' : 'Chưa đặt (ai biết mã cũng nhập được)'}</b></div>
           <div class="toolbar">
             <input id="sec-pass" type="password" placeholder="Mật khẩu mới (để trống = bỏ mật khẩu)" style="min-width:240px;">
@@ -2653,7 +2869,15 @@
         </div>
       </div>` : ''}`;
 
-    if(state.identity.email) renderWardWalletPanel(document.getElementById('wallet-embed-mount'), {embedded:true});
+    if(state.identity.email){
+      renderWardWalletPanel(document.getElementById('wallet-embed-mount'), {embedded:true});
+      // Yêu cầu 3: luôn cập nhật lại Ví mã xã (kể cả Thùng rác chứa mã) mỗi khi mở Tab Cài đặt,
+      // bất kể đang đứng ở mã nào (kể cả đang sài ké mã của người khác).
+      loadWallet().then(()=>{
+        const mount = document.getElementById('wallet-embed-mount');
+        if(mount && state.activeTab==='settings') renderWardWalletPanel(mount, {embedded:true});
+      });
+    }
 
     {
       const exportBtn = document.getElementById('bk-export-btn');
@@ -2662,6 +2886,12 @@
       if(importBtn) importBtn.onclick = ()=> document.getElementById('bk-import-file').click();
       const importFile = document.getElementById('bk-import-file');
       if(importFile) importFile.onchange = (e)=> importBackupJSON(e.target.files[0]);
+      const widBtn = document.getElementById('sec-wid-save');
+      if(widBtn) widBtn.onclick = async ()=>{
+        const val = document.getElementById('sec-wid').value;
+        if(!val.trim()){ alert('Vui lòng nhập Mã định danh mới.'); return; }
+        await renameOwnWardId(val);
+      };
       const passBtn = document.getElementById('sec-pass-save');
       if(passBtn) passBtn.onclick = async ()=>{
         const newPass = document.getElementById('sec-pass').value;
@@ -2897,4 +3127,3 @@
 </script>
 </body>
 </html>
-<!-- dòng chữ vu vơ -->
