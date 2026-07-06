@@ -1578,6 +1578,8 @@
     const movedCfg = { ...state.config }; // chỉ copy "con trỏ" — secretId bên trong giữ nguyên, không đổi
     await rtdb.ref(`data/${newWid}/config`).set(movedCfg);
     syncWardIndex(newWid, movedCfg);
+    // Cập nhật lại con trỏ ngược secretId -> wardId sang tên mới (phục vụ Firebase Rules bảo mật)
+    if(movedCfg.secretId) await rtdb.ref(`secret_ward_map/${movedCfg.secretId}`).set(newWid);
     await rtdb.ref(`data/${oldWid}`).remove(); // chỉ xoá con trỏ cũ, KHÔNG đụng tới secretdata/
     removeWardIndex(oldWid);
     const emailKey = emailToKey(state.identity.email);
@@ -1693,6 +1695,8 @@
       delete restoredCfg.deletedAt; delete restoredCfg.deletedBy;
       await rtdb.ref(`data/${finalWid}/config`).set(restoredCfg);
       syncWardIndex(finalWid, restoredCfg);
+      // Cập nhật lại con trỏ ngược secretId -> wardId (phục vụ Firebase Rules bảo mật)
+      if(restoredCfg.secretId) await rtdb.ref(`secret_ward_map/${restoredCfg.secretId}`).set(finalWid);
     }
     if(renamed){
       alert(`Lưu ý: mã "${wid}" hiện đã có người khác đang sử dụng (do đã được thả tự do khi đưa vào Thùng rác hệ thống), nên con trỏ khôi phục sẽ dùng tên mới "${finalWid}". Yên tâm: TOÀN BỘ dữ liệu gốc (hộ vay, chi tiêu, nhật ký...) vẫn còn nguyên vẹn 100% vì luôn được "Mã ẩn" cố định bảo lãnh — hoàn toàn không bị mất hay lẫn với mã đang hoạt động kia.`);
@@ -3584,6 +3588,13 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       };
       state.config = newCfg;
       await cSet('config', newCfg); // ghi lên data/{wardId}/config trên Firebase
+      // Ghi "con trỏ ngược" secretId -> wardId hiện tại vào nhánh RIÊNG BIỆT secret_ward_map/ —
+      // CẦN THIẾT để Firebase Rules bảo mật tra ngược từ secretdata/{secretId} về đúng
+      // data/{wardId}/config để kiểm tra quyền (chủ mã / publicPerms / grants), mà không phải mở
+      // toang secretdata cho mọi người xác thực. Để RIÊNG NHÁNH (không lồng trong secretdata/)
+      // nhằm tránh bị "cuốn theo" quyền ghi rộng hơn mà các Khách có quyền Sửa trong secretdata
+      // có thể vô tình có được do cơ chế cascade quyền của Firebase Rules.
+      await rtdb.ref(`secret_ward_map/${newCfg.secretId}`).set(wardId());
       delete state._pendingAccessCode;
       delete state._pendingSecretId;
       // Cập nhật lại tên hiển thị của mã này trong Ví mã xã của Chủ mã
