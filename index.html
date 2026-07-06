@@ -8,11 +8,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 
-<!-- ================= FIREBASE SDK (Realtime Database) ================= -->
+<!-- ================= FIREBASE SDK (Realtime Database + Storage) ================= -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script>
   /* =====================================================================
      CẤU HÌNH FIREBASE — THAY CÁC GIÁ TRỊ BÊN DƯỚI BẰNG THÔNG SỐ DỰ ÁN
@@ -46,6 +48,7 @@
   firebase.initializeApp(firebaseConfig);
   const rtdb = firebase.database();
   const auth = firebase.auth();
+  const storage = firebase.storage(); // dùng cho Module "Huấn luyện AI" — lưu file gốc .docx/.xlsx/ảnh
   // Ép luôn hiện màn hình chọn tài khoản Google (tránh tự động đăng nhập lại
   // tài khoản Google gần nhất khi máy có nhiều tài khoản Google khác nhau).
   const googleProvider = new firebase.auth.GoogleAuthProvider();
@@ -235,6 +238,10 @@
     padding:10px 16px; text-align:center; font-size:13px; font-weight:600;
     border-bottom:2px solid #f0c14b;
   }
+  .link-btn{
+    background:none; border:none; padding:0; margin:0; color:var(--rice-dark);
+    text-decoration:underline; font-weight:700; font-size:inherit; cursor:pointer; display:inline;
+  }
   .preview-banner .link-btn{
     background:none; border:none; padding:0; margin:0; color:#1a4d8f;
     text-decoration:underline; font-weight:700; font-size:inherit; cursor:pointer;
@@ -329,6 +336,27 @@
   }
   .fab-chat:hover{ filter:brightness(1.08); }
   @media (max-width:640px){ .fab-chat{ right:14px; bottom:14px; width:54px; height:54px; font-size:22px; } }
+
+  /* "Siêu ghi chú" — icon bồng bềnh nằm ngay trên đầu icon Chat AI, y hệt kiểu dáng/hiệu ứng */
+  .fab-notes-wrap{ position:fixed; right:22px; bottom:96px; z-index:400; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .fab-notes-label{ background:var(--rice-dark); color:#fff; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,.18); }
+  .fab-notes-btn{ width:60px; height:60px; border-radius:50%; background:linear-gradient(145deg, var(--gold), var(--rice-dark)); color:#fff; border:none;
+    box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; font-size:26px; display:flex; align-items:center; justify-content:center;
+    animation: fabBob 4.5s ease-in-out infinite; }
+  .fab-notes-btn:hover{ filter:brightness(1.08); }
+  .fab-notes-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
+  @media (max-width:640px){ .fab-notes-wrap{ right:14px; bottom:82px; } .fab-notes-btn{ width:54px; height:54px; font-size:22px; } }
+
+  /* Cây thư mục/tệp trong sidebar Siêu ghi chú */
+  .sn-crumbs{ font-size:11px; color:rgba(255,255,255,.75); padding:0 10px 8px; word-break:break-word; }
+  .sn-crumbs span{ cursor:pointer; text-decoration:underline; }
+  .sn-tree-row{ display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:8px; cursor:pointer; font-size:12.5px; color:#fff; }
+  .sn-tree-row:hover{ background:rgba(255,255,255,.1); }
+  .sn-tree-row.active{ background:rgba(255,255,255,.2); font-weight:700; }
+  .sn-tree-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sn-tree-actions{ display:flex; gap:5px; opacity:.65; flex-shrink:0; }
+  .sn-tree-actions button{ background:none; border:none; color:#fff; cursor:pointer; font-size:11px; padding:0; }
+  .sn-tree-actions button:hover{ opacity:1; }
   /* Yêu cầu 6: nhún nhảy/rung rinh sống động trong 5 giây đầu tiên khi vào giao diện chính, để
      thu hút sự chú ý — sau đó tự động chuyển về hiệu ứng "lềnh bềnh" tuần hoàn như bình thường. */
   @keyframes fabIntro{
@@ -372,6 +400,37 @@
   .ai-bubble.user{ align-self:flex-end; background:var(--rice-dark); color:#fff; border-bottom-right-radius:4px; }
   .ai-bubble.assistant{ align-self:flex-start; background:var(--white); border:1px solid var(--line); border-bottom-left-radius:4px; }
   .ai-bubble.thinking{ opacity:.7; font-style:italic; }
+
+  /* Bọc bong bóng + thanh icon hành động (sửa/copy/thêm vào ghi chú) */
+  .ai-bubble-wrap{ display:flex; flex-direction:column; max-width:78%; }
+  .ai-bubble-wrap.user{ align-self:flex-end; align-items:flex-end; }
+  .ai-bubble-wrap.assistant{ align-self:flex-start; align-items:flex-start; }
+  .ai-bubble-wrap .ai-bubble{ max-width:100%; }
+  .ai-bubble-actions{ display:flex; gap:4px; margin-top:4px; opacity:0; transition:opacity .15s ease; }
+  .ai-bubble-wrap:hover .ai-bubble-actions, .ai-bubble-actions.force-show{ opacity:1; }
+  .ai-bubble-act{ background:var(--paper-2); border:1px solid var(--line); border-radius:7px; width:25px; height:25px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--rice-dark); padding:0; }
+  .ai-bubble-act:hover{ background:var(--paper); }
+  .ai-bubble-addnote-wrap{ position:relative; }
+  .ai-bubble-addnote-menu{ position:absolute; bottom:calc(100% + 6px); background:var(--white); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); min-width:220px; z-index:35; overflow:hidden; }
+  .ai-bubble-wrap.user .ai-bubble-addnote-menu{ right:0; }
+  .ai-bubble-wrap.assistant .ai-bubble-addnote-menu{ left:0; }
+  .ai-bubble-addnote-menu .ai-add-opt{ text-align:left; }
+  .ai-edit-box{ display:flex; flex-direction:column; gap:6px; width:100%; }
+  .ai-edit-box textarea{ width:100%; min-width:260px; font-family:inherit; font-size:14px; padding:10px 12px; border-radius:10px; border:1px solid var(--line); resize:vertical; }
+  .ai-edit-box-actions{ display:flex; gap:8px; justify-content:flex-end; }
+
+  /* Toast thông báo nhanh */
+  .hnd-toast{ position:fixed; left:50%; bottom:30px; transform:translate(-50%, 16px); background:var(--rice-dark); color:#fff; padding:10px 22px; border-radius:24px; font-size:13.5px; font-weight:700; box-shadow:var(--shadow); z-index:1000; opacity:0; transition:opacity .25s ease, transform .25s ease; pointer-events:none; max-width:80vw; text-align:center; }
+  .hnd-toast.show{ opacity:1; transform:translate(-50%, 0); }
+
+  /* Hiệu ứng chữ "CHÚC ĐỒNG CHÍ..." nổi lềnh bềnh nhẹ nhàng như trên mặt nước, ở các popup chào mừng */
+  @keyframes welcomeFloat{
+    0%,100%{ transform: translateY(0) rotate(0deg); }
+    25%{ transform: translateY(-8px) rotate(-0.6deg); }
+    50%{ transform: translateY(-2px) rotate(0deg); }
+    75%{ transform: translateY(-10px) rotate(0.6deg); }
+  }
+  .welcome-float-title{ display:inline-block; animation: welcomeFloat 3.2s ease-in-out infinite; }
   .ai-inputbar{ display:flex; gap:10px; padding:16px 10%; border-top:1px solid var(--line); background:var(--white); align-items:flex-end; }
   @media (max-width:900px){ .ai-inputbar{ padding:12px 4%; } }
   .ai-inputbar textarea{ flex:1; resize:none; border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-size:14px; font-family:inherit; max-height:120px; }
@@ -936,7 +995,27 @@
     aiPendingAttachments:[],   // [{name, mimeType, base64}] — tệp/ảnh đã chọn, chờ gửi kèm tin nhắn tiếp theo
     aiWebSearchOn:false,       // bật/tắt chế độ tìm kiếm web (Google Search grounding) cho các tin nhắn tiếp theo
     _aiMicListening:false,     // đang thu âm giọng nói hay không
+    _aiBubbleEditingIndex:null,   // index tin nhắn người dùng đang được sửa (null = không sửa)
+    _aiBubbleAddNoteMenuIndex:null, // index tin nhắn đang mở menu "Thêm vào Siêu ghi chú"
     _showWardWelcome:false,    // Yêu cầu 1: hiện bảng chào mừng mỗi khi bắt đầu phiên xem 1 mã định danh
+    knowledgeTree:{},          // {id: node} — toàn bộ cây thư mục/tệp tri thức nền cho AI (system_knowledge/tree)
+    knowledgeCurrentFolder:null, // id thư mục đang mở (null = thư mục gốc)
+    knowledgeTrashOpen:false,
+    knowledgeEditingId:null,   // id file văn bản đang mở trong khung soạn thảo (null = không mở)
+    knowledgeUploading:false,
+    _systemKnowledgeCache:null, _systemKnowledgeCacheAt:0, // bộ nhớ đệm "Bối cảnh tri thức" cho AI
+    // ---- Siêu ghi chú (cá nhân hoá theo tài khoản) ----
+    superNotesTree:{},
+    superNotesSpace:'personal', // 'personal' | 'shared' — mặc định luôn vào Bộ cá nhân trước
+    sharedNotesConfig:{defaultPerm:'view', grants:{}}, // phân quyền Bộ ghi chú dùng chung (Chủ mã cấu hình)
+    superNotesCurrentFolder:null,
+    superNotesTrashOpen:false,
+    superNotesEditingId:null,
+    _superNotesOpen:false,
+    superNotesPendingAttachments:[], // [{name, mimeType, base64, file}] — tệp chờ AI tiêu hoá
+    superNotesProcessing:false,
+    superNotesProcessingMsg:'',
+    _superNotesCache:null, _superNotesCacheAt:0,
   };
 
   // =====================================================================
@@ -1580,10 +1659,14 @@
     auth.onAuthStateChanged(async (user) => {
       if(!user){
         detachRealtime();
+        detachKnowledgeRealtime();
+        detachSuperNotesRealtime();
         state.identity = null; lset(IDENTITY_KEY, null);
         state.config = null; state.borrowers=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
         state.myWards=[]; state.myDeletedWards=[]; state.sysTrash=[];
         state.admins={}; state.aiChats=[]; state.aiActiveChatId=null; state._aiChatOpen=false; state._adminViewingWard=false;
+        state.knowledgeTree={}; state.knowledgeCurrentFolder=null; state.knowledgeTrashOpen=false;
+        state.superNotesTree={}; state.superNotesSpace='personal'; state.sharedNotesConfig={defaultPerm:'view', grants:{}}; state.superNotesCurrentFolder=null; state.superNotesTrashOpen=false; state.superNotesEditingId=null; state._superNotesOpen=false;
         state.view = 'login';
         render();
         return;
@@ -1781,6 +1864,10 @@
       const overlay = document.getElementById('ai-chat-overlay');
       if(overlay) overlay.remove();
       if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
+      const notesWrap = document.getElementById('fab-notes-wrap');
+      if(notesWrap) notesWrap.remove();
+      const notesOverlay = document.getElementById('super-notes-overlay');
+      if(notesOverlay) notesOverlay.remove();
       return;
     }
     if(!btn){
@@ -1800,6 +1887,44 @@
       if(overlay) overlay.remove();
       if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
     }
+
+    // ---- Icon "Siêu ghi chú" — hiện cho MỌI phiên đang ở giao diện chính (kể cả tham quan/khách
+    // qua mã, để họ vẫn thấy được module + cảnh báo tương ứng — quyền hạn xử lý bên trong module).
+    let notesWrap = document.getElementById('fab-notes-wrap');
+    {
+      if(!notesWrap){
+        notesWrap = document.createElement('div');
+        notesWrap.id = 'fab-notes-wrap';
+        notesWrap.className = 'fab-notes-wrap';
+        notesWrap.innerHTML = `<span class="fab-notes-label">📓 Siêu ghi chú</span><button id="fab-notes-btn" class="fab-notes-btn fab-intro" title="Siêu ghi chú">🗒️</button>`;
+        document.body.appendChild(notesWrap);
+        notesWrap.querySelector('#fab-notes-btn').onclick = openSuperNotes;
+        setTimeout(()=>{ const b = document.getElementById('fab-notes-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
+      }
+      if(state._superNotesOpen && !document.getElementById('super-notes-overlay')){
+        renderSuperNotesOverlay();
+      } else if(!state._superNotesOpen){
+        const notesOverlay = document.getElementById('super-notes-overlay');
+        if(notesOverlay) notesOverlay.remove();
+      }
+    }
+  }
+  // Chuyển từ Chat AI sang Siêu ghi chú và ngược lại — ẩn bên này, mở thẳng bên kia, mượt mà.
+  async function openSuperNotes(){
+    closeAiChat();
+    state._superNotesOpen = true;
+    state.superNotesSpace = 'personal'; // Yêu cầu 2: luôn mặc định vào Bộ cá nhân trước mỗi lần mở
+    state.superNotesCurrentFolder = null;
+    state.superNotesEditingId = null;
+    state.superNotesTrashOpen = false;
+    attachSuperNotesRealtime();
+    renderSuperNotesOverlay();
+  }
+  function closeSuperNotes(){
+    state._superNotesOpen = false;
+    const overlay = document.getElementById('super-notes-overlay');
+    if(overlay) overlay.remove();
+    if(snOutsideClickHandler){ document.removeEventListener('click', snOutsideClickHandler); snOutsideClickHandler = null; }
   }
   async function openAiChat(){
     state._aiChatOpen = true;
@@ -1824,6 +1949,7 @@
   function closeAiChat(){
     state._aiChatOpen = false;
     state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
+    state._aiBubbleEditingIndex = null; state._aiBubbleAddNoteMenuIndex = null;
     const overlay = document.getElementById('ai-chat-overlay');
     if(overlay) overlay.remove();
     if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
@@ -1904,7 +2030,8 @@
   // Micro — nhận dạng giọng nói (Web Speech API), điền thẳng vào ô nhập, y hệt icon micro của Gemini.
   let aiRecognition = null;
   let aiOutsideClickHandler = null; // tham chiếu handler "bấm ra ngoài để đóng dropdown" — dùng để gỡ đúng lúc đóng chat
-  function toggleAiMic(){
+  let snOutsideClickHandler = null; // tương tự, dùng cho dropdown trong Siêu ghi chú
+  function toggleMicGeneric(targetInputId, rerenderFn){
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SR){ alert('Trình duyệt này chưa hỗ trợ nhận dạng giọng nói. Vui lòng dùng Google Chrome trên máy tính hoặc Android.'); return; }
     if(state._aiMicListening){ if(aiRecognition) aiRecognition.stop(); return; }
@@ -1912,19 +2039,21 @@
     aiRecognition.lang = 'vi-VN';
     aiRecognition.interimResults = false;
     aiRecognition.maxAlternatives = 1;
-    aiRecognition.onstart = ()=>{ state._aiMicListening = true; renderAiChatOverlay(); };
-    aiRecognition.onerror = ()=>{ state._aiMicListening = false; renderAiChatOverlay(); };
-    aiRecognition.onend = ()=>{ state._aiMicListening = false; renderAiChatOverlay(); };
+    aiRecognition.onstart = ()=>{ state._aiMicListening = true; rerenderFn(); };
+    aiRecognition.onerror = ()=>{ state._aiMicListening = false; rerenderFn(); };
+    aiRecognition.onend = ()=>{ state._aiMicListening = false; rerenderFn(); };
     aiRecognition.onresult = (e)=>{
       const text = e.results[0][0].transcript;
-      const inputEl = document.getElementById('ai-input');
+      const inputEl = document.getElementById(targetInputId);
       if(inputEl) inputEl.value = (inputEl.value ? inputEl.value + ' ' : '') + text;
     };
     try{ aiRecognition.start(); }catch(e){ /* đã start rồi thì bỏ qua */ }
   }
+  function toggleAiMic(){ toggleMicGeneric('ai-input', renderAiChatOverlay); }
+  function toggleNotesMic(){ toggleMicGeneric('sn-input', renderSuperNotesOverlay); }
   // Xây dựng System Instruction cho "Chàng Nông dân Thông minh" — gộp cả 4 vai trò yêu cầu,
   // kèm tóm tắt nhanh dữ liệu hộ vay của xã đang mở (phục vụ Vai trò 3: phân tích số liệu).
-  function buildAiSystemPrompt(){
+  async function buildAiSystemPrompt(){
     let dataSummary = '';
     const list = (state.borrowers||[]).filter(x=>!x.deleted);
     if(list.length){
@@ -1945,12 +2074,25 @@
 - Dư nợ theo địa bàn cao nhất (tối đa 5):\n${hamletLines}
 (Đây là số liệu tóm tắt tức thời từ phần mềm, có thể không phản ánh 100% chi tiết từng hộ — khuyên người dùng đối chiếu lại Module "Sổ vay vốn" nếu cần độ chính xác tuyệt đối.)`;
     }
+    // Yêu cầu mới: nạp "Bối cảnh tri thức" — gộp Nguồn 1 (kho tri thức chung do Admin huấn luyện)
+    // và Nguồn 2 (Siêu ghi chú cá nhân của chính người dùng đang chat) — dùng CHUNG cho mọi model
+    // AI, ở mọi tầng dự phòng (Gemini Pro/Flash, ChatGPT, Claude...).
+    let knowledgeBlock = '';
+    try{
+      const [systemKnowledge, personalNotes] = await Promise.all([
+        getSystemKnowledgeCached(),
+        getUserSuperNotesKnowledgeCached(),
+      ]);
+      if(systemKnowledge) knowledgeBlock += `\n\n===== TÀI LIỆU TRI THỨC NỀN DO ADMIN CUNG CẤP (ưu tiên tham khảo khi trả lời nghiệp vụ/hướng dẫn sử dụng) =====\n${systemKnowledge}`;
+      if(personalNotes) knowledgeBlock += `\n\n===== SIÊU GHI CHÚ CÁ NHÂN CỦA NGƯỜI ĐANG CHAT (ưu tiên cao nhất — đây là ghi chú riêng của chính họ) =====\n${personalNotes}`;
+    }catch(e){ console.error('Nạp Bối cảnh tri thức lỗi:', e); }
     return `Bạn tên là "Chàng Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Chàng" gọi người dùng là "bạn/đồng chí". Bạn đảm nhiệm 4 vai trò:
 1) Trợ lý nghiệp vụ Hội Nông dân: giải đáp nhanh nghiệp vụ công tác hội, công tác hội viên, chính sách, quy chế cho vay, thủ tục gia hạn nợ, lãi suất, quỹ hỗ trợ nông dân.
 2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Chi tiêu & Hạch toán, Báo cáo lãi, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
 3) Trợ lý phân tích số liệu: khi được hỏi về dư nợ/hộ vay/thống kê, hãy dựa vào phần "DỮ LIỆU TÓM TẮT HIỆN TẠI" bên dưới (nếu có); nếu không có hoặc không đủ, hãy nói rõ là chưa có dữ liệu và hướng dẫn xem trong Module tương ứng, không được bịa số liệu.
 4) Trợ lý AI toàn năng: trả lời mọi câu hỏi kiến thức chung, viết/sửa văn bản, gợi ý code, dịch thuật, tư vấn... như một AI thông thường. Lưu ý: giao diện chat này hiện chỉ hỗ trợ văn bản, chưa hỗ trợ tạo/hiển thị hình ảnh.
-Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), ngắn gọn, dễ hiểu, đúng trọng tâm, có thể dùng gạch đầu dòng khi liệt kê.${dataSummary}`;
+Nếu có mục "TÀI LIỆU TRI THỨC NỀN DO ADMIN CUNG CẤP" và/hoặc "SIÊU GHI CHÚ CÁ NHÂN" bên dưới, hãy ưu tiên dựa vào đó để trả lời chính xác, cá nhân hoá theo đúng quy chế/hướng dẫn/ghi chú riêng của người dùng này, thay vì chỉ dùng kiến thức chung.
+Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), ngắn gọn, dễ hiểu, đúng trọng tâm, có thể dùng gạch đầu dòng khi liệt kê.${dataSummary}${knowledgeBlock}`;
   }
   // Gọi Gemini API bằng ĐÚNG Cấu hình AI (model) mà người dùng đang chọn ở thanh model phía trên
   // ô nhập liệu. opts.attachments: tệp/ảnh đính kèm cho tin nhắn CUỐI CÙNG. opts.webSearch: bật
@@ -1980,7 +2122,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       }
       return { role: m.role==='assistant' ? 'model' : 'user', parts };
     });
-    const body = { system_instruction:{ parts:[{text: buildAiSystemPrompt()}] }, contents };
+    const body = { system_instruction:{ parts:[{text: await buildAiSystemPrompt()}] }, contents };
     if(opts.webSearch) body.tools = [{ google_search:{} }]; // chế độ "Tìm kiếm web" — chỉ hoạt động với các model Gemini có hỗ trợ grounding
     const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if(!res.ok){
@@ -2034,7 +2176,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
   // khi thất bại, để hàm điều phối quyết định tầng kế tiếp.
   async function callOpenAIOnce(provider, messages, opts, onDelta){
     const model = provider.model || 'gpt-4o-mini';
-    const oaMessages = [{ role:'system', content: buildAiSystemPrompt() }];
+    const oaMessages = [{ role:'system', content: await buildAiSystemPrompt() }];
     messages.forEach((m,i)=>{
       if(i===messages.length-1 && opts.attachments && opts.attachments.length){
         const contentArr = [{ type:'text', text:m.text||'' }];
@@ -2108,7 +2250,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
         'Content-Type':'application/json', 'x-api-key': provider.apiKey,
         'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true',
       },
-      body: JSON.stringify({ model, max_tokens:4096, system: buildAiSystemPrompt(), messages: anthMessages, stream:true }),
+      body: JSON.stringify({ model, max_tokens:4096, system: await buildAiSystemPrompt(), messages: anthMessages, stream:true }),
     });
     if(!res.ok){
       let msg = `HTTP ${res.status}`;
@@ -2261,6 +2403,80 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     renderAiChatOverlay();
     saveAiChatToCloud(chat);
   }
+
+  // ---------------------------------------------------------------------
+  // Toast thông báo nhanh (dùng chung toàn app) + sao chép vào clipboard.
+  // ---------------------------------------------------------------------
+  function showToast(msg){
+    const old = document.getElementById('hnd-toast');
+    if(old) old.remove();
+    const toast = document.createElement('div');
+    toast.id = 'hnd-toast';
+    toast.className = 'hnd-toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    requestAnimationFrame(()=> toast.classList.add('show'));
+    setTimeout(()=>{ toast.classList.remove('show'); setTimeout(()=>{ if(toast.parentNode) toast.remove(); }, 300); }, 1800);
+  }
+  function writeClipboardSilent(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).catch(()=> fallbackCopyText(text));
+    } else fallbackCopyText(text);
+  }
+  function fallbackCopyText(text){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }catch(e){ console.warn('Sao chép clipboard lỗi:', e); }
+  }
+  function copyMessageText(text){ writeClipboardSilent(text); showToast('Đã sao chép!'); }
+
+  // ---------------------------------------------------------------------
+  // Sửa & Gửi lại tin nhắn NGƯỜI DÙNG — xoá mọi tin nhắn phía sau (kiểu Gemini) rồi hỏi lại AI.
+  // ---------------------------------------------------------------------
+  function startEditMessage(idx){ state._aiBubbleEditingIndex = idx; renderAiChatOverlay(); }
+  function cancelEditMessage(){ state._aiBubbleEditingIndex = null; renderAiChatOverlay(); }
+  async function resendEditedMessage(idx, newText){
+    if(!newText || !newText.trim()) return;
+    const chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
+    if(!chat) return;
+    chat.messages = chat.messages.slice(0, idx); // xoá đúng tin nhắn này và mọi tin nhắn phía sau
+    state._aiBubbleEditingIndex = null;
+    await sendAiMessage(newText.trim());
+  }
+
+  // ---------------------------------------------------------------------
+  // "Thêm vào Siêu ghi chú" — đóng Chat AI, mở Siêu ghi chú đúng không gian đã chọn, dán sẵn nội
+  // dung tin nhắn vào khung nhập liệu để người dùng xem/sửa rồi tự bấm Gửi.
+  // ---------------------------------------------------------------------
+  function toggleAddNoteMenu(idx){
+    state._aiBubbleAddNoteMenuIndex = (state._aiBubbleAddNoteMenuIndex === idx) ? null : idx;
+    renderAiChatOverlay();
+  }
+  async function addMessageToNotes(idx, space){
+    const chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
+    const msg = chat && chat.messages[idx];
+    if(!msg) return;
+    const text = msg.text || '';
+    state._aiBubbleAddNoteMenuIndex = null;
+    writeClipboardSilent(text);
+    closeAiChat();
+    state._superNotesOpen = true;
+    state.superNotesSpace = 'personal';
+    state.superNotesCurrentFolder = null; state.superNotesEditingId = null; state.superNotesTrashOpen = false;
+    attachSuperNotesRealtime();
+    if(space === 'shared') await switchNotesSpace('shared');
+    else renderSuperNotesOverlay();
+    setTimeout(()=>{
+      const inputEl = document.getElementById('sn-input');
+      if(inputEl){ inputEl.value = text; inputEl.focus(); }
+    }, 60);
+    showToast(space==='shared'? 'Đã đưa vào ô nhập của Bộ ghi chú dùng chung!' : 'Đã đưa vào ô nhập của Bộ ghi chú cá nhân!');
+  }
+
   // Dựng không gian chat toàn màn hình kiểu Gemini (sidebar lịch sử + khung chat + ô nhập).
   // Gắn TRỰC TIẾP vào document.body (ngoài #root) để không bị render() của app xoá mất.
   function renderAiChatOverlay(){
@@ -2277,6 +2493,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       <div class="ai-sidebar">
         <button class="ai-exit-btn" id="ai-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="ai-newchat-btn">➕ Đoạn chat mới</button>
+        <button class="ai-newchat-btn" id="ai-goto-notes-btn">🗒️ Mở Siêu ghi chú</button>
         <div class="ai-hist-label">Lịch sử đoạn chat</div>
         <div class="ai-hist-list">
           ${state.aiChats.length? state.aiChats.map(c=>`
@@ -2289,13 +2506,41 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       </div>
       <div class="ai-main">
         <div class="ai-header">🤖 Chàng Nông dân Thông minh</div>
+        ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
         <div class="ai-messages" id="ai-messages">
           ${!chat || !chat.messages.length? `
             <div class="ai-bubble assistant">Chào bạn! Chàng là "Chàng Nông dân Thông minh" 🌾 — sẵn sàng hỗ trợ nghiệp vụ Hội Nông dân, hướng dẫn sử dụng phần mềm, phân tích số liệu hộ vay, hoặc trò chuyện bất cứ điều gì bạn cần. Bạn muốn hỏi gì nào?</div>`
-            : chat.messages.map(m=> m.streaming
-                ? `<div class="ai-bubble assistant ${m.text? '' : 'thinking'}" id="ai-streaming-bubble">${m.text? escapeHtml(m.text) : 'Chàng đang suy nghĩ…'}</div>`
-                : `<div class="ai-bubble ${m.role}">${escapeHtml(m.text)}${m.attachments&&m.attachments.length? `<div class="ai-bubble-attach">${m.attachments.map(a=>`📎 ${escapeHtml(a.name)}`).join('&nbsp;&nbsp;')}</div>` : ''}</div>`
-              ).join('')}
+            : chat.messages.map((m, idx)=>{
+                if(m.streaming){
+                  return `<div class="ai-bubble assistant ${m.text? '' : 'thinking'}" id="ai-streaming-bubble">${m.text? escapeHtml(m.text) : 'Chàng đang suy nghĩ…'}</div>`;
+                }
+                if(state._aiBubbleEditingIndex === idx){
+                  return `<div class="ai-bubble-wrap ${m.role}">
+                    <div class="ai-edit-box">
+                      <textarea id="ai-edit-textarea-${idx}" rows="3">${escapeHtml(m.text)}</textarea>
+                      <div class="ai-edit-box-actions">
+                        <button class="btn btn-ghost btn-sm" data-edit-cancel="${idx}">Huỷ bỏ</button>
+                        <button class="btn btn-primary btn-sm" data-edit-resend="${idx}">Gửi lại</button>
+                      </div>
+                    </div>
+                  </div>`;
+                }
+                const attachHtml = m.attachments && m.attachments.length? `<div class="ai-bubble-attach">${m.attachments.map(a=>`📎 ${escapeHtml(a.name)}`).join('&nbsp;&nbsp;')}</div>` : '';
+                return `<div class="ai-bubble-wrap ${m.role}">
+                  <div class="ai-bubble ${m.role}">${escapeHtml(m.text)}${attachHtml}</div>
+                  <div class="ai-bubble-actions">
+                    ${m.role==='user'? `<button class="ai-bubble-act" data-bubble-edit="${idx}" title="Sửa">✏️</button>` : ''}
+                    <button class="ai-bubble-act" data-bubble-copy="${idx}" title="Sao chép">📋</button>
+                    <div class="ai-bubble-addnote-wrap">
+                      <button class="ai-bubble-act" data-bubble-addnote="${idx}" title="Thêm vào Siêu ghi chú">📌</button>
+                      ${state._aiBubbleAddNoteMenuIndex===idx? `<div class="ai-bubble-addnote-menu">
+                        <div class="ai-add-opt" data-addnote-space="shared" data-addnote-idx="${idx}">🏛️ Thêm vào Bộ ghi chú dùng chung</div>
+                        <div class="ai-add-opt" data-addnote-space="personal" data-addnote-idx="${idx}">🔒 Thêm vào Bộ ghi chú cá nhân</div>
+                      </div>` : ''}
+                    </div>
+                  </div>
+                </div>`;
+              }).join('')}
         </div>
 
         <div class="ai-model-bar">
@@ -2335,6 +2580,8 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     if(msgBox) msgBox.scrollTop = msgBox.scrollHeight;
     document.getElementById('ai-exit-btn').onclick = closeAiChat;
     document.getElementById('ai-newchat-btn').onclick = newAiChat;
+    const gotoNotesBtn = document.getElementById('ai-goto-notes-btn');
+    if(gotoNotesBtn) gotoNotesBtn.onclick = ()=>{ closeAiChat(); openSuperNotes(); };
     overlay.querySelectorAll('[data-ai-hist]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
         if(e.target.closest('[data-ai-hist-del]')) return;
@@ -2344,6 +2591,36 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     });
     overlay.querySelectorAll('[data-ai-hist-del]').forEach(btn=>{
       btn.onclick = (e)=>{ e.stopPropagation(); deleteAiChatById(btn.dataset.aiHistDel); };
+    });
+
+    // ---- Icon hành động trên bong bóng tin nhắn: Sửa / Copy / Thêm vào Siêu ghi chú ----
+    overlay.querySelectorAll('[data-bubble-edit]').forEach(btn=>{
+      btn.onclick = ()=> startEditMessage(parseInt(btn.dataset.bubbleEdit,10));
+    });
+    overlay.querySelectorAll('[data-bubble-copy]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const idx = parseInt(btn.dataset.bubbleCopy,10);
+        const m = chat && chat.messages[idx];
+        if(m) copyMessageText(m.text||'');
+      };
+    });
+    overlay.querySelectorAll('[data-bubble-addnote]').forEach(btn=>{
+      btn.onclick = (e)=>{ e.stopPropagation(); toggleAddNoteMenu(parseInt(btn.dataset.bubbleAddnote,10)); };
+    });
+    overlay.querySelectorAll('[data-addnote-space]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        addMessageToNotes(parseInt(elx.dataset.addnoteIdx,10), elx.dataset.addnoteSpace);
+      });
+    });
+    overlay.querySelectorAll('[data-edit-cancel]').forEach(btn=> btn.onclick = cancelEditMessage);
+    overlay.querySelectorAll('[data-edit-resend]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const idx = parseInt(btn.dataset.editResend,10);
+        const ta = document.getElementById(`ai-edit-textarea-${idx}`);
+        if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+        resendEditedMessage(idx, ta? ta.value : '');
+      };
     });
 
     // ---- Thanh chọn model AI đang hoạt động ----
@@ -2379,8 +2656,8 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     // tránh chồng chất listener qua mỗi lần render lại).
     if(firstCreate){
       aiOutsideClickHandler = ()=>{
-        if(state._aiModelMenuOpen || state._aiAddMenuOpen){
-          state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
+        if(state._aiModelMenuOpen || state._aiAddMenuOpen || state._aiBubbleAddNoteMenuIndex!=null){
+          state._aiModelMenuOpen = false; state._aiAddMenuOpen = false; state._aiBubbleAddNoteMenuIndex = null;
           if(document.getElementById('ai-chat-overlay')) renderAiChatOverlay();
         }
       };
@@ -2389,7 +2666,11 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
 
     const sendBtn = document.getElementById('ai-send-btn');
     const inputEl = document.getElementById('ai-input');
-    const doSend = ()=>{ const v = inputEl.value; inputEl.value=''; sendAiMessage(v); };
+    const doSend = ()=>{
+      const v = inputEl.value; inputEl.value='';
+      if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+      sendAiMessage(v);
+    };
     if(sendBtn) sendBtn.onclick = doSend;
     if(inputEl){
       inputEl.focus();
@@ -2399,6 +2680,296 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
         if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); doSend(); }
       });
     }
+  }
+
+  // =====================================================================
+  // Không gian [Siêu ghi chú] — sidebar cây thư mục cá nhân + khung soạn thảo + khung nhập liệu
+  // AI tiêu hoá, dựng theo đúng phong cách khung Chat AI (bồng bềnh, toàn màn hình).
+  // =====================================================================
+  function renderSuperNotesOverlay(){
+    let overlay = document.getElementById('super-notes-overlay');
+    let firstCreate = false;
+    if(!overlay){
+      overlay = document.createElement('div'); overlay.id = 'super-notes-overlay'; overlay.className = 'ai-overlay';
+      document.body.appendChild(overlay);
+      firstCreate = true;
+    }
+    const curId = state.superNotesCurrentFolder;
+    const crumbs = snBreadcrumb(curId);
+    const items = state.superNotesTrashOpen
+      ? Object.values(state.superNotesTree||{}).filter(n=> n && n.deleted).sort((a,b)=>(b.deletedAt||'').localeCompare(a.deletedAt||''))
+      : snChildrenOf(curId);
+    const editingNode = state.superNotesEditingId ? state.superNotesTree[state.superNotesEditingId] : null;
+    const provider = getActiveAiProvider();
+    const isShared = state.superNotesSpace==='shared';
+    const canEdit = isShared ? snCanEdit() : true;
+    const canView = isShared ? snCanView() : true;
+
+    overlay.innerHTML = `
+      <div class="ai-sidebar" style="display:flex; flex-direction:column;">
+        <button class="ai-exit-btn" id="sn-exit-btn">✕ THOÁT</button>
+        <button class="ai-newchat-btn" id="sn-goto-chat-btn">💬 Chat với AI Chàng Nông dân Thông minh</button>
+        <div style="display:flex; gap:6px; margin-bottom:10px;">
+          <button class="ai-newchat-btn" id="sn-space-shared" style="flex:1; margin-bottom:0; ${isShared?'background:rgba(255,255,255,.28); font-weight:800;':''}">🏛️ Bộ chung Xã/Phường</button>
+          <button class="ai-newchat-btn" id="sn-space-personal" style="flex:1; margin-bottom:0; ${!isShared?'background:rgba(255,255,255,.28); font-weight:800;':''}">🔒 Bộ cá nhân</button>
+        </div>
+        ${isShared && isOwner()? `<button class="ai-newchat-btn" id="sn-shared-settings-btn">⚙️ Cài đặt & Chia sẻ</button>` : ''}
+        ${isShared && !isOwner()? `<div class="sub" style="color:rgba(255,255,255,.65); padding:0 8px 8px; font-size:11px;">Quyền của bạn ở đây: <b style="color:#fff;">${canEdit?'Toàn quyền sửa':(canView?'Chỉ xem':'Không được xem')}</b></div>` : ''}
+        ${!isShared && usingLocalNotes()? `<div class="sub" style="color:rgba(255,255,255,.65); padding:0 8px 8px; font-size:11px;">💡 Bạn chưa đăng nhập bằng tài khoản Google nên ghi chú cá nhân của bạn sẽ được lưu tạm tại trình duyệt/máy tính này.</div>` : ''}
+        <div class="ai-hist-label">${isShared? 'Bộ ghi chú dùng chung' : 'Siêu ghi chú của tôi'}</div>
+        ${!state.superNotesTrashOpen? `
+        <div class="sn-crumbs">
+          <span data-sn-goto="">🏠 Gốc</span>${crumbs.map(c=>` / <span data-sn-goto="${c.id}">${escapeHtml(c.name)}</span>`).join('')}
+        </div>
+        ${canEdit? `
+        <div class="toolbar" style="padding:0 10px 8px; flex-wrap:wrap; gap:6px;">
+          <button class="btn btn-ghost btn-sm" id="sn-new-folder" style="color:#fff; border-color:rgba(255,255,255,.3);">📁 Thư mục</button>
+          <button class="btn btn-ghost btn-sm" id="sn-new-text" style="color:#fff; border-color:rgba(255,255,255,.3);">📝 Ghi chú</button>
+        </div>` : ''}` : `
+        <div class="toolbar" style="padding:0 10px 8px;">
+          <button class="btn btn-ghost btn-sm" id="sn-close-trash" style="color:#fff; border-color:rgba(255,255,255,.3);">◀ Quay lại</button>
+        </div>`}
+        <div class="ai-hist-list">
+          ${!canView? `<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px;">Bạn không có quyền xem Bộ ghi chú dùng chung này. Vui lòng liên hệ Chủ mã.</div>` :
+            items.length? items.map(n=>`
+            <div class="sn-tree-row ${n.id===state.superNotesEditingId?'active':''}" data-sn-item="${n.id}">
+              <span>${n.type==='folder'?'📁':'📝'}</span>
+              <span class="sn-tree-name">${escapeHtml(n.name)}</span>
+              <span class="sn-tree-actions">
+                ${state.superNotesTrashOpen? (canEdit? `
+                  <button data-sn-restore="${n.id}" title="Khôi phục">♻️</button>
+                  <button data-sn-purge="${n.id}" title="Xoá vĩnh viễn">🗑️</button>
+                ` : '') : (canEdit? `
+                  <button data-sn-rename="${n.id}" title="Đổi tên">✏️</button>
+                  <button data-sn-delete="${n.id}" title="Xoá vào thùng rác">🗑️</button>
+                ` : '')}
+              </span>
+            </div>`).join('') : `<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px;">${state.superNotesTrashOpen? 'Thùng rác trống.' : 'Trống — hãy tạo ghi chú, thư mục, hoặc nhập nội dung bên dưới để AI tự tạo.'}</div>`}
+        </div>
+        <button class="ai-newchat-btn" id="sn-trash-btn" style="margin:8px 10px 0; margin-top:auto;">${state.superNotesTrashOpen? '◀ Quay lại kho ghi chú' : '🗑️ Thùng rác'}</button>
+      </div>
+      <div class="ai-main">
+        <div class="ai-header">🗒️ Siêu ghi chú${editingNode? ' — ' + escapeHtml(editingNode.name) : ''}</div>
+        ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
+        <div class="ai-messages" id="sn-content-area" style="align-items:stretch;">
+          ${!canView? `<div class="ai-bubble assistant">Bạn không có quyền xem Bộ ghi chú dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền.</div>` :
+            editingNode? `
+            <div style="display:flex; flex-direction:column; gap:10px; height:100%;">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input id="sn-editor-name" value="${escapeHtml(editingNode.name)}" style="flex:1; font-weight:700;" ${canEdit?'':'disabled'}>
+                ${canEdit? `<button class="btn btn-primary btn-sm" id="sn-editor-save">💾 Lưu</button>` : ''}
+              </div>
+              ${editingNode.storageUrl? `<p class="sub" style="margin:0;"><a href="${editingNode.storageUrl}" target="_blank" rel="noopener">📎 Xem/tải tệp gốc</a></p>` : ''}
+              <textarea id="sn-editor-content" style="flex:1; min-height:340px; width:100%; font-family:inherit; font-size:13.5px; padding:12px; border:1px solid var(--line); border-radius:10px; resize:vertical;" ${canEdit?'':'disabled'}>${escapeHtml(editingNode.content||'')}</textarea>
+            </div>` : `
+            <div class="ai-bubble assistant">${isShared? `Đây là <b>Bộ ghi chú dùng chung</b> của mã xã <b class="mono">${escapeHtml(wardId()||'')}</b> 🏛️ — mọi người cùng mã định danh đều xem được (tuỳ quyền Chủ mã cấp).` : `Chào bạn! Đây là <b>Siêu ghi chú cá nhân</b> của riêng bạn 📓 — nơi lưu mọi tri thức cá nhân để "Chàng Nông dân Thông minh" hiểu bạn hơn khi trò chuyện.`}<br><br>
+            Bạn có thể: bấm vào 1 ghi chú bên trái để xem${canEdit?'/sửa':''}, ${canEdit? 'hoặc gõ chữ / nói / tải ảnh-PDF / tải cả thư mục vào khung bên dưới — AI sẽ tự đọc, biên tập sạch sẽ và tạo ra ghi chú mới giúp bạn.' : '(bạn chỉ có quyền xem ở đây).'}</div>`}
+          ${state.superNotesProcessing? `<div class="ai-bubble assistant thinking">⏳ ${escapeHtml(state.superNotesProcessingMsg||'Đang xử lý...')}</div>` : ''}
+        </div>
+
+        ${canView && canEdit? `
+        <div class="ai-model-bar">
+          <div class="ai-model-select" id="sn-model-select">
+            <span>${provider? `🧠 ${escapeHtml(provider.label||provider.model)}` : '⚠️ Chưa cấu hình AI'}</span><span class="ai-model-caret">▾</span>
+            ${state._aiModelMenuOpen? `<div class="ai-model-dropdown">
+              ${state.aiProviders.length? state.aiProviders.map(p=>`
+                <div class="ai-model-opt ${provider&&p.id===provider.id?'active':''}" data-sn-select-provider="${p.id}">
+                  ${escapeHtml(p.label||p.model)}<span class="sub">${escapeHtml(p.model)}</span>
+                </div>`).join('') : `<div class="ai-model-opt sub">Chưa có cấu hình AI nào — vào "CÀI ĐẶT ADMIN" để thêm.</div>`}
+            </div>` : ''}
+          </div>
+          <span class="ai-model-select" style="margin-left:8px; background:rgba(199,154,43,.1); cursor:default;">💡 Ưu tiên dùng Gemini để đọc ảnh/PDF chính xác nhất</span>
+        </div>
+
+        <div class="ai-inputbar">
+          <div class="ai-add-btn" id="sn-add-btn" role="button" tabindex="0">➕ Tải tài liệu lên
+            ${state._aiAddMenuOpen? `<div class="ai-add-menu">
+              <div class="ai-add-opt" data-sn-add="file">📄 Tải tài liệu lên (ảnh/PDF/Word/Excel...)</div>
+              <div class="ai-add-opt" data-sn-add="folder">🗂️ Thêm thư mục (nhiều tệp cùng lúc)</div>
+            </div>` : ''}
+          </div>
+          <textarea id="sn-input" rows="1" placeholder="Gõ nội dung, hoặc tải ảnh/PDF/tài liệu để AI tự tạo ghi chú... (Enter xuống dòng, Ctrl+Enter gửi)" ${state.superNotesProcessing?'disabled':''}></textarea>
+          <button class="ai-mic-btn ${state._aiMicListening?'listening':''}" id="sn-mic-btn" type="button" title="Nói để nhập liệu">🎤</button>
+          <div class="ai-send-wrap">
+            <span class="ai-send-tooltip">Bấm Ctrl+Enter để gửi nhanh</span>
+            <button id="sn-send-btn" ${state.superNotesProcessing?'disabled':''}>➤</button>
+          </div>
+        </div>` : ''}
+      </div>`;
+
+    const contentArea = document.getElementById('sn-content-area');
+    if(contentArea) contentArea.scrollTop = contentArea.scrollHeight;
+
+    document.getElementById('sn-exit-btn').onclick = closeSuperNotes;
+    document.getElementById('sn-goto-chat-btn').onclick = ()=>{ closeSuperNotes(); openAiChat(); };
+    document.getElementById('sn-space-shared').onclick = ()=> switchNotesSpace('shared');
+    document.getElementById('sn-space-personal').onclick = ()=> switchNotesSpace('personal');
+    const sharedSettingsBtn = document.getElementById('sn-shared-settings-btn');
+    if(sharedSettingsBtn) sharedSettingsBtn.onclick = renderSharedNotesSettingsPopup;
+
+    // ---- điều hướng cây thư mục ----
+    overlay.querySelectorAll('[data-sn-goto]').forEach(elx=> elx.onclick = ()=>{ state.superNotesCurrentFolder = elx.dataset.snGoto || null; state.superNotesEditingId = null; renderSuperNotesOverlay(); });
+    overlay.querySelectorAll('[data-sn-item]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{
+        if(e.target.closest('[data-sn-rename],[data-sn-delete],[data-sn-restore],[data-sn-purge]')) return;
+        const node = state.superNotesTree[elx.dataset.snItem];
+        if(!node) return;
+        if(node.type==='folder' && !state.superNotesTrashOpen){ state.superNotesCurrentFolder = node.id; state.superNotesEditingId = null; renderSuperNotesOverlay(); }
+        else if(node.type==='file' && !state.superNotesTrashOpen){ state.superNotesEditingId = node.id; renderSuperNotesOverlay(); }
+      });
+    });
+
+    // ---- tạo mới / thùng rác ----
+    const newFolderBtn = document.getElementById('sn-new-folder');
+    if(newFolderBtn) newFolderBtn.onclick = async ()=>{ const name = prompt('Tên thư mục mới:'); if(name && name.trim()) await snCreateFolder(name, curId); };
+    const newTextBtn = document.getElementById('sn-new-text');
+    if(newTextBtn) newTextBtn.onclick = async ()=>{
+      const name = prompt('Tên ghi chú mới:', 'Ghi chú mới');
+      if(name===null) return;
+      const id = await snCreateTextFile(name, curId, '');
+      if(id){ state.superNotesEditingId = id; renderSuperNotesOverlay(); }
+    };
+    const trashBtn = document.getElementById('sn-trash-btn');
+    if(trashBtn) trashBtn.onclick = ()=>{ state.superNotesTrashOpen = !state.superNotesTrashOpen; state.superNotesEditingId = null; renderSuperNotesOverlay(); };
+    const closeTrashBtn = document.getElementById('sn-close-trash');
+    if(closeTrashBtn) closeTrashBtn.onclick = ()=>{ state.superNotesTrashOpen = false; renderSuperNotesOverlay(); };
+    overlay.querySelectorAll('[data-sn-rename]').forEach(btn=> btn.onclick = async (e)=>{
+      e.stopPropagation();
+      const node = state.superNotesTree[btn.dataset.snRename];
+      const name = prompt('Đổi tên thành:', node? node.name : '');
+      if(name && name.trim()) await snRenameNode(btn.dataset.snRename, name);
+    });
+    overlay.querySelectorAll('[data-sn-delete]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); snSoftDeleteNode(btn.dataset.snDelete); });
+    overlay.querySelectorAll('[data-sn-restore]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); snRestoreNode(btn.dataset.snRestore); });
+    overlay.querySelectorAll('[data-sn-purge]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); snPurgeNode(btn.dataset.snPurge); });
+
+    // ---- lưu file đang mở ----
+    const editorSaveBtn = document.getElementById('sn-editor-save');
+    if(editorSaveBtn) editorSaveBtn.onclick = async ()=>{
+      const newName = document.getElementById('sn-editor-name').value;
+      const newContent = document.getElementById('sn-editor-content').value;
+      if(newName && newName.trim() && newName.trim()!==editingNode.name) await snRenameNode(editingNode.id, newName);
+      await snSaveTextFile(editingNode.id, newContent);
+    };
+
+    // ---- thanh chọn model AI (dùng chung logic với Chat AI) ----
+    const modelSelectEl = document.getElementById('sn-model-select');
+    if(modelSelectEl) modelSelectEl.addEventListener('click', (e)=>{ e.stopPropagation(); toggleAiModelMenu(); });
+    overlay.querySelectorAll('[data-sn-select-provider]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{ e.stopPropagation(); selectAiProvider(elx.dataset.snSelectProvider); renderSuperNotesOverlay(); });
+    });
+
+    // ---- nút "Tải tài liệu lên" (đổi tên từ "THÊM THÀNH PHẦN") ----
+    const addBtn = document.getElementById('sn-add-btn');
+    if(addBtn) addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); state._aiAddMenuOpen = !state._aiAddMenuOpen; renderSuperNotesOverlay(); });
+    overlay.querySelectorAll('[data-sn-add]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        state._aiAddMenuOpen = false;
+        const input = document.createElement('input');
+        input.type = 'file'; input.multiple = true;
+        if(elx.dataset.snAdd==='folder') input.webkitdirectory = true;
+        input.onchange = ()=>{
+          const textVal = document.getElementById('sn-input') ? document.getElementById('sn-input').value : '';
+          if(document.getElementById('sn-input')) document.getElementById('sn-input').value = '';
+          processSuperNoteInput(textVal, Array.from(input.files||[]), curId);
+        };
+        input.click();
+      });
+    });
+
+    // ---- micro ----
+    const micBtn = document.getElementById('sn-mic-btn');
+    if(micBtn) micBtn.onclick = toggleNotesMic;
+
+    // Bấm ra ngoài thì đóng dropdown "THÊM/model" (gắn 1 lần duy nhất lúc tạo overlay)
+    if(firstCreate){
+      snOutsideClickHandler = ()=>{
+        if(state._aiModelMenuOpen || state._aiAddMenuOpen){
+          state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
+          if(document.getElementById('super-notes-overlay')) renderSuperNotesOverlay();
+        }
+      };
+      document.addEventListener('click', snOutsideClickHandler);
+    }
+
+    // ---- gửi nội dung gõ tay để AI tiêu hoá ----
+    const sendBtn = document.getElementById('sn-send-btn');
+    const inputEl = document.getElementById('sn-input');
+    const doSend = ()=>{
+      const v = inputEl.value; inputEl.value = '';
+      if(!v.trim()) return;
+      processSuperNoteInput(v, [], curId);
+    };
+    if(sendBtn) sendBtn.onclick = doSend;
+    if(inputEl){
+      inputEl.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); doSend(); }
+      });
+    }
+  }
+
+  // Popup [Cài đặt & Chia sẻ] cho Bộ ghi chú dùng chung — chỉ Chủ mã (isOwner()) mới thấy nút mở.
+  function renderSharedNotesSettingsPopup(){
+    const cfg = state.sharedNotesConfig || {defaultPerm:'view', grants:{}};
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:520px;">
+        <div class="modal-body">
+          <h3 style="margin-top:0;">⚙️ Cài đặt & Chia sẻ — Bộ ghi chú dùng chung</h3>
+          <p class="sub" style="margin-top:0;">Áp dụng mặc định cho mọi người đang có chung mã định danh <b class="mono">${escapeHtml(wardId()||'')}</b> (kể cả Khách qua mã không đăng nhập):</p>
+          <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+            <label><input type="radio" name="sns-default" value="none" ${cfg.defaultPerm==='none'?'checked':''}> Không cho phép xem</label>
+            <label><input type="radio" name="sns-default" value="view" ${(cfg.defaultPerm==='view'||!cfg.defaultPerm)?'checked':''}> Cho phép xem (chỉ đọc)</label>
+            <label><input type="radio" name="sns-default" value="edit" ${cfg.defaultPerm==='edit'?'checked':''}> Cho phép sửa (toàn quyền thêm/sửa/xoá)</label>
+          </div>
+          <div class="divider-lbl">Phân quyền riêng cho từng người (theo email Google)</div>
+          <div class="toolbar">
+            <input id="sns-email" placeholder="email@gmail.com" style="min-width:200px;">
+            <select id="sns-perm">
+              <option value="none">Không cho xem</option>
+              <option value="view">Chỉ xem</option>
+              <option value="edit" selected>Toàn quyền sửa</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="sns-add-grant">Thêm</button>
+          </div>
+          <div id="sns-grants-list" style="margin:10px 0;">
+            ${Object.values(cfg.grants||{}).length? Object.values(cfg.grants||{}).map(g=>`
+              <div class="kv-row"><span>${escapeHtml(g.email)} — ${g.perm==='edit'?'Toàn quyền sửa':g.perm==='view'?'Chỉ xem':'Không cho xem'}</span><button class="btn btn-ghost btn-sm" data-sns-remove="${emailToKey(g.email)}">Gỡ</button></div>`).join('') : '<div class="sub">Chưa có phân quyền riêng nào.</div>'}
+          </div>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="btn btn-ghost" id="sns-close" style="flex:1;">Đóng</button>
+            <button class="btn btn-primary" id="sns-save" style="flex:1;">💾 Lưu</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    let localGrants = { ...(cfg.grants||{}) };
+    function refreshGrantsList(){
+      const listEl = wrap.querySelector('#sns-grants-list');
+      const arr = Object.values(localGrants);
+      listEl.innerHTML = arr.length? arr.map(g=>`
+        <div class="kv-row"><span>${escapeHtml(g.email)} — ${g.perm==='edit'?'Toàn quyền sửa':g.perm==='view'?'Chỉ xem':'Không cho xem'}</span><button class="btn btn-ghost btn-sm" data-sns-remove="${emailToKey(g.email)}">Gỡ</button></div>`).join('') : '<div class="sub">Chưa có phân quyền riêng nào.</div>';
+      listEl.querySelectorAll('[data-sns-remove]').forEach(btn=> btn.onclick = ()=>{ delete localGrants[btn.dataset.snsRemove]; refreshGrantsList(); });
+    }
+    refreshGrantsList();
+    wrap.querySelector('#sns-close').onclick = ()=> wrap.remove();
+    wrap.querySelector('#sns-add-grant').onclick = ()=>{
+      const email = wrap.querySelector('#sns-email').value.trim().toLowerCase();
+      const perm = wrap.querySelector('#sns-perm').value;
+      if(!email || !email.includes('@')){ alert('Vui lòng nhập đúng email.'); return; }
+      localGrants[emailToKey(email)] = { email, perm };
+      wrap.querySelector('#sns-email').value = '';
+      refreshGrantsList();
+    };
+    wrap.querySelector('#sns-save').onclick = async ()=>{
+      const defaultPerm = wrap.querySelector('input[name="sns-default"]:checked').value;
+      await saveSharedNotesConfig({ defaultPerm, grants: localGrants });
+      alert('Đã lưu cấu hình chia sẻ Bộ ghi chú dùng chung.');
+      wrap.remove();
+      renderSuperNotesOverlay();
+    };
   }
 
   function renderLogin(){
@@ -2886,6 +3457,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     items.push({id:'guide', ico:'📖', label:'Hướng dẫn sử dụng'});
     items.push({id:'about', ico:'ℹ️', label:'Thông tin phần mềm'});
     // Chỉ Admin (2 Admin tối cao + Admin được thêm vào) mới nhìn thấy mục này — luôn ở cuối cùng.
+    if(isAdmin()) items.push({id:'knowledgeBase', ico:'🧠', label:'Huấn luyện AI (Admin)'});
     if(isAdmin()) items.push({id:'adminSettings', ico:'🛠️', label:'CÀI ĐẶT ADMIN'});
     return items;
   }
@@ -2987,6 +3559,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
     else if(state.activeTab==='about') renderAboutTab(content);
+    else if(state.activeTab==='knowledgeBase') renderAdminKnowledgeTab(content);
     else if(state.activeTab==='adminSettings') renderAdminSettingsTab(content);
 
     // Chỉ dựng modal khi chưa có modal nào đang mở trên màn hình — tránh bị
@@ -3020,11 +3593,11 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.innerHTML = `
-      <div class="modal" style="max-width:440px;">
+      <div class="modal" style="max-width:640px;">
         <div class="modal-body" style="text-align:center; padding:28px 24px;">
           <div class="rice-badge" style="margin:0 auto 12px;">🌾</div>
-          <h3 style="margin:0 0 10px;">Chúc đồng chí một ngày làm việc vui vẻ!</h3>
-          <p class="sub" style="margin:0 0 20px; font-size:13.5px; line-height:1.6;">Đây là môi trường tham quan, đồng chí có muốn xem hướng dẫn cụ thể không?</p>
+          <h3 class="welcome-float-title" style="margin:0 0 16px;">Chúc đồng chí một ngày làm việc vui vẻ!</h3>
+          <p class="sub" style="margin:0 0 24px; font-size:clamp(22px, 6vw, 40px); line-height:1.35; color:var(--ink);">Đây là môi trường tham quan, đồng chí có muốn xem hướng dẫn cụ thể không?</p>
           <div style="display:flex; gap:10px;">
             <button class="btn btn-ghost" id="pw-skip" style="flex:1;">Bỏ qua</button>
             <button class="btn btn-primary" id="pw-guide" style="flex:1;">Xem hướng dẫn</button>
@@ -3052,11 +3625,11 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.innerHTML = `
-      <div class="modal" style="max-width:460px;">
+      <div class="modal" style="max-width:680px;">
         <div class="modal-body" style="text-align:center; padding:28px 24px;">
           <div class="rice-badge" style="margin:0 auto 12px;">🌾</div>
-          <h3 style="margin:0 0 10px;">CHÚC ĐỒNG CHÍ 1 NGÀY LÀM VIỆC VUI VẺ!</h3>
-          <p class="sub" style="margin:0 0 20px; font-size:13.5px; line-height:1.7;">
+          <h3 class="welcome-float-title" style="margin:0 0 16px;">CHÚC ĐỒNG CHÍ 1 NGÀY LÀM VIỆC VUI VẺ!</h3>
+          <p class="sub" style="margin:0 0 24px; font-size:clamp(20px, 5.5vw, 40px); line-height:1.4; color:var(--ink);">
             Đồng chí đang làm việc trong bộ dữ liệu dùng chung của
             <b>${adminLevelLabelLower()} ${wardName? escapeHtml(wardName) : '(chưa đặt tên)'}</b>${provName? ` <b>${provType} ${escapeHtml(provName)}</b>` : ''}
             với mã định danh là <b class="mono">${escapeHtml(wardId()||'')}</b>
@@ -3579,6 +4152,764 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
   // Module [CÀI ĐẶT ADMIN] — chỉ hiển thị & truy cập được với isAdmin()===true.
   // 3 khu vực: (1) Quản lý Admin, (2) Cấu hình AI (Gemini...), (3) Quản lý toàn bộ hệ thống.
   // =====================================================================
+  // =====================================================================
+  // Module [Huấn luyện AI (Admin)] — "Bàn làm việc" dạng cây thư mục để Admin nạp tri thức nền
+  // dùng CHUNG cho mọi mô hình AI (Gemini/ChatGPT/Claude ở mọi tầng dự phòng). Lưu trữ:
+  //   • system_knowledge/tree/{id} — metadata cây thư mục/tệp (Realtime Database, đồng bộ realtime)
+  //   • system_knowledge_files/{id}_{tên tệp} — file GỐC (.docx/.xlsx/ảnh) trên Firebase Storage
+  // (Ghi chú: hệ thống hiện tại dùng Firebase Realtime Database cho toàn bộ dữ liệu — nên module
+  // này cũng dùng Realtime Database thay vì Firestore để đồng bộ kiến trúc, cộng thêm Firebase
+  // Storage đúng như yêu cầu để lưu file nhị phân gốc.)
+  // =====================================================================
+  let knowledgeListenerRef = null;
+  function attachKnowledgeRealtime(){
+    if(knowledgeListenerRef) return; // đã lắng nghe rồi, không gắn trùng
+    knowledgeListenerRef = rtdb.ref('system_knowledge/tree');
+    knowledgeListenerRef.on('value', snap=>{
+      state.knowledgeTree = (snap && snap.exists()) ? snap.val() : {};
+      state._systemKnowledgeCache = null; // dữ liệu vừa đổi -> làm mới bộ nhớ đệm ở lượt chat AI kế tiếp
+      if(state.activeTab==='knowledgeBase'){
+        const mount = document.getElementById('content');
+        if(mount) renderAdminKnowledgeTab(mount);
+      }
+    });
+  }
+  function detachKnowledgeRealtime(){
+    if(knowledgeListenerRef){ knowledgeListenerRef.off(); knowledgeListenerRef = null; }
+  }
+  function uidKn(){ return 'kn_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+
+  async function knCreateFolder(name, parentId){
+    if(!isAdmin()) return;
+    const nm = (name||'').trim();
+    if(!nm){ alert('Vui lòng nhập tên thư mục.'); return; }
+    const id = uidKn();
+    await rtdb.ref(`system_knowledge/tree/${id}`).set({
+      id, type:'folder', parentId: parentId||null, name:nm,
+      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
+    });
+  }
+  async function knCreateTextFile(name, parentId){
+    if(!isAdmin()) return null;
+    const id = uidKn();
+    await rtdb.ref(`system_knowledge/tree/${id}`).set({
+      id, type:'file', fileKind:'text', parentId: parentId||null, name:(name||'').trim() || 'Tài liệu mới', content:'',
+      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
+    });
+    return id;
+  }
+  async function knSaveTextFile(id, content){
+    if(!isAdmin()) return;
+    await rtdb.ref(`system_knowledge/tree/${id}`).update({ content: content||'', updatedAt:new Date().toISOString() });
+  }
+  async function knRenameNode(id, newName){
+    if(!isAdmin()) return;
+    const nm = (newName||'').trim();
+    if(!nm) return;
+    await rtdb.ref(`system_knowledge/tree/${id}`).update({ name:nm, updatedAt:new Date().toISOString() });
+  }
+  // Quét ra toàn bộ hậu duệ (con, cháu...) của 1 thư mục — phục vụ xoá/khôi phục theo lô.
+  function knDescendantsOf(id){
+    const out = []; const stack = [id];
+    while(stack.length){
+      const cur = stack.pop();
+      Object.values(state.knowledgeTree||{}).forEach(n=>{ if(n && n.parentId===cur){ out.push(n.id); stack.push(n.id); } });
+    }
+    return out;
+  }
+  async function knSoftDeleteNode(id){
+    if(!isAdmin()) return;
+    const node = state.knowledgeTree[id];
+    if(!node) return;
+    if(!confirm(`Xoá "${node.name}" vào thùng rác${node.type==='folder'?' (cùng toàn bộ nội dung bên trong thư mục)':''}? Có thể khôi phục lại sau.`)) return;
+    const ids = node.type==='folder' ? [id, ...knDescendantsOf(id)] : [id];
+    const updates = {};
+    ids.forEach(nid=>{ updates[`${nid}/deleted`] = true; updates[`${nid}/deletedAt`] = new Date().toISOString(); });
+    await rtdb.ref('system_knowledge/tree').update(updates);
+  }
+  async function knRestoreNode(id){
+    if(!isAdmin()) return;
+    await rtdb.ref(`system_knowledge/tree/${id}`).update({ deleted:false, deletedAt:null });
+  }
+  async function knPurgeNode(id){
+    if(!isAdmin()) return;
+    const node = state.knowledgeTree[id];
+    if(!node) return;
+    if(!confirm(`XOÁ VĨNH VIỄN "${node.name}"? Không thể khôi phục lại được nữa.`)) return;
+    const ids = node.type==='folder' ? [id, ...knDescendantsOf(id)] : [id];
+    for(const nid of ids){
+      const n = state.knowledgeTree[nid];
+      if(n && n.storagePath){ try{ await storage.ref(n.storagePath).delete(); }catch(e){ console.warn('Xoá tệp trên Storage lỗi (bỏ qua):', e); } }
+    }
+    const updates = {};
+    ids.forEach(nid=> updates[nid] = null);
+    await rtdb.ref('system_knowledge/tree').update(updates);
+  }
+  // Tải file .docx/.xlsx/ảnh lên Firebase Storage, đồng thời trích xuất nội dung văn bản (nếu có
+  // thể) để nạp vào "Bối cảnh tri thức" dùng chung cho AI.
+  async function knUploadFile(file, parentId, kind){
+    if(!isAdmin() || !file) return;
+    const MAX_MB = 20;
+    if(file.size > MAX_MB*1024*1024){ alert(`Tệp "${file.name}" vượt quá ${MAX_MB}MB, vui lòng chọn tệp nhỏ hơn.`); return; }
+    state.knowledgeUploading = true;
+    const mountBefore = document.getElementById('content');
+    if(mountBefore && state.activeTab==='knowledgeBase') renderAdminKnowledgeTab(mountBefore);
+    const id = uidKn();
+    try{
+      const storagePath = `system_knowledge_files/${id}_${file.name}`;
+      const stRef = storage.ref(storagePath);
+      await stRef.put(file);
+      const storageUrl = await stRef.getDownloadURL();
+      let content = '';
+      if(kind==='docx'){
+        try{
+          const buf = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer: buf });
+          content = (result && result.value) || '';
+        }catch(e){ console.error('Trích xuất nội dung Word lỗi:', e); }
+      } else if(kind==='xlsx'){
+        try{
+          const buf = await file.arrayBuffer();
+          const wb = XLSX.read(buf, { type:'array' });
+          content = wb.SheetNames.map(sn=> `--- Trang tính: ${sn} ---\n` + XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join('\n\n');
+        }catch(e){ console.error('Trích xuất nội dung Excel lỗi:', e); }
+      } else if(kind==='image'){
+        content = prompt(`Mô tả ngắn gọn nội dung ảnh "${file.name}" (để AI hiểu ý nghĩa của ảnh, vd: "Sơ đồ quy trình xét duyệt hồ sơ vay vốn gồm 5 bước: ...")`, '') || '';
+      }
+      await rtdb.ref(`system_knowledge/tree/${id}`).set({
+        id, type:'file', fileKind:kind, parentId: parentId||null, name:file.name,
+        content, storagePath, storageUrl, mimeType:file.type||'', sizeBytes:file.size,
+        createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
+      });
+    }catch(e){
+      console.error('Tải tệp lên Firebase Storage lỗi:', e);
+      alert(`Không thể tải tệp "${file.name}" lên. Vui lòng kiểm tra kết nối mạng hoặc cấu hình Firebase Storage (bucket/CORS/luật bảo mật).`);
+    }finally{
+      state.knowledgeUploading = false;
+      const mountAfter = document.getElementById('content');
+      if(mountAfter && state.activeTab==='knowledgeBase') renderAdminKnowledgeTab(mountAfter);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Hàm bổ trợ NGẦM dùng CHUNG cho mọi model AI (mọi tầng dự phòng): quét toàn bộ file văn bản/
+  // Word/Excel/mô tả ảnh đang có trong kho tri thức system_knowledge/ và gộp thành 1 chuỗi lớn
+  // ("Bối cảnh tri thức") để nạp kèm System Instruction khi AI trả lời.
+  // ---------------------------------------------------------------------
+  async function getSystemKnowledge(){
+    try{
+      const snap = await rtdb.ref('system_knowledge/tree').get();
+      if(!snap || !snap.exists()) return '';
+      const nodes = snap.val();
+      function pathOf(n){
+        const parts = [n.name]; let p = n.parentId; let guard = 0;
+        while(p && nodes[p] && guard++ < 20){ parts.unshift(nodes[p].name); p = nodes[p].parentId; }
+        return parts.join(' / ');
+      }
+      const files = Object.values(nodes).filter(n=> n && n.type==='file' && !n.deleted && (n.content||'').trim());
+      if(!files.length) return '';
+      const MAX_CHARS = 60000; // giới hạn an toàn để không làm prompt quá dài/tốn phí
+      let combined = '';
+      for(const f of files){
+        const block = `\n\n===== [${pathOf(f)}] =====\n${f.content.trim()}`;
+        if((combined.length + block.length) > MAX_CHARS) break;
+        combined += block;
+      }
+      return combined.trim();
+    }catch(e){ console.error('Không tải được kho tri thức hệ thống (system_knowledge):', e); return ''; }
+  }
+  // Bản có bộ nhớ đệm (2 phút, hoặc làm mới ngay khi Admin vừa chỉnh sửa qua realtime listener ở
+  // trên) — tránh phải quét lại toàn bộ Firebase mỗi lần người dùng gửi 1 tin nhắn chat AI.
+  async function getSystemKnowledgeCached(){
+    const now = Date.now();
+    if(state._systemKnowledgeCache!=null && (now - state._systemKnowledgeCacheAt) < 120000){
+      return state._systemKnowledgeCache;
+    }
+    const text = await getSystemKnowledge();
+    state._systemKnowledgeCache = text;
+    state._systemKnowledgeCacheAt = now;
+    return text;
+  }
+
+  function knChildrenOf(parentId){
+    return Object.values(state.knowledgeTree||{})
+      .filter(n=> n && !n.deleted && (n.parentId||null) === (parentId||null))
+      .sort((a,b)=>{ if(a.type!==b.type) return a.type==='folder'? -1 : 1; return (a.name||'').localeCompare(b.name||''); });
+  }
+  function knBreadcrumb(folderId){
+    const path = []; let cur = folderId; let guard = 0;
+    while(cur && state.knowledgeTree[cur] && guard++ < 20){ path.unshift(state.knowledgeTree[cur]); cur = state.knowledgeTree[cur].parentId; }
+    return path;
+  }
+  function knFileIcon(node){
+    if(node.type==='folder') return '📁';
+    if(node.fileKind==='docx') return '📄';
+    if(node.fileKind==='xlsx') return '📊';
+    if(node.fileKind==='image') return '🖼️';
+    return '📝';
+  }
+  function knFileKindLabel(kind){ return {text:'Văn bản', docx:'Word', xlsx:'Excel', image:'Ảnh'}[kind] || ''; }
+
+  // Khung soạn thảo/xem nội dung 1 file tri thức — dùng chung cho cả file gõ tay lẫn nội dung đã
+  // trích xuất từ Word/Excel/mô tả ảnh (Admin có thể chỉnh sửa lại cho chính xác hơn rồi Lưu).
+  function knOpenFileEditor(id){
+    const node = state.knowledgeTree[id];
+    if(!node) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:760px;">
+        <div class="modal-body">
+          <h3 style="margin-top:0;">${knFileIcon(node)} ${escapeHtml(node.name)}</h3>
+          ${node.fileKind==='image' && node.storageUrl? `<img src="${node.storageUrl}" style="max-width:100%; max-height:240px; border-radius:10px; margin-bottom:10px; display:block;">` : ''}
+          ${node.storageUrl && node.fileKind!=='image'? `<p class="sub"><a href="${node.storageUrl}" target="_blank" rel="noopener">📎 Xem/tải file gốc</a></p>` : ''}
+          <p class="sub" style="margin-top:0;">${node.fileKind==='text'? 'Nội dung này sẽ được AI đọc trực tiếp làm tri thức nền.' : 'Nội dung trích xuất bên dưới sẽ được AI đọc làm tri thức nền — bạn có thể chỉnh sửa lại cho chính xác/gọn gàng hơn nếu cần.'}</p>
+          <textarea id="kn-editor-textarea" rows="16" style="width:100%; font-family:inherit; font-size:13.5px; padding:12px; border:1px solid var(--line); border-radius:10px; resize:vertical;">${escapeHtml(node.content||'')}</textarea>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="btn btn-ghost" id="kn-editor-close" style="flex:1;">Đóng</button>
+            <button class="btn btn-primary" id="kn-editor-save" style="flex:1;">💾 Lưu</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#kn-editor-close').onclick = close;
+    wrap.querySelector('#kn-editor-save').onclick = async ()=>{
+      await knSaveTextFile(id, wrap.querySelector('#kn-editor-textarea').value);
+      close();
+    };
+  }
+
+  // =====================================================================
+  // Module [Huấn luyện AI (Admin)] — "Bàn làm việc" dạng cây thư mục
+  // =====================================================================
+  function renderAdminKnowledgeTab(el){
+    if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Bạn không có quyền truy cập mục này.</div>'; return; }
+    attachKnowledgeRealtime();
+    const curId = state.knowledgeCurrentFolder;
+    const crumbs = knBreadcrumb(curId);
+    const items = state.knowledgeTrashOpen
+      ? Object.values(state.knowledgeTree||{}).filter(n=> n && n.deleted).sort((a,b)=>(b.deletedAt||'').localeCompare(a.deletedAt||''))
+      : knChildrenOf(curId);
+
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>🧠 Huấn luyện AI — Kho tri thức nền dùng chung</h3></div>
+        <div class="panel-body">
+          <p class="sub" style="margin-top:0;">Toàn bộ nội dung văn bản / Word / Excel / mô tả ảnh trong kho này sẽ được <b>tự động nạp kèm</b> vào mọi cuộc trò chuyện của "Chàng Nông dân Thông minh" — dùng chung cho mọi model AI (Gemini, ChatGPT, Claude...) ở mọi tầng dự phòng.</p>
+
+          ${!state.knowledgeTrashOpen? `
+          <div class="toolbar" style="flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" id="kn-new-folder">📁 Tạo thư mục mới</button>
+            <button class="btn btn-primary btn-sm" id="kn-new-text">📝 Tạo file văn bản mới</button>
+            <button class="btn btn-ghost btn-sm" id="kn-upload-docx">⬆️ Tải Word (.docx)</button>
+            <button class="btn btn-ghost btn-sm" id="kn-upload-xlsx">⬆️ Tải Excel (.xlsx)</button>
+            <button class="btn btn-ghost btn-sm" id="kn-upload-image">🖼️ Tải ảnh</button>
+            <button class="btn btn-ghost btn-sm" id="kn-open-trash" style="margin-left:auto;">🗑️ Thùng rác</button>
+          </div>
+          <div style="margin:12px 0; font-size:13px;">
+            <span class="link-btn" data-kn-goto="">🏠 Gốc</span>${crumbs.map(c=>` / <span class="link-btn" data-kn-goto="${c.id}">${escapeHtml(c.name)}</span>`).join('')}
+          </div>` : `
+          <div class="toolbar">
+            <button class="btn btn-ghost btn-sm" id="kn-close-trash">◀ Quay lại kho tri thức</button>
+          </div>
+          <div class="divider-lbl">🗑️ Thùng rác (kho tri thức)</div>
+          `}
+
+          ${state.knowledgeUploading? `<div class="empty-state" style="padding:10px; text-align:left;">⏳ Đang tải tệp lên Firebase Storage, vui lòng đợi...</div>` : ''}
+
+          <div id="kn-dropzone" style="border:2px dashed var(--line); border-radius:12px; min-height:120px; padding:8px; transition:border-color .15s;">
+            ${items.length? `<div class="table-wrap"><table>
+              <thead><tr><th></th><th>Tên</th><th>Loại</th><th>Cập nhật</th><th></th></tr></thead>
+              <tbody>${items.map(n=>`
+                <tr>
+                  <td style="width:30px; text-align:center; font-size:18px;">${knFileIcon(n)}</td>
+                  <td>${n.type==='folder' && !state.knowledgeTrashOpen? `<span class="link-btn" data-kn-open-folder="${n.id}">${escapeHtml(n.name)}</span>`
+                      : (n.type==='file' && !state.knowledgeTrashOpen? `<span class="link-btn" data-kn-open-file="${n.id}">${escapeHtml(n.name)}</span>` : escapeHtml(n.name))}
+                    ${n.storageUrl? ` <a href="${n.storageUrl}" target="_blank" rel="noopener" class="sub" style="font-size:11px;">(tệp gốc)</a>` : ''}
+                  </td>
+                  <td class="sub">${n.type==='folder'? 'Thư mục' : knFileKindLabel(n.fileKind)}</td>
+                  <td class="sub" style="white-space:nowrap;">${n.updatedAt? new Date(n.updatedAt).toLocaleString('vi-VN') : ''}</td>
+                  <td style="white-space:nowrap; display:flex; gap:6px;">
+                    ${state.knowledgeTrashOpen? `
+                      <button class="btn btn-ghost btn-sm" data-kn-restore="${n.id}">Khôi phục</button>
+                      <button class="btn btn-ghost btn-sm" data-kn-purge="${n.id}" style="color:var(--red);">Xoá vĩnh viễn</button>
+                    ` : `
+                      <button class="btn btn-ghost btn-sm" data-kn-rename="${n.id}">Đổi tên</button>
+                      <button class="btn btn-ghost btn-sm" data-kn-delete="${n.id}" style="color:var(--red);">Xoá vào thùng rác</button>
+                    `}
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table></div>` : `<div class="empty-state" style="padding:24px;">${state.knowledgeTrashOpen? 'Thùng rác trống.' : 'Thư mục này đang trống. Tạo thư mục/file mới, tải tệp lên bằng nút phía trên, hoặc kéo-thả file trực tiếp vào khung này.'}</div>`}
+          </div>
+        </div>
+      </div>`;
+
+    // ---- điều hướng ----
+    el.querySelectorAll('[data-kn-goto]').forEach(elx=> elx.onclick = ()=>{ state.knowledgeCurrentFolder = elx.dataset.knGoto || null; renderAdminKnowledgeTab(el); });
+    el.querySelectorAll('[data-kn-open-folder]').forEach(elx=> elx.onclick = ()=>{ state.knowledgeCurrentFolder = elx.dataset.knOpenFolder; renderAdminKnowledgeTab(el); });
+    el.querySelectorAll('[data-kn-open-file]').forEach(elx=> elx.onclick = ()=> knOpenFileEditor(elx.dataset.knOpenFile));
+
+    // ---- tạo mới ----
+    const newFolderBtn = document.getElementById('kn-new-folder');
+    if(newFolderBtn) newFolderBtn.onclick = async ()=>{ const name = prompt('Tên thư mục mới:'); if(name && name.trim()) await knCreateFolder(name, curId); };
+    const newTextBtn = document.getElementById('kn-new-text');
+    if(newTextBtn) newTextBtn.onclick = async ()=>{
+      const name = prompt('Tên file văn bản mới:', 'Tài liệu mới');
+      if(name===null) return;
+      const id = await knCreateTextFile(name, curId);
+      if(id) knOpenFileEditor(id);
+    };
+
+    // ---- tải tệp lên (Word/Excel/Ảnh) ----
+    function triggerUpload(kind, accept){
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = accept; input.multiple = true;
+      input.onchange = ()=>{ Array.from(input.files||[]).forEach(f=> knUploadFile(f, curId, kind)); };
+      input.click();
+    }
+    const docxBtn = document.getElementById('kn-upload-docx');
+    if(docxBtn) docxBtn.onclick = ()=> triggerUpload('docx', '.docx');
+    const xlsxBtn = document.getElementById('kn-upload-xlsx');
+    if(xlsxBtn) xlsxBtn.onclick = ()=> triggerUpload('xlsx', '.xlsx,.xls');
+    const imgBtn = document.getElementById('kn-upload-image');
+    if(imgBtn) imgBtn.onclick = ()=> triggerUpload('image', 'image/*');
+
+    // ---- kéo-thả file trực tiếp vào khung ----
+    const dropzone = document.getElementById('kn-dropzone');
+    if(dropzone && !state.knowledgeTrashOpen){
+      ['dragover','dragenter'].forEach(evt=> dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.style.borderColor = 'var(--gold)'; }));
+      ['dragleave','drop'].forEach(evt=> dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.style.borderColor = 'var(--line)'; }));
+      dropzone.addEventListener('drop', e=>{
+        e.preventDefault();
+        Array.from((e.dataTransfer && e.dataTransfer.files) || []).forEach(f=>{
+          const ext = (f.name.split('.').pop()||'').toLowerCase();
+          let kind = null;
+          if(ext==='docx') kind = 'docx';
+          else if(ext==='xlsx' || ext==='xls') kind = 'xlsx';
+          else if((f.type||'').startsWith('image/')) kind = 'image';
+          if(!kind){ alert(`Định dạng ".${ext}" chưa được hỗ trợ kéo-thả trực tiếp. Vui lòng dùng đúng nút tải tệp (.docx/.xlsx/ảnh), hoặc "Tạo file văn bản mới" để gõ tay.`); return; }
+          knUploadFile(f, curId, kind);
+        });
+      });
+    }
+
+    // ---- đổi tên / xoá / khôi phục / xoá vĩnh viễn ----
+    el.querySelectorAll('[data-kn-rename]').forEach(btn=> btn.onclick = async ()=>{
+      const node = state.knowledgeTree[btn.dataset.knRename];
+      const name = prompt('Đổi tên thành:', node? node.name : '');
+      if(name && name.trim()) await knRenameNode(btn.dataset.knRename, name);
+    });
+    el.querySelectorAll('[data-kn-delete]').forEach(btn=> btn.onclick = ()=> knSoftDeleteNode(btn.dataset.knDelete));
+    el.querySelectorAll('[data-kn-restore]').forEach(btn=> btn.onclick = ()=> knRestoreNode(btn.dataset.knRestore));
+    el.querySelectorAll('[data-kn-purge]').forEach(btn=> btn.onclick = ()=> knPurgeNode(btn.dataset.knPurge));
+
+    // ---- thùng rác ----
+    const openTrashBtn = document.getElementById('kn-open-trash');
+    if(openTrashBtn) openTrashBtn.onclick = ()=>{ state.knowledgeTrashOpen = true; renderAdminKnowledgeTab(el); };
+    const closeTrashBtn = document.getElementById('kn-close-trash');
+    if(closeTrashBtn) closeTrashBtn.onclick = ()=>{ state.knowledgeTrashOpen = false; renderAdminKnowledgeTab(el); };
+  }
+
+  // =====================================================================
+  // Module [Siêu ghi chú] — NAY TÁCH 2 KHÔNG GIAN LƯU TRỮ:
+  //   • 'personal' (Bộ cá nhân, bảo mật): users/{emailKey}/super_notes/tree/{id} — nếu có tài
+  //     khoản Google. Nếu KHÔNG có tài khoản (Khách qua mã không đăng nhập) thì lưu tạm vào
+  //     localStorage của trình duyệt (KHÔNG đẩy lên Firebase), theo đúng yêu cầu.
+  //   • 'shared' (Bộ dùng chung của Xã/Phường): communes/{wardId}/shared_notes/tree/{id} — mọi
+  //     người có chung mã định danh của xã đó đều truy cập được, theo đúng phân quyền Chủ mã cấu
+  //     hình tại "⚙️ Cài đặt & Chia sẻ" (mặc định "Cho phép xem" cho người mới, Chủ mã luôn toàn quyền).
+  // (Ghi chú kiến trúc: hệ thống dùng Realtime Database thay Firestore để đồng bộ toàn ứng dụng —
+  // xem thêm ghi chú ở đầu module Huấn luyện AI. Firebase Storage vẫn dùng cho file gốc, best-effort.)
+  // =====================================================================
+  const LOCAL_NOTES_KEY = 'hnd_local_notes_tree_v1';
+  function superNotesUserKey(){ return (state.identity && state.identity.email) ? emailToKey(state.identity.email) : null; }
+  function hasSuperNotesAccount(){ return !!superNotesUserKey(); }
+  // Bộ cá nhân của Khách qua mã (không đăng nhập Google) không có nơi lưu trên đám mây -> dùng
+  // localStorage của chính máy/trình duyệt họ đang dùng.
+  function usingLocalNotes(){ return state.superNotesSpace==='personal' && !hasSuperNotesAccount(); }
+  function currentNotesTreeRef(){
+    if(state.superNotesSpace==='shared'){
+      const wid = wardId();
+      return wid ? rtdb.ref(`communes/${wid}/shared_notes/tree`) : null;
+    }
+    const key = superNotesUserKey();
+    return key ? rtdb.ref(`users/${key}/super_notes/tree`) : null; // null -> dùng local (usingLocalNotes())
+  }
+  function snAfterLocalWrite(){ state._superNotesCache = null; if(state._superNotesOpen) renderSuperNotesOverlay(); }
+
+  // ---- Phân quyền Bộ ghi chú DÙNG CHUNG (Yêu cầu 4) ----
+  function sharedNotesPerm(){
+    if(isOwner()) return 'edit'; // Chủ mã luôn toàn quyền với bộ chung của chính mình
+    const cfg = state.sharedNotesConfig || {};
+    const email = state.identity && state.identity.email;
+    if(email){
+      const g = (cfg.grants||{})[emailToKey(email)];
+      if(g && g.perm) return g.perm;
+    }
+    return cfg.defaultPerm || 'view';
+  }
+  // Cá nhân: luôn toàn quyền với đúng dữ liệu của chính mình (kể cả lưu local). Chung: theo phân quyền.
+  function snCanEdit(){ return state.superNotesSpace==='personal' ? true : sharedNotesPerm()==='edit'; }
+  function snCanView(){ return state.superNotesSpace==='personal' ? true : sharedNotesPerm()!=='none'; }
+  async function loadSharedNotesConfig(){
+    const wid = wardId();
+    if(!wid){ state.sharedNotesConfig = {defaultPerm:'view', grants:{}}; return; }
+    try{
+      const snap = await rtdb.ref(`communes/${wid}/shared_notes/config`).get();
+      state.sharedNotesConfig = (snap && snap.exists()) ? snap.val() : {defaultPerm:'view', grants:{}};
+    }catch(e){ state.sharedNotesConfig = {defaultPerm:'view', grants:{}}; }
+  }
+  async function saveSharedNotesConfig(cfg){
+    const wid = wardId();
+    if(!wid || !isOwner()) return;
+    await rtdb.ref(`communes/${wid}/shared_notes/config`).set(cfg);
+    state.sharedNotesConfig = cfg;
+  }
+
+  let superNotesListenerRef = null;
+  let superNotesListenerKey = null; // đánh dấu đang lắng nghe đúng path nào (tránh gắn trùng khi đổi không gian/đổi mã)
+  function attachSuperNotesRealtime(){
+    if(usingLocalNotes()){
+      detachSuperNotesRealtime();
+      state.superNotesTree = lget(LOCAL_NOTES_KEY, {});
+      return;
+    }
+    const ref = currentNotesTreeRef();
+    if(!ref){ state.superNotesTree = {}; return; }
+    const pathKey = ref.toString();
+    if(superNotesListenerRef && superNotesListenerKey === pathKey) return; // đã đúng path rồi, khỏi gắn lại
+    detachSuperNotesRealtime();
+    superNotesListenerRef = ref;
+    superNotesListenerKey = pathKey;
+    ref.on('value', snap=>{
+      state.superNotesTree = (snap && snap.exists()) ? snap.val() : {};
+      state._superNotesCache = null; // dữ liệu vừa đổi -> làm mới bộ nhớ đệm ở lượt chat AI kế tiếp
+      if(state._superNotesOpen) renderSuperNotesOverlay();
+    });
+  }
+  function detachSuperNotesRealtime(){
+    if(superNotesListenerRef){ superNotesListenerRef.off(); superNotesListenerRef = null; superNotesListenerKey = null; }
+  }
+  // Chuyển đổi giữa 2 không gian (Yêu cầu 2) — tải/lắng nghe lại đúng nguồn dữ liệu tương ứng.
+  async function switchNotesSpace(space){
+    if(state.superNotesSpace === space) return;
+    state.superNotesSpace = space;
+    state.superNotesCurrentFolder = null;
+    state.superNotesEditingId = null;
+    state.superNotesTrashOpen = false;
+    if(space==='shared') await loadSharedNotesConfig();
+    attachSuperNotesRealtime();
+    renderSuperNotesOverlay();
+  }
+  function snChildrenOf(parentId){
+    return Object.values(state.superNotesTree||{})
+      .filter(n=> n && !n.deleted && (n.parentId||null) === (parentId||null))
+      .sort((a,b)=>{ if(a.type!==b.type) return a.type==='folder'? -1 : 1; return (a.name||'').localeCompare(b.name||''); });
+  }
+  function snBreadcrumb(folderId){
+    const path = []; let cur = folderId; let guard = 0;
+    while(cur && state.superNotesTree[cur] && guard++ < 20){ path.unshift(state.superNotesTree[cur]); cur = state.superNotesTree[cur].parentId; }
+    return path;
+  }
+  function snDescendantsOf(id){
+    const out = []; const stack = [id];
+    while(stack.length){
+      const cur = stack.pop();
+      Object.values(state.superNotesTree||{}).forEach(n=>{ if(n && n.parentId===cur){ out.push(n.id); stack.push(n.id); } });
+    }
+    return out;
+  }
+  // ---- Các nguyên tố ghi dữ liệu DÙNG CHUNG cho cả 3 kiểu backend (Firebase cá nhân/chung, local) ----
+  async function snWriteNode(id, node){
+    if(usingLocalNotes()){
+      const tree = lget(LOCAL_NOTES_KEY, {});
+      tree[id] = node;
+      lset(LOCAL_NOTES_KEY, tree);
+      state.superNotesTree = tree;
+      snAfterLocalWrite();
+      return;
+    }
+    const ref = currentNotesTreeRef();
+    if(!ref) return;
+    await ref.child(id).set(node);
+  }
+  async function snUpdateNode(id, partial){
+    if(usingLocalNotes()){
+      const tree = lget(LOCAL_NOTES_KEY, {});
+      tree[id] = { ...(tree[id]||{}), ...partial };
+      lset(LOCAL_NOTES_KEY, tree);
+      state.superNotesTree = tree;
+      snAfterLocalWrite();
+      return;
+    }
+    const ref = currentNotesTreeRef();
+    if(!ref) return;
+    await ref.child(id).update(partial);
+  }
+  // updatesObj dạng {"id/field": value, ...} (multi-path update, giống Firebase .update()) hoặc
+  // {"id": null} để xoá hẳn 1 node — dùng cho xoá mềm theo lô / xoá vĩnh viễn theo lô.
+  async function snBatchUpdate(updatesObj){
+    if(usingLocalNotes()){
+      const tree = lget(LOCAL_NOTES_KEY, {});
+      Object.entries(updatesObj).forEach(([path, val])=>{
+        const slash = path.indexOf('/');
+        if(slash===-1){
+          if(val===null) delete tree[path]; else tree[path] = val;
+        } else {
+          const id = path.slice(0,slash), field = path.slice(slash+1);
+          tree[id] = tree[id] || {};
+          if(val===null) delete tree[id][field]; else tree[id][field] = val;
+        }
+      });
+      lset(LOCAL_NOTES_KEY, tree);
+      state.superNotesTree = tree;
+      snAfterLocalWrite();
+      return;
+    }
+    const ref = currentNotesTreeRef();
+    if(!ref) return;
+    await ref.update(updatesObj);
+  }
+  async function snCreateFolder(name, parentId){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn không có quyền tạo thư mục ở Bộ ghi chú dùng chung này.'); return; }
+    const nm = (name||'').trim();
+    if(!nm){ alert('Vui lòng nhập tên thư mục.'); return; }
+    const id = uidKn();
+    await snWriteNode(id, { id, type:'folder', parentId: parentId||null, name:nm, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false });
+  }
+  async function snCreateTextFile(name, parentId, content){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return null; }
+    if(!snCanEdit()){ alert('Bạn không có quyền tạo ghi chú ở Bộ ghi chú dùng chung này.'); return null; }
+    const id = uidKn();
+    await snWriteNode(id, {
+      id, type:'file', fileKind:'text', parentId: parentId||null, name:(name||'').trim() || 'Ghi chú mới', content: content||'',
+      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
+    });
+    return id;
+  }
+  async function snSaveTextFile(id, content){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn chỉ được XEM, không có quyền sửa ở Bộ ghi chú dùng chung này.'); return; }
+    await snUpdateNode(id, { content: content||'', updatedAt:new Date().toISOString() });
+  }
+  async function snRenameNode(id, newName){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn không có quyền đổi tên ở Bộ ghi chú dùng chung này.'); return; }
+    const nm = (newName||'').trim();
+    if(!nm) return;
+    await snUpdateNode(id, { name:nm, updatedAt:new Date().toISOString() });
+  }
+  async function snSoftDeleteNode(id){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn không có quyền xoá ở Bộ ghi chú dùng chung này.'); return; }
+    const node = state.superNotesTree[id];
+    if(!node) return;
+    if(!confirm(`Xoá "${node.name}" vào thùng rác${node.type==='folder'?' (cùng toàn bộ nội dung bên trong)':''}? Có thể khôi phục lại sau.`)) return;
+    const ids = node.type==='folder' ? [id, ...snDescendantsOf(id)] : [id];
+    const updates = {};
+    ids.forEach(nid=>{ updates[`${nid}/deleted`] = true; updates[`${nid}/deletedAt`] = new Date().toISOString(); });
+    await snBatchUpdate(updates);
+  }
+  async function snRestoreNode(id){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn không có quyền khôi phục ở Bộ ghi chú dùng chung này.'); return; }
+    await snUpdateNode(id, { deleted:false, deletedAt:null });
+  }
+  async function snPurgeNode(id){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn không có quyền xoá vĩnh viễn ở Bộ ghi chú dùng chung này.'); return; }
+    const node = state.superNotesTree[id];
+    if(!node) return;
+    if(!confirm(`XOÁ VĨNH VIỄN "${node.name}"? Không thể khôi phục lại được nữa.`)) return;
+    const ids = node.type==='folder' ? [id, ...snDescendantsOf(id)] : [id];
+    if(!usingLocalNotes()){
+      for(const nid of ids){
+        const n = state.superNotesTree[nid];
+        if(n && n.storagePath){ try{ await storage.ref(n.storagePath).delete(); }catch(e){ console.warn('Xoá tệp gốc trên Storage lỗi (bỏ qua):', e); } }
+      }
+    }
+    const updates = {};
+    ids.forEach(nid=> updates[nid] = null);
+    await snBatchUpdate(updates);
+  }
+
+  // ---- Nguồn 2 cho "bộ não" AI: toàn bộ nội dung Siêu ghi chú CÁ NHÂN của CHÍNH người đang chat ----
+  // Gộp các node văn bản của 1 cây ghi chú thành 1 chuỗi tri thức — dùng chung cho cả nguồn
+  // Firebase (tài khoản Google) lẫn localStorage (Khách qua mã chưa đăng nhập).
+  function combineNotesNodesToText(nodes, labelPrefix){
+    function pathOf(n){
+      const parts=[n.name]; let p=n.parentId; let guard=0;
+      while(p && nodes[p] && guard++<20){ parts.unshift(nodes[p].name); p=nodes[p].parentId; }
+      return parts.join(' / ');
+    }
+    const files = Object.values(nodes||{}).filter(n=> n && n.type==='file' && !n.deleted && (n.content||'').trim());
+    if(!files.length) return '';
+    const MAX_CHARS = 40000;
+    let combined = '';
+    for(const f of files){
+      const block = `\n\n----- [${labelPrefix}: ${pathOf(f)}] -----\n${f.content.trim()}`;
+      if((combined.length + block.length) > MAX_CHARS) break;
+      combined += block;
+    }
+    return combined.trim();
+  }
+  async function getUserSuperNotesKnowledge(){
+    // Yêu cầu mới: Khách qua mã (chưa đăng nhập Google) lưu Siêu ghi chú cá nhân tạm ở localStorage
+    // của chính máy họ — vẫn phải "bốc" đúng nguồn đó để nạp bối cảnh cho AI, không chỉ riêng
+    // tài khoản Google mới có Nguồn 2.
+    const key = superNotesUserKey();
+    if(!key){
+      try{ return combineNotesNodesToText(lget(LOCAL_NOTES_KEY, {}), 'Siêu ghi chú cá nhân (lưu tạm trên máy)'); }
+      catch(e){ console.error('Không đọc được Siêu ghi chú cá nhân (local):', e); return ''; }
+    }
+    try{
+      const snap = await rtdb.ref(`users/${key}/super_notes/tree`).get();
+      if(!snap || !snap.exists()) return '';
+      return combineNotesNodesToText(snap.val(), 'Siêu ghi chú cá nhân');
+    }catch(e){ console.error('Không tải được Siêu ghi chú cá nhân:', e); return ''; }
+  }
+  async function getUserSuperNotesKnowledgeCached(){
+    const now = Date.now();
+    if(state._superNotesCache!=null && (now - state._superNotesCacheAt) < 120000) return state._superNotesCache;
+    const text = await getUserSuperNotesKnowledge();
+    state._superNotesCache = text;
+    state._superNotesCacheAt = now;
+    return text;
+  }
+
+  // ---------------------------------------------------------------------
+  // Pipeline "AI TIÊU HOÁ TRI THỨC" cho Siêu ghi chú: gõ chữ / nói / tải ảnh-PDF / tải cả thư mục
+  // đều đi qua ĐÚNG 1 hàm này — luôn ưu tiên Gemini (Pro rồi tới Flash) vì cần khả năng đọc file
+  // (ảnh/PDF) mạnh, trả về đúng cấu trúc JSON {fileName, rawText, digestedText}.
+  // ---------------------------------------------------------------------
+  async function digestNoteInput({ text, attachment }){
+    const provider = (state.aiProviders||[]).find(p=> p.apiKey && aiVendorOf(p)==='gemini');
+    if(!provider){ throw new Error('Chưa có API Key Gemini nào được Admin cấu hình trong "CÀI ĐẶT ADMIN" — không thể xử lý AI tiêu hoá tri thức (cần model đọc file mạnh).'); }
+    const instruction = `Bạn là một trợ lý biên tập tri thức cho hệ thống ghi chú cá nhân. Nhiệm vụ:
+1) Nếu đầu vào có tệp ảnh/PDF đính kèm: hãy OCR toàn bộ nội dung (chữ, bảng biểu, mô tả sơ đồ nếu có) thành văn bản thuần, cố gắng giữ đúng bố cục/thứ tự gốc — gán vào "rawText".
+   Nếu đầu vào CHỈ là văn bản gõ tay/nói (không có tệp đính kèm): "rawText" chính là NGUYÊN VĂN văn bản người dùng đã nhập, giữ nguyên không sửa gì.
+2) Từ rawText, biên tập lại thành "digestedText": sửa lỗi chính tả/ngữ pháp, sắp xếp mạch lạc rõ ràng, có thể suy luận/bổ sung giải thích thêm cho dễ hiểu hơn — nhưng KHÔNG bịa thông tin trái với nội dung gốc.
+3) Đặt 1 tên file ngắn gọn (dưới 60 ký tự, không chứa / \\ : * ? " < > |) tóm tắt đúng nội dung, gán vào "fileName" (không cần đuôi .txt).
+CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất kỳ chữ nào khác, không dùng markdown code fence, đúng cấu trúc:
+{"fileName":"...", "rawText":"...", "digestedText":"..."}`;
+    const userText = instruction + (text? `\n\nVĂN BẢN NGƯỜI DÙNG NHẬP:\n${text}` : '\n\n(Người dùng không nhập thêm văn bản, chỉ có tệp đính kèm — hãy OCR toàn bộ tệp.)');
+    const messages = [{ role:'user', text:userText }];
+    const opts = attachment ? { attachments:[attachment] } : {};
+    let result;
+    try{
+      result = await callGeminiOnce(provider, 'gemini-1.5-pro', messages, opts, null);
+    }catch(e1){
+      console.warn('[Siêu ghi chú] Gemini Pro lỗi, tự động chuyển Flash:', e1);
+      result = await callGeminiOnce(provider, 'gemini-1.5-flash', messages, opts, null);
+    }
+    const cleaned = result.text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+    try{
+      const parsed = JSON.parse(cleaned);
+      return {
+        fileName: (parsed.fileName||'').trim() || `Ghi chú ${new Date().toLocaleString('vi-VN')}`,
+        rawText: parsed.rawText || text || '',
+        digestedText: parsed.digestedText || cleaned,
+      };
+    }catch(e){
+      // AI lỡ trả lời không đúng JSON -> vẫn không để mất dữ liệu, dùng cả câu trả lời làm phần đã tiêu hoá
+      return { fileName:`Ghi chú ${new Date().toLocaleString('vi-VN')}`, rawText: text || '(tệp đính kèm)', digestedText: cleaned };
+    }
+  }
+  function fileToBase64(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=> resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+  // Xử lý 1 tệp GỐC (File thô) hoặc 1 đoạn văn bản gõ tay -> tạo ra đúng 1 file ghi chú mới.
+  // .docx/.xlsx/.txt/.csv: trích xuất văn bản trước bằng mammoth/XLSX rồi mới đưa cho AI biên tập
+  // (chính xác hơn OCR). Ảnh/PDF/định dạng khác: gửi thẳng cho Gemini để OCR trực tiếp.
+  async function processSingleSuperNoteInput(rawFile, userText, parentId){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn không có quyền thêm ghi chú ở Bộ ghi chú dùng chung này.'); return; }
+    let storagePath = '', storageUrl = '';
+    // Best-effort đẩy file GỐC lên Storage — chấp nhận lỗi, KHÔNG chặn luồng AI tiêu hoá. Bỏ qua
+    // hẳn bước này với Khách qua mã dùng Bộ cá nhân local (không có nơi lưu file gốc trên mây).
+    if(rawFile && !usingLocalNotes()){
+      try{
+        const ownerTag = superNotesUserKey() || `ward_${wardId()||'x'}`;
+        const rid = 'raw_' + uidKn();
+        storagePath = `super_notes_files/${ownerTag}/${rid}_${rawFile.name}`;
+        const stRef = storage.ref(storagePath);
+        await stRef.put(rawFile);
+        storageUrl = await stRef.getDownloadURL();
+      }catch(e){
+        console.warn('[Siêu ghi chú] Tải file gốc lên Storage lỗi (bỏ qua, vẫn tiếp tục xử lý AI):', e);
+        storagePath = ''; storageUrl = '';
+      }
+    }
+    const digestInput = { text: userText || '' };
+    if(rawFile){
+      const ext = (rawFile.name.split('.').pop()||'').toLowerCase();
+      try{
+        if(ext==='docx'){
+          const buf = await rawFile.arrayBuffer();
+          const r = await mammoth.extractRawText({ arrayBuffer: buf });
+          digestInput.text = (digestInput.text? digestInput.text+'\n\n' : '') + (r.value||'');
+        } else if(ext==='xlsx' || ext==='xls'){
+          const buf = await rawFile.arrayBuffer();
+          const wb = XLSX.read(buf, { type:'array' });
+          const t = wb.SheetNames.map(sn=> `--- Trang tính: ${sn} ---\n` + XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join('\n\n');
+          digestInput.text = (digestInput.text? digestInput.text+'\n\n' : '') + t;
+        } else if(ext==='txt' || ext==='csv'){
+          digestInput.text = (digestInput.text? digestInput.text+'\n\n' : '') + await rawFile.text();
+        } else {
+          // Ảnh / PDF / định dạng khác -> gửi thẳng cho Gemini OCR qua inline_data
+          const base64 = await fileToBase64(rawFile);
+          digestInput.attachment = { mimeType: rawFile.type || 'application/octet-stream', base64 };
+        }
+      }catch(e){
+        console.error('[Siêu ghi chú] Trích xuất nội dung tệp lỗi, sẽ thử gửi thẳng cho AI OCR:', e);
+        try{ digestInput.attachment = { mimeType: rawFile.type || 'application/octet-stream', base64: await fileToBase64(rawFile) }; }catch(e2){}
+      }
+    }
+    const parsed = await digestNoteInput(digestInput);
+    const content = `[NGUYÊN VĂN NGƯỜI DÙNG NHẬP VÀO]\n${parsed.rawText}\n\n[NỘI DUNG ĐÃ ĐƯỢC AI TIÊU HOÁ]\n${parsed.digestedText}`;
+    const id = uidKn();
+    await snWriteNode(id, {
+      id, type:'file', fileKind:'text', parentId: parentId||null,
+      name: parsed.fileName.slice(0,80), content, storagePath, storageUrl,
+      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
+    });
+  }
+  // Điều phối: 1 đoạn text và/hoặc NHIỀU tệp gốc (kể cả "Thêm thư mục" chọn nhiều tệp cùng lúc)
+  // -> xử lý TUẦN TỰ, mỗi tệp ra đúng 1 file ghi chú riêng (văn bản gõ tay chỉ gắn vào tệp đầu).
+  async function processSuperNoteInput(text, files, parentId){
+    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(!snCanEdit()){ alert('Bạn không có quyền thêm ghi chú ở Bộ ghi chú dùng chung này.'); return; }
+    state.superNotesProcessing = true;
+    try{
+      if(files && files.length){
+        for(let i=0;i<files.length;i++){
+          state.superNotesProcessingMsg = `Đang xử lý AI tiêu hoá tệp ${i+1}/${files.length}: ${files[i].name}...`;
+          renderSuperNotesOverlay();
+          await processSingleSuperNoteInput(files[i], i===0? text : '', parentId);
+        }
+      } else if(text && text.trim()){
+        state.superNotesProcessingMsg = 'Đang xử lý AI tiêu hoá nội dung...';
+        renderSuperNotesOverlay();
+        await processSingleSuperNoteInput(null, text, parentId);
+      }
+    }catch(e){
+      console.error('[Siêu ghi chú] Xử lý AI tiêu hoá lỗi:', e);
+      alert('Xử lý AI tiêu hoá thất bại: ' + e.message);
+    }finally{
+      state.superNotesProcessing = false;
+      state.superNotesProcessingMsg = '';
+      renderSuperNotesOverlay();
+    }
+  }
+
   function renderAdminSettingsTab(el){
     if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Bạn không có quyền truy cập mục này.</div>'; return; }
     el.innerHTML = `
