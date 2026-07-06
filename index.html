@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <meta name="theme-color" content="#2F4A3C">
-<title>Quản lý Công tác Hội Nông dân cấp xã/phường</title>
+<title>Sổ tay Công tác Hội Nông dân cấp xã/phường</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -312,7 +312,7 @@
     @page{ size:A4 portrait; margin:15mm 12mm; }
   }
 
-  /* ================= Trợ lý AI "Anh Nông dân Thông minh" ================= */
+  /* ================= Trợ lý AI "Chàng Nông dân Thông minh" ================= */
   @keyframes fabBob{
     0%, 55%{ transform:translateY(0) rotate(0deg); }
     65%{ transform:translateY(-7px) rotate(-4deg); }
@@ -329,6 +329,26 @@
   }
   .fab-chat:hover{ filter:brightness(1.08); }
   @media (max-width:640px){ .fab-chat{ right:14px; bottom:14px; width:54px; height:54px; font-size:22px; } }
+  /* Yêu cầu 6: nhún nhảy/rung rinh sống động trong 5 giây đầu tiên khi vào giao diện chính, để
+     thu hút sự chú ý — sau đó tự động chuyển về hiệu ứng "lềnh bềnh" tuần hoàn như bình thường. */
+  @keyframes fabIntro{
+    0%,100%{ transform:translateY(0) rotate(0deg) scale(1); }
+    10%{ transform:translateY(-14px) rotate(-12deg) scale(1.08); }
+    20%{ transform:translateY(0) rotate(10deg) scale(0.96); }
+    30%{ transform:translateY(-11px) rotate(-9deg) scale(1.06); }
+    40%{ transform:translateY(0) rotate(7deg) scale(1); }
+    50%{ transform:translateY(-13px) rotate(-7deg) scale(1.07); }
+    60%{ transform:translateY(0) rotate(5deg) scale(1); }
+    70%{ transform:translateY(-9px) rotate(-5deg); }
+    80%{ transform:translateY(0) rotate(3deg); }
+    90%{ transform:translateY(-5px) rotate(-2deg); }
+  }
+  .fab-chat.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
+
+  /* Yêu cầu 5: tooltip nhỏ hiện bên cạnh nút gửi khi rê chuột qua */
+  .ai-send-wrap{ position:relative; display:flex; align-items:center; flex-shrink:0; }
+  .ai-send-tooltip{ position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%); background:var(--rice-dark); color:#fff; font-size:11.5px; padding:6px 11px; border-radius:8px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .15s ease; box-shadow:var(--shadow); }
+  .ai-send-wrap:hover .ai-send-tooltip{ opacity:1; }
 
   .ai-overlay{ position:fixed; inset:0; z-index:500; background:var(--paper); display:flex; }
   .ai-sidebar{ width:270px; flex-shrink:0; background:var(--rice-dark); color:#fff; display:flex; flex-direction:column; padding:16px 12px; }
@@ -352,12 +372,58 @@
   .ai-bubble.user{ align-self:flex-end; background:var(--rice-dark); color:#fff; border-bottom-right-radius:4px; }
   .ai-bubble.assistant{ align-self:flex-start; background:var(--white); border:1px solid var(--line); border-bottom-left-radius:4px; }
   .ai-bubble.thinking{ opacity:.7; font-style:italic; }
-  .ai-inputbar{ display:flex; gap:10px; padding:16px 10%; border-top:1px solid var(--line); background:var(--white); }
+  .ai-inputbar{ display:flex; gap:10px; padding:16px 10%; border-top:1px solid var(--line); background:var(--white); align-items:flex-end; }
   @media (max-width:900px){ .ai-inputbar{ padding:12px 4%; } }
   .ai-inputbar textarea{ flex:1; resize:none; border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-size:14px; font-family:inherit; max-height:120px; }
   .ai-inputbar button{ background:var(--gold); color:#3A2C05; border:none; border-radius:50%; width:46px; height:46px; font-size:18px; cursor:pointer; flex-shrink:0; }
   .ai-inputbar button:disabled{ opacity:.5; cursor:not-allowed; }
   .admin-view-banner{ background:#3A2C05; color:#FFE7A6; padding:8px 16px; font-size:13px; text-align:center; font-weight:700; }
+
+  /* Yêu cầu 3: Tiêu đề "Sổ tay Công tác Hội Nông dân cấp xã/phường" ở trên cùng mọi giao diện chính,
+     nhích nhẹ qua phải rồi qua trái ~5 giây, đứng im ~4 giây, lặp tuần hoàn (chu kỳ 9 giây). */
+  .app-title-banner{ width:100%; background:linear-gradient(90deg, var(--rice-dark), var(--gold)); color:#fff; text-align:center; padding:8px 10px; font-weight:800; font-size:13.5px; letter-spacing:.4px; overflow:hidden; white-space:nowrap; }
+  .app-title-banner span{ display:inline-block; animation: bannerSway 9s ease-in-out infinite; }
+  @keyframes bannerSway{
+    0%{ transform:translateX(0); }
+    14%{ transform:translateX(14px); }
+    42%{ transform:translateX(-14px); }
+    56%,100%{ transform:translateX(0); }
+  }
+  @media (max-width:640px){ .app-title-banner{ font-size:11.5px; padding:7px 8px; } }
+
+  /* Model đang hoạt động (dropdown chọn Cấu hình AI) */
+  .ai-model-bar{ padding:8px 10% 0; background:var(--white); }
+  @media (max-width:900px){ .ai-model-bar{ padding:8px 4% 0; } }
+  .ai-model-select{ position:relative; display:inline-flex; align-items:center; gap:6px; background:var(--paper-2); border:1px solid var(--line); border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; color:var(--rice-dark); cursor:pointer; user-select:none; }
+  .ai-model-select:hover{ background:var(--paper); }
+  .ai-model-caret{ font-size:10px; opacity:.6; }
+  .ai-model-dropdown{ position:absolute; top:calc(100% + 6px); left:0; background:var(--white); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); min-width:240px; max-width:320px; z-index:20; overflow:hidden; }
+  .ai-model-opt{ padding:10px 14px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line); }
+  .ai-model-opt:last-child{ border-bottom:none; }
+  .ai-model-opt:hover{ background:var(--paper-2); }
+  .ai-model-opt.active{ background:rgba(199,154,43,.15); font-weight:700; }
+  .ai-model-opt .sub{ display:block; font-size:11px; margin-top:2px; }
+
+  /* Nút "THÊM THÀNH PHẦN" (tài liệu/ảnh/tìm web) */
+  .ai-add-btn{ position:relative; background:var(--paper-2) !important; color:var(--rice-dark) !important; border:1px solid var(--line) !important; border-radius:20px !important; width:auto !important; height:46px; padding:0 16px; font-size:12.5px !important; font-weight:800; display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; }
+  .ai-add-btn:hover{ background:var(--paper) !important; }
+  .ai-add-menu{ position:absolute; bottom:calc(100% + 8px); left:0; background:var(--white); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); min-width:200px; z-index:20; overflow:hidden; }
+  .ai-add-opt{ padding:11px 16px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line); text-align:left; color:var(--ink); font-weight:600; }
+  .ai-add-opt:last-child{ border-bottom:none; }
+  .ai-add-opt:hover{ background:var(--paper-2); }
+
+  /* Micro */
+  .ai-mic-btn{ background:var(--paper-2) !important; color:var(--rice-dark) !important; border:1px solid var(--line) !important; }
+  .ai-mic-btn:hover{ background:var(--paper) !important; }
+  .ai-mic-btn.listening{ background:var(--red) !important; color:#fff !important; border-color:var(--red) !important; animation:aiMicPulse 1.2s ease-in-out infinite; }
+  @keyframes aiMicPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(193,68,60,.5); } 50%{ box-shadow:0 0 0 8px rgba(193,68,60,0); } }
+
+  /* Chip tệp đính kèm đang chờ gửi + trong bong bóng lịch sử */
+  .ai-attach-row{ display:flex; flex-wrap:wrap; gap:8px; padding:0 10% 8px; }
+  @media (max-width:900px){ .ai-attach-row{ padding:0 4% 8px; } }
+  .ai-attach-chip{ display:inline-flex; align-items:center; gap:6px; background:var(--paper-2); border:1px solid var(--line); border-radius:16px; padding:5px 10px; font-size:12px; color:var(--rice-dark); }
+  .ai-attach-chip button{ background:none; border:none; cursor:pointer; font-size:11px; color:var(--red); padding:0; }
+  .ai-bubble-attach{ margin-top:6px; font-size:11.5px; opacity:.75; }
 </style>
 </head>
 <body>
@@ -445,6 +511,7 @@
     if(!state.config){ alert('Không tìm thấy dữ liệu cấu hình cho mã này (có thể đã bị xoá vĩnh viễn).'); state._adminViewingWard = false; return; }
     state.activeTab = 'dashboard';
     state.view = 'app';
+    state._showWardWelcome = true;
     attachRealtime();
     render();
   }
@@ -859,10 +926,17 @@
     aiProviders:[],       // [{id, label, model, apiKey}] — cấu hình AI do Admin thiết lập (system_config/ai_providers)
     systemWardsIndex:[],  // [{wardId, wardName, ownerEmail, deleted, secretId, updatedAt}] — mục lục toàn hệ thống (Admin)
     _adminViewingWard:false, // Admin đang "Xem cơ sở dữ liệu" (chỉ đọc) của 1 mã xã không phải của mình
-    aiChats:[],            // [{id, title, messages:[{role,text,time}], updatedAt}] — lịch sử chat AI của tài khoản
+    aiChats:[],            // [{id, title, messages:[{role,text,time,attachments}], updatedAt}] — lịch sử chat AI của tài khoản
     aiActiveChatId:null,
     aiSending:false,
     _aiChatOpen:false,
+    aiActiveProviderId:null,   // id cấu hình AI (model) đang được chọn để làm việc
+    _aiModelMenuOpen:false,    // dropdown chọn model đang mở hay không
+    _aiAddMenuOpen:false,      // dropdown "THÊM THÀNH PHẦN" đang mở hay không
+    aiPendingAttachments:[],   // [{name, mimeType, base64}] — tệp/ảnh đã chọn, chờ gửi kèm tin nhắn tiếp theo
+    aiWebSearchOn:false,       // bật/tắt chế độ tìm kiếm web (Google Search grounding) cho các tin nhắn tiếp theo
+    _aiMicListening:false,     // đang thu âm giọng nói hay không
+    _showWardWelcome:false,    // Yêu cầu 1: hiện bảng chào mừng mỗi khi bắt đầu phiên xem 1 mã định danh
   };
 
   // =====================================================================
@@ -964,6 +1038,19 @@
     return name ? `${adminLevelLabel()} ${name}` : '';
   }
   function wardTitleUpper(){ return wardTitle().toUpperCase(); }
+  // Yêu cầu 2: "[xã/phường] [tên xã/phường] – [tỉnh/thành phố] [tên tỉnh/thành phố]" — dùng cho
+  // góc trái trên cùng của giao diện chính (không viết hoa toàn bộ, giữ nguyên chữ hoa/thường của
+  // tên riêng như người dùng đã nhập).
+  function wardProvinceHeaderLine(){
+    const cfg = state.config || {};
+    const wardName = (cfg.wardName||'').trim();
+    if(!wardName) return '';
+    let line = `${adminLevelLabelLower()} ${wardName}`;
+    const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType.toLowerCase() : '';
+    const provName = (cfg.provinceName||'').trim();
+    if(provName) line += ` – ${provType} ${provName}`.replace(/\s+/g,' ').trim();
+    return line;
+  }
   // "HỘI NÔNG DÂN XÃ HƯNG PHƯỚC" / "HỘI NÔNG DÂN PHƯỜNG BÌNH MINH"
   function hoiNongDanTitle(){
     const t = wardTitleUpper();
@@ -1079,9 +1166,10 @@
       state.admins = (snap && snap.exists()) ? snap.val() : {};
     }catch(e){ state.admins = {}; }
   }
-  // Bất kỳ Admin nào (kể cả Admin tối cao) đều có quyền thêm Admin mới.
+  // CHỈ 2 Admin TỐI CAO mới có quyền thêm Admin mới — các Admin thường (được thêm sau) KHÔNG có
+  // quyền này, dù bản thân họ vẫn được dùng đầy đủ các module Admin khác (Cấu hình AI, Quản lý hệ thống...).
   async function addAdminEmail(emailRaw){
-    if(!isAdmin()){ alert('Bạn không có quyền Admin.'); return false; }
+    if(!isSuperAdmin()){ alert('Chỉ Admin tối cao mới có quyền thêm Admin mới.'); return false; }
     const email = (emailRaw||'').trim().toLowerCase();
     if(!email || !email.includes('@') || !email.includes('.')){ alert('Vui lòng nhập đúng địa chỉ email.'); return false; }
     if(SUPER_ADMIN_EMAILS.includes(email)){ alert('Tài khoản này đã là Admin tối cao mặc định.'); return false; }
@@ -1089,9 +1177,10 @@
     await loadAdmins();
     return true;
   }
-  // Mọi Admin đều có quyền xoá quyền Admin của admin khác — TRỪ 2 Admin tối cao, không ai xoá được.
+  // CHỈ 2 Admin TỐI CAO mới có quyền gỡ quyền Admin của người khác — TRỪ chính 2 Admin tối cao,
+  // không ai (kể cả Admin tối cao khác) được phép gỡ.
   async function removeAdminEmail(email){
-    if(!isAdmin()){ alert('Bạn không có quyền Admin.'); return; }
+    if(!isSuperAdmin()){ alert('Chỉ Admin tối cao mới có quyền gỡ quyền Admin.'); return; }
     if(SUPER_ADMIN_EMAILS.includes(email)){ alert('Không thể gỡ quyền của Admin tối cao.'); return; }
     if(!confirm(`Gỡ quyền Admin của "${email}"? Bạn có chắc chắn?`)) return;
     await rtdb.ref(`admins/${emailToKey(email)}`).remove();
@@ -1231,8 +1320,8 @@
   async function joinWardStrict(widRaw, password){
     const wid = normalizeWardIdStr(widRaw);
     const cfg = wid ? await cGetOnceFor(wid, 'config', null) : null;
-    if(!cfg || cfg.deleted){ alert('Mã định danh này chưa tồn tại hoặc đã bị thay đổi.'); return false; }
-    if((cfg.accessCode||'') !== (password||'')){ alert('Mã định danh này chưa tồn tại hoặc đã bị thay đổi.'); return false; }
+    if(!cfg || cfg.deleted){ alert('Mã định danh này chưa tồn tại hoặc đã bị xoá. Vui lòng kiểm tra lại cho đúng (chỉ gồm chữ thường/số/gạch dưới/gạch ngang, không dấu, không khoảng trắng).'); return false; }
+    if((cfg.accessCode||'') !== (password||'')){ alert('Mã định danh đúng, nhưng sai mật khẩu mã xã. Vui lòng nhập đúng mật khẩu (để trống nếu mã này không đặt mật khẩu).'); return false; }
     const emailKey = emailToKey(state.identity.email);
     if(cfg.ownerEmail === state.identity.email){
       await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'owner', wardName: cfg.wardName||'', addedAt:new Date().toISOString()});
@@ -1252,13 +1341,14 @@
   async function joinWardAsCodeGuest(widRaw, password){
     const wid = normalizeWardIdStr(widRaw);
     const cfg = wid ? await cGetOnceFor(wid, 'config', null) : null;
-    if(!cfg || cfg.deleted){ alert('Mã định danh này chưa tồn tại hoặc đã bị thay đổi.'); return false; }
-    if((cfg.accessCode||'') !== (password||'')){ alert('Mã định danh này chưa tồn tại hoặc đã bị thay đổi.'); return false; }
+    if(!cfg || cfg.deleted){ alert('Mã định danh này chưa tồn tại hoặc đã bị xoá. Vui lòng kiểm tra lại cho đúng (chỉ gồm chữ thường/số/gạch dưới/gạch ngang, không dấu, không khoảng trắng).'); return false; }
+    if((cfg.accessCode||'') !== (password||'')){ alert('Mã định danh đúng, nhưng sai mật khẩu mã xã. Vui lòng nhập đúng mật khẩu (để trống nếu mã này không đặt mật khẩu).'); return false; }
     state.previewMode = false;
     state.identity = { name:'Khách qua mã (không đăng nhập)', email:null, photo:'', wardId: wid };
     state.config = cfg;
     state.activeTab = 'dashboard';
     state.view = 'app';
+    state._showWardWelcome = true;
     attachRealtime();
     render();
     return true;
@@ -1325,6 +1415,7 @@
       return;
     }
     state.view = 'app';
+    state._showWardWelcome = true;
     attachRealtime();
     render();
   }
@@ -1689,34 +1780,53 @@
       if(btn) btn.remove();
       const overlay = document.getElementById('ai-chat-overlay');
       if(overlay) overlay.remove();
+      if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
       return;
     }
     if(!btn){
       btn = document.createElement('button');
       btn.id = 'fab-chat-btn';
-      btn.className = 'fab-chat';
-      btn.title = 'Anh Nông dân Thông minh — Trợ lý AI';
+      btn.className = 'fab-chat fab-intro'; // Yêu cầu 6: nhún nhảy 5 giây đầu để thu hút sự chú ý
+      btn.title = 'Chàng Nông dân Thông minh — Trợ lý AI';
       btn.textContent = '🤖';
       btn.onclick = openAiChat;
       document.body.appendChild(btn);
+      setTimeout(()=>{ const b = document.getElementById('fab-chat-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
     }
     if(state._aiChatOpen && !document.getElementById('ai-chat-overlay')){
       renderAiChatOverlay();
     } else if(!state._aiChatOpen){
       const overlay = document.getElementById('ai-chat-overlay');
       if(overlay) overlay.remove();
+      if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
     }
   }
   async function openAiChat(){
     state._aiChatOpen = true;
-    await loadAiChats();
+    await Promise.all([loadAiChats(), loadAiProviders()]);
     if(!state.aiActiveChatId && state.aiChats.length) state.aiActiveChatId = state.aiChats[0].id;
+    if(!state.aiActiveProviderId || !state.aiProviders.some(p=>p.id===state.aiActiveProviderId)){
+      const cached = lget('hnd_ai_active_provider', null);
+      state.aiActiveProviderId = (cached && state.aiProviders.some(p=>p.id===cached)) ? cached : (state.aiProviders[0] ? state.aiProviders[0].id : null);
+    }
+    renderAiChatOverlay();
+  }
+  function getActiveAiProvider(){
+    if(!state.aiProviders || !state.aiProviders.length) return null;
+    return state.aiProviders.find(p=>p.id===state.aiActiveProviderId) || state.aiProviders[0];
+  }
+  function selectAiProvider(id){
+    state.aiActiveProviderId = id;
+    lset('hnd_ai_active_provider', id);
+    state._aiModelMenuOpen = false;
     renderAiChatOverlay();
   }
   function closeAiChat(){
     state._aiChatOpen = false;
+    state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
     const overlay = document.getElementById('ai-chat-overlay');
     if(overlay) overlay.remove();
+    if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
   }
   async function loadAiChats(){
     if(!state.identity || !state.identity.email){ state.aiChats = state.aiChats||[]; return; } // Khách/tham quan: chỉ lưu tạm trong phiên, không có tài khoản để lưu lâu dài
@@ -1741,7 +1851,78 @@
     if(state.identity && state.identity.email){ try{ await rtdb.ref(`users/${emailToKey(state.identity.email)}/aiChats/${chatId}`).remove(); }catch(e){} }
     renderAiChatOverlay();
   }
-  // Xây dựng System Instruction cho "Anh Nông dân Thông minh" — gộp cả 4 vai trò yêu cầu,
+
+  // ---------------------------------------------------------------------
+  // Nút "➕ THÊM THÀNH PHẦN" — cho phép đính kèm ảnh/tài liệu hoặc bật chế độ Tìm kiếm web,
+  // y hệt các lựa chọn ở nút dấu cộng trong khung chat của Gemini thực thụ.
+  // ---------------------------------------------------------------------
+  function toggleAiAddMenu(){
+    state._aiAddMenuOpen = !state._aiAddMenuOpen;
+    state._aiModelMenuOpen = false;
+    renderAiChatOverlay();
+  }
+  function toggleAiModelMenu(){
+    state._aiModelMenuOpen = !state._aiModelMenuOpen;
+    state._aiAddMenuOpen = false;
+    renderAiChatOverlay();
+  }
+  function triggerAiFileInput(kind){
+    state._aiAddMenuOpen = false;
+    renderAiChatOverlay();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = kind==='image' ? 'image/*' : '.pdf,.doc,.docx,.txt,.csv,.xlsx,.rtf';
+    input.onchange = ()=> handleAiFiles(input.files);
+    input.click();
+  }
+  function handleAiFiles(fileList){
+    const files = Array.from(fileList||[]);
+    if(!files.length) return;
+    const MAX_MB = 8;
+    files.forEach(file=>{
+      if(file.size > MAX_MB*1024*1024){ alert(`Tệp "${file.name}" vượt quá ${MAX_MB}MB, vui lòng chọn tệp nhỏ hơn.`); return; }
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        const base64 = String(reader.result).split(',')[1] || '';
+        state.aiPendingAttachments.push({ name:file.name, mimeType: file.type || 'application/octet-stream', base64 });
+        renderAiChatOverlay();
+      };
+      reader.onerror = ()=> alert(`Không đọc được tệp "${file.name}".`);
+      reader.readAsDataURL(file);
+    });
+  }
+  function removeAiAttachment(idx){
+    state.aiPendingAttachments.splice(idx,1);
+    renderAiChatOverlay();
+  }
+  function toggleAiWebSearch(){
+    state.aiWebSearchOn = !state.aiWebSearchOn;
+    state._aiAddMenuOpen = false;
+    renderAiChatOverlay();
+  }
+  // Micro — nhận dạng giọng nói (Web Speech API), điền thẳng vào ô nhập, y hệt icon micro của Gemini.
+  let aiRecognition = null;
+  let aiOutsideClickHandler = null; // tham chiếu handler "bấm ra ngoài để đóng dropdown" — dùng để gỡ đúng lúc đóng chat
+  function toggleAiMic(){
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ alert('Trình duyệt này chưa hỗ trợ nhận dạng giọng nói. Vui lòng dùng Google Chrome trên máy tính hoặc Android.'); return; }
+    if(state._aiMicListening){ if(aiRecognition) aiRecognition.stop(); return; }
+    aiRecognition = new SR();
+    aiRecognition.lang = 'vi-VN';
+    aiRecognition.interimResults = false;
+    aiRecognition.maxAlternatives = 1;
+    aiRecognition.onstart = ()=>{ state._aiMicListening = true; renderAiChatOverlay(); };
+    aiRecognition.onerror = ()=>{ state._aiMicListening = false; renderAiChatOverlay(); };
+    aiRecognition.onend = ()=>{ state._aiMicListening = false; renderAiChatOverlay(); };
+    aiRecognition.onresult = (e)=>{
+      const text = e.results[0][0].transcript;
+      const inputEl = document.getElementById('ai-input');
+      if(inputEl) inputEl.value = (inputEl.value ? inputEl.value + ' ' : '') + text;
+    };
+    try{ aiRecognition.start(); }catch(e){ /* đã start rồi thì bỏ qua */ }
+  }
+  // Xây dựng System Instruction cho "Chàng Nông dân Thông minh" — gộp cả 4 vai trò yêu cầu,
   // kèm tóm tắt nhanh dữ liệu hộ vay của xã đang mở (phục vụ Vai trò 3: phân tích số liệu).
   function buildAiSystemPrompt(){
     let dataSummary = '';
@@ -1764,50 +1945,317 @@
 - Dư nợ theo địa bàn cao nhất (tối đa 5):\n${hamletLines}
 (Đây là số liệu tóm tắt tức thời từ phần mềm, có thể không phản ánh 100% chi tiết từng hộ — khuyên người dùng đối chiếu lại Module "Sổ vay vốn" nếu cần độ chính xác tuyệt đối.)`;
     }
-    return `Bạn tên là "Anh Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Anh" gọi người dùng là "bạn/đồng chí". Bạn đảm nhiệm 4 vai trò:
+    return `Bạn tên là "Chàng Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Chàng" gọi người dùng là "bạn/đồng chí". Bạn đảm nhiệm 4 vai trò:
 1) Trợ lý nghiệp vụ Hội Nông dân: giải đáp nhanh nghiệp vụ công tác hội, công tác hội viên, chính sách, quy chế cho vay, thủ tục gia hạn nợ, lãi suất, quỹ hỗ trợ nông dân.
 2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Chi tiêu & Hạch toán, Báo cáo lãi, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
 3) Trợ lý phân tích số liệu: khi được hỏi về dư nợ/hộ vay/thống kê, hãy dựa vào phần "DỮ LIỆU TÓM TẮT HIỆN TẠI" bên dưới (nếu có); nếu không có hoặc không đủ, hãy nói rõ là chưa có dữ liệu và hướng dẫn xem trong Module tương ứng, không được bịa số liệu.
 4) Trợ lý AI toàn năng: trả lời mọi câu hỏi kiến thức chung, viết/sửa văn bản, gợi ý code, dịch thuật, tư vấn... như một AI thông thường. Lưu ý: giao diện chat này hiện chỉ hỗ trợ văn bản, chưa hỗ trợ tạo/hiển thị hình ảnh.
 Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), ngắn gọn, dễ hiểu, đúng trọng tâm, có thể dùng gạch đầu dòng khi liệt kê.${dataSummary}`;
   }
-  // Gọi Gemini API bằng cấu hình Admin đã lưu (system_config/ai_providers) — dùng cấu hình ĐẦU
-  // TIÊN trong danh sách làm mặc định.
-  async function callGeminiAI(messages){
-    if(!state.aiProviders || !state.aiProviders.length) await loadAiProviders();
-    const provider = (state.aiProviders||[])[0];
-    if(!provider || !provider.apiKey){
-      return { error:true, text:'Admin chưa cấu hình API AI. Vui lòng vào Module "CÀI ĐẶT ADMIN → Cấu hình AI" để thêm API Key (ví dụ API Key Gemini).' };
+  // Gọi Gemini API bằng ĐÚNG Cấu hình AI (model) mà người dùng đang chọn ở thanh model phía trên
+  // ô nhập liệu. opts.attachments: tệp/ảnh đính kèm cho tin nhắn CUỐI CÙNG. opts.webSearch: bật
+  // Google Search grounding (chế độ "Tìm kiếm web") cho lượt trả lời này.
+  // ---------------------------------------------------------------------
+  // Nhận diện "hãng" của 1 Cấu hình AI dựa trên tên model/tên gợi nhớ mà Admin đã nhập, để hệ
+  // thống tự biết đâu là API Key Gemini, đâu là ChatGPT (OpenAI), đâu là Claude (Anthropic)...
+  // ---------------------------------------------------------------------
+  function aiVendorOf(p){
+    const s = (((p&&p.model)||'') + ' ' + ((p&&p.label)||'')).toLowerCase();
+    if(s.includes('gemini')) return 'gemini';
+    if(s.includes('gpt') || s.includes('openai') || s.includes('chatgpt') || /\bo[134]\b/.test(s)) return 'openai';
+    if(s.includes('claude') || s.includes('anthropic')) return 'anthropic';
+    return 'unknown';
+  }
+
+  // Gọi 1 lượt Gemini duy nhất theo cơ chế STREAMING (:streamGenerateContent?alt=sse) — đọc từng
+  // đoạn nhỏ ngay khi AI vừa xử lý xong, gọi onDelta(fullTextSoFar) liên tục để giao diện tuôn chữ
+  // mượt mà. LƯU Ý: hàm này THROW lỗi (không tự bắt) để hàm điều phối bên ngoài quyết định có
+  // chuyển sang tầng dự phòng tiếp theo hay không.
+  async function callGeminiOnce(provider, model, messages, opts, onDelta){
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${provider.apiKey}`;
+    const contents = messages.map((m,i)=>{
+      const parts = [{text:m.text||''}];
+      if(i===messages.length-1 && opts.attachments && opts.attachments.length){
+        opts.attachments.forEach(a=> parts.push({ inline_data:{ mime_type:a.mimeType, data:a.base64 } }));
+      }
+      return { role: m.role==='assistant' ? 'model' : 'user', parts };
+    });
+    const body = { system_instruction:{ parts:[{text: buildAiSystemPrompt()}] }, contents };
+    if(opts.webSearch) body.tools = [{ google_search:{} }]; // chế độ "Tìm kiếm web" — chỉ hoạt động với các model Gemini có hỗ trợ grounding
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if(!res.ok){
+      let msg = `HTTP ${res.status}`;
+      try{ const errData = await res.json(); msg = (errData && errData.error && errData.error.message) || (Array.isArray(errData) && errData[0] && errData[0].error && errData[0].error.message) || msg; }catch(e){}
+      throw new Error(`[Gemini ${model}] ${msg}`);
     }
-    const model = provider.model || 'gemini-2.5-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${provider.apiKey}`;
-    const contents = messages.map(m=>({ role: m.role==='assistant' ? 'model' : 'user', parts:[{text:m.text}] }));
-    try{
-      const res = await fetch(url, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ system_instruction:{ parts:[{text: buildAiSystemPrompt()}] }, contents }),
-      });
+    let fullText = '';
+    if(!res.body || !res.body.getReader){
+      // Môi trường không hỗ trợ đọc luồng (hiếm gặp) -> rơi về đọc trọn gói 1 lần cho an toàn
       const data = await res.json();
-      if(data.error) return { error:true, text: 'Lỗi từ AI: ' + (data.error.message || 'không xác định. Vui lòng kiểm tra lại API Key/tên model trong CÀI ĐẶT ADMIN.') };
-      const parts = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
-      const text = parts ? parts.map(p=>p.text||'').join('\n').trim() : '';
-      return { error:false, text: text || '(AI không trả về nội dung, vui lòng thử lại hoặc đặt câu hỏi khác.)' };
-    }catch(e){
-      console.error('Gọi Gemini API lỗi:', e);
-      return { error:true, text: 'Không thể kết nối tới AI lúc này. Vui lòng kiểm tra kết nối mạng hoặc API Key trong CÀI ĐẶT ADMIN.' };
+      const arr = Array.isArray(data) ? data : [data];
+      arr.forEach(obj=>{
+        if(obj && obj.error) throw new Error(`[Gemini ${model}] ${obj.error.message || 'lỗi không xác định'}`);
+        const parts = obj && obj.candidates && obj.candidates[0] && obj.candidates[0].content && obj.candidates[0].content.parts;
+        if(parts) fullText += parts.map(p=>p.text||'').join('');
+      });
+      if(onDelta) onDelta(fullText);
+      if(!fullText.trim()) throw new Error(`[Gemini ${model}] Không có nội dung trả về (có thể bị chặn an toàn hoặc quá tải).`);
+      return { text: fullText.trim() };
     }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, { stream:true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // giữ lại phần dòng còn dở dang cho lượt đọc kế tiếp
+      for(const line of lines){
+        const trimmed = line.trim();
+        if(!trimmed.startsWith('data:')) continue;
+        const jsonStr = trimmed.slice(5).trim();
+        if(!jsonStr) continue;
+        let obj;
+        try{ obj = JSON.parse(jsonStr); }catch(e){ continue; /* dòng chưa trọn vẹn — đợi chunk sau */ }
+        if(obj.error) throw new Error(`[Gemini ${model}] ${obj.error.message || 'lỗi không xác định'}`);
+        const parts = obj.candidates && obj.candidates[0] && obj.candidates[0].content && obj.candidates[0].content.parts;
+        if(parts){
+          const deltaText = parts.map(p=>p.text||'').join('');
+          if(deltaText){ fullText += deltaText; if(onDelta) onDelta(fullText); }
+        }
+      }
+    }
+    if(!fullText.trim()) throw new Error(`[Gemini ${model}] Không có nội dung trả về (có thể bị chặn an toàn hoặc quá tải).`);
+    return { text: fullText.trim() };
+  }
+
+  // Gọi 1 lượt OpenAI (ChatGPT) — chuẩn Chat Completions, cũng hỗ trợ streaming SSE. THROW lỗi
+  // khi thất bại, để hàm điều phối quyết định tầng kế tiếp.
+  async function callOpenAIOnce(provider, messages, opts, onDelta){
+    const model = provider.model || 'gpt-4o-mini';
+    const oaMessages = [{ role:'system', content: buildAiSystemPrompt() }];
+    messages.forEach((m,i)=>{
+      if(i===messages.length-1 && opts.attachments && opts.attachments.length){
+        const contentArr = [{ type:'text', text:m.text||'' }];
+        opts.attachments.forEach(a=>{
+          if((a.mimeType||'').startsWith('image/')) contentArr.push({ type:'image_url', image_url:{ url:`data:${a.mimeType};base64,${a.base64}` } });
+        });
+        oaMessages.push({ role: m.role==='assistant'?'assistant':'user', content: contentArr });
+      } else {
+        oaMessages.push({ role: m.role==='assistant'?'assistant':'user', content: m.text||'' });
+      }
+    });
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${provider.apiKey}` },
+      body: JSON.stringify({ model, messages: oaMessages, stream:true }),
+    });
+    if(!res.ok){
+      let msg = `HTTP ${res.status}`;
+      try{ const errData = await res.json(); msg = (errData && errData.error && errData.error.message) || msg; }catch(e){}
+      throw new Error(`[OpenAI ${model}] ${msg}`);
+    }
+    let fullText = '';
+    if(!res.body || !res.body.getReader){
+      const data = await res.json();
+      fullText = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+      if(onDelta) onDelta(fullText);
+      if(!fullText.trim()) throw new Error(`[OpenAI ${model}] Không có nội dung trả về.`);
+      return { text: fullText.trim() };
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, { stream:true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for(const line of lines){
+        const trimmed = line.trim();
+        if(!trimmed.startsWith('data:')) continue;
+        const jsonStr = trimmed.slice(5).trim();
+        if(!jsonStr || jsonStr==='[DONE]') continue;
+        let obj;
+        try{ obj = JSON.parse(jsonStr); }catch(e){ continue; }
+        if(obj.error) throw new Error(`[OpenAI ${model}] ${obj.error.message || 'lỗi không xác định'}`);
+        const deltaText = obj.choices && obj.choices[0] && obj.choices[0].delta && obj.choices[0].delta.content;
+        if(deltaText){ fullText += deltaText; if(onDelta) onDelta(fullText); }
+      }
+    }
+    if(!fullText.trim()) throw new Error(`[OpenAI ${model}] Không có nội dung trả về.`);
+    return { text: fullText.trim() };
+  }
+
+  // Gọi 1 lượt Anthropic (Claude) — chuẩn Messages API, hỗ trợ streaming SSE. THROW lỗi khi thất bại.
+  async function callAnthropicOnce(provider, messages, opts, onDelta){
+    const model = provider.model || 'claude-3-5-sonnet-20241022';
+    const anthMessages = messages.map((m,i)=>{
+      if(i===messages.length-1 && opts.attachments && opts.attachments.length){
+        const contentArr = [{ type:'text', text:m.text||'' }];
+        opts.attachments.forEach(a=>{
+          if((a.mimeType||'').startsWith('image/')) contentArr.push({ type:'image', source:{ type:'base64', media_type:a.mimeType, data:a.base64 } });
+        });
+        return { role: m.role==='assistant'?'assistant':'user', content: contentArr };
+      }
+      return { role: m.role==='assistant'?'assistant':'user', content: m.text||'' };
+    });
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json', 'x-api-key': provider.apiKey,
+        'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body: JSON.stringify({ model, max_tokens:4096, system: buildAiSystemPrompt(), messages: anthMessages, stream:true }),
+    });
+    if(!res.ok){
+      let msg = `HTTP ${res.status}`;
+      try{ const errData = await res.json(); msg = (errData && errData.error && errData.error.message) || msg; }catch(e){}
+      throw new Error(`[Claude ${model}] ${msg}`);
+    }
+    let fullText = '';
+    if(!res.body || !res.body.getReader){
+      const data = await res.json();
+      fullText = (data.content||[]).map(c=>c.text||'').join('');
+      if(onDelta) onDelta(fullText);
+      if(!fullText.trim()) throw new Error(`[Claude ${model}] Không có nội dung trả về.`);
+      return { text: fullText.trim() };
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, { stream:true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for(const line of lines){
+        const trimmed = line.trim();
+        if(!trimmed.startsWith('data:')) continue;
+        const jsonStr = trimmed.slice(5).trim();
+        if(!jsonStr) continue;
+        let obj;
+        try{ obj = JSON.parse(jsonStr); }catch(e){ continue; }
+        if(obj.type==='content_block_delta' && obj.delta && obj.delta.text){ fullText += obj.delta.text; if(onDelta) onDelta(fullText); }
+        else if(obj.type==='error'){ throw new Error(`[Claude ${model}] ${(obj.error && obj.error.message) || 'lỗi không xác định'}`); }
+      }
+    }
+    if(!fullText.trim()) throw new Error(`[Claude ${model}] Không có nội dung trả về.`);
+    return { text: fullText.trim() };
+  }
+
+  // ---------------------------------------------------------------------
+  // BỘ ĐIỀU PHỐI "DỰ PHÒNG TỰ ĐỘNG 3 TẦNG" — đây là hàm DUY NHẤT mà giao diện chat gọi tới.
+  // TẦNG 1: gemini-1.5-pro (API Key Gemini trong Cấu hình AI).
+  // TẦNG 2: nếu Tầng 1 lỗi bất kỳ kiểu gì (quá tải, 429, 503, mất mạng...) -> ÂM THẦM chuyển sang
+  //         gemini-1.5-flash, dùng CHUNG API Key Gemini đó.
+  // TẦNG 3: nếu Tầng 2 cũng lỗi -> kiểm tra trong Cấu hình AI có API Key của hãng khác không (vd
+  //         ChatGPT/Claude); nếu có thì âm thầm gọi hãng đó để "cứu nguy"; nếu không có gì khác
+  //         ngoài đúng 1 API Key Gemini thì mới báo lỗi thân thiện cho người dùng.
+  // Toàn bộ quá trình chuyển tầng diễn ra NGẦM — người dùng không thấy bất kỳ cảnh báo lỗi đỏ nào,
+  // chỉ thấy bong bóng "đang suy nghĩ" hơi lâu hơn bình thường rồi có câu trả lời bình thường.
+  // Ngoại lệ: nếu người dùng tự tay CHỌN đích danh 1 model không phải Gemini ở thanh chọn model,
+  // hệ thống tôn trọng đúng lựa chọn đó (không tự ý chuyển sang Gemini).
+  // ---------------------------------------------------------------------
+  async function callAIWithFallback(messages, opts, onDelta){
+    opts = opts || {};
+    if(!state.aiProviders || !state.aiProviders.length) await loadAiProviders();
+    const providers = state.aiProviders || [];
+    if(!providers.length){
+      return { text:'Admin chưa cấu hình API AI nào. Vui lòng vào Module "CÀI ĐẶT ADMIN → Cấu hình AI" để thêm API Key.' };
+    }
+    const selected = getActiveAiProvider();
+    const selectedVendor = selected ? aiVendorOf(selected) : null;
+
+    // Người dùng tự chọn đích danh 1 model KHÔNG PHẢI Gemini -> tôn trọng lựa chọn, không áp dụng
+    // cơ chế 3 tầng dành riêng cho Gemini (cơ chế này chỉ để chống nghẽn/quá tải của Gemini).
+    if(selected && selectedVendor && selectedVendor !== 'gemini'){
+      try{
+        if(selectedVendor==='anthropic') return await callAnthropicOnce(selected, messages, opts, onDelta);
+        return await callOpenAIOnce(selected, messages, opts, onDelta);
+      }catch(e){
+        console.error('[AI] Model đang chọn gặp lỗi:', e);
+        return { text:'Xin lỗi, hệ thống AI đang gặp sự cố với model đang chọn. Bạn thử lại sau ít phút hoặc đổi sang model khác ở thanh chọn model phía trên nhé.' };
+      }
+    }
+
+    const geminiProvider = (selected && selectedVendor==='gemini') ? selected : providers.find(p=> p.apiKey && aiVendorOf(p)==='gemini');
+
+    if(geminiProvider && geminiProvider.apiKey){
+      // ---- TẦNG 1: gemini-1.5-pro ----
+      try{
+        return await callGeminiOnce(geminiProvider, 'gemini-1.5-pro', messages, opts, onDelta);
+      }catch(e1){
+        console.warn('[AI Fallback] Tầng 1 (gemini-1.5-pro) lỗi -> âm thầm chuyển Tầng 2:', e1);
+        if(onDelta) onDelta(''); // đưa bong bóng về lại trạng thái "đang suy nghĩ" trong lúc chuyển tầng
+        // ---- TẦNG 2: gemini-1.5-flash (dùng chung API Key Gemini) ----
+        try{
+          return await callGeminiOnce(geminiProvider, 'gemini-1.5-flash', messages, opts, onDelta);
+        }catch(e2){
+          console.warn('[AI Fallback] Tầng 2 (gemini-1.5-flash) cũng lỗi -> âm thầm chuyển Tầng 3:', e2);
+          if(onDelta) onDelta('');
+        }
+      }
+    }
+
+    // ---- TẦNG 3: hãng khác trong Cấu hình AI (nếu Admin có gắn thêm, vd ChatGPT/Claude) ----
+    const otherProvider = providers.find(p=> p!==geminiProvider && p.apiKey && aiVendorOf(p)!=='gemini');
+    if(otherProvider){
+      try{
+        const vendor = aiVendorOf(otherProvider);
+        if(vendor==='anthropic') return await callAnthropicOnce(otherProvider, messages, opts, onDelta);
+        return await callOpenAIOnce(otherProvider, messages, opts, onDelta);
+      }catch(e3){
+        console.error('[AI Fallback] Tầng 3 (hãng khác) cũng lỗi:', e3);
+      }
+    }
+
+    if(!geminiProvider){
+      return { text:'Admin chưa cấu hình API AI Gemini hợp lệ. Vui lòng vào Module "CÀI ĐẶT ADMIN → Cấu hình AI" để thêm API Key.' };
+    }
+    // Chỉ có ĐÚNG 1 API Key Gemini (không có hãng nào khác để cứu nguy) và cả 2 tầng Gemini đều lỗi.
+    return { text:'Xin lỗi, hệ thống AI hiện đang quá tải, chưa thể trả lời ngay lúc này. Bạn vui lòng thử lại sau ít phút nhé!' };
   }
   async function sendAiMessage(text){
-    if(!text || !text.trim() || state.aiSending) return;
+    const hasText = !!(text && text.trim());
+    if(!hasText && !state.aiPendingAttachments.length) return;
+    if(state.aiSending) return;
     let chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
-    if(!chat){ chat = { id:'c_'+uid(), title:text.trim().slice(0,40), messages:[], updatedAt:new Date().toISOString() }; state.aiChats.unshift(chat); state.aiActiveChatId = chat.id; }
-    chat.messages.push({ role:'user', text:text.trim(), time:new Date().toISOString() });
-    if(chat.messages.length===1) chat.title = text.trim().slice(0,40) || 'Đoạn chat mới';
+    if(!chat){ chat = { id:'c_'+uid(), title:'Đoạn chat mới', messages:[], updatedAt:new Date().toISOString() }; state.aiChats.unshift(chat); state.aiActiveChatId = chat.id; }
+    const attachmentsForApi = state.aiPendingAttachments.slice();
+    // Chỉ lưu TÊN + LOẠI tệp vào lịch sử (không lưu base64) để tránh phình dung lượng Firebase —
+    // nội dung thật chỉ dùng ngay cho lượt gọi AI này.
+    const attachmentsForHistory = attachmentsForApi.map(a=>({ name:a.name, mimeType:a.mimeType }));
+    chat.messages.push({ role:'user', text: (text||'').trim(), time:new Date().toISOString(), attachments: attachmentsForHistory });
+    if(chat.messages.length===1) chat.title = (text||'').trim().slice(0,40) || (attachmentsForHistory[0] && attachmentsForHistory[0].name) || 'Đoạn chat mới';
     chat.updatedAt = new Date().toISOString();
+    state.aiPendingAttachments = [];
     state.aiSending = true;
+    // Thêm sẵn 1 bong bóng trợ lý (rỗng, đang "suy nghĩ") để tuôn chữ trực tiếp vào ngay khi có,
+    // tạo cảm giác phản hồi tức thời thay vì phải chờ xong hết mới hiện "một cục".
+    const assistantMsg = { role:'assistant', text:'', time:new Date().toISOString(), streaming:true };
+    chat.messages.push(assistantMsg);
     renderAiChatOverlay();
-    const result = await callGeminiAI(chat.messages);
-    chat.messages.push({ role:'assistant', text: result.text, time:new Date().toISOString() });
+    const result = await callAIWithFallback(chat.messages.slice(0,-1), { attachments: attachmentsForApi, webSearch: state.aiWebSearchOn }, (partial)=>{
+      assistantMsg.text = partial;
+      const bubbleEl = document.getElementById('ai-streaming-bubble');
+      if(bubbleEl){
+        if(partial){
+          bubbleEl.classList.remove('thinking');
+          bubbleEl.textContent = partial;
+        } else {
+          bubbleEl.classList.add('thinking');
+          bubbleEl.textContent = 'Chàng đang suy nghĩ…';
+        }
+        const msgBox = document.getElementById('ai-messages');
+        if(msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+      }
+    });
+    assistantMsg.text = result.text;
+    delete assistantMsg.streaming;
     chat.updatedAt = new Date().toISOString();
     state.aiSending = false;
     renderAiChatOverlay();
@@ -1817,8 +2265,14 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
   // Gắn TRỰC TIẾP vào document.body (ngoài #root) để không bị render() của app xoá mất.
   function renderAiChatOverlay(){
     let overlay = document.getElementById('ai-chat-overlay');
-    if(!overlay){ overlay = document.createElement('div'); overlay.id = 'ai-chat-overlay'; overlay.className = 'ai-overlay'; document.body.appendChild(overlay); }
+    let firstCreate = false;
+    if(!overlay){
+      overlay = document.createElement('div'); overlay.id = 'ai-chat-overlay'; overlay.className = 'ai-overlay';
+      document.body.appendChild(overlay);
+      firstCreate = true;
+    }
     const chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
+    const provider = getActiveAiProvider();
     overlay.innerHTML = `
       <div class="ai-sidebar">
         <button class="ai-exit-btn" id="ai-exit-btn">✕ THOÁT</button>
@@ -1827,23 +2281,54 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
         <div class="ai-hist-list">
           ${state.aiChats.length? state.aiChats.map(c=>`
             <div class="ai-hist-item ${c.id===state.aiActiveChatId?'active':''}" data-ai-hist="${c.id}">
-              <span class="ai-hist-title">${(c.title||'Đoạn chat mới')}</span>
+              <span class="ai-hist-title">${escapeHtml(c.title||'Đoạn chat mới')}</span>
               <button class="ai-hist-del" data-ai-hist-del="${c.id}" title="Xoá đoạn chat">🗑️</button>
             </div>`).join('') : '<div class="sub" style="color:rgba(255,255,255,.6); padding:6px 10px;">Chưa có đoạn chat nào.</div>'}
         </div>
         ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Bạn đang dùng khách/tham quan — lịch sử chat chỉ lưu tạm trong phiên này.</div>' : ''}
       </div>
       <div class="ai-main">
-        <div class="ai-header">🤖 Anh Nông dân Thông minh</div>
+        <div class="ai-header">🤖 Chàng Nông dân Thông minh</div>
         <div class="ai-messages" id="ai-messages">
           ${!chat || !chat.messages.length? `
-            <div class="ai-bubble assistant">Chào bạn! Anh là "Anh Nông dân Thông minh" 🌾 — sẵn sàng hỗ trợ nghiệp vụ Hội Nông dân, hướng dẫn sử dụng phần mềm, phân tích số liệu hộ vay, hoặc trò chuyện bất cứ điều gì bạn cần. Bạn muốn hỏi gì nào?</div>`
-            : chat.messages.map(m=>`<div class="ai-bubble ${m.role}">${escapeHtml(m.text)}</div>`).join('')}
-          ${state.aiSending? `<div class="ai-bubble assistant thinking">Anh đang suy nghĩ…</div>` : ''}
+            <div class="ai-bubble assistant">Chào bạn! Chàng là "Chàng Nông dân Thông minh" 🌾 — sẵn sàng hỗ trợ nghiệp vụ Hội Nông dân, hướng dẫn sử dụng phần mềm, phân tích số liệu hộ vay, hoặc trò chuyện bất cứ điều gì bạn cần. Bạn muốn hỏi gì nào?</div>`
+            : chat.messages.map(m=> m.streaming
+                ? `<div class="ai-bubble assistant ${m.text? '' : 'thinking'}" id="ai-streaming-bubble">${m.text? escapeHtml(m.text) : 'Chàng đang suy nghĩ…'}</div>`
+                : `<div class="ai-bubble ${m.role}">${escapeHtml(m.text)}${m.attachments&&m.attachments.length? `<div class="ai-bubble-attach">${m.attachments.map(a=>`📎 ${escapeHtml(a.name)}`).join('&nbsp;&nbsp;')}</div>` : ''}</div>`
+              ).join('')}
         </div>
+
+        <div class="ai-model-bar">
+          <div class="ai-model-select" id="ai-model-select">
+            <span>${provider? `🧠 ${escapeHtml(provider.label||provider.model)}` : '⚠️ Chưa cấu hình AI'}</span><span class="ai-model-caret">▾</span>
+            ${state._aiModelMenuOpen? `<div class="ai-model-dropdown">
+              ${state.aiProviders.length? state.aiProviders.map(p=>`
+                <div class="ai-model-opt ${provider&&p.id===provider.id?'active':''}" data-ai-select-provider="${p.id}">
+                  ${escapeHtml(p.label||p.model)}<span class="sub">${escapeHtml(p.model)}</span>
+                </div>`).join('') : `<div class="ai-model-opt sub">Chưa có cấu hình AI nào — vào "CÀI ĐẶT ADMIN" để thêm.</div>`}
+            </div>` : ''}
+          </div>
+          ${state.aiWebSearchOn? `<span class="ai-model-select" style="background:rgba(199,154,43,.18); margin-left:8px;">🌐 Đang bật Tìm kiếm web</span>` : ''}
+        </div>
+
+        ${state.aiPendingAttachments.length? `<div class="ai-attach-row">
+          ${state.aiPendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button data-ai-attach-remove="${i}">✕</button></span>`).join('')}
+        </div>` : ''}
+
         <div class="ai-inputbar">
-          <textarea id="ai-input" rows="1" placeholder="Nhắn tin cho Anh Nông dân Thông minh..." ${state.aiSending?'disabled':''}></textarea>
-          <button id="ai-send-btn" ${state.aiSending?'disabled':''}>➤</button>
+          <div class="ai-add-btn" id="ai-add-btn" role="button" tabindex="0">➕ THÊM THÀNH PHẦN
+            ${state._aiAddMenuOpen? `<div class="ai-add-menu">
+              <div class="ai-add-opt" data-ai-add="image">🖼️ Tải ảnh lên</div>
+              <div class="ai-add-opt" data-ai-add="doc">📄 Tải tài liệu lên</div>
+              <div class="ai-add-opt" data-ai-add="websearch">🌐 ${state.aiWebSearchOn? '✅ Đang bật — bấm để tắt' : 'Tìm kiếm web'}</div>
+            </div>` : ''}
+          </div>
+          <textarea id="ai-input" rows="1" placeholder="Nhắn tin cho Chàng Nông dân Thông minh... (Enter để xuống dòng, Ctrl+Enter để gửi)" ${state.aiSending?'disabled':''}></textarea>
+          <button class="ai-mic-btn ${state._aiMicListening?'listening':''}" id="ai-mic-btn" type="button" title="Nói để nhập liệu">🎤</button>
+          <div class="ai-send-wrap">
+            <span class="ai-send-tooltip">Bấm Ctrl+Enter để gửi nhanh</span>
+            <button id="ai-send-btn" ${state.aiSending?'disabled':''}>➤</button>
+          </div>
         </div>
       </div>`;
     const msgBox = document.getElementById('ai-messages');
@@ -1860,13 +2345,59 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     overlay.querySelectorAll('[data-ai-hist-del]').forEach(btn=>{
       btn.onclick = (e)=>{ e.stopPropagation(); deleteAiChatById(btn.dataset.aiHistDel); };
     });
+
+    // ---- Thanh chọn model AI đang hoạt động ----
+    const modelSelectEl = document.getElementById('ai-model-select');
+    if(modelSelectEl) modelSelectEl.addEventListener('click', (e)=>{ e.stopPropagation(); toggleAiModelMenu(); });
+    overlay.querySelectorAll('[data-ai-select-provider]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{ e.stopPropagation(); selectAiProvider(elx.dataset.aiSelectProvider); });
+    });
+
+    // ---- Nút "THÊM THÀNH PHẦN" ----
+    const addBtn = document.getElementById('ai-add-btn');
+    if(addBtn){
+      addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleAiAddMenu(); });
+      addBtn.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); toggleAiAddMenu(); } });
+    }
+    overlay.querySelectorAll('[data-ai-add]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const kind = elx.dataset.aiAdd;
+        if(kind==='websearch') toggleAiWebSearch();
+        else triggerAiFileInput(kind);
+      });
+    });
+    overlay.querySelectorAll('[data-ai-attach-remove]').forEach(btn=>{
+      btn.onclick = (e)=>{ e.stopPropagation(); removeAiAttachment(parseInt(btn.dataset.aiAttachRemove,10)); };
+    });
+
+    // ---- Micro ----
+    const micBtn = document.getElementById('ai-mic-btn');
+    if(micBtn) micBtn.onclick = toggleAiMic;
+
+    // Bấm ra ngoài thì tự đóng các dropdown (chỉ gắn listener DUY NHẤT 1 lần lúc tạo overlay,
+    // tránh chồng chất listener qua mỗi lần render lại).
+    if(firstCreate){
+      aiOutsideClickHandler = ()=>{
+        if(state._aiModelMenuOpen || state._aiAddMenuOpen){
+          state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
+          if(document.getElementById('ai-chat-overlay')) renderAiChatOverlay();
+        }
+      };
+      document.addEventListener('click', aiOutsideClickHandler);
+    }
+
     const sendBtn = document.getElementById('ai-send-btn');
     const inputEl = document.getElementById('ai-input');
     const doSend = ()=>{ const v = inputEl.value; inputEl.value=''; sendAiMessage(v); };
     if(sendBtn) sendBtn.onclick = doSend;
     if(inputEl){
       inputEl.focus();
-      inputEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); doSend(); } });
+      // Yêu cầu 5: Enter thường = xuống dòng (mặc định của textarea, không preventDefault);
+      // Ctrl+Enter (hoặc Cmd+Enter trên Mac) = gửi tin nhắn ngay.
+      inputEl.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); doSend(); }
+      });
     }
   }
 
@@ -1875,7 +2406,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       <div class="center-screen">
         <div class="auth-card">
           <div class="rice-badge">🌾</div>
-          <h1>Quản lý Công tác Hội Nông dân cấp xã/phường</h1>
+          <h1>Sổ tay Công tác<br>Hội Nông dân cấp xã/phường</h1>
           <p class="sub">Đăng nhập để quản lý công tác hội, thực lực hội, hội viên, quỹ hỗ trợ nông dân, thu chi nội bộ, vốn vay, lãi suất và báo cáo địa phương</p>
           <button class="btn btn-gold btn-block" id="li-btn">🔒 Đăng nhập bằng Google</button>
           <button class="btn btn-ghost btn-block" id="li-preview" style="margin-top:8px;">👀 Tham quan mà không cần đăng nhập</button>
@@ -2327,6 +2858,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       // Cập nhật lại tên hiển thị của mã này trong Ví mã xã của Chủ mã
       await rtdb.ref(`users/${emailToKey(state.identity.email)}/wards/${wardId()}`).set({kind:'owner', wardName:req.wardNameVal, addedAt:new Date().toISOString()});
       state.view = 'app';
+      state._showWardWelcome = true;
       attachRealtime();
       render();
     }
@@ -2374,6 +2906,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     const alerts = wardId() ? computeAlerts() : [];
     const hasIdentityEmail = !!(state.identity && state.identity.email);
     root.innerHTML = `
+      <div class="app-title-banner"><span>Sổ tay Công tác Hội Nông dân cấp xã/phường</span></div>
       ${state.previewMode? `
       <div class="preview-banner">
         ⚠️ Bạn đang ở môi trường tham quan. Hãy chọn <button class="link-btn" id="pv-login">Đăng nhập hoặc Tham gia bằng mã</button> để sử dụng;
@@ -2383,7 +2916,7 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       <div class="admin-view-banner">🛡️ ADMIN đang XEM THỬ (chỉ đọc, không sửa được) dữ liệu của mã "${wardId()}". Bấm "Thoát khỏi mã định danh" để quay về mã của bạn.</div>` : ''}
       <div class="app-shell">
         <div class="sidebar">
-          <div class="brand"><div class="ico">🌾</div><div class="txt">Hội Nông dân<small>${wardTitle()||'Chưa chọn mã xã'}</small></div></div>
+          <div class="brand"><div class="ico">🌾</div><div class="txt">${wardProvinceHeaderLine()||'Chưa chọn mã xã'}<small>${wardId()||''}</small></div></div>
           ${nav.map(n=>`
             <button class="nav-item ${state.activeTab===n.id?'active':''}" data-tab="${n.id}">
               <span>${n.ico}</span><span>${n.label}</span>
@@ -2473,6 +3006,13 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
     if(state.previewMode && state._showPreviewWelcome && !document.querySelector('.modal-bg')){
       renderPreviewWelcomePopup();
     }
+    // Yêu cầu 1 (tài liệu mới): bảng chào mừng mỗi khi BẮT ĐẦU 1 PHIÊN LÀM VIỆC với 1 mã định danh
+    // (đăng nhập xong, tự khôi phục phiên đã lưu, tham gia bằng mã không cần đăng nhập, hoặc
+    // chuyển/đổi sang xem mã định danh khác) — không áp dụng cho môi trường tham quan (đã có popup
+    // chào mừng riêng ở trên).
+    if(!state.previewMode && state._showWardWelcome && !document.querySelector('.modal-bg')){
+      renderWardWelcomePopup();
+    }
   }
 
   // Yêu cầu 5: Popup chào mừng môi trường tham quan — 2 nút [Xem hướng dẫn] / [Bỏ qua]
@@ -2500,6 +3040,32 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       state.activeTab = 'guide';
       render();
     };
+  }
+
+  // Bảng chào mừng mỗi lần bắt đầu phiên làm việc tại giao diện chính của 1 mã định danh bất kỳ —
+  // nội dung tự động lấy đúng thông tin xã/phường - tỉnh/thành phố - mã định danh đang truy cập.
+  function renderWardWelcomePopup(){
+    const cfg = state.config || {};
+    const wardName = (cfg.wardName||'').trim();
+    const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType.toLowerCase() : 'tỉnh/thành phố';
+    const provName = (cfg.provinceName||'').trim();
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:460px;">
+        <div class="modal-body" style="text-align:center; padding:28px 24px;">
+          <div class="rice-badge" style="margin:0 auto 12px;">🌾</div>
+          <h3 style="margin:0 0 10px;">CHÚC ĐỒNG CHÍ 1 NGÀY LÀM VIỆC VUI VẺ!</h3>
+          <p class="sub" style="margin:0 0 20px; font-size:13.5px; line-height:1.7;">
+            Đồng chí đang làm việc trong bộ dữ liệu dùng chung của
+            <b>${adminLevelLabelLower()} ${wardName? escapeHtml(wardName) : '(chưa đặt tên)'}</b>${provName? ` <b>${provType} ${escapeHtml(provName)}</b>` : ''}
+            với mã định danh là <b class="mono">${escapeHtml(wardId()||'')}</b>
+          </p>
+          <button class="btn btn-primary btn-block" id="ww-welcome-confirm">XÁC NHẬN LÀM VIỆC TRONG SỰ VUI VẺ</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector('#ww-welcome-confirm').onclick = ()=>{ state._showWardWelcome = false; wrap.remove(); };
   }
 
   function renderBellPanel(){
@@ -3019,23 +3585,24 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
       <div class="panel">
         <div class="panel-head"><h3>👑 Quản lý Admin</h3></div>
         <div class="panel-body">
-          <p class="sub" style="margin-top:0;">2 Admin tối cao (cố định, không ai gỡ được): <b>${SUPER_ADMIN_EMAILS.join(', ')}</b>. Mọi Admin (kể cả Admin tối cao) đều có quyền thêm/gỡ các Admin khác.</p>
+          <p class="sub" style="margin-top:0;">2 Admin tối cao (cố định, không ai gỡ được): <b>${SUPER_ADMIN_EMAILS.join(', ')}</b>. ${isSuperAdmin()? 'Chỉ Admin tối cao mới có quyền thêm/gỡ các Admin khác.' : 'Chỉ Admin tối cao mới có quyền thêm/gỡ Admin — bạn chỉ xem được danh sách bên dưới.'}</p>
+          ${isSuperAdmin()? `
           <div class="toolbar">
             <input id="adm-new-email" placeholder="email@gmail.com" style="min-width:260px;">
             <button class="btn btn-primary btn-sm" id="adm-add-btn">➕ Thêm Admin mới</button>
-          </div>
+          </div>` : ''}
           <div style="margin-top:12px;">
             ${SUPER_ADMIN_EMAILS.map(e=>`
               <div class="kv-row"><span>👑 ${e} <span class="tag-role" style="background:var(--gold); color:#3A2C05; font-size:10.5px; padding:2px 8px; border-radius:20px; font-weight:700; margin-left:6px;">Admin tối cao</span></span><span></span></div>`).join('')}
             ${Object.values(state.admins||{}).map(a=>`
-              <div class="kv-row"><span>${a.email}</span><button class="btn btn-ghost btn-sm" data-adm-remove="${a.email}">Gỡ quyền Admin</button></div>`).join('')}
+              <div class="kv-row"><span>${a.email}</span>${isSuperAdmin()? `<button class="btn btn-ghost btn-sm" data-adm-remove="${a.email}">Gỡ quyền Admin</button>` : ''}</div>`).join('')}
             ${Object.values(state.admins||{}).length===0? '<div class="sub" style="padding:6px 0;">Chưa có Admin nào được thêm ngoài 2 Admin tối cao.</div>' : ''}
           </div>
         </div>
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h3>🤖 Cấu hình AI ("Anh Nông dân Thông minh")</h3></div>
+        <div class="panel-head"><h3>🤖 Cấu hình AI ("Chàng Nông dân Thông minh")</h3></div>
         <div class="panel-body">
           <p class="sub" style="margin-top:0;">API Key được lưu bảo mật trên Firebase (system_config/ai_providers), ứng dụng tự kéo về chạy ngầm khi người dùng chat — không hiển thị lại API Key sau khi lưu.</p>
           <div id="adm-ai-list"></div>
@@ -3050,8 +3617,9 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
         </div>
       </div>`;
 
-    // ---- Khu vực 1: Quản lý Admin ----
-    document.getElementById('adm-add-btn').onclick = async ()=>{
+    // ---- Khu vực 1: Quản lý Admin (chỉ Admin tối cao mới có nút bấm) ----
+    const admAddBtn = document.getElementById('adm-add-btn');
+    if(admAddBtn) admAddBtn.onclick = async ()=>{
       const val = document.getElementById('adm-new-email').value;
       if(await addAdminEmail(val)) renderAdminSettingsTab(el);
     };
@@ -3630,4 +4198,3 @@ Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), n
 </script>
 </body>
 </html>
- 
