@@ -311,6 +311,53 @@
     .no-print{ display:none !important; }
     @page{ size:A4 portrait; margin:15mm 12mm; }
   }
+
+  /* ================= Trợ lý AI "Anh Nông dân Thông minh" ================= */
+  @keyframes fabBob{
+    0%, 55%{ transform:translateY(0) rotate(0deg); }
+    65%{ transform:translateY(-7px) rotate(-4deg); }
+    75%{ transform:translateY(0) rotate(0deg); }
+    85%{ transform:translateY(-3px) rotate(3deg); }
+    100%{ transform:translateY(0) rotate(0deg); }
+  }
+  .fab-chat{
+    position:fixed; right:22px; bottom:22px; width:60px; height:60px; border-radius:50%;
+    background:linear-gradient(145deg, var(--gold), var(--rice-dark)); color:#fff; border:none;
+    box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; z-index:400; font-size:26px;
+    display:flex; align-items:center; justify-content:center;
+    animation: fabBob 4.5s ease-in-out infinite;
+  }
+  .fab-chat:hover{ filter:brightness(1.08); }
+  @media (max-width:640px){ .fab-chat{ right:14px; bottom:14px; width:54px; height:54px; font-size:22px; } }
+
+  .ai-overlay{ position:fixed; inset:0; z-index:500; background:var(--paper); display:flex; }
+  .ai-sidebar{ width:270px; flex-shrink:0; background:var(--rice-dark); color:#fff; display:flex; flex-direction:column; padding:16px 12px; }
+  .ai-exit-btn{ background:var(--gold); color:#3A2C05; border:none; border-radius:12px; padding:12px 14px; font-weight:800; font-size:14px; cursor:pointer; margin-bottom:14px; }
+  .ai-exit-btn:hover{ filter:brightness(1.06); }
+  .ai-newchat-btn{ background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.3); border-radius:10px; padding:10px 12px; font-size:13.5px; cursor:pointer; margin-bottom:12px; text-align:left; }
+  .ai-newchat-btn:hover{ background:rgba(255,255,255,.2); }
+  .ai-hist-label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.7; margin:6px 0 6px; }
+  .ai-hist-list{ overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:4px; }
+  .ai-hist-item{ display:flex; align-items:center; gap:6px; padding:9px 10px; border-radius:8px; cursor:pointer; font-size:13px; }
+  .ai-hist-item:hover{ background:rgba(255,255,255,.1); }
+  .ai-hist-item.active{ background:rgba(255,255,255,.2); font-weight:700; }
+  .ai-hist-item .ai-hist-title{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ai-hist-item .ai-hist-del{ opacity:.6; background:none; border:none; color:#fff; cursor:pointer; font-size:13px; }
+  .ai-hist-item .ai-hist-del:hover{ opacity:1; }
+  .ai-main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .ai-header{ padding:16px 24px; border-bottom:1px solid var(--line); font-weight:800; font-size:16px; color:var(--rice-dark); background:var(--white); }
+  .ai-messages{ flex:1; overflow-y:auto; padding:20px 10%; display:flex; flex-direction:column; gap:14px; }
+  @media (max-width:900px){ .ai-messages{ padding:16px 4%; } .ai-sidebar{ width:210px; } }
+  .ai-bubble{ max-width:78%; padding:12px 15px; border-radius:14px; font-size:14px; line-height:1.6; white-space:pre-wrap; }
+  .ai-bubble.user{ align-self:flex-end; background:var(--rice-dark); color:#fff; border-bottom-right-radius:4px; }
+  .ai-bubble.assistant{ align-self:flex-start; background:var(--white); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .ai-bubble.thinking{ opacity:.7; font-style:italic; }
+  .ai-inputbar{ display:flex; gap:10px; padding:16px 10%; border-top:1px solid var(--line); background:var(--white); }
+  @media (max-width:900px){ .ai-inputbar{ padding:12px 4%; } }
+  .ai-inputbar textarea{ flex:1; resize:none; border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-size:14px; font-family:inherit; max-height:120px; }
+  .ai-inputbar button{ background:var(--gold); color:#3A2C05; border:none; border-radius:50%; width:46px; height:46px; font-size:18px; cursor:pointer; flex-shrink:0; }
+  .ai-inputbar button:disabled{ opacity:.5; cursor:not-allowed; }
+  .admin-view-banner{ background:#3A2C05; color:#FFE7A6; padding:8px 16px; font-size:13px; text-align:center; font-weight:700; }
 </style>
 </head>
 <body>
@@ -324,6 +371,10 @@
   const fmtDate = d => { if(!d) return '—'; const x=new Date(d); return x.toLocaleDateString('vi-VN'); };
   const todayStr = () => new Date().toISOString().slice(0,10);
   const uid = () => Math.random().toString(36).slice(2,10);
+  // Thoát ký tự HTML đặc biệt — dùng khi chèn văn bản người dùng/AI tự do (chat) vào innerHTML.
+  function escapeHtml(s){
+    return String(s==null? '' : s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
   const daysBetween = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
 
   // =====================================================================
@@ -358,14 +409,82 @@
   // Truy cập dữ liệu thật theo ĐÚNG 1 secretId đã biết trước (không phụ thuộc mã xã đang active) —
   // dùng khi cần thao tác dữ liệu của một mã KHÔNG PHẢI mã đang mở (vd: sau khi khôi phục xong).
   function srefFor(sid, sub){ return rtdb.ref(`secretdata/${sid}/${sub}`); }
+
+  // ---------------------------------------------------------------------
+  // Mục lục toàn hệ thống (chỉ Admin đọc được, dùng cho Module [CÀI ĐẶT ADMIN] — Khu vực 3):
+  // mỗi khi "con trỏ" config của 1 mã xã được ghi/cập nhật, đồng bộ 1 bản ghi rút gọn vào
+  // system_wards_index/{wardId} để Admin liệt kê TẤT CẢ mã xã đang hoạt động mà không cần quét
+  // toàn bộ cây "data/" (vốn có thể rất lớn và bị chặn bởi luật bảo mật Firebase).
+  // ---------------------------------------------------------------------
+  function syncWardIndex(wid, cfg){
+    if(!wid || !cfg) return;
+    rtdb.ref(`system_wards_index/${wid}`).set({
+      wardId: wid, wardName: cfg.wardName||'', adminLevel: cfg.adminLevel||'',
+      ownerEmail: cfg.ownerEmail||'', deleted: !!cfg.deleted, secretId: cfg.secretId||'',
+      updatedAt: new Date().toISOString(),
+    }).catch(e=>console.error('Đồng bộ system_wards_index lỗi:', e));
+  }
+  function removeWardIndex(wid){
+    if(!wid) return;
+    rtdb.ref(`system_wards_index/${wid}`).remove().catch(()=>{});
+  }
+  async function loadSystemWardsIndex(){
+    try{
+      const snap = await rtdb.ref('system_wards_index').get();
+      state.systemWardsIndex = (snap && snap.exists()) ? Object.values(snap.val()) : [];
+    }catch(e){ state.systemWardsIndex = []; }
+  }
+  // [CÀI ĐẶT ADMIN] — Khu vực 3, nút [Xem cơ sở dữ liệu]: cho phép Admin mở CHẾ ĐỘ XEM (chỉ đọc,
+  // không sửa được gì) toàn bộ dữ liệu của MỘT mã xã bất kỳ, không cần là Chủ mã/được cấp quyền.
+  async function adminViewWard(wid){
+    if(!isAdmin()) return;
+    detachRealtime();
+    state._adminViewingWard = true;
+    state.identity.wardId = wid; // KHÔNG gọi setActiveWardCache — không đổi mã "của riêng Admin" đang lưu cache
+    state.config = await cGetOnce('config', null);
+    if(!state.config){ alert('Không tìm thấy dữ liệu cấu hình cho mã này (có thể đã bị xoá vĩnh viễn).'); state._adminViewingWard = false; return; }
+    state.activeTab = 'dashboard';
+    state.view = 'app';
+    attachRealtime();
+    render();
+  }
+  // [CÀI ĐẶT ADMIN] — Khu vực 3, nút [Xoá vào Thùng rác]: Admin chuyển bất kỳ mã xã nào vào đúng
+  // Thùng rác cá nhân của Chủ mã đó (y hệt luồng ownerDeleteWard sẵn có), Chủ mã tự khôi phục sau.
+  async function adminDeleteWardToTrash(wid){
+    if(!isAdmin()) return;
+    const cfg = await cGetOnceFor(wid, 'config', null);
+    if(!cfg){ alert('Không tìm thấy mã này.'); return; }
+    if(cfg.deleted){ alert('Mã này đã ở trong thùng rác từ trước.'); return; }
+    if(!confirm(`[ADMIN] Xoá mã "${wid}"${cfg.wardName?` (${cfg.wardName})`:''} vào Thùng rác của Chủ mã (${cfg.ownerEmail||'không rõ'})? Bạn có chắc chắn?`)) return;
+    cfg.deleted = true; cfg.deletedAt = new Date().toISOString(); cfg.deletedBy = state.identity.email;
+    await wrefFor(wid, 'config').set(cfg);
+    syncWardIndex(wid, cfg);
+    if(cfg.ownerEmail){
+      const ownerKey = emailToKey(cfg.ownerEmail);
+      await rtdb.ref(`users/${ownerKey}/wards/${wid}`).remove();
+      await rtdb.ref(`users/${ownerKey}/deletedWards/${wid}`).set({wardId:wid, wardName:cfg.wardName||'', deletedAt:new Date().toISOString(), deletedByAdmin: state.identity.email});
+    }
+    await loadSystemWardsIndex();
+    const mount = document.getElementById('content');
+    if(mount && state.activeTab==='adminSettings') renderAdminSettingsTab(mount);
+  }
   async function cGetOnceFor(wid, sub, fallback){
     try{ const snap = await wrefFor(wid, sub).get(); return snap.exists() ? snap.val() : fallback; }
     catch(e){ console.error('Firebase đọc lỗi:', wid, sub, e); return fallback; }
   }
   // Email của Chủ trang web (superadmin) — người duy nhất có quyền thao tác
   // với "Thùng rác hệ thống" (nơi các mã xã bị Chủ mã xoá vĩnh viễn cuối cùng sẽ rơi vào).
-  const SITE_OWNER_EMAIL = 'lookatmevanthanhpham@gmail.com';
-  function isSiteOwner(){ return !!(state.identity && state.identity.email === SITE_OWNER_EMAIL); }
+  // Email của các Admin TỐI CAO — cố định trong code, không ai (kể cả admin khác) có quyền xoá
+  // quyền admin của 2 tài khoản này. Các admin khác được thêm/xoá lẫn nhau qua Firebase (admins/...).
+  const SUPER_ADMIN_EMAILS = ['lookatmevanthanhpham@gmail.com', '219thanhdeptrai@gmail.com'];
+  function isSuperAdmin(){ return !!(state.identity && state.identity.email && SUPER_ADMIN_EMAILS.includes(state.identity.email)); }
+  function isAdmin(){
+    if(!state.identity || !state.identity.email) return false;
+    if(isSuperAdmin()) return true;
+    return !!(state.admins||{})[emailToKey(state.identity.email)];
+  }
+  // Giữ tên cũ để không phải sửa lại các chỗ gọi trước đây — nay có nghĩa "là Admin" (đã mở rộng đa Admin).
+  function isSiteOwner(){ return isAdmin(); }
 
   function snapToArray(val){ return val ? Object.values(val) : []; }
   function byId(list){ const o={}; (list||[]).forEach(x=>{ if(x && x.id) o[x.id]=x; }); return o; }
@@ -377,7 +496,10 @@
   }
   // Ghi đè toàn bộ nhánh (dùng cho config, hoặc khôi phục sao lưu)
   async function cSet(sub, value){
-    try{ await wref(sub).set(value); }catch(e){ console.error('Firebase set lỗi:', sub, e); alert('Không thể lưu dữ liệu lên máy chủ. Vui lòng kiểm tra kết nối mạng / cấu hình Firebase.'); }
+    try{
+      await wref(sub).set(value);
+      if(sub === 'config') syncWardIndex(wardId(), value); // chạy nền, không cần chờ — phục vụ mục lục toàn hệ thống cho Admin
+    }catch(e){ console.error('Firebase set lỗi:', sub, e); alert('Không thể lưu dữ liệu lên máy chủ. Vui lòng kiểm tra kết nối mạng / cấu hình Firebase.'); }
   }
   // Cập nhật một phần của nhánh (merge, không ghi đè các trường khác)
   async function cUpdate(sub, partial){
@@ -733,6 +855,14 @@
     bellOpen:false,
     walletTrashOpen:false,
     previewMode:false,   // môi trường tham quan (không đăng nhập, dùng dữ liệu mẫu, mọi nút bấm bị vô hiệu hoá)
+    admins:{},            // {emailKey: {email, addedBy, addedAt}} — danh sách Admin (ngoài 2 Admin tối cao cố định)
+    aiProviders:[],       // [{id, label, model, apiKey}] — cấu hình AI do Admin thiết lập (system_config/ai_providers)
+    systemWardsIndex:[],  // [{wardId, wardName, ownerEmail, deleted, secretId, updatedAt}] — mục lục toàn hệ thống (Admin)
+    _adminViewingWard:false, // Admin đang "Xem cơ sở dữ liệu" (chỉ đọc) của 1 mã xã không phải của mình
+    aiChats:[],            // [{id, title, messages:[{role,text,time}], updatedAt}] — lịch sử chat AI của tài khoản
+    aiActiveChatId:null,
+    aiSending:false,
+    _aiChatOpen:false,
   };
 
   // =====================================================================
@@ -767,6 +897,7 @@
   function modulePerm(m){
     if(state.previewMode) return 'edit'; // môi trường tham quan: thấy đầy đủ giao diện, nút bấm sẽ bị vô hiệu hoá riêng
     if(isOwner()) return 'edit';
+    if(state._adminViewingWard && isAdmin()) return 'view'; // Admin "Xem cơ sở dữ liệu": full quyền XEM, không được Sửa
     if(!state.config) return 'none';
     const g = myGrant();
     if(g && g[m]) return g[m];
@@ -941,6 +1072,54 @@
     return wid;
   }
 
+  // Tải danh sách Admin hiện tại từ Firebase (ngoài 2 Admin tối cao cố định trong code).
+  async function loadAdmins(){
+    try{
+      const snap = await rtdb.ref('admins').get();
+      state.admins = (snap && snap.exists()) ? snap.val() : {};
+    }catch(e){ state.admins = {}; }
+  }
+  // Bất kỳ Admin nào (kể cả Admin tối cao) đều có quyền thêm Admin mới.
+  async function addAdminEmail(emailRaw){
+    if(!isAdmin()){ alert('Bạn không có quyền Admin.'); return false; }
+    const email = (emailRaw||'').trim().toLowerCase();
+    if(!email || !email.includes('@') || !email.includes('.')){ alert('Vui lòng nhập đúng địa chỉ email.'); return false; }
+    if(SUPER_ADMIN_EMAILS.includes(email)){ alert('Tài khoản này đã là Admin tối cao mặc định.'); return false; }
+    await rtdb.ref(`admins/${emailToKey(email)}`).set({ email, addedBy: state.identity.email, addedAt: new Date().toISOString() });
+    await loadAdmins();
+    return true;
+  }
+  // Mọi Admin đều có quyền xoá quyền Admin của admin khác — TRỪ 2 Admin tối cao, không ai xoá được.
+  async function removeAdminEmail(email){
+    if(!isAdmin()){ alert('Bạn không có quyền Admin.'); return; }
+    if(SUPER_ADMIN_EMAILS.includes(email)){ alert('Không thể gỡ quyền của Admin tối cao.'); return; }
+    if(!confirm(`Gỡ quyền Admin của "${email}"? Bạn có chắc chắn?`)) return;
+    await rtdb.ref(`admins/${emailToKey(email)}`).remove();
+    await loadAdmins();
+  }
+
+  // ---------------------------------------------------------------------
+  // Cấu hình AI (Khu vực 2, Module [CÀI ĐẶT ADMIN]) — lưu tại system_config/ai_providers/{id},
+  // toàn ứng dụng kéo về chạy ngầm khi người dùng chat để không lộ API Key ở giao diện.
+  // ---------------------------------------------------------------------
+  async function loadAiProviders(){
+    try{
+      const snap = await rtdb.ref('system_config/ai_providers').get();
+      state.aiProviders = (snap && snap.exists()) ? Object.entries(snap.val()).map(([id,v])=>({id, ...v})) : [];
+    }catch(e){ state.aiProviders = []; }
+  }
+  async function saveAiProvider(id, data){
+    if(!isAdmin()) return;
+    await rtdb.ref(`system_config/ai_providers/${id}`).set(data);
+    await loadAiProviders();
+  }
+  async function deleteAiProvider(id){
+    if(!isAdmin()) return;
+    if(!confirm('Xoá cấu hình AI này?')) return;
+    await rtdb.ref(`system_config/ai_providers/${id}`).remove();
+    await loadAiProviders();
+  }
+
   async function loadWallet(){
     const wardsSnap = await myWardsRef().get().catch(()=>null);
     const wardsObj = (wardsSnap && wardsSnap.exists()) ? wardsSnap.val() : {};
@@ -956,7 +1135,8 @@
     const delSnap = await myDeletedWardsRef().get().catch(()=>null);
     const delObj = (delSnap && delSnap.exists()) ? delSnap.val() : {};
     state.myDeletedWards = Object.values(delObj);
-    if(isSiteOwner()){
+    await loadAdmins();
+    if(isAdmin()){
       const trashSnap = await rtdb.ref('superadmin/trashWards').get().catch(()=>null);
       state.sysTrash = (trashSnap && trashSnap.exists()) ? Object.values(trashSnap.val()) : [];
     } else state.sysTrash = [];
@@ -1020,6 +1200,7 @@
       // Tự động đưa tài khoản KHÁCH này vào danh sách "Chia sẻ đích danh" của Chủ mã (Yêu cầu 2)
       if(ensureGrantEntryForGuest(existingCfg, state.identity.email, state.identity.name)){
         await wrefFor(wid, 'config').set(existingCfg);
+        syncWardIndex(wid, existingCfg);
       }
       await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'guest', wardName: existingCfg.wardName||'', addedAt:new Date().toISOString(), av: existingCfg.accessVersion||0});
     }
@@ -1059,6 +1240,7 @@
       // Tự động đưa tài khoản KHÁCH này vào danh sách "Chia sẻ đích danh" của Chủ mã (Yêu cầu 2)
       if(ensureGrantEntryForGuest(cfg, state.identity.email, state.identity.name)){
         await wrefFor(wid, 'config').set(cfg);
+        syncWardIndex(wid, cfg);
       }
       await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'guest', wardName: cfg.wardName||'', addedAt:new Date().toISOString(), av: cfg.accessVersion||0});
     }
@@ -1161,7 +1343,9 @@
     await pushLog('đổi tên mã định danh', `${oldWid} → ${newWid}`); // secretId không đổi nên nhật ký vẫn đúng chỗ
     const movedCfg = { ...state.config }; // chỉ copy "con trỏ" — secretId bên trong giữ nguyên, không đổi
     await rtdb.ref(`data/${newWid}/config`).set(movedCfg);
+    syncWardIndex(newWid, movedCfg);
     await rtdb.ref(`data/${oldWid}`).remove(); // chỉ xoá con trỏ cũ, KHÔNG đụng tới secretdata/
+    removeWardIndex(oldWid);
     const emailKey = emailToKey(state.identity.email);
     await rtdb.ref(`users/${emailKey}/wards/${oldWid}`).remove();
     await rtdb.ref(`users/${emailKey}/wards/${newWid}`).set({kind:'owner', wardName:(state.config&&state.config.wardName)||'', addedAt:new Date().toISOString()});
@@ -1176,8 +1360,10 @@
   // Rời mã xã đang xem, quay về Ví mã xã (KHÔNG đăng xuất tài khoản Google)
   async function exitToWallet(){
     detachRealtime();
+    const wasAdminViewing = !!state._adminViewingWard;
+    state._adminViewingWard = false;
     state.identity.wardId = '';
-    setActiveWardCache('');
+    if(!wasAdminViewing) setActiveWardCache(''); // Admin chỉ "xem thử" thì giữ nguyên cache mã thật của họ
     lset(IDENTITY_KEY, state.identity);
     state.config = null; state.borrowers=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
     await loadWallet();
@@ -1192,6 +1378,7 @@
     const cfg = await cGetOnceFor(wid, 'config', {});
     cfg.deleted = true; cfg.deletedAt = new Date().toISOString(); cfg.deletedBy = state.identity.email;
     await wrefFor(wid, 'config').set(cfg);
+    syncWardIndex(wid, cfg);
     const emailKey = emailToKey(state.identity.email);
     await rtdb.ref(`users/${emailKey}/wards/${wid}`).remove();
     await rtdb.ref(`users/${emailKey}/deletedWards/${wid}`).set({wardId:wid, wardName:cfg.wardName||(w&&w.wardName)||'', deletedAt:new Date().toISOString()});
@@ -1223,7 +1410,7 @@
   async function restoreDeletedWard(wid){
     const entry = state.myDeletedWards.find(x=>x.wardId===wid);
     const cfg = await cGetOnceFor(wid, 'config', null);
-    if(cfg){ cfg.deleted=false; delete cfg.deletedAt; delete cfg.deletedBy; await wrefFor(wid,'config').set(cfg); }
+    if(cfg){ cfg.deleted=false; delete cfg.deletedAt; delete cfg.deletedBy; await wrefFor(wid,'config').set(cfg); syncWardIndex(wid, cfg); }
     const emailKey = emailToKey(state.identity.email);
     await rtdb.ref(`users/${emailKey}/deletedWards/${wid}`).remove();
     await rtdb.ref(`users/${emailKey}/wards/${wid}`).set({kind:'owner', wardName:(cfg&&cfg.wardName)||(entry&&entry.wardName)||'', addedAt:new Date().toISOString()});
@@ -1247,6 +1434,7 @@
   }
   // ---- Thùng rác hệ thống (chỉ Chủ trang web) ----
   async function superRestoreWard(wid){
+    if(!isAdmin()) return;
     const entry = state.sysTrash.find(x=>x.wardId===wid);
     if(!entry) return;
     // Yêu cầu 1: mã trong Thùng rác hệ thống được coi là "đã thả tự do" nên rất có thể đã bị người
@@ -1270,6 +1458,7 @@
       const restoredCfg = { ...entry.configSnapshot, deleted:false };
       delete restoredCfg.deletedAt; delete restoredCfg.deletedBy;
       await rtdb.ref(`data/${finalWid}/config`).set(restoredCfg);
+      syncWardIndex(finalWid, restoredCfg);
     }
     if(renamed){
       alert(`Lưu ý: mã "${wid}" hiện đã có người khác đang sử dụng (do đã được thả tự do khi đưa vào Thùng rác hệ thống), nên con trỏ khôi phục sẽ dùng tên mới "${finalWid}". Yên tâm: TOÀN BỘ dữ liệu gốc (hộ vay, chi tiêu, nhật ký...) vẫn còn nguyên vẹn 100% vì luôn được "Mã ẩn" cố định bảo lãnh — hoàn toàn không bị mất hay lẫn với mã đang hoạt động kia.`);
@@ -1279,6 +1468,7 @@
     await loadWallet(); render();
   }
   async function superPurgeForever(wid){
+    if(!isAdmin()) return;
     if(!confirm('XOÁ VĨNH VIỄN — TOÀN BỘ dữ liệu (hộ vay, chi tiêu, nhật ký, cộng tác viên...) của mã xã này trên đám mây sẽ bị xoá sạch, KHÔNG THỂ khôi phục. Bạn có chắc chắn tuyệt đối?')) return;
     // Dữ liệu thật nằm ở secretdata/{secretId}/... (không phải data/{wid}/...) — phải lấy đúng
     // Mã ẩn từ snapshot đã chụp lúc đưa vào Thùng rác hệ thống để xoá đúng chỗ.
@@ -1286,6 +1476,7 @@
     const sid = entry && entry.configSnapshot && entry.configSnapshot.secretId;
     if(sid) await rtdb.ref(`secretdata/${sid}`).remove();
     await rtdb.ref(`data/${wid}`).remove();
+    removeWardIndex(wid);
     await rtdb.ref(`superadmin/trashWards/${wid}`).remove();
     await loadWallet(); render();
   }
@@ -1301,6 +1492,7 @@
         state.identity = null; lset(IDENTITY_KEY, null);
         state.config = null; state.borrowers=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
         state.myWards=[]; state.myDeletedWards=[]; state.sysTrash=[];
+        state.admins={}; state.aiChats=[]; state.aiActiveChatId=null; state._aiChatOpen=false; state._adminViewingWard=false;
         state.view = 'login';
         render();
         return;
@@ -1475,12 +1667,207 @@
 
   // ================= RENDER =================
   function render(){
-    if(state.view==='login') return renderLogin();
-    if(state.view==='welcome') return renderWelcome();
-    if(state.view==='wallet') return renderWallet();
-    if(state.view==='onboarding') return renderOnboarding();
-    if(state.view==='app'){ return isPending() ? renderPendingScreen() : renderApp(); }
+    if(state.view==='login'){ renderLogin(); syncFloatingChat(); return; }
+    if(state.view==='welcome'){ renderWelcome(); syncFloatingChat(); return; }
+    if(state.view==='wallet'){ renderWallet(); syncFloatingChat(); return; }
+    if(state.view==='onboarding'){ renderOnboarding(); syncFloatingChat(); return; }
+    if(state.view==='app'){ (isPending() ? renderPendingScreen() : renderApp()); syncFloatingChat(); return; }
     root.innerHTML = '<div class="center-screen">Đang tải…</div>';
+    syncFloatingChat();
+  }
+
+  // =====================================================================
+  // ---------- TRỢ LÝ AI "ANH NÔNG DÂN THÔNG MINH" (Gemini) ----------
+  // Nút chat tròn bập bềnh (góc dưới-phải) + không gian chat toàn màn hình kiểu Gemini, có
+  // lịch sử các đoạn chat lưu theo tài khoản Google (users/{email}/aiChats/...).
+  // =====================================================================
+  // Chỉ hiển thị nút chat khi đang ở trong app (không hiện ở màn đăng nhập/welcome/onboarding).
+  function syncFloatingChat(){
+    let btn = document.getElementById('fab-chat-btn');
+    const shouldShow = state.view === 'app';
+    if(!shouldShow){
+      if(btn) btn.remove();
+      const overlay = document.getElementById('ai-chat-overlay');
+      if(overlay) overlay.remove();
+      return;
+    }
+    if(!btn){
+      btn = document.createElement('button');
+      btn.id = 'fab-chat-btn';
+      btn.className = 'fab-chat';
+      btn.title = 'Anh Nông dân Thông minh — Trợ lý AI';
+      btn.textContent = '🤖';
+      btn.onclick = openAiChat;
+      document.body.appendChild(btn);
+    }
+    if(state._aiChatOpen && !document.getElementById('ai-chat-overlay')){
+      renderAiChatOverlay();
+    } else if(!state._aiChatOpen){
+      const overlay = document.getElementById('ai-chat-overlay');
+      if(overlay) overlay.remove();
+    }
+  }
+  async function openAiChat(){
+    state._aiChatOpen = true;
+    await loadAiChats();
+    if(!state.aiActiveChatId && state.aiChats.length) state.aiActiveChatId = state.aiChats[0].id;
+    renderAiChatOverlay();
+  }
+  function closeAiChat(){
+    state._aiChatOpen = false;
+    const overlay = document.getElementById('ai-chat-overlay');
+    if(overlay) overlay.remove();
+  }
+  async function loadAiChats(){
+    if(!state.identity || !state.identity.email){ state.aiChats = state.aiChats||[]; return; } // Khách/tham quan: chỉ lưu tạm trong phiên, không có tài khoản để lưu lâu dài
+    try{
+      const snap = await rtdb.ref(`users/${emailToKey(state.identity.email)}/aiChats`).get();
+      state.aiChats = (snap && snap.exists()) ? Object.entries(snap.val()).map(([id,v])=>({id, ...v})).sort((a,b)=> new Date(b.updatedAt||0)-new Date(a.updatedAt||0)) : [];
+    }catch(e){ state.aiChats = []; }
+  }
+  async function saveAiChatToCloud(chat){
+    if(!state.identity || !state.identity.email) return;
+    try{ await rtdb.ref(`users/${emailToKey(state.identity.email)}/aiChats/${chat.id}`).set(chat); }catch(e){ console.error('Lưu đoạn chat AI lỗi:', e); }
+  }
+  function newAiChat(){
+    const chat = { id:'c_'+uid(), title:'Đoạn chat mới', messages:[], updatedAt:new Date().toISOString() };
+    state.aiChats.unshift(chat);
+    state.aiActiveChatId = chat.id;
+    renderAiChatOverlay();
+  }
+  async function deleteAiChatById(chatId){
+    state.aiChats = state.aiChats.filter(c=>c.id!==chatId);
+    if(state.aiActiveChatId===chatId) state.aiActiveChatId = state.aiChats[0] ? state.aiChats[0].id : null;
+    if(state.identity && state.identity.email){ try{ await rtdb.ref(`users/${emailToKey(state.identity.email)}/aiChats/${chatId}`).remove(); }catch(e){} }
+    renderAiChatOverlay();
+  }
+  // Xây dựng System Instruction cho "Anh Nông dân Thông minh" — gộp cả 4 vai trò yêu cầu,
+  // kèm tóm tắt nhanh dữ liệu hộ vay của xã đang mở (phục vụ Vai trò 3: phân tích số liệu).
+  function buildAiSystemPrompt(){
+    let dataSummary = '';
+    const list = (state.borrowers||[]).filter(x=>!x.deleted);
+    if(list.length){
+      const totalPrincipal = list.reduce((s,x)=> s + (parseFloat(x.principal)||0), 0);
+      const today = new Date();
+      const in30 = new Date(); in30.setDate(today.getDate()+30);
+      const overdue = list.filter(x=> x.dueDate && new Date(x.dueDate) < today).length;
+      const dueSoon = list.filter(x=> x.dueDate && new Date(x.dueDate) >= today && new Date(x.dueDate) <= in30).length;
+      const byHamlet = {};
+      list.forEach(x=>{ const h = x.hamlet||'(chưa rõ)'; byHamlet[h] = (byHamlet[h]||0) + (parseFloat(x.principal)||0); });
+      const hamletLines = Object.entries(byHamlet).sort((a,b)=>b[1]-a[1]).slice(0,5)
+        .map(([h,v])=>`  • ${h}: ${v.toLocaleString('vi-VN')} đồng`).join('\n');
+      dataSummary = `\n\nDỮ LIỆU TÓM TẮT HIỆN TẠI của "${(state.config&&state.config.wardName)||wardId()||''}" (chỉ dùng khi người dùng hỏi về số liệu/dư nợ/hộ vay, không tự ý nhắc nếu không được hỏi):
+- Tổng số hộ đang vay: ${list.length}
+- Tổng dư nợ gốc: ${totalPrincipal.toLocaleString('vi-VN')} đồng
+- Số hộ đã quá hạn trả nợ: ${overdue}
+- Số hộ sắp đến hạn trong 30 ngày tới: ${dueSoon}
+- Dư nợ theo địa bàn cao nhất (tối đa 5):\n${hamletLines}
+(Đây là số liệu tóm tắt tức thời từ phần mềm, có thể không phản ánh 100% chi tiết từng hộ — khuyên người dùng đối chiếu lại Module "Sổ vay vốn" nếu cần độ chính xác tuyệt đối.)`;
+    }
+    return `Bạn tên là "Anh Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Anh" gọi người dùng là "bạn/đồng chí". Bạn đảm nhiệm 4 vai trò:
+1) Trợ lý nghiệp vụ Hội Nông dân: giải đáp nhanh nghiệp vụ công tác hội, công tác hội viên, chính sách, quy chế cho vay, thủ tục gia hạn nợ, lãi suất, quỹ hỗ trợ nông dân.
+2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Chi tiêu & Hạch toán, Báo cáo lãi, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
+3) Trợ lý phân tích số liệu: khi được hỏi về dư nợ/hộ vay/thống kê, hãy dựa vào phần "DỮ LIỆU TÓM TẮT HIỆN TẠI" bên dưới (nếu có); nếu không có hoặc không đủ, hãy nói rõ là chưa có dữ liệu và hướng dẫn xem trong Module tương ứng, không được bịa số liệu.
+4) Trợ lý AI toàn năng: trả lời mọi câu hỏi kiến thức chung, viết/sửa văn bản, gợi ý code, dịch thuật, tư vấn... như một AI thông thường. Lưu ý: giao diện chat này hiện chỉ hỗ trợ văn bản, chưa hỗ trợ tạo/hiển thị hình ảnh.
+Luôn trả lời bằng tiếng Việt (trừ khi được yêu cầu khác), ngắn gọn, dễ hiểu, đúng trọng tâm, có thể dùng gạch đầu dòng khi liệt kê.${dataSummary}`;
+  }
+  // Gọi Gemini API bằng cấu hình Admin đã lưu (system_config/ai_providers) — dùng cấu hình ĐẦU
+  // TIÊN trong danh sách làm mặc định.
+  async function callGeminiAI(messages){
+    if(!state.aiProviders || !state.aiProviders.length) await loadAiProviders();
+    const provider = (state.aiProviders||[])[0];
+    if(!provider || !provider.apiKey){
+      return { error:true, text:'Admin chưa cấu hình API AI. Vui lòng vào Module "CÀI ĐẶT ADMIN → Cấu hình AI" để thêm API Key (ví dụ API Key Gemini).' };
+    }
+    const model = provider.model || 'gemini-2.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${provider.apiKey}`;
+    const contents = messages.map(m=>({ role: m.role==='assistant' ? 'model' : 'user', parts:[{text:m.text}] }));
+    try{
+      const res = await fetch(url, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ system_instruction:{ parts:[{text: buildAiSystemPrompt()}] }, contents }),
+      });
+      const data = await res.json();
+      if(data.error) return { error:true, text: 'Lỗi từ AI: ' + (data.error.message || 'không xác định. Vui lòng kiểm tra lại API Key/tên model trong CÀI ĐẶT ADMIN.') };
+      const parts = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+      const text = parts ? parts.map(p=>p.text||'').join('\n').trim() : '';
+      return { error:false, text: text || '(AI không trả về nội dung, vui lòng thử lại hoặc đặt câu hỏi khác.)' };
+    }catch(e){
+      console.error('Gọi Gemini API lỗi:', e);
+      return { error:true, text: 'Không thể kết nối tới AI lúc này. Vui lòng kiểm tra kết nối mạng hoặc API Key trong CÀI ĐẶT ADMIN.' };
+    }
+  }
+  async function sendAiMessage(text){
+    if(!text || !text.trim() || state.aiSending) return;
+    let chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
+    if(!chat){ chat = { id:'c_'+uid(), title:text.trim().slice(0,40), messages:[], updatedAt:new Date().toISOString() }; state.aiChats.unshift(chat); state.aiActiveChatId = chat.id; }
+    chat.messages.push({ role:'user', text:text.trim(), time:new Date().toISOString() });
+    if(chat.messages.length===1) chat.title = text.trim().slice(0,40) || 'Đoạn chat mới';
+    chat.updatedAt = new Date().toISOString();
+    state.aiSending = true;
+    renderAiChatOverlay();
+    const result = await callGeminiAI(chat.messages);
+    chat.messages.push({ role:'assistant', text: result.text, time:new Date().toISOString() });
+    chat.updatedAt = new Date().toISOString();
+    state.aiSending = false;
+    renderAiChatOverlay();
+    saveAiChatToCloud(chat);
+  }
+  // Dựng không gian chat toàn màn hình kiểu Gemini (sidebar lịch sử + khung chat + ô nhập).
+  // Gắn TRỰC TIẾP vào document.body (ngoài #root) để không bị render() của app xoá mất.
+  function renderAiChatOverlay(){
+    let overlay = document.getElementById('ai-chat-overlay');
+    if(!overlay){ overlay = document.createElement('div'); overlay.id = 'ai-chat-overlay'; overlay.className = 'ai-overlay'; document.body.appendChild(overlay); }
+    const chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
+    overlay.innerHTML = `
+      <div class="ai-sidebar">
+        <button class="ai-exit-btn" id="ai-exit-btn">✕ THOÁT</button>
+        <button class="ai-newchat-btn" id="ai-newchat-btn">➕ Đoạn chat mới</button>
+        <div class="ai-hist-label">Lịch sử đoạn chat</div>
+        <div class="ai-hist-list">
+          ${state.aiChats.length? state.aiChats.map(c=>`
+            <div class="ai-hist-item ${c.id===state.aiActiveChatId?'active':''}" data-ai-hist="${c.id}">
+              <span class="ai-hist-title">${(c.title||'Đoạn chat mới')}</span>
+              <button class="ai-hist-del" data-ai-hist-del="${c.id}" title="Xoá đoạn chat">🗑️</button>
+            </div>`).join('') : '<div class="sub" style="color:rgba(255,255,255,.6); padding:6px 10px;">Chưa có đoạn chat nào.</div>'}
+        </div>
+        ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Bạn đang dùng khách/tham quan — lịch sử chat chỉ lưu tạm trong phiên này.</div>' : ''}
+      </div>
+      <div class="ai-main">
+        <div class="ai-header">🤖 Anh Nông dân Thông minh</div>
+        <div class="ai-messages" id="ai-messages">
+          ${!chat || !chat.messages.length? `
+            <div class="ai-bubble assistant">Chào bạn! Anh là "Anh Nông dân Thông minh" 🌾 — sẵn sàng hỗ trợ nghiệp vụ Hội Nông dân, hướng dẫn sử dụng phần mềm, phân tích số liệu hộ vay, hoặc trò chuyện bất cứ điều gì bạn cần. Bạn muốn hỏi gì nào?</div>`
+            : chat.messages.map(m=>`<div class="ai-bubble ${m.role}">${escapeHtml(m.text)}</div>`).join('')}
+          ${state.aiSending? `<div class="ai-bubble assistant thinking">Anh đang suy nghĩ…</div>` : ''}
+        </div>
+        <div class="ai-inputbar">
+          <textarea id="ai-input" rows="1" placeholder="Nhắn tin cho Anh Nông dân Thông minh..." ${state.aiSending?'disabled':''}></textarea>
+          <button id="ai-send-btn" ${state.aiSending?'disabled':''}>➤</button>
+        </div>
+      </div>`;
+    const msgBox = document.getElementById('ai-messages');
+    if(msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+    document.getElementById('ai-exit-btn').onclick = closeAiChat;
+    document.getElementById('ai-newchat-btn').onclick = newAiChat;
+    overlay.querySelectorAll('[data-ai-hist]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{
+        if(e.target.closest('[data-ai-hist-del]')) return;
+        state.aiActiveChatId = elx.dataset.aiHist;
+        renderAiChatOverlay();
+      });
+    });
+    overlay.querySelectorAll('[data-ai-hist-del]').forEach(btn=>{
+      btn.onclick = (e)=>{ e.stopPropagation(); deleteAiChatById(btn.dataset.aiHistDel); };
+    });
+    const sendBtn = document.getElementById('ai-send-btn');
+    const inputEl = document.getElementById('ai-input');
+    const doSend = ()=>{ const v = inputEl.value; inputEl.value=''; sendAiMessage(v); };
+    if(sendBtn) sendBtn.onclick = doSend;
+    if(inputEl){
+      inputEl.focus();
+      inputEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); doSend(); } });
+    }
   }
 
   function renderLogin(){
@@ -1966,6 +2353,8 @@
     if(isOwner() || settingsPerm()!=='none') items.push({id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'});
     items.push({id:'guide', ico:'📖', label:'Hướng dẫn sử dụng'});
     items.push({id:'about', ico:'ℹ️', label:'Thông tin phần mềm'});
+    // Chỉ Admin (2 Admin tối cao + Admin được thêm vào) mới nhìn thấy mục này — luôn ở cuối cùng.
+    if(isAdmin()) items.push({id:'adminSettings', ico:'🛠️', label:'CÀI ĐẶT ADMIN'});
     return items;
   }
 
@@ -1990,6 +2379,8 @@
         ⚠️ Bạn đang ở môi trường tham quan. Hãy chọn <button class="link-btn" id="pv-login">Đăng nhập hoặc Tham gia bằng mã</button> để sử dụng;
         hoặc <button class="link-btn" id="pv-guide">Xem hướng dẫn sử dụng website</button>.
       </div>` : ''}
+      ${state._adminViewingWard? `
+      <div class="admin-view-banner">🛡️ ADMIN đang XEM THỬ (chỉ đọc, không sửa được) dữ liệu của mã "${wardId()}". Bấm "Thoát khỏi mã định danh" để quay về mã của bạn.</div>` : ''}
       <div class="app-shell">
         <div class="sidebar">
           <div class="brand"><div class="ico">🌾</div><div class="txt">Hội Nông dân<small>${wardTitle()||'Chưa chọn mã xã'}</small></div></div>
@@ -2063,6 +2454,7 @@
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
     else if(state.activeTab==='about') renderAboutTab(content);
+    else if(state.activeTab==='adminSettings') renderAdminSettingsTab(content);
 
     // Chỉ dựng modal khi chưa có modal nào đang mở trên màn hình — tránh bị
     // dựng chồng nhiều lớp modal mỗi khi có dữ liệu mới đẩy về qua realtime.
@@ -2615,6 +3007,117 @@
           </div>
         </div>
       </div>`;
+  }
+
+  // =====================================================================
+  // Module [CÀI ĐẶT ADMIN] — chỉ hiển thị & truy cập được với isAdmin()===true.
+  // 3 khu vực: (1) Quản lý Admin, (2) Cấu hình AI (Gemini...), (3) Quản lý toàn bộ hệ thống.
+  // =====================================================================
+  function renderAdminSettingsTab(el){
+    if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Bạn không có quyền truy cập mục này.</div>'; return; }
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>👑 Quản lý Admin</h3></div>
+        <div class="panel-body">
+          <p class="sub" style="margin-top:0;">2 Admin tối cao (cố định, không ai gỡ được): <b>${SUPER_ADMIN_EMAILS.join(', ')}</b>. Mọi Admin (kể cả Admin tối cao) đều có quyền thêm/gỡ các Admin khác.</p>
+          <div class="toolbar">
+            <input id="adm-new-email" placeholder="email@gmail.com" style="min-width:260px;">
+            <button class="btn btn-primary btn-sm" id="adm-add-btn">➕ Thêm Admin mới</button>
+          </div>
+          <div style="margin-top:12px;">
+            ${SUPER_ADMIN_EMAILS.map(e=>`
+              <div class="kv-row"><span>👑 ${e} <span class="tag-role" style="background:var(--gold); color:#3A2C05; font-size:10.5px; padding:2px 8px; border-radius:20px; font-weight:700; margin-left:6px;">Admin tối cao</span></span><span></span></div>`).join('')}
+            ${Object.values(state.admins||{}).map(a=>`
+              <div class="kv-row"><span>${a.email}</span><button class="btn btn-ghost btn-sm" data-adm-remove="${a.email}">Gỡ quyền Admin</button></div>`).join('')}
+            ${Object.values(state.admins||{}).length===0? '<div class="sub" style="padding:6px 0;">Chưa có Admin nào được thêm ngoài 2 Admin tối cao.</div>' : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>🤖 Cấu hình AI ("Anh Nông dân Thông minh")</h3></div>
+        <div class="panel-body">
+          <p class="sub" style="margin-top:0;">API Key được lưu bảo mật trên Firebase (system_config/ai_providers), ứng dụng tự kéo về chạy ngầm khi người dùng chat — không hiển thị lại API Key sau khi lưu.</p>
+          <div id="adm-ai-list"></div>
+          <button class="btn btn-ghost btn-sm" id="adm-ai-add-row" style="margin-top:8px;">➕ Thêm cấu hình AI khác</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>🗂️ Quản lý toàn bộ hệ thống</h3></div>
+        <div class="panel-body">
+          <div id="adm-wards-list"><div class="sub">Đang tải danh sách toàn bộ mã xã…</div></div>
+        </div>
+      </div>`;
+
+    // ---- Khu vực 1: Quản lý Admin ----
+    document.getElementById('adm-add-btn').onclick = async ()=>{
+      const val = document.getElementById('adm-new-email').value;
+      if(await addAdminEmail(val)) renderAdminSettingsTab(el);
+    };
+    el.querySelectorAll('[data-adm-remove]').forEach(btn=>{
+      btn.onclick = async ()=>{ await removeAdminEmail(btn.dataset.admRemove); renderAdminSettingsTab(el); };
+    });
+
+    // ---- Khu vực 2: Cấu hình AI ----
+    function renderAiRows(){
+      const listEl = document.getElementById('adm-ai-list');
+      if(!listEl) return;
+      const rows = state.aiProviders||[];
+      listEl.innerHTML = rows.length? rows.map(p=>`
+        <div class="form-grid" data-ai-row="${p.id}" style="border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+          <div class="field"><label>Tên gợi nhớ</label><input class="ai-f-label" value="${p.label||''}" placeholder="vd: Gemini chính"></div>
+          <div class="field"><label>Tên model</label><input class="ai-f-model" value="${p.model||''}" placeholder="vd: gemini-2.5-flash"></div>
+          <div class="field full"><label>API Key</label><input class="ai-f-key" type="password" value="${p.apiKey||''}" placeholder="Dán API Key vào đây"></div>
+          <div class="field full" style="display:flex; gap:8px;">
+            <button class="btn btn-primary btn-sm ai-f-save">💾 Lưu cấu hình AI</button>
+            <button class="btn btn-ghost btn-sm ai-f-del" style="color:var(--red);">Xoá</button>
+          </div>
+        </div>`).join('') : '<div class="empty-state" style="padding:14px 0;">Chưa có cấu hình AI nào. Bấm "➕ Thêm cấu hình AI khác" bên dưới để bắt đầu.</div>';
+      listEl.querySelectorAll('[data-ai-row]').forEach(row=>{
+        const id = row.dataset.aiRow;
+        row.querySelector('.ai-f-save').onclick = async ()=>{
+          const label = row.querySelector('.ai-f-label').value.trim();
+          const model = row.querySelector('.ai-f-model').value.trim() || 'gemini-2.5-flash';
+          const apiKey = row.querySelector('.ai-f-key').value.trim();
+          if(!apiKey){ alert('Vui lòng nhập API Key.'); return; }
+          await saveAiProvider(id, { label: label||model, model, apiKey });
+          alert('Đã lưu cấu hình AI.');
+          renderAiRows();
+        };
+        row.querySelector('.ai-f-del').onclick = async ()=>{ await deleteAiProvider(id); renderAiRows(); };
+      });
+    }
+    loadAiProviders().then(renderAiRows);
+    document.getElementById('adm-ai-add-row').onclick = ()=>{
+      state.aiProviders = state.aiProviders||[];
+      state.aiProviders.push({ id:'p_'+uid(), label:'', model:'gemini-2.5-flash', apiKey:'' });
+      renderAiRows();
+    };
+
+    // ---- Khu vực 3: Quản lý toàn bộ hệ thống ----
+    function renderWardsList(){
+      const listEl = document.getElementById('adm-wards-list');
+      if(!listEl) return;
+      const rows = (state.systemWardsIndex||[]).slice().sort((a,b)=> (a.wardName||a.wardId).localeCompare(b.wardName||b.wardId));
+      listEl.innerHTML = rows.length? `<div class="table-wrap"><table>
+        <thead><tr><th>Mã định danh</th><th>Tên xã</th><th>Chủ mã</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>${rows.map(w=>`
+          <tr>
+            <td class="mono">${w.wardId}</td>
+            <td>${w.wardName||'(chưa đặt tên)'}</td>
+            <td>${w.ownerEmail||'—'}</td>
+            <td>${w.deleted? '<span style="color:var(--red);">Đã xoá</span>' : '<span style="color:var(--green,#2f6b3a);">Đang hoạt động</span>'}</td>
+            <td style="display:flex; gap:6px; white-space:nowrap;">
+              <button class="btn btn-ghost btn-sm" data-adm-view="${w.wardId}">👁️ Xem cơ sở dữ liệu</button>
+              ${!w.deleted? `<button class="btn btn-ghost btn-sm" data-adm-trash="${w.wardId}" style="color:var(--red);">🗑️ Xoá vào Thùng rác</button>` : ''}
+            </td>
+          </tr>`).join('')}</tbody>
+      </table></div>` : '<div class="empty-state" style="padding:14px 0;">Chưa có mã xã nào được ghi nhận.</div>';
+      listEl.querySelectorAll('[data-adm-view]').forEach(btn=> btn.onclick = ()=> adminViewWard(btn.dataset.admView));
+      listEl.querySelectorAll('[data-adm-trash]').forEach(btn=> btn.onclick = ()=> adminDeleteWardToTrash(btn.dataset.admTrash));
+    }
+    loadSystemWardsIndex().then(renderWardsList);
   }
 
   function renderGuideTab(el){
