@@ -377,7 +377,7 @@
   }
   .ext-action-btn{
     border:1px solid #000; border-radius:8px; padding:6px 14px; font-weight:800; color:#5a3d00;
-    cursor:pointer; animation: extPulseOrange 4.2s ease-in-out infinite; transition:transform .15s ease;
+    cursor:pointer; animation: extPulseOrange 12.6s ease-in-out infinite; transition:transform .15s ease;
     display:inline-block;
   }
   .ext-action-btn:hover{ transform:scale(1.35); position:relative; z-index:5; }
@@ -2045,7 +2045,12 @@
     const cfgQ = (state.config && state.config.quarters) || DEFAULT_QUARTERS;
     const q1 = cfgQ.q1 || DEFAULT_QUARTERS.q1, q4 = cfgQ.q4 || DEFAULT_QUARTERS.q4;
     const pad = n=> String(n).padStart(2,'0');
-    const cycleStartYear = (q1.startMonth > q4.endMonth) ? Y-1 : Y;
+    // QUAN TRỌNG: Quý 1.Bắt đầu LUÔN đúng bằng Quý 4.Kết thúc (do cơ chế đồng bộ mốc liền kề) — nên
+    // so sánh CHỈ bằng "tháng bắt đầu > tháng kết thúc" bị sai khi 2 tháng đó TRÙNG NHAU (ví dụ mặc
+    // định đều là tháng 12) mà không xét thêm ngày, khiến hệ thống hiểu nhầm là "không vắt năm" và
+    // tính ra tổng chu kỳ chỉ 0-1 ngày thay vì 365/366. Phải so sánh đủ cả tháng LẪN ngày.
+    const q1AfterQ4 = (q1.startMonth > q4.endMonth) || (q1.startMonth===q4.endMonth && q1.startDay >= q4.endDay);
+    const cycleStartYear = q1AfterQ4 ? Y-1 : Y;
     const start = new Date(`${cycleStartYear}-${pad(q1.startMonth)}-${pad(q1.startDay)}T00:00:00`);
     const end = new Date(`${Y}-${pad(q4.endMonth)}-${pad(q4.endDay)}T00:00:00`);
     return Math.max(1, Math.round((end-start)/86400000));
@@ -6788,7 +6793,7 @@ ${fileGenerationTrainingText()}`;
               <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tiền các quý</span><b>${moneySpaced(chosenSum)}</b></div>
               <div class="field" style="margin-top:10px;"><label>Số tiền đóng dư (đ)</label><input id="rcpt-surplus" class="preview-allow" value="${receiptSurplus? groupDigitsRight(String(receiptSurplus),3):'0'}"></div>
               <div class="field"><label>Số tiền đóng thiếu (đ)</label><input id="rcpt-shortfall" class="preview-allow" value="${receiptShortfall? '- '+groupDigitsRight(String(receiptShortfall),3) : '0'}"></div>
-              <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tất cả</span><b>${moneySpaced(grandTotal)}</b></div>
+              <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tất cả</span><b id="rcpt-grandtotal">${moneySpaced(grandTotal)}</b></div>
             </div>
             <div class="modal-foot">
               <button class="btn btn-ghost preview-allow" id="rcpt-cancel">Huỷ (chưa phê duyệt)</button>
@@ -6836,18 +6841,32 @@ ${fileGenerationTrainingText()}`;
       wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
       const surplusInput = wrap.querySelector('#rcpt-surplus');
       const shortfallInput = wrap.querySelector('#rcpt-shortfall');
+      const updateGrandTotal = ()=>{
+        const el = wrap.querySelector('#rcpt-grandtotal');
+        if(el) el.textContent = moneySpaced(chosenSum + receiptSurplus - receiptShortfall);
+      };
+      // Lưu ý: KHÔNG được gọi renderBody() ngay trong sự kiện "input" — vì render lại toàn bộ modal
+      // sẽ tạo ra 1 <input> MỚI hoàn toàn, làm mất focus/con trỏ đang gõ dở (đây chính là lỗi trước
+      // đó khiến người dùng không gõ được số). Chỉ cập nhật đúng dòng "Tổng tất cả" trực tiếp.
       surplusInput.addEventListener('input', ()=>{
         let digits = surplusInput.value.replace(/[^\d]/g,'').slice(0,10);
         surplusInput.value = groupDigitsRight(digits,3);
         receiptSurplus = parseInt(digits,10)||0;
-        if(receiptSurplus>0 && receiptShortfall>0){ receiptShortfall = 0; }
-        renderBody();
+        if(receiptSurplus>0 && receiptShortfall>0){
+          receiptShortfall = 0;
+          shortfallInput.value = '0';
+        }
+        updateGrandTotal();
       });
       shortfallInput.addEventListener('input', ()=>{
         let digits = shortfallInput.value.replace(/[^\d]/g,'').slice(0,10);
         receiptShortfall = parseInt(digits,10)||0;
-        if(receiptShortfall>0 && receiptSurplus>0){ receiptSurplus = 0; }
-        renderBody();
+        shortfallInput.value = digits==='0' || digits==='' ? '0' : `- ${groupDigitsRight(digits,3)}`;
+        if(receiptShortfall>0 && receiptSurplus>0){
+          receiptSurplus = 0;
+          surplusInput.value = '0';
+        }
+        updateGrandTotal();
       });
       wrap.querySelector('#rcpt-confirm').onclick = async ()=>{
         if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận đóng lãi thật.'); return; }
