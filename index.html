@@ -6348,9 +6348,12 @@ ${fileGenerationTrainingText()}`;
             <tbody>${groupList.map(b=>{
               const dueRef = proj? proj.dueDate : b.dueDate;
               const rowColor = daysRemainingRowColor(dueRef);
+              const dispB = computeInterestPaymentBoxDisplay(b);
+              const paidCount = dispB.paidLines.length;
+              const totalUnpaidB = dispB.unpaidTotal + dispB.futureUnpaidTotal;
               return `<tr${rowColor? ` style="background:${rowColor};"` : ''}>
-                <td class="ia-sticky-1" style="background:var(--white);"><button class="ext-action-btn ext-green preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ia-hist="${b.id}">Xem</button></td>
-                <td><button class="ext-action-btn ext-green preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ia-pay="${b.id}">Đóng tiền lãi</button></td>
+                <td class="ia-sticky-1" style="background:var(--white);"><button class="ext-action-btn ext-green preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ia-hist="${b.id}">Xem (${paidCount})</button></td>
+                <td>${totalUnpaidB<=0? `<button class="ext-action-btn" disabled title="Hộ vay này đã đóng hết lãi, không còn nợ lãi">Đóng tiền lãi</button>` : `<button class="ext-action-btn ext-green preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ia-pay="${b.id}">Đóng tiền lãi</button>`}</td>
                 <td>${nameCol? nameCol.get(b) : ''}</td>
                 ${restCols.map(c=>`<td class="${c.align==='right'?'money':''}">${c.get(b)}</td>`).join('')}
               </tr>`;
@@ -6951,7 +6954,11 @@ ${fileGenerationTrainingText()}`;
               <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tiền các quý</span><b>${moneySpaced(chosenSum)}</b></div>
               <div class="field" style="margin-top:10px;"><label>Số tiền đóng dư (đ)</label><input id="rcpt-surplus" class="preview-allow" style="text-align:right;" value="${receiptSurplus? groupDigitsRight(String(receiptSurplus),3):'0'}"></div>
               <div class="field"><label>Số tiền đóng thiếu (đ)</label><input id="rcpt-shortfall" class="preview-allow" style="text-align:right;" value="${receiptShortfall? '- '+groupDigitsRight(String(receiptShortfall),3) : '0'}"></div>
-              <div class="field" style="margin-top:10px;"><label>Tổng tất cả</label><input id="rcpt-grandtotal" class="preview-allow" style="text-align:right; font-weight:800;" value="${groupDigitsRight(String(grandTotal),3)} đ"></div>
+              <div class="field" style="margin-top:10px;">
+                <label style="display:flex; align-items:center; gap:4px;">Tổng tất cả (số tiền thực nhận) <button type="button" class="qbox-info-btn" id="rcpt-total-info" style="width:20px; height:20px; font-size:11px; border-radius:50%; vertical-align:middle;">i</button></label>
+                <div id="rcpt-total-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin-bottom:6px;">Đây là số tiền nhận được thực tế từ người đóng lãi</div>
+                <input id="rcpt-grandtotal" class="preview-allow" style="text-align:right; font-weight:800;" value="${groupDigitsRight(String(grandTotal),3)} đ">
+              </div>
               <p class="sub" id="rcpt-explain" style="margin-top:6px;">${escapeHtml(buildReceiptExplanation(computeReceiptSettlementPreview(b, chosen, grandTotal, disp), chosenSum, grandTotal))}</p>
               <p class="sub" id="rcpt-error" style="color:var(--red); font-weight:700; display:none; margin-top:6px;"></p>
             </div>
@@ -7035,6 +7042,7 @@ ${fileGenerationTrainingText()}`;
       const totalInput = wrap.querySelector('#rcpt-grandtotal');
       const errorEl = wrap.querySelector('#rcpt-error');
       const confirmBtn = wrap.querySelector('#rcpt-confirm');
+      const maxAllowed = computeInterestPaymentBoxDisplay(b).unpaidTotal + computeInterestPaymentBoxDisplay(b).futureUnpaidTotal;
       const setError = (msg)=>{
         if(errorEl){ errorEl.textContent = msg||''; errorEl.style.display = msg? 'block' : 'none'; }
         if(confirmBtn) confirmBtn.disabled = !!msg;
@@ -7043,13 +7051,8 @@ ${fileGenerationTrainingText()}`;
       const checkTotalValid = ()=>{
         const t = currentGrandTotal();
         if(t<=0){ setError('Tổng tất cả đang bị âm hoặc bằng 0 — vui lòng kiểm tra lại số tiền đóng thiếu, không thể lưu.'); return false; }
+        if(t > maxAllowed){ setError('Tổng Số tiền này lớn hơn so với Tổng tiền chưa đóng lãi của hộ vay, vui lòng điều chỉnh lại'); return false; }
         setError(''); return true;
-      };
-      const updateGrandTotal = ()=>{
-        if(document.activeElement===totalInput) return; // đang gõ dở ở chính ô Tổng thì không tự ghi đè
-        if(totalInput) totalInput.value = `${groupDigitsRight(String(currentGrandTotal()),3)} đ`;
-        updateExplanation();
-        checkTotalValid();
       };
       const updateExplanation = ()=>{
         const explainEl = wrap.querySelector('#rcpt-explain');
@@ -7058,56 +7061,91 @@ ${fileGenerationTrainingText()}`;
         const result = computeReceiptSettlementPreview(b, chosen, currentGrandTotal(), dispNow);
         explainEl.textContent = buildReceiptExplanation(result, chosenSum, currentGrandTotal());
       };
-      // Bấm vào ô mà đang là "0" thì xoá trắng để gõ luôn, không cần tự xoá tay.
-      surplusInput.addEventListener('focus', ()=>{ if(surplusInput.value==='0') surplusInput.value=''; });
-      shortfallInput.addEventListener('focus', ()=>{ if(shortfallInput.value==='0') shortfallInput.value=''; });
-      surplusInput.addEventListener('blur', ()=>{ if(surplusInput.value.trim()==='') surplusInput.value='0'; });
-      shortfallInput.addEventListener('blur', ()=>{ if(shortfallInput.value.trim()==='' || shortfallInput.value.trim()==='-') shortfallInput.value='0'; });
-      // Ô "Tổng tất cả": bấm vào xoá trắng để nhập; rời khỏi/Enter mà để trống thì tự quay về đúng
-      // số tự động theo công thức (không giữ nguyên số cũ vô nghĩa).
-      totalInput.addEventListener('focus', ()=>{ totalInput.value=''; });
-      totalInput.addEventListener('blur', ()=>{ if(totalInput.value.trim()==='') updateGrandTotal(); });
-      totalInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); totalInput.blur(); } });
-      // Lưu ý: KHÔNG được gọi renderBody() ngay trong sự kiện "input" — vì render lại toàn bộ modal
-      // sẽ tạo ra 1 <input> MỚI hoàn toàn, làm mất focus/con trỏ đang gõ dở (đây chính là lỗi trước
-      // đó khiến người dùng không gõ được số). Chỉ cập nhật đúng dòng liên quan trực tiếp.
-      surplusInput.addEventListener('input', ()=>{
-        let digits = surplusInput.value.replace(/[^\d]/g,'').replace(/^0+(?=\d)/,'').slice(0,10);
-        surplusInput.value = groupDigitsRight(digits,3);
-        receiptSurplus = parseInt(digits,10)||0;
-        if(receiptSurplus>0 && receiptShortfall>0){
-          receiptShortfall = 0;
-          shortfallInput.value = '0';
-        }
-        const p = surplusInput.value.length; surplusInput.setSelectionRange(p,p);
-        updateGrandTotal();
+      const refreshAllDisplays = (skipEl)=>{
+        if(surplusInput!==skipEl) surplusInput.value = receiptSurplus? groupDigitsRight(String(receiptSurplus),3) : '0';
+        if(shortfallInput!==skipEl) shortfallInput.value = receiptShortfall? `- ${groupDigitsRight(String(receiptShortfall),3)}` : '0';
+        if(totalInput!==skipEl) totalInput.value = `${groupDigitsRight(String(currentGrandTotal()),3)} đ`;
+        updateExplanation();
+        checkTotalValid();
+      };
+
+      // =====================================================================
+      // Cơ chế nhập số CHẮC CHẮN không lỗi con trỏ: tự quản lý CHUỖI SỐ THÔ (raw digits) làm nguồn
+      // sự thật duy nhất cho từng ô, chặn hẳn cách gõ mặc định của trình duyệt (preventDefault mọi
+      // phím số/Backspace rồi tự chèn/xoá vào chuỗi thô, sau đó tự vẽ lại chuỗi có định dạng) — nhờ
+      // vậy KHÔNG BAO GIỜ còn phụ thuộc vào việc tính lại vị trí con trỏ sau khi định dạng lại.
+      // =====================================================================
+      function wireDigitInput(input, maxDigits, formatFn, onRawChange){
+        input.dataset.raw = '';
+        input.addEventListener('keydown', (e)=>{
+          if(e.key==='Enter'){ e.preventDefault(); input.blur(); return; }
+          if(e.key==='Backspace' || e.key==='Delete'){
+            e.preventDefault();
+            input.dataset.raw = input.dataset.raw.slice(0,-1);
+            input.value = formatFn(input.dataset.raw);
+            onRawChange(input.dataset.raw);
+            return;
+          }
+          if(/^[0-9]$/.test(e.key)){
+            e.preventDefault();
+            let raw = (input.dataset.raw + e.key).replace(/^0+(?=\d)/,'').slice(0,maxDigits);
+            input.dataset.raw = raw;
+            input.value = formatFn(raw);
+            onRawChange(raw);
+            return;
+          }
+          if(!['Tab','ArrowLeft','ArrowRight','Home','End','Shift'].includes(e.key)) e.preventDefault();
+        });
+        input.addEventListener('paste', (e)=>{
+          e.preventDefault();
+          const text = (e.clipboardData||window.clipboardData).getData('text');
+          let raw = (input.dataset.raw + text.replace(/[^\d]/g,'')).replace(/^0+(?=\d)/,'').slice(0,maxDigits);
+          input.dataset.raw = raw;
+          input.value = formatFn(raw);
+          onRawChange(raw);
+        });
+      }
+      wireDigitInput(surplusInput, 10, (raw)=> raw? groupDigitsRight(raw,3) : '0', (raw)=>{
+        receiptSurplus = parseInt(raw,10)||0;
+        if(receiptSurplus>0 && receiptShortfall>0){ receiptShortfall = 0; shortfallInput.dataset.raw=''; }
+        refreshAllDisplays(surplusInput);
       });
-      shortfallInput.addEventListener('input', ()=>{
-        let digits = shortfallInput.value.replace(/[^\d]/g,'').replace(/^0+(?=\d)/,'').slice(0,10);
-        receiptShortfall = parseInt(digits,10)||0;
-        shortfallInput.value = digits==='0' || digits==='' ? '0' : `- ${groupDigitsRight(digits,3)}`;
-        if(receiptShortfall>0 && receiptSurplus>0){
-          receiptSurplus = 0;
-          surplusInput.value = '0';
-        }
-        const p = shortfallInput.value.length; shortfallInput.setSelectionRange(p,p);
-        updateGrandTotal();
+      wireDigitInput(shortfallInput, 10, (raw)=> raw? `- ${groupDigitsRight(raw,3)}` : '0', (raw)=>{
+        receiptShortfall = parseInt(raw,10)||0;
+        if(receiptShortfall>0 && receiptSurplus>0){ receiptSurplus = 0; surplusInput.dataset.raw=''; }
+        refreshAllDisplays(shortfallInput);
       });
-      // Nhập ngược từ ô "Tổng tất cả": suy ra lại tiền dư/tiền thiếu tương ứng, cập nhật 2 ô kia.
-      totalInput.addEventListener('input', ()=>{
-        let digits = totalInput.value.replace(/[^\d]/g,'').replace(/^0+(?=\d)/,'').slice(0,12);
-        totalInput.value = digits? `${groupDigitsRight(digits,3)} đ` : '';
-        const p = totalInput.value.length - 2; totalInput.setSelectionRange(Math.max(0,p),Math.max(0,p));
-        const newTotal = parseInt(digits,10)||0;
+      wireDigitInput(totalInput, 12, (raw)=> raw? `${groupDigitsRight(raw,3)} đ` : '', (raw)=>{
+        const newTotal = parseInt(raw,10)||0;
         const diff = newTotal - chosenSum;
         if(diff>0){ receiptSurplus = diff; receiptShortfall = 0; }
         else if(diff<0){ receiptShortfall = -diff; receiptSurplus = 0; }
         else { receiptSurplus = 0; receiptShortfall = 0; }
-        surplusInput.value = receiptSurplus? groupDigitsRight(String(receiptSurplus),3) : '0';
-        shortfallInput.value = receiptShortfall? `- ${groupDigitsRight(String(receiptShortfall),3)}` : '0';
-        updateExplanation();
-        checkTotalValid();
+        refreshAllDisplays(totalInput);
       });
+      // Bấm vào ô mà đang là "0" thì xoá trắng để gõ luôn, không cần tự xoá tay.
+      surplusInput.addEventListener('focus', ()=>{ if(surplusInput.value==='0'){ surplusInput.value=''; surplusInput.dataset.raw=''; } });
+      shortfallInput.addEventListener('focus', ()=>{ if(shortfallInput.value==='0'){ shortfallInput.value=''; shortfallInput.dataset.raw=''; } });
+      surplusInput.addEventListener('blur', ()=>{ if(surplusInput.value.trim()==='') surplusInput.value='0'; });
+      shortfallInput.addEventListener('blur', ()=>{ if(shortfallInput.value.trim()==='' || shortfallInput.value.trim()==='-') shortfallInput.value='0'; });
+      // Ô "Tổng tất cả": bấm vào xoá trắng để nhập; rời khỏi mà để trống thì tự quay về đúng số tự
+      // động theo công thức (không giữ nguyên số cũ vô nghĩa).
+      totalInput.addEventListener('focus', ()=>{ totalInput.value=''; totalInput.dataset.raw=''; });
+      totalInput.addEventListener('blur', ()=>{ if(totalInput.value.trim()===''){ totalInput.value = `${groupDigitsRight(String(currentGrandTotal()),3)} đ`; } });
+
+      // Nút chữ "i" cạnh "Tổng tất cả (số tiền thực nhận)"
+      const totalInfoBtn = wrap.querySelector('#rcpt-total-info');
+      const totalTip = wrap.querySelector('#rcpt-total-tip');
+      if(totalInfoBtn) totalInfoBtn.onclick = (e)=>{ e.stopPropagation(); totalTip.style.display = totalTip.style.display==='none' ? 'block' : 'none'; };
+      document.addEventListener('click', (e)=>{ if(totalTip && totalTip.style.display!=='none' && !e.target.closest('#rcpt-total-info') && !e.target.closest('#rcpt-total-tip')) totalTip.style.display='none'; });
+
+      // Rê chuột vào nút "Xác nhận đóng lãi thành công" -> tự cuộn xuống cuối bảng để thấy hết
+      // thông tin phía dưới trước khi bấm.
+      if(confirmBtn) confirmBtn.addEventListener('mouseenter', ()=>{
+        const body = wrap.querySelector('.modal-body');
+        if(body) body.scrollTo({ top: body.scrollHeight, behavior:'smooth' });
+      });
+
       checkTotalValid();
       wrap.querySelector('#rcpt-confirm').onclick = async ()=>{
         if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận đóng lãi thật.'); return; }
