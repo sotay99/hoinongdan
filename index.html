@@ -6749,11 +6749,15 @@ ${fileGenerationTrainingText()}`;
         <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng số tiền chưa đóng lãi</span><b>${moneySpaced(disp.unpaidTotal)}</b></div>
         <div class="divider-lbl">Thông tin các quý chưa đóng lãi (trong Tương lai)</div>
         ${disp.futureUnpaidLines.length? disp.futureUnpaidLines.map(x=>`<div class="kv-row"><span>${escapeHtml(x.name)}</span><b>${moneySpaced(x.amount)}</b></div>`).join('') : `<p class="sub">Không có quý nào chưa đóng lãi trong tương lai.</p>`}
-        <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng số tiền chưa đóng lãi (tương lai)</span><b>${moneySpaced(disp.futureUnpaidTotal)}</b></div>`;
+        <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng số tiền chưa đóng lãi (tương lai)</span><b>${moneySpaced(disp.futureUnpaidTotal)}</b></div>
+        <div class="kv-row" style="margin-top:10px; border-top:2px solid var(--line); padding-top:8px;"><span>Tổng tiền chưa đóng lãi (quá khứ, hiện tại và Tương lai)</span><b>${moneySpaced(disp.unpaidTotal + disp.futureUnpaidTotal)}</b></div>`;
     wrap.innerHTML = `
       <div class="modal" style="max-width:96vw; width:640px;">
         <div class="modal-head"><h3>THÔNG TIN LỊCH SỬ ĐÓNG TIỀN LÃI CỦA HỘ VAY ${escapeHtml(b.name).toUpperCase()}</h3><button class="modal-close" id="iahist-close">✕</button></div>
-        <div class="modal-body">${bodyHtml}</div>
+        <div class="modal-body">
+          <p class="sub" style="margin:0 0 10px;">được tính đến ngày ${fmtDate(todayStr())}</p>
+          ${bodyHtml}
+        </div>
         <div class="modal-foot"><button class="btn btn-primary" id="iahist-close2">Đóng bảng</button></div>
       </div>`;
     document.body.appendChild(wrap);
@@ -6767,18 +6771,29 @@ ${fileGenerationTrainingText()}`;
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     const qName = formatTimelineQuarterLabel(box);
+    const lvl = box.extLevel||0;
+    const getPct = (field)=> lvl===0 ? getInTermColumnValue(b, field) : getExtensionLevelColumnValue(b, lvl, field);
+    const centralPct = getPct('splitCentralPct'), provincePct = getPct('splitProvincePct'), wardPct = getPct('splitWardPct'), hamletPct = getPct('hamletAllocPct');
+    const fmtPct = n=> String(n).replace('.',',');
     const lines = [];
     lines.push(`đây là ${qName} chưa đóng lãi`);
     lines.push(`Bắt đầu từ ngày ${fmtDate(box.from)} đến ngày ${fmtDate(box.to)}, tổng số ngày trong quý này là ${box.days} ngày.`);
     lines.push(`Số tiền chưa đóng trong quý này là: ${moneySpaced(box.interestAmount)}.`);
-    lines.push(`Lãi suất đang được áp dụng trong quý này: ${String(box.rate).replace('.',',')}%/năm.`);
+    lines.push(`Lãi suất đang được áp dụng trong quý này: ${fmtPct(box.rate)}%/năm${lvl>0? ` (lãi suất quá hạn lần ${lvl})` : ''}.`);
     if(box.short) lines.push(`Đây là quý KHÔNG đủ ngày như các quý bình thường khác (vì vậy nó có dấu * ở tên quý).`);
-    if((box.extLevel||0)===0) lines.push(`Đây là quý đang trong thời gian chưa bị quá hạn.`);
-    else lines.push(`Đây là quý đang trong thời gian gia hạn lần ${box.extLevel} (vì vậy nó có ${'#'.repeat(box.extLevel)} ở tên quý).`);
+    if(lvl===0) lines.push(`Đây là quý đang trong thời gian chưa bị quá hạn.`);
+    else lines.push(`Đây là quý đang trong thời gian gia hạn lần ${lvl} (vì vậy nó có ${'#'.repeat(lvl)} ở tên quý).`);
     wrap.innerHTML = `
       <div class="modal" style="max-width:94vw; width:520px;">
         <div class="modal-head"><h3>Thông tin chi tiết ${escapeHtml(qName)} của hộ vay ${escapeHtml(b.name)}</h3><button class="modal-close" id="qbi-close">✕</button></div>
-        <div class="modal-body">${lines.map(l=>`<p style="margin:0 0 8px;">${escapeHtml(l)}</p>`).join('')}</div>
+        <div class="modal-body">
+          ${lines.map(l=>`<p style="margin:0 0 8px;">${escapeHtml(l)}</p>`).join('')}
+          <p style="margin:12px 0 4px; font-weight:700;">Thông tin phân bổ lãi suất (về Trung ương, cấp tỉnh, cấp xã) trong tổng số lãi suất ${fmtPct(box.rate)}%/năm và chia % của xã đối với cấp ${subAdminLabelLower()}:</p>
+          <div class="kv-row"><span>Trung ương</span><b>${fmtPct(centralPct)}%/năm</b></div>
+          <div class="kv-row"><span>Cấp tỉnh</span><b>${fmtPct(provincePct)}%/năm</b></div>
+          <div class="kv-row"><span>Cấp xã</span><b>${fmtPct(wardPct)}%/năm</b></div>
+          <div class="kv-row"><span>% tiền cấp xã phân bổ về cấp ${subAdminLabelLower()}</span><b>${fmtPct(hamletPct)}%</b></div>
+        </div>
         <div class="modal-foot"><button class="btn btn-primary" id="qbi-close2">Đóng bảng</button></div>
       </div>`;
     document.body.appendChild(wrap);
@@ -6810,7 +6825,7 @@ ${fileGenerationTrainingText()}`;
         if(pastList.length===1){ autoLockedKey = pastList[0].box.key; selectedKeys.add(autoLockedKey); }
         else autoLockedKey = null;
         const pastSelectedCount = pastList.filter(x=>selectedKeys.has(x.box.key)).length;
-        const futureUnlocked = pastList.length===0 || pastSelectedCount>0;
+        const futureUnlocked = pastList.length===0 || pastSelectedCount===pastList.length;
         const canSelectFuture = (idx)=> idx===0 || selectedKeys.has(futureList[idx-1].box.key);
 
         const renderPastGroup = ()=>{
@@ -6857,9 +6872,9 @@ ${fileGenerationTrainingText()}`;
               ${renderFutureGroup()}
             </div>
             <div class="modal-foot" style="justify-content:space-between;">
-              <span class="sub" style="font-weight:700; color:var(--rice-dark);">${selectedCount? `Tổng ${groupDigitsRight(String(selectedSum),3)} đồng (trong ${selectedCount}-quý được chọn)` : ''}</span>
-              <div style="display:flex; gap:8px;">
-                <button class="btn btn-ghost preview-allow" id="iapay-cancel">Đóng bảng</button>
+              <button class="btn btn-ghost preview-allow" id="iapay-cancel">Đóng bảng</button>
+              <div style="display:flex; align-items:center; gap:12px;">
+                ${selectedCount? `<span class="sub" style="font-weight:700; color:var(--rice-dark);">Tổng ${groupDigitsRight(String(selectedSum),3)} đồng (trong ${selectedCount}-quý được chọn)</span>` : ''}
                 <button class="btn btn-primary preview-allow" id="iapay-start" ${canProceed?'':'disabled'}>Bắt đầu tính tiền lãi và đóng lãi</button>
               </div>
             </div>
@@ -6898,27 +6913,34 @@ ${fileGenerationTrainingText()}`;
       wrap.querySelector('#iapay-cancel').onclick = close;
       wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
       const fullList = pastList.concat(futureList);
+      const clearAllFuture = ()=>{ futureList.forEach(x=> selectedKeys.delete(x.box.key)); };
       wrap.querySelectorAll('[data-qkey]').forEach(btn=>{
         if(btn.disabled) return;
         btn.onclick = ()=>{
           const k = btn.dataset.qkey;
           const grp = btn.dataset.group;
           if(grp==='future'){
-            if(!futureUnlocked){ alert('Phải chọn ít nhất 1 Quý ở phần "QUÁ KHỨ tới HIỆN TẠI" trước khi chọn Quý tương lai (trừ khi không còn Quý nào ở phần đó).'); return; }
+            if(!futureUnlocked){ alert('Phải chọn HẾT các Quý ở phần "QUÁ KHỨ tới HIỆN TẠI" trước khi chọn Quý tương lai (trừ khi không còn Quý nào ở phần đó).'); return; }
             const idx = parseInt(btn.dataset.fidx,10);
             const alreadySel = selectedKeys.has(k);
             if(!alreadySel){
               if(!canSelectFuture(idx)){ alert('Chỉ được chọn Quý tương lai theo đúng thứ tự — vui lòng chọn Quý tương lai GẦN NHẤT trước.'); return; }
               selectedKeys.add(k);
             } else {
-              // Chỉ cho bỏ chọn nếu không còn Quý tương lai XA HƠN đang được chọn
-              for(let j=idx+1;j<futureList.length;j++){
-                if(selectedKeys.has(futureList[j].box.key)){ alert('Phải bỏ chọn các Quý tương lai XA HƠN trước.'); return; }
-              }
+              // Bỏ chọn 1 Quý tương lai gần -> tự động bỏ chọn luôn TẤT CẢ Quý tương lai xa hơn nó
+              // (không cần báo lỗi, cứ tự làm cho đúng logic).
               selectedKeys.delete(k);
+              for(let j=idx+1;j<futureList.length;j++) selectedKeys.delete(futureList[j].box.key);
             }
           } else {
-            if(selectedKeys.has(k)) selectedKeys.delete(k); else selectedKeys.add(k);
+            if(selectedKeys.has(k)){
+              selectedKeys.delete(k);
+              // Bỏ chọn 1 Quý "quá khứ+hiện tại" khi trước đó đã chọn hết -> mất điều kiện mở khoá
+              // tương lai -> xoá sạch mọi lựa chọn tương lai đang có.
+              clearAllFuture();
+            } else {
+              selectedKeys.add(k);
+            }
           }
           renderBody();
         };
@@ -6934,12 +6956,13 @@ ${fileGenerationTrainingText()}`;
       if(pastSelAllBtn) pastSelAllBtn.onclick = ()=>{
         const allSel = pastList.every(x=> selectedKeys.has(x.box.key));
         pastList.forEach(x=>{ if(x.box.key===autoLockedKey) return; if(allSel) selectedKeys.delete(x.box.key); else selectedKeys.add(x.box.key); });
+        if(allSel) clearAllFuture(); // vừa bỏ chọn tất cả quá khứ+hiện tại -> mất điều kiện mở khoá tương lai
         renderBody();
       };
       const futureSelAllBtn = wrap.querySelector('[data-selall="future"]');
       if(futureSelAllBtn && !futureSelAllBtn.disabled) futureSelAllBtn.onclick = ()=>{
         const allSel = futureList.every(x=> selectedKeys.has(x.box.key));
-        if(allSel) futureList.forEach(x=> selectedKeys.delete(x.box.key));
+        if(allSel) clearAllFuture();
         else futureList.forEach(x=> selectedKeys.add(x.box.key)); // chọn tất cả luôn hợp lệ về thứ tự vì chọn liên tục từ đầu
         renderBody();
       };
@@ -6966,23 +6989,25 @@ ${fileGenerationTrainingText()}`;
       // sẽ tạo ra 1 <input> MỚI hoàn toàn, làm mất focus/con trỏ đang gõ dở (đây chính là lỗi trước
       // đó khiến người dùng không gõ được số). Chỉ cập nhật đúng dòng "Tổng tất cả" trực tiếp.
       surplusInput.addEventListener('input', ()=>{
-        let digits = surplusInput.value.replace(/[^\d]/g,'').slice(0,10);
+        let digits = surplusInput.value.replace(/[^\d]/g,'').replace(/^0+(?=\d)/,'').slice(0,10);
         surplusInput.value = groupDigitsRight(digits,3);
         receiptSurplus = parseInt(digits,10)||0;
         if(receiptSurplus>0 && receiptShortfall>0){
           receiptShortfall = 0;
           shortfallInput.value = '0';
         }
+        const p = surplusInput.value.length; surplusInput.setSelectionRange(p,p);
         updateGrandTotal();
       });
       shortfallInput.addEventListener('input', ()=>{
-        let digits = shortfallInput.value.replace(/[^\d]/g,'').slice(0,10);
+        let digits = shortfallInput.value.replace(/[^\d]/g,'').replace(/^0+(?=\d)/,'').slice(0,10);
         receiptShortfall = parseInt(digits,10)||0;
         shortfallInput.value = digits==='0' || digits==='' ? '0' : `- ${groupDigitsRight(digits,3)}`;
         if(receiptShortfall>0 && receiptSurplus>0){
           receiptSurplus = 0;
           surplusInput.value = '0';
         }
+        const p = shortfallInput.value.length; shortfallInput.setSelectionRange(p,p);
         updateGrandTotal();
       });
       wrap.querySelector('#rcpt-confirm').onclick = async ()=>{
