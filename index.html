@@ -3153,16 +3153,16 @@
     const names = (list)=> list.map(bx=>formatTimelineQuarterLabel(bx)).join(', ');
     if(grandTotal < chosenSum){
       if(paidQuarters.length===0){
-        return `Tổng tiền (Tiền thực nhận + Tiền dư từ đợt trước) không đủ trả cho bất cứ quý nào ở trên, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
+        return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) không đủ trả cho bất cứ quý nào ở trên, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
       }
-      return `Tổng tiền (Tiền thực nhận + Tiền dư từ đợt trước) chỉ đủ trả cho ${names(paidQuarters)}, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
+      return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) chỉ đủ trả cho ${names(paidQuarters)}, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
     }
     // grandTotal > chosenSum
     if(extraPaidQuarters.length===0){
-      return `Tổng tiền (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
+      return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
     }
     const afterChosenLeftover = Math.round((grandTotal-chosenSum)*100)/100;
-    return `Tổng tiền (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư là ${moneySpaced(afterChosenLeftover)}, số tiền dư này sẽ được trả luôn cho ${names(extraPaidQuarters)}, số tiền còn lại chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
+    return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư là ${moneySpaced(afterChosenLeftover)}, số tiền dư này sẽ được trả luôn cho ${names(extraPaidQuarters)}, số tiền còn lại chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
   }
   // Trả về { unpaidText, paidText } cho cột công khai "Quý chưa/đã đóng lãi" — nguồn dữ liệu giờ là
   // Hộp tiền đóng lãi (không còn dùng checkbox phê duyệt cũ nữa).
@@ -7556,13 +7556,15 @@ ${fileGenerationTrainingText()}`;
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
     const selectedKeys = new Set();
+    let includeLeftover = false;
 
     function renderBody(){
       const disp = computeInterestPaymentBoxDisplay(b);
       const paidList = disp.paidLines; // đã mới->cũ
       const allSel = paidList.length>0 && paidList.every(x=>selectedKeys.has(x.box.key));
       const selCount = selectedKeys.size;
-      const selSum = paidList.filter(x=>selectedKeys.has(x.box.key)).reduce((s,x)=>s+x.amount,0);
+      const selSum = paidList.filter(x=>selectedKeys.has(x.box.key)).reduce((s,x)=>s+x.amount,0) + (includeLeftover? disp.leftover : 0);
+      const canProceed = selectedKeys.size>0 || includeLeftover;
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:900px;">
           <div class="modal-head"><h3>Chọn quý hoặc nhập số tiền để TRẢ LẠI tiền lãi cho hộ vay ${escapeHtml(b.name)}</h3><button class="modal-close preview-allow" id="rfs-close">✕</button></div>
@@ -7576,13 +7578,19 @@ ${fileGenerationTrainingText()}`;
               </span>`;
             }).join('')}
             <button class="qbox-selectall-btn preview-allow" id="rfs-selall">${allSel? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</button></div>` : `<p class="sub">Hộ vay này chưa đóng lãi lần nào.</p>`}
+            <div style="margin-top:14px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; width:fit-content;">
+                <input type="checkbox" id="rfs-include-leftover" class="preview-allow" ${includeLeftover?'checked':''}>
+                <span>Bổ sung thêm: Trả lại số tiền dư chưa thuộc về quý nào <b>(${moneySpaced(disp.leftover)})</b></span>
+              </label>
+            </div>
             <div style="margin-top:16px; text-align:center;"><button class="btn btn-ghost btn-pulse-green preview-allow" id="rfs-money-mode">Hoặc TRẢ LẠI tiền lãi bằng cách nhập số tiền cụ thể</button></div>
           </div>
           <div class="modal-foot" style="justify-content:space-between;">
             <button class="btn btn-ghost preview-allow" id="rfs-cancel">Đóng bảng</button>
             <div style="display:flex; align-items:center; gap:12px;">
-              ${selCount? `<span class="sub" style="font-weight:700; color:var(--rice-dark);">Tổng ${groupDigitsRight(String(selSum),3)} đồng (trong ${selCount}-quý được chọn)</span>` : ''}
-              <button class="btn btn-primary preview-allow" id="rfs-start" ${selCount? '' : 'disabled'}>Bắt đầu tính tiền và Trả lại tiền lãi</button>
+              ${canProceed? `<span class="sub" style="font-weight:700; color:var(--rice-dark);">Tổng ${groupDigitsRight(String(selSum),3)} đồng (trong ${selCount}-quý được chọn${includeLeftover?' + tiền dư':''})</span>` : ''}
+              <button class="btn btn-primary preview-allow" id="rfs-start" ${canProceed? '' : 'disabled'}>Bắt đầu tính tiền và Trả lại tiền lãi</button>
             </div>
           </div>
         </div>`;
@@ -7597,17 +7605,19 @@ ${fileGenerationTrainingText()}`;
       });
       const selAllBtn = wrap.querySelector('#rfs-selall');
       if(selAllBtn) selAllBtn.onclick = ()=>{ if(allSel) selectedKeys.clear(); else paidList.forEach(x=>selectedKeys.add(x.box.key)); renderBody(); };
+      const leftoverCb = wrap.querySelector('#rfs-include-leftover');
+      if(leftoverCb) leftoverCb.onclick = ()=>{ includeLeftover = leftoverCb.checked; renderBody(); };
       setTimeout(()=>{ wrap.querySelectorAll('.qbox-pulsing').forEach(el=>el.classList.remove('qbox-pulsing')); }, 3000);
       const moneyModeBtn = wrap.querySelector('#rfs-money-mode');
       if(moneyModeBtn) moneyModeBtn.onclick = ()=>{ close(); renderRefundMoneyReceiptModal(b); };
       const startBtn = wrap.querySelector('#rfs-start');
-      if(startBtn) startBtn.onclick = ()=>{ if(!selectedKeys.size) return; close(); renderRefundQuarterReceiptModal(b, [...selectedKeys]); };
+      if(startBtn) startBtn.onclick = ()=>{ if(!canProceed) return; close(); renderRefundQuarterReceiptModal(b, [...selectedKeys], includeLeftover); };
     }
     renderBody();
   }
 
   // "BIÊN LAI TRẢ LẠI TIỀN LÃI ĐÃ ĐÓNG" — theo cách chọn Quý (đã chọn sẵn từ renderRefundSelectionModal).
-  function renderRefundQuarterReceiptModal(b, chosenKeys){
+  function renderRefundQuarterReceiptModal(b, chosenKeys, includeLeftover){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
@@ -7618,20 +7628,26 @@ ${fileGenerationTrainingText()}`;
     function render(){
       const disp = computeInterestPaymentBoxDisplay(b);
       const chosen = chosenKeys.map(k=> disp.paidLines.find(x=>x.box.key===k)).filter(Boolean).map(x=>x.box);
-      const refundAmount = chosen.reduce((s,bx)=>s+bx.interestAmount,0);
+      const quartersSum = chosen.reduce((s,bx)=>s+bx.interestAmount,0);
+      const leftoverPart = includeLeftover ? disp.leftover : 0;
+      const refundAmount = quartersSum + leftoverPart;
+      const explainLine = includeLeftover
+        ? `Số tiền này sẽ được trừ khỏi Tổng số tiền đã đóng lãi của hộ vay${chosen.length? ', các quý ở trên sẽ quay về trạng thái CHƯA đóng lãi' : ''}, đồng thời "Số tiền còn dư chưa thuộc về quý nào" (${moneySpaced(leftoverPart)}) trong Hộp tiền đóng lãi cũng sẽ được trả lại hết và trở về 0đ.`
+        : `Số tiền này sẽ được trừ khỏi Tổng số tiền đã đóng lãi của hộ vay, các quý ở trên sẽ quay về trạng thái CHƯA đóng lãi.`;
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:640px;">
           <div class="modal-head receipt-head-refund"><h3>BIÊN LAI TRẢ LẠI TIỀN LÃI ĐÃ ĐÓNG ĐỐI VỚI HỘ VAY ${escapeHtml(b.name).toUpperCase()}</h3><button class="modal-close preview-allow" id="rfq-close">✕</button></div>
           <div class="modal-body">
             <p class="sub" style="margin:0 0 10px;">Biên lai này được lập vào ngày ${fmtDate(todayStr())}</p>
-            <p style="margin:0 0 6px; font-weight:700;">Các quý được trả lại tiền là:</p>
-            ${chosen.map(bx=>`<div class="kv-row"><span>${escapeHtml(formatTimelineQuarterLabel(bx))}</span><b>${moneySpaced(bx.interestAmount)}</b></div>`).join('')}
+            ${includeLeftover? `<div class="kv-row"><span>Số tiền dư trong ví chưa thuộc về quý nào, giờ được trả lại</span><b>${moneySpaced(leftoverPart)}</b></div>` : ''}
+            ${chosen.length? `<p style="margin:${includeLeftover?'10px':'0'} 0 6px; font-weight:700;">Các quý được trả lại tiền là:</p>
+            ${chosen.map(bx=>`<div class="kv-row"><span>${escapeHtml(formatTimelineQuarterLabel(bx))}</span><b>${moneySpaced(bx.interestAmount)}</b></div>`).join('')}` : ''}
             <div class="kv-row big-money-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;">
               <span style="display:flex; align-items:center; gap:4px;">Tổng tất cả (số tiền thực trả) <button type="button" class="qbox-info-btn" id="rfq-total-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button></span>
               <b>= ${moneySpaced(refundAmount)}</b>
             </div>
             <div id="rfq-total-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin:4px 0;">Đây là số tiền thực tế được trả lại</div>
-            <p class="sub" style="margin-top:6px;">Số tiền này sẽ được trừ khỏi Tổng số tiền đã đóng lãi của hộ vay, các quý ở trên sẽ quay về trạng thái CHƯA đóng lãi.</p>
+            <p class="sub" style="margin-top:6px;">${escapeHtml(explainLine)}</p>
             ${receiptPayerFieldsHtmlRefund(b)}
             ${receiptCategoryFieldHtml('refund','rfq', selectedCategoryId)}
             ${advancedInfoHtml(b, chosen, 'rfq')}
@@ -7673,6 +7689,38 @@ ${fileGenerationTrainingText()}`;
 
   // "BIÊN LAI TRẢ LẠI TIỀN LÃI ĐÃ ĐÓNG" — theo cách nhập số tiền cụ thể (mới->cũ, hoàn trả các Quý
   // gần nhất trước).
+  // Hoàn trả theo cách tính tiền: ưu tiên trả "số tiền dư chưa thuộc về quý nào" TRƯỚC (luôn nhỏ
+  // hơn), rồi mới tới các Quý đã đóng theo thứ tự MỚI NHẤT trước. Nếu số tiền không đủ hoàn TRỌN 1
+  // Quý nào đó, Quý đó vẫn quay về trạng thái CHƯA đóng lãi hoàn toàn, chỉ có phần tiền THỰC SỰ
+  // được hoàn là ít hơn — phần chênh lệch tự động trở thành "số tiền dư mới" trong Hộp tiền đóng lãi.
+  function computeRefundMoneySettlement(amount, disp){
+    let remaining = amount;
+    const leftoverPart = Math.min(remaining, disp.leftover);
+    remaining = Math.round((remaining-leftoverPart)*100)/100;
+    const fullQuarters = [];
+    let partialQuarter = null;
+    for(const x of disp.paidLines){ // mới->cũ
+      if(remaining<=0) break;
+      if(remaining >= x.amount){ fullQuarters.push(x.box); remaining = Math.round((remaining-x.amount)*100)/100; }
+      else { partialQuarter = { box:x.box, amount:remaining, fullAmount:x.amount }; remaining = 0; }
+    }
+    const removedKeys = fullQuarters.map(bx=>bx.key).concat(partialQuarter? [partialQuarter.box.key] : []);
+    return { leftoverPart, fullQuarters, partialQuarter, removedKeys };
+  }
+  function buildRefundMoneyExplanation(amount, result){
+    if(amount<=0) return '';
+    const { leftoverPart, fullQuarters, partialQuarter } = result;
+    const names = (list)=> list.map(bx=>formatTimelineQuarterLabel(bx)).join(', ');
+    const parts = [];
+    parts.push(`Số tiền ${moneySpaced(amount)} này sẽ được trừ khỏi Tổng số tiền đã đóng lãi của hộ vay.`);
+    if(leftoverPart>0) parts.push(`Trong đó ${moneySpaced(leftoverPart)} được dùng để trả lại đúng "Số tiền còn dư chưa thuộc về quý nào" hiện có trong Hộp tiền đóng lãi.`);
+    if(fullQuarters.length) parts.push(`${names(fullQuarters)} sẽ quay về trạng thái CHƯA đóng lãi.`);
+    if(partialQuarter){
+      const remain = Math.round((partialQuarter.fullAmount-partialQuarter.amount)*100)/100;
+      parts.push(`Số tiền còn sót lại sẽ tiếp tục trả cho ${formatTimelineQuarterLabel(partialQuarter.box)} — nhưng chỉ đủ trả ${moneySpaced(partialQuarter.amount)} trong tổng ${moneySpaced(partialQuarter.fullAmount)} của quý này, nên ${formatTimelineQuarterLabel(partialQuarter.box)} cũng sẽ quay về trạng thái CHƯA đóng lãi xong, còn phần chưa trả lại được là ${moneySpaced(remain)} sẽ trở thành số tiền dư MỚI chưa thuộc về quý nào trong Hộp tiền đóng lãi.`);
+    }
+    return parts.join(' ');
+  }
   function renderRefundMoneyReceiptModal(b){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
@@ -7680,7 +7728,7 @@ ${fileGenerationTrainingText()}`;
     const close = ()=> wrap.remove();
     const goBack = ()=>{ close(); renderRefundSelectionModal(b); };
     let amount = 0;
-    let lastChosen = [], lastRefundAmount = 0, lastMaxAllowed = 0;
+    let lastResult = null, lastRefundAmount = 0, lastMaxAllowed = 0;
     let advInfoOpen = false;
     let selectedCategoryId = '';
 
@@ -7715,24 +7763,22 @@ ${fileGenerationTrainingText()}`;
 
     function updateResults(){
       const disp = computeInterestPaymentBoxDisplay(b);
-      const maxAllowed = disp.totalPaid;
-      let remaining = amount, chosen = [];
-      for(const x of disp.paidLines){ // mới->cũ, hoàn trả Quý gần nhất trước
-        if(remaining >= x.amount){ chosen.push(x.box); remaining = Math.round((remaining-x.amount)*100)/100; }
-        else break;
-      }
-      const refundAmount = chosen.reduce((s,bx)=>s+bx.interestAmount,0);
-      lastChosen = chosen; lastRefundAmount = refundAmount; lastMaxAllowed = maxAllowed;
+      const maxAllowed = disp.paidTotal + disp.leftover; // = disp.totalPaid, viết tường minh theo đúng công thức
+      const result = computeRefundMoneySettlement(amount, disp);
+      lastResult = result; lastRefundAmount = amount; lastMaxAllowed = maxAllowed;
       const totalDisp = wrap.querySelector('#rfm-total-disp');
       if(totalDisp) totalDisp.textContent = `= ${moneySpaced(amount)}`;
       const resultsEl = wrap.querySelector('#rfm-results');
+      const allShown = result.fullQuarters.concat(result.partialQuarter? [result.partialQuarter.box] : []);
       if(resultsEl) resultsEl.innerHTML = `
-            <p style="margin:14px 0 6px; font-weight:700;">Các quý được trả lại tiền là:</p>
-            ${chosen.length? chosen.map(bx=>`<div class="kv-row"><span>${escapeHtml(formatTimelineQuarterLabel(bx))}</span><b>${moneySpaced(bx.interestAmount)}</b></div>`).join('') : `<p class="sub">Chưa có Quý nào được trả lại (số tiền chưa đủ hoặc bằng 0).</p>`}
-            <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tiền các quý</span><b>= ${moneySpaced(refundAmount)}</b></div>
-            <p class="sub" id="rfm-error" style="color:var(--red); font-weight:700; display:${amount>maxAllowed? 'block':'none'}; margin-top:6px;">${amount>maxAllowed? 'Số tiền này vượt quá Tổng số tiền đã đóng lãi của hộ vay, vui lòng điều chỉnh lại' : ''}</p>`;
+            ${result.leftoverPart>0? `<div class="kv-row" style="margin-top:14px;"><span>Số tiền dư trong ví chưa thuộc về quý nào, giờ được trả lại</span><b>${moneySpaced(result.leftoverPart)}</b></div>` : ''}
+            ${allShown.length? `<p style="margin:14px 0 6px; font-weight:700;">Các quý được trả lại tiền là:</p>
+            ${allShown.map(bx=>`<div class="kv-row"><span>${escapeHtml(formatTimelineQuarterLabel(bx))}</span><b>${moneySpaced(bx.interestAmount)}</b></div>`).join('')}
+            <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tiền các quý</span><b>= ${moneySpaced(allShown.reduce((s,bx)=>s+bx.interestAmount,0))}</b></div>` : (amount>0? `<p class="sub">Chưa có Quý nào được trả lại.</p>` : '')}
+            <p class="sub" style="margin-top:6px;">${escapeHtml(buildRefundMoneyExplanation(amount, result))}</p>
+            <p class="sub" id="rfm-error" style="color:var(--red); font-weight:700; display:${amount>maxAllowed? 'block':'none'}; margin-top:6px;">${amount>maxAllowed? 'Số tiền này vượt quá Tổng số tiền đã đóng lãi + Số tiền còn dư chưa thuộc về quý nào của hộ vay, vui lòng điều chỉnh lại' : ''}</p>`;
       const advEl = wrap.querySelector('#rfm-advinfo');
-      if(advEl) advEl.innerHTML = advancedInfoHtml(b, chosen, 'rfm', advInfoOpen);
+      if(advEl) advEl.innerHTML = advancedInfoHtml(b, allShown, 'rfm', advInfoOpen);
       const confirmBtn = wrap.querySelector('#rfm-confirm');
       if(confirmBtn) confirmBtn.disabled = (amount<=0 || amount>maxAllowed);
       wireAdvancedInfo(wrap, 'rfm', (open)=>{ advInfoOpen = open; });
@@ -7772,7 +7818,7 @@ ${fileGenerationTrainingText()}`;
         const reason = (wrap.querySelector('#rcpt-refund-reason').value||'').trim();
         if(!payerName || !collectorName){ alert('Vui lòng điền đầy đủ "Người trả lại tiền" và "Người nhận lại tiền" trước khi xác nhận.'); return; }
         if(!reason){ alert('Vui lòng điền "Lý do trả lại" trước khi xác nhận.'); return; }
-        await refundQuartersForBorrower(b, lastChosen.map(bx=>bx.key), lastRefundAmount);
+        await refundQuartersForBorrower(b, lastResult.removedKeys, lastRefundAmount);
         await pushLog('xác nhận', `trả lại tiền lãi đã đóng (theo cách tính tiền) cho hộ vay ${b.name} (${moneySpaced(lastRefundAmount)})`);
         close();
         showBigToast(`Trả lãi thành công: hộ vay ${b.name}, số tiền ${groupDigitsRight(String(Math.round(lastRefundAmount)),3)}đ`);
