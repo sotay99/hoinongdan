@@ -2929,43 +2929,68 @@
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
     const isCurrent = wid === wardId();
-    const pw = (cfgW && cfgW.accessCode) || '';
-    wrap.innerHTML = `
-      <div class="modal" style="max-width:96vw; width:420px;">
-        <div class="modal-head"><h3>Thông tin mã định danh</h3><button class="modal-close" id="wim-close">✕</button></div>
-        <div class="modal-body">
-          <div class="kv-row"><span>Tên xã/phường</span><b>${escapeHtml((cfgW&&cfgW.wardName)||'')}</b></div>
-          <div class="kv-row"><span>Tên tỉnh/thành phố</span><b>${escapeHtml((cfgW&&cfgW.provinceName)||'')}</b></div>
-          <div class="kv-row"><span>Mã định danh</span><b class="mono">${escapeHtml(wid)}</b></div>
-          <div class="field" style="margin-top:10px;">
-            <label>Mật khẩu của mã định danh</label>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <input id="wim-pw" value="${pw? '•'.repeat(pw.length) : 'Không có'}" disabled style="flex:1;">
-              ${pw? `<button type="button" id="wim-eye" title="Giữ để xem" style="border:1px solid var(--line); border-radius:8px; width:36px; height:36px; background:#fff; cursor:pointer;">👁️</button>` : ''}
+    const isMineOwner = !!(cfgW && state.identity && state.identity.email && cfgW.ownerEmail===state.identity.email);
+    let pw = (cfgW && cfgW.accessCode) || '';
+    let editingPw = false;
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:420px;">
+          <div class="modal-head"><h3>Thông tin mã định danh</h3><button class="modal-close" id="wim-close">✕</button></div>
+          <div class="modal-body">
+            <div class="kv-row"><span>Tên xã/phường</span><b>${escapeHtml((cfgW&&cfgW.wardName)||'')}</b></div>
+            <div class="kv-row"><span>Tên tỉnh/thành phố</span><b>${escapeHtml((cfgW&&cfgW.provinceName)||'')}</b></div>
+            <div class="kv-row"><span>Mã định danh</span><b class="mono">${escapeHtml(wid)}</b></div>
+            <div class="field" style="margin-top:10px;">
+              <label>Mật khẩu của mã định danh</label>
+              <div style="display:flex; align-items:center; gap:8px;">
+                ${editingPw?
+                  `<input id="wim-pw" value="${escapeHtml(pw)}" style="flex:1;"><button type="button" class="btn btn-primary btn-sm" id="wim-pw-save">Lưu</button>`
+                  : `<input id="wim-pw" value="${pw? '•'.repeat(pw.length) : 'Không có'}" disabled style="flex:1;">
+                     ${pw? `<button type="button" id="wim-eye" title="Giữ để xem" style="border:1px solid var(--line); border-radius:8px; width:36px; height:36px; background:#fff; cursor:pointer;">👁️</button>` : ''}`}
+              </div>
+              ${isMineOwner && !editingPw? `<button type="button" class="btn btn-ghost btn-sm" id="wim-pw-edit" style="margin-top:6px;">🔑 Đổi mật khẩu</button>` : ''}
+            </div>
+            <div class="field" style="margin-top:10px;">
+              <label>Mã ẩn cố định bên trong là: <span class="mono">${escapeHtml((cfgW&&cfgW.secretId)||'')}</span></label>
+              <p class="sub" style="margin:4px 0 0;">Bạn có thể không cần quan tâm đến mã ẩn bên trong này, đây chỉ là định danh cố định vĩnh viễn của tên mã định danh phía trên.</p>
             </div>
           </div>
-        </div>
-        <div class="modal-foot">
-          <button class="btn btn-ghost" id="wim-close2">Đóng bảng</button>
-          ${!isCurrent? `<button class="btn btn-primary" id="wim-join">Tham gia bằng mã này</button>` : ''}
-        </div>
-      </div>`;
-    wrap.querySelector('#wim-close').onclick = close;
-    wrap.querySelector('#wim-close2').onclick = close;
-    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
-    const eyeBtn = wrap.querySelector('#wim-eye');
-    const pwInput = wrap.querySelector('#wim-pw');
-    if(eyeBtn){
-      const show = (e)=>{ e.preventDefault(); pwInput.value = pw; };
-      const hide = ()=>{ pwInput.value = '•'.repeat(pw.length); };
-      eyeBtn.addEventListener('mousedown', show);
-      eyeBtn.addEventListener('touchstart', show, {passive:false});
-      eyeBtn.addEventListener('mouseup', hide);
-      eyeBtn.addEventListener('mouseleave', hide);
-      eyeBtn.addEventListener('touchend', hide);
+          <div class="modal-foot">
+            <button class="btn btn-ghost" id="wim-close2">Đóng bảng</button>
+            ${!isCurrent? `<button class="btn btn-primary" id="wim-join">Tham gia bằng mã này</button>` : ''}
+          </div>
+        </div>`;
+      wrap.querySelector('#wim-close').onclick = close;
+      wrap.querySelector('#wim-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      const eyeBtn = wrap.querySelector('#wim-eye');
+      const pwInput = wrap.querySelector('#wim-pw');
+      if(eyeBtn){
+        const show = (e)=>{ e.preventDefault(); pwInput.value = pw; };
+        const hide = ()=>{ pwInput.value = '•'.repeat(pw.length); };
+        eyeBtn.addEventListener('mousedown', show);
+        eyeBtn.addEventListener('touchstart', show, {passive:false});
+        eyeBtn.addEventListener('mouseup', hide);
+        eyeBtn.addEventListener('mouseleave', hide);
+        eyeBtn.addEventListener('touchend', hide);
+      }
+      const editBtn = wrap.querySelector('#wim-pw-edit');
+      if(editBtn) editBtn.onclick = ()=>{ editingPw = true; render(); };
+      const saveBtn = wrap.querySelector('#wim-pw-save');
+      if(saveBtn) saveBtn.onclick = async ()=>{
+        const newPass = wrap.querySelector('#wim-pw').value;
+        const newCfg = {...cfgW, accessCode: newPass||'', accessVersion: (cfgW.accessVersion||0)+1};
+        await wrefFor(wid, 'config').set(newCfg);
+        cfgW.accessCode = newCfg.accessCode; cfgW.accessVersion = newCfg.accessVersion;
+        pw = newCfg.accessCode; editingPw = false;
+        await pushLog('đổi mật khẩu mã xã', wid);
+        alert('Đã cập nhật mật khẩu mã xã. Các Khách đã đăng nhập đang sài ké sẽ được yêu cầu nhập lại mật khẩu mới.');
+        render();
+      };
+      const joinBtn = wrap.querySelector('#wim-join');
+      if(joinBtn) joinBtn.onclick = ()=>{ close(); enterWard(wid); };
     }
-    const joinBtn = wrap.querySelector('#wim-join');
-    if(joinBtn) joinBtn.onclick = ()=>{ close(); enterWard(wid); };
+    render();
   }
 
   function renderReceiptCategoryManagerModal(kind, onSaved){
@@ -3735,6 +3760,7 @@
     const stillOwnsAny = state.myWards.some(x=>x.kind==='owner');
     if(!stillOwnsAny){
       detachRealtime();
+      state._onboardingReturnView = 'wallet';
       await createRandomWardAndOnboard();
       alert('Mã định danh ngẫu nhiên mới đã được tự động tạo để bạn lưu cơ sở dữ liệu hoàn toàn mới, bạn có thể đổi tên mã ngẫu nhiên này bất cứ lúc nào trong phần Cài đặt.');
       return;
@@ -5693,6 +5719,7 @@ ${fileGenerationTrainingText()}`;
     // thiết lập thông tin cơ bản cho mã đó, hoàn toàn full quyền như mọi Chủ mã khác.
     document.getElementById('wc-mode-random').onclick = async ()=>{
       if(!saveNameTitle()) return;
+      state._onboardingReturnView = 'welcome';
       await createRandomWardAndOnboard();
     };
     document.getElementById('wc-mode-new').onclick = ()=>{
@@ -5707,6 +5734,7 @@ ${fileGenerationTrainingText()}`;
       area.scrollIntoView({behavior:'smooth', block:'start'});
       document.getElementById('wc-new-confirm').onclick = async ()=>{
         if(!saveNameTitle()) return;
+        state._onboardingReturnView = 'welcome';
         await createWardStrict(document.getElementById('wc-new-id').value, document.getElementById('wc-new-pass').value);
       };
     };
@@ -5864,13 +5892,14 @@ ${fileGenerationTrainingText()}`;
         if(embedded){ /* renderSettingsTab tự render lại thông qua các hàm trên khi cần */ }
       };
     });
-    mountEl.querySelector('#ww-random').onclick = async ()=>{ await createRandomWardAndOnboard(); };
+    mountEl.querySelector('#ww-random').onclick = async ()=>{ state._onboardingReturnView = 'wallet'; await createRandomWardAndOnboard(); };
     // Yêu cầu 4: tách riêng "Tạo mã mới" và "Tham gia bằng mã này" — mỗi nút có logic RIÊNG,
     // dùng chung hàm createWardStrict/joinWardStrict (đã có cảnh báo lỗi tương ứng khi thất bại).
     mountEl.querySelector('#ww-create').onclick = async ()=>{
       const wid = mountEl.querySelector('#ww-wardid').value;
       const pass = mountEl.querySelector('#ww-pass').value;
       if(!wid.trim()){ alert('Vui lòng nhập mã xã.'); return; }
+      state._onboardingReturnView = 'wallet';
       await createWardStrict(wid, pass);
     };
     mountEl.querySelector('#ww-joinbtn').onclick = async ()=>{
@@ -6034,6 +6063,7 @@ ${fileGenerationTrainingText()}`;
       delete state._pendingAccessCode;
       delete state._pendingSecretId;
       delete state._obDraftHamlets;
+      delete state._onboardingReturnView;
       // Cập nhật lại tên hiển thị của mã này trong Ví mã xã của Chủ mã
       await rtdb.ref(`users/${emailToKey(state.identity.email)}/wards/${wardId()}`).set({kind:'owner', wardName:req.wardNameVal, addedAt:new Date().toISOString()});
       state.view = 'app';
@@ -6054,7 +6084,8 @@ ${fileGenerationTrainingText()}`;
       delete state._pendingAccessCode;
       delete state._pendingSecretId;
       delete state._obDraftHamlets;
-      state.view = 'welcome';
+      state.view = state._onboardingReturnView || 'welcome';
+      delete state._onboardingReturnView;
       render();
     }
 
@@ -7578,12 +7609,14 @@ ${fileGenerationTrainingText()}`;
               </span>`;
             }).join('')}
             <button class="qbox-selectall-btn preview-allow" id="rfs-selall">${allSel? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</button></div>` : `<p class="sub">Hộ vay này chưa đóng lãi lần nào.</p>`}
-            <div style="margin-top:14px;">
+            <div style="margin-top:14px; display:flex; align-items:center; gap:6px;">
               <label style="display:flex; align-items:center; gap:8px; cursor:pointer; width:fit-content;">
                 <input type="checkbox" id="rfs-include-leftover" class="preview-allow" ${includeLeftover?'checked':''}>
                 <span>Bổ sung thêm: Trả lại số tiền dư chưa thuộc về quý nào <b>(${moneySpaced(disp.leftover)})</b></span>
               </label>
+              <button type="button" class="qbox-info-btn preview-allow" id="rfs-leftover-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button>
             </div>
+            <div id="rfs-leftover-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin-top:6px; max-width:600px;">"Số tiền dư chưa thuộc về quý nào" trong "Thông tin đóng lãi" của hộ vay chính là "Số tiền dư từ đợt trước", tiền dư của hộ nào sẽ được tính vào đúng biên lai của hộ đó.</div>
             <div style="margin-top:16px; text-align:center;"><button class="btn btn-ghost btn-pulse-green preview-allow" id="rfs-money-mode">Hoặc TRẢ LẠI tiền lãi bằng cách nhập số tiền cụ thể</button></div>
           </div>
           <div class="modal-foot" style="justify-content:space-between;">
@@ -7607,6 +7640,9 @@ ${fileGenerationTrainingText()}`;
       if(selAllBtn) selAllBtn.onclick = ()=>{ if(allSel) selectedKeys.clear(); else paidList.forEach(x=>selectedKeys.add(x.box.key)); renderBody(); };
       const leftoverCb = wrap.querySelector('#rfs-include-leftover');
       if(leftoverCb) leftoverCb.onclick = ()=>{ includeLeftover = leftoverCb.checked; renderBody(); };
+      const leftoverInfoBtn = wrap.querySelector('#rfs-leftover-info');
+      const leftoverTip = wrap.querySelector('#rfs-leftover-tip');
+      if(leftoverInfoBtn) leftoverInfoBtn.onclick = (e)=>{ e.stopPropagation(); leftoverTip.style.display = leftoverTip.style.display==='none'?'block':'none'; };
       setTimeout(()=>{ wrap.querySelectorAll('.qbox-pulsing').forEach(el=>el.classList.remove('qbox-pulsing')); }, 3000);
       const moneyModeBtn = wrap.querySelector('#rfs-money-mode');
       if(moneyModeBtn) moneyModeBtn.onclick = ()=>{ close(); renderRefundMoneyReceiptModal(b); };
@@ -7771,7 +7807,8 @@ ${fileGenerationTrainingText()}`;
       const resultsEl = wrap.querySelector('#rfm-results');
       const allShown = result.fullQuarters.concat(result.partialQuarter? [result.partialQuarter.box] : []);
       if(resultsEl) resultsEl.innerHTML = `
-            ${result.leftoverPart>0? `<div class="kv-row" style="margin-top:14px;"><span>Số tiền dư trong ví chưa thuộc về quý nào, giờ được trả lại</span><b>${moneySpaced(result.leftoverPart)}</b></div>` : ''}
+            ${result.leftoverPart>0? `<div class="kv-row" style="margin-top:14px;"><span style="display:flex; align-items:center; gap:4px;"><button type="button" class="qbox-info-btn" id="rfm-leftover-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button> Số tiền dư trong ví chưa thuộc về quý nào, giờ được trả lại</span><b>${moneySpaced(result.leftoverPart)}</b></div>
+            <div id="rfm-leftover-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin-top:4px;">"Số tiền dư chưa thuộc về quý nào" trong "Thông tin đóng lãi" của hộ vay chính là "Số tiền dư từ đợt trước", tiền dư của hộ nào sẽ được tính vào đúng biên lai của hộ đó.</div>` : ''}
             ${allShown.length? `<p style="margin:14px 0 6px; font-weight:700;">Các quý được trả lại tiền là:</p>
             ${allShown.map(bx=>`<div class="kv-row"><span>${escapeHtml(formatTimelineQuarterLabel(bx))}</span><b>${moneySpaced(bx.interestAmount)}</b></div>`).join('')}
             <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tiền các quý</span><b>= ${moneySpaced(allShown.reduce((s,bx)=>s+bx.interestAmount,0))}</b></div>` : (amount>0? `<p class="sub">Chưa có Quý nào được trả lại.</p>` : '')}
@@ -7782,6 +7819,9 @@ ${fileGenerationTrainingText()}`;
       const confirmBtn = wrap.querySelector('#rfm-confirm');
       if(confirmBtn) confirmBtn.disabled = (amount<=0 || amount>maxAllowed);
       wireAdvancedInfo(wrap, 'rfm', (open)=>{ advInfoOpen = open; });
+      const rfmLeftoverInfoBtn = wrap.querySelector('#rfm-leftover-info');
+      const rfmLeftoverTip = wrap.querySelector('#rfm-leftover-tip');
+      if(rfmLeftoverInfoBtn) rfmLeftoverInfoBtn.onclick = (e)=>{ e.stopPropagation(); rfmLeftoverTip.style.display = rfmLeftoverTip.style.display==='none'?'block':'none'; };
     }
 
     function wireShell(){
@@ -7924,7 +7964,7 @@ ${fileGenerationTrainingText()}`;
           </div>`;
         };
         const selectedCount = selectedKeys.size;
-        const selectedSum = pastList.concat(futureList).filter(x=>selectedKeys.has(x.box.key)).reduce((s,x)=>s+x.amount,0);
+        const selectedSum = pastList.concat(futureList).filter(x=>selectedKeys.has(x.box.key)).reduce((s,x)=>s+x.amount,0) + (usePrevLeftover? disp.leftover : 0);
         const canProceed = selectedCount>0;
         wrap.innerHTML = `
           <div class="modal" style="max-width:96vw; width:900px;">
@@ -7940,11 +7980,20 @@ ${fileGenerationTrainingText()}`;
                 <button class="qbox-btn" disabled style="opacity:.65; cursor:default;">${escapeHtml(x.name)}</button>
                 <button class="qbox-info-btn preview-allow" data-qinfo-paid="${x.box.key}">i</button>
               </span>`).join('')}</div>` : `<p class="sub">Chưa có quý nào đóng lãi xong.</p>`}
+              ${disp.leftover>0? `
+              <div style="margin-top:14px; display:flex; align-items:center; gap:6px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="iapay-prevleftover" class="preview-allow" ${usePrevLeftover?'checked':''}>
+                  <span>Bổ sung thêm: số tiền dư từ đợt trước ${moneySpaced(disp.leftover)} (Trừ vào biên lai)</span>
+                </label>
+                <button type="button" class="qbox-info-btn preview-allow" id="iapay-prevleftover-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button>
+              </div>
+              <div id="iapay-prevleftover-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin-top:6px; max-width:600px;">"Số tiền dư từ đợt trước" chính là "Số tiền còn dư chưa thuộc về quý nào" trong "Thông tin đóng lãi" của hộ vay tương ứng, tiền dư của hộ nào sẽ được tính vào đúng biên lai của hộ đó (kể cả khi lập biên lai chung).</div>` : ''}
             </div>
             <div class="modal-foot" style="justify-content:space-between;">
               <button class="btn btn-ghost preview-allow" id="iapay-cancel">Đóng bảng</button>
               <div style="display:flex; align-items:center; gap:12px;">
-                ${selectedCount? `<span class="sub" style="font-weight:700; color:var(--rice-dark);">Tổng ${groupDigitsRight(String(selectedSum),3)} đồng (trong ${selectedCount}-quý được chọn)</span>` : ''}
+                ${canProceed? `<span class="sub" style="font-weight:700; color:var(--rice-dark);">Tổng ${groupDigitsRight(String(selectedSum),3)} đồng (trong ${selectedCount}-quý được chọn${usePrevLeftover?' - tiền dư':''})</span>` : ''}
                 <button class="btn btn-primary preview-allow" id="iapay-start" ${canProceed?'':'disabled'}>Bắt đầu tính tiền lãi và đóng lãi</button>
               </div>
             </div>
@@ -8055,6 +8104,11 @@ ${fileGenerationTrainingText()}`;
           if(x) renderQuarterBoxInfoModal(b, x.box, true);
         };
       });
+      const prevLeftoverCb = wrap.querySelector('#iapay-prevleftover');
+      if(prevLeftoverCb) prevLeftoverCb.onclick = ()=>{ usePrevLeftover = prevLeftoverCb.checked; renderBody(); };
+      const prevLeftoverInfoBtn = wrap.querySelector('#iapay-prevleftover-info');
+      const prevLeftoverTip = wrap.querySelector('#iapay-prevleftover-tip');
+      if(prevLeftoverInfoBtn) prevLeftoverInfoBtn.onclick = (e)=>{ e.stopPropagation(); prevLeftoverTip.style.display = prevLeftoverTip.style.display==='none'?'block':'none'; };
       const pastSelAllBtn = wrap.querySelector('[data-selall="past"]');
       if(pastSelAllBtn) pastSelAllBtn.onclick = ()=>{
         const allSel = pastList.every(x=> selectedKeys.has(x.box.key));
