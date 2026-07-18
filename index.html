@@ -7203,6 +7203,17 @@ ${fileGenerationTrainingText()}`;
     // Yêu cầu mới: khi về tới 0 thì DỪNG LẠI ở 0, không cho chạy tiếp thành số âm nữa.
     return Math.max(0, diff);
   }
+  // Bản KHÔNG BỊ CHẶN SỐ ÂM của daysRemainingUntil — dùng cho MỌI logic cần biết chính xác đã quá
+  // hạn bao nhiêu ngày (phát hiện "quá hạn chưa xử lý", tô màu nền theo dải ngày...). daysRemaining
+  // Until ở trên CHỈ dùng để HIỂN THỊ "còn X ngày" cho người dùng xem (không hiện số âm khó hiểu) —
+  // TUYỆT ĐỐI không được dùng hàm đó cho các phép so sánh d<0, nếu không điều kiện sẽ luôn sai.
+  function rawDaysRemaining(dueDateStr){
+    if(!dueDateStr) return null;
+    const due = new Date(dueDateStr+'T00:00:00');
+    if(isNaN(due.getTime())) return null;
+    const today = new Date(); today.setHours(0,0,0,0);
+    return Math.round((due-today)/86400000);
+  }
   function daysRemainingLabel(dueDateStr){
     const d = daysRemainingUntil(dueDateStr);
     return d==null ? '' : `còn ${d} ngày`;
@@ -7228,7 +7239,7 @@ ${fileGenerationTrainingText()}`;
     const exts = getBorrowerExtensions(b.id);
     const proj = projectOf(b);
     const dueRef = exts.length? exts[exts.length-1].to : (proj? proj.dueDate : b.dueDate);
-    const d = daysRemainingUntil(dueRef);
+    const d = rawDaysRemaining(dueRef);
     return d!=null && d<0;
   }
   // Các cột tiền tệ -> lấy TỔNG (SUM); các cột ngày/phương án/nguồn vay -> lấy GIÁ TRỊ GIỐNG NHAU
