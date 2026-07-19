@@ -2789,7 +2789,17 @@
     const payments = raw.payments||{};
     const allBoxes = borrowerQuarterBoxes(b);
     const boxByKey = {}; allBoxes.forEach(bx=> boxByKey[bx.key]=bx);
-    const paidEntries = Object.keys(payments).map(k=>({ key:k, box:boxByKey[k], amount:payments[k]||0 })).filter(e=>e.box && e.amount>0);
+    // QUAN TRỌNG: số tiền mỗi hộp ĐÃ ĐÓNG được tính vào Tổng KHÔNG ĐƯỢC VƯỢT quá số tiền lãi HIỆN
+    // TẠI (tươi mới, tính lại theo tiền gốc/lãi suất hiện hành) của đúng hộp đó — nếu xã/phường chỉnh
+    // nhỏ tiền gốc/lãi suất làm hộp "co lại" so với lúc đóng, phần chênh lệch dư ra sẽ TỰ ĐỘNG được
+    // coi là "Số tiền còn dư chưa thuộc về quý nào" (leftover) — không hề biến mất, và nhờ vậy dòng
+    // "Quý N = X đ" hiển thị cũng LUÔN khớp đúng với số tiền mà nút chữ "i" xem chi tiết đang hiện.
+    const paidEntries = Object.keys(payments).map(k=>{
+      const box = boxByKey[k];
+      const rawAmt = payments[k]||0;
+      const amount = box ? Math.min(rawAmt, box.interestAmount) : rawAmt;
+      return { key:k, box, amount };
+    }).filter(e=>e.box && payments[e.key]>0);
     const paidSum = paidEntries.reduce((s,e)=>s+e.amount, 0);
     const leftover = Math.max(0, Math.round((totalPaid - paidSum)*100)/100);
     return { totalPaid, payments, paidEntries, paidSum, leftover, allBoxes };
