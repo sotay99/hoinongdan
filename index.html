@@ -10309,7 +10309,18 @@ ${fileGenerationTrainingText()}`;
       const refundBtn = wrap.querySelector('#iahist-refund-btn');
       if(refundBtn) refundBtn.onclick = ()=>{ close(); renderRefundSelectionModal(b); };
       const overflowBtn = wrap.querySelector('#iahist-overflow-btn');
-      if(overflowBtn) overflowBtn.onclick = ()=>{ close(); renderOverflowReceiptModal(b, overflowAmount, allLineItems.length); };
+      if(overflowBtn) overflowBtn.onclick = ()=>{
+        alert('DEBUG bước 1: đã nhận được click vào nút "Xử lý số tiền vượt ngưỡng". overflowAmount='+overflowAmount+', b.id='+b.id);
+        close();
+        alert('DEBUG bước 2: đã đóng bảng Thông tin đóng lãi. Chuẩn bị mở Biên lai xử lý vượt ngưỡng...');
+        try{
+          renderOverflowReceiptModal(b, overflowAmount, allLineItems.length);
+          alert('DEBUG bước 3: đã gọi xong hàm renderOverflowReceiptModal, không có lỗi nào bị bắt.');
+        }catch(err){
+          alert('DEBUG - LỖI KHI GỌI renderOverflowReceiptModal: '+(err&&err.message||err));
+          console.error(err);
+        }
+      };
 
       wrap.querySelectorAll('[data-qinfo-key]').forEach(btn=>{
         btn.onclick = (e)=>{
