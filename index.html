@@ -2787,19 +2787,29 @@
     const raw = getInterestPaymentBoxRaw(b.id);
     const totalPaid = raw.totalPaid||0;
     const payments = raw.payments||{};
-    const allBoxes = borrowerQuarterBoxes(b);
+    const allBoxes = borrowerQuarterBoxes(b); // đã đúng thứ tự thời gian (cũ -> mới)
     const boxByKey = {}; allBoxes.forEach(bx=> boxByKey[bx.key]=bx);
-    // QUAN TRỌNG: số tiền mỗi hộp ĐÃ ĐÓNG được tính vào Tổng KHÔNG ĐƯỢC VƯỢT quá số tiền lãi HIỆN
-    // TẠI (tươi mới, tính lại theo tiền gốc/lãi suất hiện hành) của đúng hộp đó — nếu xã/phường chỉnh
-    // nhỏ tiền gốc/lãi suất làm hộp "co lại" so với lúc đóng, phần chênh lệch dư ra sẽ TỰ ĐỘNG được
-    // coi là "Số tiền còn dư chưa thuộc về quý nào" (leftover) — không hề biến mất, và nhờ vậy dòng
-    // "Quý N = X đ" hiển thị cũng LUÔN khớp đúng với số tiền mà nút chữ "i" xem chi tiết đang hiện.
-    const paidEntries = Object.keys(payments).map(k=>{
-      const box = boxByKey[k];
-      const rawAmt = payments[k]||0;
-      const amount = box ? Math.min(rawAmt, box.interestAmount) : rawAmt;
-      return { key:k, box, amount };
-    }).filter(e=>e.box && payments[e.key]>0);
+    // QUAN TRỌNG: "Tổng tiền đã đóng lãi" (totalPaid) LUÔN LUÔN bất biến (không đụng tới) — nhưng
+    // cách PHÂN BỔ số tiền đó cho từng Quý cụ thể phải được tính lại HOÀN TOÀN MỚI mỗi lần, theo
+    // đúng số tiền lãi HIỆN TẠI (tươi mới) của từng hộp — đi theo đúng thứ tự thời gian cũ -> mới
+    // (đúng độ ưu tiên "đóng quý cũ trước"): hộp nào ĐỦ tiền (so với budget còn lại) thì mới thật sự
+    // được coi là "đã đóng xong"; NGAY KHI gặp 1 hộp không đủ tiền — thì hộp đó và MỌI hộp mới hơn nó
+    // (đã từng được đánh dấu đóng trước đây) đều tự động "văng ra" trở lại thành CHƯA đóng lãi (y hệt
+    // như thật sự chưa hề đóng) — số tiền còn dư (nếu có) trở thành "Số tiền còn dư chưa thuộc về quý
+    // nào". Điều này xử lý đúng cả 2 chiều: tiền gốc giảm (hộp co lại, dư ra nhiều hơn) VÀ tiền gốc
+    // tăng (hộp phình to, không đủ tiền che hết nữa nên phải "nhả bớt" quý ra).
+    const markedPaidKeys = new Set(Object.keys(payments).filter(k=> (payments[k]||0)>0 && boxByKey[k]));
+    const orderedMarkedBoxes = allBoxes.filter(bx=> markedPaidKeys.has(bx.key));
+    let budget = totalPaid;
+    const paidEntries = [];
+    for(const box of orderedMarkedBoxes){
+      if(budget >= box.interestAmount - 0.001){
+        paidEntries.push({ key:box.key, box, amount:box.interestAmount });
+        budget = Math.round((budget - box.interestAmount)*100)/100;
+      } else {
+        break; // hộp này (và mọi hộp mới hơn nó phía sau) văng ra thành CHƯA đóng
+      }
+    }
     const paidSum = paidEntries.reduce((s,e)=>s+e.amount, 0);
     const leftover = Math.max(0, Math.round((totalPaid - paidSum)*100)/100);
     return { totalPaid, payments, paidEntries, paidSum, leftover, allBoxes };
@@ -3749,11 +3759,9 @@
     const entry = { id:uid(), kind, title, details, createdAt:new Date().toISOString(), createdBy: state.identity.email, createdByName: state.identity.name,
       borrowerId: b? b.id : null, borrowerName: b? b.name : null };
     await cPush('confirmationDocuments', entry);
-    if(b){
-      await cSetRecord('borrowerConfirmations/'+b.id, entry.id, entry);
-      state.borrowerConfirmations = state.borrowerConfirmations||{};
-      state.borrowerConfirmations[b.id] = (state.borrowerConfirmations[b.id]||[]).concat([entry]);
-    }
+    if(b) await cSetRecord('borrowerConfirmations/'+b.id, entry.id, entry);
+    // KHÔNG tự cập nhật state.borrowerConfirmations thủ công — realtime binding sẽ tự nhận đúng bản
+    // ghi mới này ngay lập tức, tránh bị hiển thị trùng lặp cho tới khi tải lại trang.
     return entry;
   }
   // =====================================================================
@@ -3838,8 +3846,9 @@
       extra: opts.extra||{},
     };
     await cPush('borrowerReceipts/'+b.id, entry);
-    state.borrowerReceipts = state.borrowerReceipts||{};
-    state.borrowerReceipts[b.id] = (state.borrowerReceipts[b.id]||[]).concat([entry]);
+    // KHÔNG tự cập nhật state.borrowerReceipts thủ công ở đây nữa — bind('borrowerReceipts', ...) ở
+    // attachRealtime() sẽ TỰ ĐỘNG nhận đúng bản ghi mới này ngay lập tức qua Firebase realtime rồi.
+    // Nếu tự cập nhật thêm ở đây thì bản ghi sẽ bị hiển thị TRÙNG 2 LẦN cho tới khi tải lại trang.
     return entry;
   }
   // Lan truyền thay đổi điều khoản chung của Phương án vay (lãi suất, ngày vay, ngày đến hạn, nguồn
