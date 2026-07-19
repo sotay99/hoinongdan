@@ -10226,7 +10226,7 @@ ${fileGenerationTrainingText()}`;
     // Dòng tên 1 Quý — có hiệu ứng nhảy múa, kèm nút chữ "i" xem chi tiết.
     const renderQLine = (x)=>{
       const sel = selectedKeys.has(x.box.key);
-      return `<div class="kv-row"><span><button type="button" class="qbox-info-btn" data-qinfo-key="${x.box.key}" style="width:20px; height:20px; font-size:11px; border-radius:50%; margin-right:4px;">i</button><span class="iahist-qname ${sel?'iahist-qname-selected':''}" data-qkey="${x.box.key}">${escapeHtml(x.name)}</span></span><b>${moneySpaced(x.amount)}</b></div>`;
+      return `<div class="kv-row"><span><button type="button" class="qbox-info-btn" data-qinfo-key="${x.box.key}" style="width:20px; height:20px; font-size:11px; border-radius:50%; margin-right:4px;">i</button><span class="iahist-qname ${sel?'iahist-qname-selected':''}" data-qkey="${x.box.key}">${escapeHtml(x.name)}</span></span><b>${moneySpaced(x.box.interestAmount)}</b></div>`;
     };
 
     const extList = getBorrowerExtensions(b.id);
@@ -10386,6 +10386,24 @@ ${fileGenerationTrainingText()}`;
     const payments = Object.assign({}, raw.payments||{});
     boxKeys.forEach(k=> delete payments[k]);
     const newTotalPaid = Math.max(0, Math.round(((raw.totalPaid||0) - refundAmount)*100)/100);
+    await cSet('interestPaymentBoxes/'+b.id, { totalPaid: newTotalPaid, payments });
+    state.interestPaymentBoxes = state.interestPaymentBoxes||{};
+    state.interestPaymentBoxes[b.id] = { totalPaid:newTotalPaid, payments };
+  }
+  // "Xử lý số tiền vượt ngưỡng" — CHỈ GHI dữ liệu vào Hộp tiền đóng lãi (giống hệt khuôn mẫu của
+  // refundQuartersForBorrower ở trên), TUYỆT ĐỐI KHÔNG đụng vào bất kỳ hàm TÍNH TOÁN nào
+  // (computeInterestPaymentBoxState/Display, borrowerQuarterBoxes...). Sau khi xử lý xong: giảm đúng
+  // "Tổng tiền đã đóng lãi" đi đúng bằng số tiền vượt ngưỡng, đồng thời "cắt" các hộp đã đóng đang ghi
+  // nhận NHIỀU hơn số tiền lãi hiện tại của chính hộp đó xuống đúng bằng số tiền lãi hiện tại — nhờ
+  // vậy lần tính lại kế tiếp, số tiền vượt ngưỡng sẽ tự động về đúng 0.
+  async function settleOverflowForBorrower(b, overflowAmount){
+    const raw = getInterestPaymentBoxRaw(b.id);
+    const disp = computeInterestPaymentBoxDisplay(b); // chỉ ĐỌC, an toàn tuyệt đối
+    const payments = Object.assign({}, raw.payments||{});
+    disp.allBoxes.forEach(bx=>{
+      if(payments[bx.key]!=null && payments[bx.key] > bx.interestAmount) payments[bx.key] = bx.interestAmount;
+    });
+    const newTotalPaid = Math.max(0, Math.round(((raw.totalPaid||0) - overflowAmount)*100)/100);
     await cSet('interestPaymentBoxes/'+b.id, { totalPaid: newTotalPaid, payments });
     state.interestPaymentBoxes = state.interestPaymentBoxes||{};
     state.interestPaymentBoxes[b.id] = { totalPaid:newTotalPaid, payments };
@@ -10666,6 +10684,7 @@ ${fileGenerationTrainingText()}`;
           if(!planDetail){ alert('Vui lòng điền "Nội dung cụ thể của phương án xử lý" trước khi xác nhận.'); return; }
           extra.mode = 'other'; extra.planName = planName; extra.planDetail = planDetail;
         }
+        await settleOverflowForBorrower(b, overflowAmount);
         await pushReceiptRecord(b, 'overflow_paid', { amount: overflowAmount, sign:'-', categoryLabelId: selectedCategoryId||null, extra });
         await pushLog('xác nhận', `xử lý số tiền lãi đã đóng vượt ngưỡng của hộ vay ${b.name} (${moneySpaced(overflowAmount)})`);
         close();
