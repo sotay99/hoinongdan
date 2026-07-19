@@ -2788,26 +2788,27 @@
     const totalPaid = raw.totalPaid||0;
     const payments = raw.payments||{};
     const allBoxes = borrowerQuarterBoxes(b); // đã đúng thứ tự thời gian (cũ -> mới)
-    const boxByKey = {}; allBoxes.forEach(bx=> boxByKey[bx.key]=bx);
-    // QUAN TRỌNG: "Tổng tiền đã đóng lãi" (totalPaid) LUÔN LUÔN bất biến (không đụng tới) — nhưng
-    // cách PHÂN BỔ số tiền đó cho từng Quý cụ thể phải được tính lại HOÀN TOÀN MỚI mỗi lần, theo
-    // đúng số tiền lãi HIỆN TẠI (tươi mới) của từng hộp — đi theo đúng thứ tự thời gian cũ -> mới
-    // (đúng độ ưu tiên "đóng quý cũ trước"): hộp nào ĐỦ tiền (so với budget còn lại) thì mới thật sự
-    // được coi là "đã đóng xong"; NGAY KHI gặp 1 hộp không đủ tiền — thì hộp đó và MỌI hộp mới hơn nó
-    // (đã từng được đánh dấu đóng trước đây) đều tự động "văng ra" trở lại thành CHƯA đóng lãi (y hệt
-    // như thật sự chưa hề đóng) — số tiền còn dư (nếu có) trở thành "Số tiền còn dư chưa thuộc về quý
-    // nào". Điều này xử lý đúng cả 2 chiều: tiền gốc giảm (hộp co lại, dư ra nhiều hơn) VÀ tiền gốc
-    // tăng (hộp phình to, không đủ tiền che hết nữa nên phải "nhả bớt" quý ra).
-    const markedPaidKeys = new Set(Object.keys(payments).filter(k=> (payments[k]||0)>0 && boxByKey[k]));
-    const orderedMarkedBoxes = allBoxes.filter(bx=> markedPaidKeys.has(bx.key));
+    // =====================================================================
+    // THIẾT KẾ ĐÚNG: "Tổng tiền đã đóng lãi" (totalPaid) LUÔN LUÔN bất biến — đây là NGUỒN SỰ THẬT
+    // DUY NHẤT. Nhưng việc "Quý nào được coi là đã đóng lãi xong" thì KHÔNG dựa vào việc quý đó có
+    // từng được "đánh dấu" (payments{}) hay không — bộ nhớ payments{} CHỈ có tác dụng nhất thời ngay
+    // lúc vừa lập xong 1 biên lai (để "gọi tên" đúng quý đó lên trước), sau đó coi như hết nhiệm vụ.
+    // Mỗi lần tính toán, hệ thống LUÔN tính lại HOÀN TOÀN MỚI: lấy totalPaid làm ngân sách, rồi phân
+    // bổ tuần tự cho TẤT CẢ các hộp theo đúng thứ tự thời gian cũ -> mới (kể cả hộp quá khứ, hiện tại
+    // lẫn tương lai) — hộp nào ngân sách còn đủ trả (theo đúng số tiền lãi HIỆN TẠI của hộp đó) thì
+    // coi là đã đóng xong; ngay khi ngân sách không đủ nữa thì DỪNG HẲN, mọi hộp còn lại (dù mới hơn
+    // hay từng được đánh dấu đóng trước đây) đều là CHƯA đóng. Nhờ vậy, mọi quý luôn có thể "văng ra"
+    // hoặc "quay trở lại" đã đóng lãi hoàn toàn linh hoạt theo đúng tiền gốc/lãi suất hiện hành, không
+    // hề bị kẹt lại vì 1 lỗ hổng nào đó từng bị bỏ sót lúc lập biên lai trước đây.
     let budget = totalPaid;
     const paidEntries = [];
-    for(const box of orderedMarkedBoxes){
+    for(const box of allBoxes){
+      if(box.interestAmount<=0) continue; // hộp 0 đồng (nếu có) -> bỏ qua, không tính vào bên nào cả
       if(budget >= box.interestAmount - 0.001){
         paidEntries.push({ key:box.key, box, amount:box.interestAmount });
         budget = Math.round((budget - box.interestAmount)*100)/100;
       } else {
-        break; // hộp này (và mọi hộp mới hơn nó phía sau) văng ra thành CHƯA đóng
+        break; // hết ngân sách -> dừng hẳn, mọi hộp còn lại (kể cả tương lai) đều là CHƯA đóng
       }
     }
     const paidSum = paidEntries.reduce((s,e)=>s+e.amount, 0);
