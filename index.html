@@ -430,11 +430,12 @@
   /* Tên Quý trong "Thông tin đóng lãi" — nhảy múa tuần hoàn (phóng to 1.1x rồi đứng im 4s), hover
      1.3x, bấm chọn phóng to 1.4x vĩnh viễn (không tuần hoàn nữa) cho tới khi bấm lại. */
   @keyframes iahistQuarterPulse{ 0%,20%,100%{ transform:scale(1); } 8%{ transform:scale(1.1); } }
-  .iahist-qname{ display:inline-block; cursor:pointer; animation: iahistQuarterPulse 4.6s ease-in-out infinite; transition:transform .15s ease; }
+  .iahist-qname{ display:inline-block; cursor:pointer; animation: iahistQuarterPulse 4.6s ease-in-out infinite; transition:transform .15s ease; font-weight:700; }
   .iahist-qname:hover{ transform:scale(1.4) !important; animation-play-state:paused; }
-  .iahist-qname.iahist-qname-selected{ transform:scale(1.4) !important; animation:none !important; color:#0d5c1f; font-weight:800; }
-  .iahist-qname.iahist-qname-selected-past{ color:#3f51b5 !important; }
-  .iahist-qname.iahist-qname-selected-future{ color:#4a148c !important; }
+  .iahist-qname.iahist-qname-selected{ transform:scale(1.4) !important; animation:none !important; font-weight:800; }
+  .iahist-qname.iahist-q-paid{ color:#1b5e20; }
+  .iahist-qname.iahist-q-past{ color:#3f51b5; }
+  .iahist-qname.iahist-q-future{ color:#4a148c; }
   /* Dòng số tiền quan trọng (Tổng tất cả số tiền thực nhận, Tổng tiền đã đóng lãi...) — chữ đậm
      xanh lá thật đậm, tự phóng to nhanh 1.1x rồi đứng im 1 giây, tuần hoàn mãi mãi. */
   @keyframes bigMoneyPulse{ 0%,28%,100%{ transform:scale(1); } 14%{ transform:scale(1.1); } }
@@ -1308,7 +1309,7 @@
     bind('interestApprovalColumnPrefs', v => { state.iaColumnPrefsShared = v || null; });
     bind('quarterSettingsHistory', v => { state.quarterSettingsHistory = snapToArray(v).sort((a,b)=> new Date(b.time)-new Date(a.time)); });
     bind('loanExtensions', v => { state.loanExtensions = v || {}; });
-    bind('interestPaymentBoxes', v => { state.interestPaymentBoxes = v || {}; });
+    bind('interestPaymentBoxes', v => { state.interestPaymentBoxes = v || {}; refreshOpenQuarterStatusLogModal(); refreshOpenIAModal(); });
     bind('receiptCategoriesPayment', v => { state.receiptCategoriesPayment = snapToArray(v); });
     bind('receiptCategoriesRefund', v => { state.receiptCategoriesRefund = snapToArray(v); });
     bind('borrowerManagers', v => { state.borrowerManagers = snapToArray(v); });
@@ -1329,6 +1330,7 @@
       const result = {};
       if(v) Object.keys(v).forEach(bid=>{ result[bid] = snapToArray(v[bid]); });
       state.quarterStatusLog = result;
+      refreshOpenQuarterStatusLogModal();
     });
     render();
   }
@@ -8159,7 +8161,7 @@ ${fileGenerationTrainingText()}`;
   // Bảng nhóm theo phương án cho modal "Gia hạn nợ" — cột: Quyết định (nút GIA HẠN) | Lịch sử gia
   // hạn (nút Xem) | Họ và tên | Số tiền gốc | Ngày đến hạn | Ngày gia hạn gần nhất.
   function renderExtensionGroupedTablesHtml(list, projectsRaw){
-    if(!list.length) return `<div class="empty-state"><div class="e-ico">🌾</div>Chưa có người vay nào theo bộ lọc hiện tại</div>`;
+    if(!list.length) return `<div class="empty-state"><div class="e-ico">🌾</div>Chưa có người vay nào theo bộ lọc hiện tại, hoặc không có khoản vay nào hợp lý về thời điểm để gia hạn nợ</div>`;
     const projects = sortedActiveProjects(projectsRaw);
     // Hàm dựng 1 khung phương án — dùng CHUNG cho cả khung "Quá hạn chưa xử lý" (isOverdueBox=true,
     // luôn tô đỏ, không cần sắp xếp) lẫn khung bình thường.
@@ -8580,7 +8582,7 @@ ${fileGenerationTrainingText()}`;
   // Dùng CHUNG cho cả 2 danh sách: "đang xét" (nút "Nợ rủi ro") và "đã xác nhận" (nút "Lịch sử Nợ
   // rủi ro" + cột ngày xác nhận/lý do), tuỳ tham số isConfirmedList.
   function renderRiskDebtTablesHtml(list, projectsRaw, isConfirmedList){
-    if(!list.length) return `<div class="empty-state"><div class="e-ico">🌾</div>${isConfirmedList? 'Chưa có hộ vay nào trong Danh sách Nợ rủi ro.' : 'Chưa có người vay nào theo bộ lọc hiện tại'}</div>`;
+    if(!list.length) return `<div class="empty-state"><div class="e-ico">🌾</div>${isConfirmedList? 'Chưa có hộ vay nào trong Danh sách Nợ rủi ro.' : 'Chưa có người vay nào theo bộ lọc hiện tại, hoặc không có khoản vay nào hợp lý về thời điểm để chuyển thành Nợ rủi ro, <b style="color:#b71c1c;">bạn có thể lướt xuống dưới để xem danh sách các hộ đang trong diện nợ rủi ro (nếu có)</b>'}</div>`;
     const projects = sortedActiveProjects(projectsRaw);
     function renderOneGroup(gid, groupListRaw, isOverdueBox){
       const groupList = isOverdueBox ? groupListRaw : sortedBorrowerGroup(groupListRaw, gid);
@@ -9296,7 +9298,11 @@ ${fileGenerationTrainingText()}`;
         render();
       };
       wrap.querySelectorAll('[data-receipt-view]').forEach(el=>{
-        el.onclick = ()=>{ const r = allReceipts().find(x=>x.id===el.dataset.receiptView); if(r) renderReceiptDetailModal(b, r); };
+        el.onclick = ()=>{
+          const r = allReceipts().find(x=>x.id===el.dataset.receiptView);
+          if(state.openFilterDropdown){ state.openFilterDropdown = null; render(); }
+          if(r) renderReceiptDetailModal(b, r);
+        };
       });
       if(!wrap._outsideClickBound){
         wrap._outsideClickBound = true;
@@ -9417,7 +9423,11 @@ ${fileGenerationTrainingText()}`;
         render();
       };
       wrap.querySelectorAll('[data-conf-view]').forEach(el=>{
-        el.onclick = ()=>{ const c = allConfirmations().find(x=>x.id===el.dataset.confView); if(c) renderConfirmationDetailModal(c); };
+        el.onclick = ()=>{
+          const c = allConfirmations().find(x=>x.id===el.dataset.confView);
+          if(state.openFilterDropdown){ state.openFilterDropdown = null; render(); }
+          if(c) renderConfirmationDetailModal(c);
+        };
       });
       if(!wrap._outsideClickBound){
         wrap._outsideClickBound = true;
@@ -9794,6 +9804,7 @@ ${fileGenerationTrainingText()}`;
             const bid = btn.dataset.openReceiptBox;
             const found = state.borrowers.find(x=>x.id===bid) || flattenTrashBorrowers().find(x=>x.id===bid) || (state.permanentlyDeletedBorrowers||[]).find(x=>x.id===bid);
             if(!found) return;
+            if(state.openFilterDropdown){ state.openFilterDropdown = null; render(); }
             if(btn.dataset.openReceiptMode==='confirmations'){
               renderConfirmationBoxModal(found);
             } else {
@@ -10377,10 +10388,11 @@ ${fileGenerationTrainingText()}`;
     const isPaidKey = (key)=> disp.paidKeys.has(key);
 
     // Dòng tên 1 Quý — có hiệu ứng nhảy múa, kèm nút chữ "i" xem chi tiết.
-    const renderQLine = (x, isFuture)=>{
+    const renderQLine = (x, section)=>{
       const sel = selectedKeys.has(x.box.key);
-      const selClass = sel ? (isFuture? 'iahist-qname-selected iahist-qname-selected-future' : 'iahist-qname-selected iahist-qname-selected-past') : '';
-      return `<div class="kv-row"><span><button type="button" class="qbox-info-btn" data-qinfo-key="${x.box.key}" style="width:20px; height:20px; font-size:11px; border-radius:50%; margin-right:4px;">i</button><span class="iahist-qname ${selClass}" data-qkey="${x.box.key}">${escapeHtml(x.name)}</span></span><b>${moneySpaced(x.box.interestAmount)}</b></div>`;
+      const sectionClass = section==='paid' ? 'iahist-q-paid' : section==='future' ? 'iahist-q-future' : 'iahist-q-past';
+      const selClass = sel ? 'iahist-qname-selected' : '';
+      return `<div class="kv-row"><span><button type="button" class="qbox-info-btn" data-qinfo-key="${x.box.key}" style="width:20px; height:20px; font-size:11px; border-radius:50%; margin-right:4px;">i</button><span class="iahist-qname ${sectionClass} ${selClass}" data-qkey="${x.box.key}">${escapeHtml(x.name)}</span></span><b>${moneySpaced(x.box.interestAmount)}</b></div>`;
     };
 
     const extList = getBorrowerExtensions(b.id);
@@ -10413,15 +10425,15 @@ ${fileGenerationTrainingText()}`;
             ? `<button type="button" class="refund-btn preview-allow" id="iahist-overflow-btn">Xử lý số tiền vượt ngưỡng</button>`
             : `<button type="button" class="refund-btn preview-allow" id="iahist-refund-btn">Trả lại tiền đã đóng</button>`}</div>
           <div class="divider-lbl">Thông tin các quý đã đóng tiền lãi xong</div>
-          ${disp.paidLines.length? disp.paidLines.map(renderQLine).join('') : `<p class="sub">Chưa có quý nào đóng xong.</p>`}
+          ${disp.paidLines.length? disp.paidLines.map(x=>renderQLine(x,'paid')).join('') : `<p class="sub">Chưa có quý nào đóng xong.</p>`}
           <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng ${disp.paidLines.length} quý là</span><b>= ${moneySpaced(disp.paidTotal)}</b></div>
           <div class="kv-row" style="margin-top:10px;"><span style="display:flex; align-items:center; gap:4px;"><button type="button" class="qbox-info-btn" id="iahist-leftover-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button> Số tiền còn dư chưa thuộc về quý nào</span><b>${moneySpaced(disp.leftover)}</b></div>
           <div id="iahist-leftover-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin-top:4px;">Đây chính là "Số tiền dư từ đợt đóng lãi trước". Số tiền này sẽ tự động trả cho các quý chưa đóng lãi (ưu tiên quý cũ nhất) khi nó đủ số tiền trả cho quý đó, hoặc sẽ được tính vào biên lai thu lãi được lập sau này.</div>
           <div class="divider-lbl">Thông tin các quý chưa đóng lãi (từ quá khứ tới Hiện tại)</div>
-          ${disp.unpaidLines.length? disp.unpaidLines.map(x=>renderQLine(x,false)).join('') : `<p class="sub">Không còn quý nào chưa đóng lãi từ quá khứ tới hiện tại.</p>`}
+          ${disp.unpaidLines.length? disp.unpaidLines.map(x=>renderQLine(x,'past')).join('') : `<p class="sub">Không còn quý nào chưa đóng lãi từ quá khứ tới hiện tại.</p>`}
           <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng ${disp.unpaidLines.length} quý chưa đóng lãi (Quá khứ tới hiện tại)</span><b>= ${moneySpaced(disp.unpaidTotal)}</b></div>
           <div class="divider-lbl">Thông tin các quý chưa đóng lãi (trong Tương lai)</div>
-          ${disp.futureUnpaidLines.length? disp.futureUnpaidLines.map(x=>renderQLine(x,true)).join('') : `<p class="sub">Không có quý nào chưa đóng lãi trong tương lai.</p>`}
+          ${disp.futureUnpaidLines.length? disp.futureUnpaidLines.map(x=>renderQLine(x,'future')).join('') : `<p class="sub">Không có quý nào chưa đóng lãi trong tương lai.</p>`}
           <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng ${disp.futureUnpaidLines.length} quý chưa đóng lãi (tương lai)</span><b>= ${moneySpaced(disp.futureUnpaidTotal)}</b></div>
           <div class="kv-row" style="margin-top:10px; border-top:2px solid var(--line); padding-top:8px;"><span>Tổng ${disp.unpaidLines.length+disp.futureUnpaidLines.length} quý chưa đóng lãi (quá khứ, hiện tại và Tương lai)</span><b>= ${moneySpaced(grandUnpaid)}</b></div>
           <div class="kv-row" style="margin-top:6px; border-top:2px solid var(--line); padding-top:8px;"><span>Tổng tất cả (quá khứ + hiện tại + Tương lai) (${allLineItems.length} quý)</span><b>= ${moneySpaced(theoreticalTotal)}</b></div>
@@ -11005,62 +11017,78 @@ ${fileGenerationTrainingText()}`;
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
-    const disp = computeInterestPaymentBoxDisplay(b); // chỉ ĐỌC, không đụng gì tới tính toán
-    const allBoxes = disp.allBoxes;
-    const boxOrderIndex = {}; allBoxes.forEach((bx,i)=> boxOrderIndex[bx.key]=i);
-    const boxByKey = {}; allBoxes.forEach(bx=> boxByKey[bx.key]=bx);
-    const logs = ((state.quarterStatusLog||{})[b.id]||[]).slice();
-    // Với mỗi Quý ĐANG thật sự được coi là đã đóng lãi (theo tính toán hiện hành) mà KHÔNG tìm thấy
-    // dòng log "đã đóng" nào là MỚI NHẤT cho đúng Quý đó — nghĩa là Quý này trở thành đã đóng lãi do
-    // "tiền dư tự động trả cho Quý mới đến hạn theo thời gian" (không gắn với 1 hành động cụ thể nào
-    // của người dùng nên không xác định được đúng thời điểm) — tự tổng hợp thêm 1 dòng ghi chú riêng.
-    const latestByKey = {};
-    logs.forEach(l=>{ const cur=latestByKey[l.key]; if(!cur || (l.at||'')>(cur.at||'')) latestByKey[l.key]=l; });
-    const syntheticEntries = [];
-    disp.paidKeys.forEach(key=>{
-      const latest = latestByKey[key];
-      if(!latest || latest.direction!=='paid'){
-        const bx = boxByKey[key];
-        if(bx) syntheticEntries.push({ id:'synthetic-'+key, key, label:formatTimelineQuarterLabel(bx), direction:'paid', synthetic:true });
+    function render(){
+      const disp = computeInterestPaymentBoxDisplay(b); // chỉ ĐỌC, không đụng gì tới tính toán
+      const allBoxes = disp.allBoxes;
+      const boxOrderIndex = {}; allBoxes.forEach((bx,i)=> boxOrderIndex[bx.key]=i);
+      const boxByKey = {}; allBoxes.forEach(bx=> boxByKey[bx.key]=bx);
+      const logs = ((state.quarterStatusLog||{})[b.id]||[]).slice();
+      // Với mỗi Quý ĐANG thật sự được coi là đã đóng lãi (theo tính toán hiện hành) mà KHÔNG tìm thấy
+      // dòng log "đã đóng" nào là MỚI NHẤT cho đúng Quý đó — nghĩa là Quý này trở thành đã đóng lãi do
+      // "tiền dư tự động trả cho Quý mới đến hạn theo thời gian" (không gắn với 1 hành động cụ thể nào
+      // của người dùng nên không xác định được đúng thời điểm) — tự tổng hợp thêm 1 dòng ghi chú riêng.
+      const latestByKey = {};
+      logs.forEach(l=>{ const cur=latestByKey[l.key]; if(!cur || (l.at||'')>(cur.at||'')) latestByKey[l.key]=l; });
+      const syntheticEntries = [];
+      disp.paidKeys.forEach(key=>{
+        const latest = latestByKey[key];
+        if(!latest || latest.direction!=='paid'){
+          const bx = boxByKey[key];
+          if(bx) syntheticEntries.push({ id:'synthetic-'+key, key, label:formatTimelineQuarterLabel(bx), direction:'paid', synthetic:true });
+        }
+      });
+      const allEntries = logs.concat(syntheticEntries);
+      allEntries.sort((a,c)=>{
+        // Dòng tổng hợp (không rõ thời điểm) luôn được coi là "mới nhất" -> lên đầu.
+        if(a.synthetic && !c.synthetic) return -1;
+        if(!a.synthetic && c.synthetic) return 1;
+        if(a.synthetic && c.synthetic) return 0;
+        return (c.at||'').localeCompare(a.at||''); // Thời gian mới hơn lên trước, cũ hơn xuống dưới
+      });
+      function rowHtml(l){
+        const isPaid = l.direction==='paid';
+        const color = isPaid? '#0d47a1' : '#b71c1c';
+        const verb = isPaid? 'đã được đóng lãi thành công' : 'đã trở về trạng thái chưa đóng lãi';
+        let timeLineHtml;
+        if(l.synthetic){
+          timeLineHtml = `<div class="sub" style="margin-top:4px; color:#e65100;">Chưa rõ thời điểm cụ thể của trạng thái này, và đây là trạng thái mới hơn các trạng thái phía dưới (có thể do tiền dư tự động trả cho Quý mới đến hạn theo thời gian).</div>`;
+        } else {
+          const d = new Date(l.at);
+          const dateLbl = isNaN(d.getTime())? '' : `Ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()} vào lúc ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+          timeLineHtml = `${l.reason? `<div class="sub" style="margin-top:4px;">${escapeHtml(l.reason)}</div>` : ''}<div class="sub" style="margin-top:4px; text-align:right;">${dateLbl}</div>`;
+        }
+        return `<div style="border:1px solid var(--line); border-radius:8px; padding:10px 14px; margin-bottom:8px; background:#fff;">
+          <div><b>${escapeHtml(l.label||'')}</b> <span style="color:${color}; font-weight:700;">${verb}</span></div>
+          ${timeLineHtml}
+        </div>`;
       }
-    });
-    const allEntries = logs.concat(syntheticEntries);
-    allEntries.sort((a,c)=>{
-      // Dòng tổng hợp (không rõ thời điểm) luôn được coi là "mới nhất" -> lên đầu.
-      if(a.synthetic && !c.synthetic) return -1;
-      if(!a.synthetic && c.synthetic) return 1;
-      if(a.synthetic && c.synthetic) return 0;
-      return (c.at||'').localeCompare(a.at||''); // Thời gian mới hơn lên trước, cũ hơn xuống dưới
-    });
-    function rowHtml(l){
-      const isPaid = l.direction==='paid';
-      const color = isPaid? '#0d47a1' : '#b71c1c';
-      const verb = isPaid? 'đã được đóng lãi thành công' : 'đã trở về trạng thái chưa đóng lãi';
-      let timeLineHtml;
-      if(l.synthetic){
-        timeLineHtml = `<div class="sub" style="margin-top:4px; color:#e65100;">Chưa rõ thời điểm cụ thể của trạng thái này, và đây là trạng thái mới hơn các trạng thái phía dưới (có thể do tiền dư tự động trả cho Quý mới đến hạn theo thời gian).</div>`;
-      } else {
-        const d = new Date(l.at);
-        const dateLbl = isNaN(d.getTime())? '' : `Ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()} vào lúc ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-        timeLineHtml = `${l.reason? `<div class="sub" style="margin-top:4px;">${escapeHtml(l.reason)}</div>` : ''}<div class="sub" style="margin-top:4px; text-align:right;">${dateLbl}</div>`;
-      }
-      return `<div style="border:1px solid var(--line); border-radius:8px; padding:10px 14px; margin-bottom:8px; background:#fff;">
-        <div><b>${escapeHtml(l.label||'')}</b> <span style="color:${color}; font-weight:700;">${verb}</span></div>
-        ${timeLineHtml}
-      </div>`;
+      const scrollEl = wrap.querySelector('.modal-body');
+      const prevScrollTop = scrollEl? scrollEl.scrollTop : 0;
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:700px;">
+          <div class="modal-head"><h3>Lịch sử trạng thái đóng lãi của từng Quý — Hộ vay ${escapeHtml(b.name).toUpperCase()}</h3><button class="modal-close preview-allow" id="qsl-close">✕</button></div>
+          <div class="modal-body" style="max-height:78vh; overflow:auto;">
+            <p class="sub" style="margin:0 0 12px;">Ghi lại mỗi lần Quý nào đó chuyển từ trạng thái "chưa đóng lãi" sang "đã đóng lãi" hoặc ngược lại — sắp xếp Trạng thái mới hơn lên trước, Trạng thái cũ hơn xuống dưới.</p>
+            ${allEntries.length? allEntries.map(rowHtml).join('') : `<p class="sub" style="padding:10px 0;">Chưa có thay đổi trạng thái nào được ghi nhận.</p>`}
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="qsl-close2">Đóng bảng</button></div>
+        </div>`;
+      wrap.querySelector('#qsl-close').onclick = close;
+      wrap.querySelector('#qsl-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      const newScrollEl = wrap.querySelector('.modal-body');
+      if(newScrollEl && prevScrollTop) newScrollEl.scrollTop = prevScrollTop;
     }
-    wrap.innerHTML = `
-      <div class="modal" style="max-width:96vw; width:700px;">
-        <div class="modal-head"><h3>Lịch sử trạng thái đóng lãi của từng Quý — Hộ vay ${escapeHtml(b.name).toUpperCase()}</h3><button class="modal-close preview-allow" id="qsl-close">✕</button></div>
-        <div class="modal-body" style="max-height:78vh; overflow:auto;">
-          <p class="sub" style="margin:0 0 12px;">Ghi lại mỗi lần Quý nào đó chuyển từ trạng thái "chưa đóng lãi" sang "đã đóng lãi" hoặc ngược lại — sắp xếp Trạng thái mới hơn lên trước, Trạng thái cũ hơn xuống dưới.</p>
-          ${allEntries.length? allEntries.map(rowHtml).join('') : `<p class="sub" style="padding:10px 0;">Chưa có thay đổi trạng thái nào được ghi nhận.</p>`}
-        </div>
-        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="qsl-close2">Đóng bảng</button></div>
-      </div>`;
-    wrap.querySelector('#qsl-close').onclick = close;
-    wrap.querySelector('#qsl-close2').onclick = close;
-    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+    wrap.dataset.qslModal = b.id;
+    wrap._refreshQsl = render;
+    render();
+  }
+  // Gọi lại mỗi khi state.quarterStatusLog (hoặc dữ liệu ảnh hưởng tới tính toán Quý) thay đổi qua
+  // Firebase realtime — để bảng "Lịch sử trạng thái các quý" luôn cập nhật ngay lập tức, không cần
+  // đóng mở lại.
+  function refreshOpenQuarterStatusLogModal(){
+    const w = document.querySelector('[data-qsl-modal]');
+    if(w && w._refreshQsl) w._refreshQsl();
   }
   function renderQuarterBoxInfoModal(b, box, isPaid){
     const wrap = document.createElement('div');
