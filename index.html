@@ -1327,6 +1327,7 @@
       state.borrowerConfirmations = result;
     });
     bind('sharedConfirmationDocuments', v => { state.sharedConfirmationDocuments = snapToArray(v); });
+    bind('sharedBorrowerReceipts', v => { state.sharedBorrowerReceipts = snapToArray(v); });
     bind('quarterStatusLog', v => {
       const result = {};
       if(v) Object.keys(v).forEach(bid=>{ result[bid] = snapToArray(v[bid]); });
@@ -1689,6 +1690,7 @@
     borrowerReceipts:{},            // { [borrowerId]: [ {id,categoryKey,amount,sign,...} ] } — Kho Biên lai
     borrowerConfirmations:{},       // { [borrowerId]: [ {id,kind,title,details,...} ] } — Kho Giấy xác nhận
     sharedConfirmationDocuments:[], // Kho Giấy xác nhận CHUNG (1 bản ghi, nối link vào nhiều người)
+    sharedBorrowerReceipts:[],      // Kho Biên lai CHUNG (1 bản ghi, nối link vào nhiều người)
     quarterStatusLog:{},            // { [borrowerId]: [ {id,key,label,direction,reason,at} ] } — Lịch sử trạng thái Quý
     activeTab:'dashboard',
     reportMode:'quarter',
@@ -3819,6 +3821,21 @@
     for(const bid of (affectedBorrowerIds||[])){
       const link = { id: entry.id, isSharedLink:true, kind: entry.kind, title: entry.title, createdAt: entry.createdAt };
       await cSetRecord('borrowerConfirmations/'+bid, entry.id, link);
+    }
+    return entry;
+  }
+  // "BIÊN LAI CHUNG" — dùng cho hành động thu/trả tiền của NHIỀU người vay cùng lúc trong 1 phương án
+  // vay. CHỈ lập đúng 1 bản ghi DUY NHẤT, rồi nối LIÊN KẾT NHẸ vào Hộp biên lai của từng người liên
+  // quan — y hệt cách làm với Giấy xác nhận CHUNG.
+  async function pushSharedReceiptRecord(kind, title, details, amount, sign, affectedBorrowerIds, categoryLabelId){
+    const device = await getClientDeviceInfo();
+    const entry = { id:uid(), kind, title, details, amount:Math.round(amount||0), sign:sign||'+',
+      createdAt:new Date().toISOString(), createdBy: state.identity.email, createdByName: state.identity.name,
+      createdByIp: device.ip, createdByDevice: device.userAgent, affectedBorrowerIds: affectedBorrowerIds||[], receiptCategoryId: categoryLabelId||null };
+    await cSetRecord('sharedBorrowerReceipts', entry.id, entry);
+    for(const bid of (affectedBorrowerIds||[])){
+      const link = { id: entry.id, isSharedLink:true, kind: entry.kind, categoryKey: entry.kind, displayTitle: entry.title, groupKey: (entry.kind==='shared_early_repayment'?'tra_no_truoc_han':entry.kind==='shared_interest_payment'?'thu_lai':''), title: entry.title, amount: entry.amount, sign: entry.sign, createdAt: entry.createdAt, receiptCategoryId: entry.receiptCategoryId, quarterLines:[] };
+      await cSetRecord('borrowerReceipts/'+bid, entry.id, link);
     }
     return entry;
   }
@@ -7923,8 +7940,8 @@ ${fileGenerationTrainingText()}`;
               </tr>`;
             }).join('')}
             <tr style="background:var(--paper-2); font-weight:700;">
-              <td class="frz-col1" style="background:var(--paper-2);"><button class="ext-action-btn ext-green" data-ia-hist-locked="1">Xem</button></td>
-              <td class="frz-col2" style="background:var(--paper-2);"><button class="ext-action-btn ext-green" data-ia-pay-locked="1">Đóng tiền lãi</button></td>
+              <td class="frz-col1" style="background:var(--paper-2);"></td>
+              <td class="frz-col2" style="background:var(--paper-2);"><button class="ext-action-btn ext-green preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-shared-interest-payment="${gid}" data-shared-interest-payment-ids="${groupList.map(b=>b.id).join(',')}">Đóng tiền lãi</button></td>
               <td class="frz-col3" style="background:var(--paper-2);">TỔNG</td>
               <td></td>
               <td class="money">${moneySpaced(groupList.reduce((s,b)=>{ const cb=borrowerCurrentQuarterBox(b); return s+(cb?cb.interestAmount:0); },0))}</td>
@@ -8227,8 +8244,8 @@ ${fileGenerationTrainingText()}`;
               </tr>`;
             }).join('')}
             <tr style="background:var(--paper-2); font-weight:700;">
-              <td class="frz-col1" style="background:var(--paper-2);">${allSame? `<button class="ext-action-btn preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ext-group-history="${gid}">${totalXemLabel}</button>` : `<button class="ext-action-btn" disabled>Xem</button>`}</td>
-              <td class="frz-col2" style="background:var(--paper-2);">${(allSame && !groupMaxedOut)? `<button class="ext-action-btn preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ext-group="${gid}">GIA HẠN</button>` : `<button class="ext-action-btn" disabled title="${groupMaxedOut? 'Tất cả người vay trong nhóm đã đạt tối đa 5 lần gia hạn' : 'Chỉ dùng được khi tất cả người vay trong nhóm có cùng số lần gia hạn'}">GIA HẠN</button>`}</td>
+              <td class="frz-col1" style="background:var(--paper-2);"></td>
+              <td class="frz-col2" style="background:var(--paper-2);"></td>
               <td class="frz-col3" style="background:var(--paper-2);">TỔNG</td>
               <td class="money">${moneySpaced(groupList.reduce((s,b)=>s+(parseFloat(b.principal)||0),0))}</td>
               <td></td>
@@ -8553,8 +8570,8 @@ ${fileGenerationTrainingText()}`;
               </tr>`;
             }).join('')}
             <tr style="background:var(--paper-2); font-weight:700;">
-              <td class="frz-col1" style="background:var(--paper-2);"><button class="ext-action-btn ext-blue" disabled>Trả nợ trước hạn</button></td>
-              <td class="frz-col2" style="background:var(--paper-2);"><button class="ext-action-btn ext-blue" disabled>Tất toán khoản vay</button></td>
+              <td class="frz-col1" style="background:var(--paper-2);"></td>
+              <td class="frz-col2" style="background:var(--paper-2);"><button class="ext-action-btn ext-blue preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-shared-early-repay="${gid}" data-shared-early-repay-ids="${groupList.map(b=>b.id).join(',')}">Tất toán khoản vay</button></td>
               <td class="frz-col3" style="background:var(--paper-2);">TỔNG</td>
               <td class="money">${moneySpaced(groupList.reduce((s,b)=>s+(parseFloat(b.principal)||0),0))}</td>
               <td class="money">${moneySpaced(groupList.reduce((s,b)=>{ const d=computeInterestPaymentBoxDisplay(b); return s+d.unpaidTotal; },0))}</td>
@@ -9323,7 +9340,13 @@ ${fileGenerationTrainingText()}`;
         el.onclick = ()=>{
           const r = allReceipts().find(x=>x.id===el.dataset.receiptView);
           if(state.openFilterDropdown){ state.openFilterDropdown = null; render(); }
-          if(r) renderReceiptDetailModal(b, r);
+          if(!r) return;
+          if(r.isSharedLink){
+            const full = (state.sharedBorrowerReceipts||[]).find(x=>x.id===r.id);
+            if(full) renderSharedReceiptDetailModal(full);
+          } else {
+            renderReceiptDetailModal(b, r);
+          }
         };
       });
       if(!wrap._outsideClickBound){
@@ -9600,6 +9623,138 @@ ${fileGenerationTrainingText()}`;
     }
     render();
   }
+  const SHARED_RECEIPT_HANG_MUC_LIST = [
+    ['shared_early_repayment','BL chung: Trả nợ trước hạn cho các hộ trong phương án vay'],
+    ['shared_interest_payment','BL chung: Đóng tiền lãi cho các hộ trong phương án vay'],
+  ];
+  // Tô màu tiêu đề Biên lai chung — dùng ĐÚNG bảng màu RC đã quy định cho Biên lai cá nhân, để đồng
+  // bộ tuyệt đối (không tự bịa màu mới).
+  function styleSharedReceiptTitle(title){
+    return escapeHtml(title||'')
+      .replace(/(Trả nợ)/, `<span style="color:${RC.verbGreen};">$1</span>`)
+      .replace(/(Đóng tiền lãi)/, `<span style="color:${RC.verbGreen};">$1</span>`);
+  }
+  // "Hộp Biên lai dùng Chung" — chứa các Biên lai được lập CHUNG cho nhiều người trong cùng 1 phương
+  // án vay. Mô phỏng ĐÚNG cấu trúc Hộp Biên lai từng người, chỉ khác nguồn dữ liệu và danh sách hạng
+  // mục lọc (chỉ còn 2 loại) — bộ lọc Phân loại chỉ áp dụng cho "BL chung: Đóng tiền lãi".
+  function renderSharedReceiptBoxModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    if(!state.srBoxFilterHangMuc) state.srBoxFilterHangMuc = SHARED_RECEIPT_HANG_MUC_LIST.map(x=>x[0]);
+    if(state.srBoxSpecificTime===undefined) state.srBoxSpecificTime = false;
+    function allShared(){ return state.sharedBorrowerReceipts||[]; }
+    function matchesQuarterFilter(r){
+      if(!state.srBoxSpecificTime) return true;
+      const range = selectedQuarterYearRange();
+      if(!range.from || !range.to) return true;
+      const createdDate = (r.createdAt||'').slice(0,10);
+      if(!createdDate) return false;
+      return createdDate < range.to && createdDate >= range.from;
+    }
+    function filteredShared(){
+      let list = allShared();
+      if(state.srBoxFilterHangMuc.length < SHARED_RECEIPT_HANG_MUC_LIST.length) list = list.filter(r=> state.srBoxFilterHangMuc.includes(r.kind));
+      list = list.filter(matchesQuarterFilter);
+      return list.slice().sort((a,c)=> (c.createdAt||'').localeCompare(a.createdAt||''));
+    }
+    function toggleDropdown(kind){ state.openFilterDropdown = state.openFilterDropdown===kind? null : kind; render(); }
+    function kindDropdownHtml(){
+      const allSel = state.srBoxFilterHangMuc.length===SHARED_RECEIPT_HANG_MUC_LIST.length;
+      return `<div class="sv-filter-dropdown">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="srb-kind-btn">📂 Hạng mục biên lai (${state.srBoxFilterHangMuc.length})</button>
+        ${state.openFilterDropdown==='srb-kind'? `<div class="sv-filter-panel" style="min-width:320px;">
+          <label class="sv-filter-item"><input type="checkbox" id="srb-kind-all" class="preview-allow" ${allSel?'checked':''}><span><b>Tất cả hạng mục biên lai</b></span></label>
+          ${SHARED_RECEIPT_HANG_MUC_LIST.map(([key,label])=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow srb-kind-item" data-key="${key}" ${state.srBoxFilterHangMuc.includes(key)?'checked':''}><span>${escapeHtml(label)}</span></label>`).join('')}
+        </div>` : ''}
+      </div>`;
+    }
+    function rowHtml(r){
+      const sign = r.sign==='-' ? '-' : '+';
+      const signColor = sign==='+' ? '#0d47a1' : '#b71c1c';
+      const d = new Date(r.createdAt);
+      const dateLbl = isNaN(d.getTime()) ? '' : `Ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()} vào lúc ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+      const hasLabel = r.kind==='shared_interest_payment';
+      let labelName = '', labelColor = '#fff';
+      if(hasLabel){
+        if(r.receiptCategoryId){ const l = receiptAllLabels().find(x=>x.id===r.receiptCategoryId); labelName = l? l.name : '(phân loại đã bị xoá)'; labelColor = l? (l.color||'#fff') : '#fff'; }
+        else { labelName = 'Không phân loại'; labelColor = '#fff'; }
+      }
+      return `<div class="preview-allow" data-shared-receipt-view="${r.id}" style="border:1px solid var(--line); border-radius:8px; padding:10px 14px; margin-bottom:8px; cursor:pointer; background:#fff;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="font-weight:700;">📋 ${styleSharedReceiptTitle(r.title)}</span>
+          ${hasLabel? `<span style="display:flex; align-items:center; gap:6px;"><span class="sub">${escapeHtml(labelName)}</span><span style="display:inline-block; width:30px; height:10px; background:${labelColor}; border:1px solid var(--line);"></span></span>` : ''}
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px; flex-wrap:wrap; gap:8px;">
+          <span style="color:${signColor}; font-weight:800; text-decoration:underline;">${sign} ${moneySpaced(r.amount)} đ</span>
+          <span class="sub" style="margin-left:auto;">${dateLbl}</span>
+        </div>
+      </div>`;
+    }
+    function render(){
+      const list = filteredShared();
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:98vw; width:1300px;">
+          <div class="modal-head" style="background:#311b92;"><h3 style="color:#fff;">Hộp Biên lai dùng Chung</h3><button class="modal-close preview-allow" id="srb-close">✕</button></div>
+          <div class="modal-body" style="max-height:78vh; min-height:60vh; overflow:auto;">
+            <p class="sub" style="margin:0 0 14px;">Đây là nơi chứa các biên lai được lập Chung cho nhiều người trong cùng một phương án vay.</p>
+            <div class="toolbar" style="flex-wrap:wrap; gap:8px;">
+              ${kindDropdownHtml()}
+              ${state.srBoxSpecificTime? buildQuarterFilterDropdownHtml() : ''}
+              ${state.srBoxSpecificTime? buildYearFilterDropdownHtml() : ''}
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="srb-specifictime-btn">${state.srBoxSpecificTime? 'Tất cả thời điểm' : 'Chọn thời điểm cụ thể'}</button>
+              <button class="btn btn-ghost btn-sm preview-allow" id="srb-reset">↺ Khôi phục bộ lọc gốc</button>
+            </div>
+            <div style="margin-top:14px;">
+              ${list.length? list.map(rowHtml).join('') : (allShared().length===0
+                ? `<p class="sub" style="padding:10px 0;">Chưa từng có Biên lai chung nào được lập cả.</p>`
+                : `<p class="sub" style="padding:10px 0;">Không có biên lai nào theo bộ lọc hiện tại.</p>`)}
+            </div>
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="srb-close2">Đóng bảng</button></div>
+        </div>`;
+      wrap.querySelector('#srb-close').onclick = close;
+      wrap.querySelector('#srb-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      const kb = wrap.querySelector('#srb-kind-btn'); if(kb) kb.onclick=(e)=>{ e.stopPropagation(); toggleDropdown('srb-kind'); };
+      const qb = wrap.querySelector('#f-quarter-btn'); if(qb) qb.onclick=(e)=>{ e.stopPropagation(); toggleDropdown('quarter'); };
+      const yb = wrap.querySelector('#f-year-btn'); if(yb) yb.onclick=(e)=>{ e.stopPropagation(); toggleDropdown('year'); };
+      const stb = wrap.querySelector('#srb-specifictime-btn'); if(stb) stb.onclick=()=>{
+        state.srBoxSpecificTime = !state.srBoxSpecificTime;
+        if(state.srBoxSpecificTime){ state.filterQuarters = [todayBasedQuarterKey()]; state.filterQuartersAdvanced=false; state.filterYears = [new Date().getFullYear()]; state.filterYearsAdvanced=false; }
+        render();
+      };
+      const kAll = wrap.querySelector('#srb-kind-all'); if(kAll) kAll.onclick=(e)=>{ e.stopPropagation(); state.srBoxFilterHangMuc = kAll.checked? SHARED_RECEIPT_HANG_MUC_LIST.map(x=>x[0]) : []; render(); };
+      wrap.querySelectorAll('.srb-kind-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const k=cb.dataset.key; state.srBoxFilterHangMuc = cb.checked? state.srBoxFilterHangMuc.concat([k]) : state.srBoxFilterHangMuc.filter(x=>x!==k); render(); });
+      wrap.querySelectorAll('.f-quarter-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); toggleQuarterFilter(cb.dataset.key, cb.checked); render(); });
+      wrap.querySelectorAll('.f-year-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); toggleYearFilter(parseInt(cb.dataset.year,10), cb.checked); render(); });
+      { const yp = wrap.querySelector('#f-year-panel'); if(yp){ const sel = yp.querySelector('[data-selected-year]'); if(sel) sel.scrollIntoView({block:'center'}); }
+        const qp = wrap.querySelector('#f-quarter-panel'); if(qp){ const selQ = qp.querySelector('[data-selected-quarter]'); if(selQ) selQ.scrollIntoView({block:'center'}); } }
+      const resetBtn = wrap.querySelector('#srb-reset'); if(resetBtn) resetBtn.onclick=()=>{
+        state.srBoxFilterHangMuc = SHARED_RECEIPT_HANG_MUC_LIST.map(x=>x[0]);
+        state.srBoxSpecificTime = false;
+        render();
+      };
+      wrap.querySelectorAll('[data-shared-receipt-view]').forEach(el=>{
+        el.onclick = ()=>{
+          const r = allShared().find(x=>x.id===el.dataset.sharedReceiptView);
+          if(state.openFilterDropdown){ state.openFilterDropdown = null; render(); }
+          if(r) renderSharedReceiptDetailModal(r);
+        };
+      });
+      if(!wrap._outsideClickBound){
+        wrap._outsideClickBound = true;
+        document.addEventListener('click', (e)=>{
+          if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
+          if(e.target.closest('.sv-filter-dropdown')) return;
+          state.openFilterDropdown = null;
+          if(document.body.contains(wrap)) render();
+        });
+      }
+    }
+    render();
+  }
   // Xem chi tiết 1 Giấy xác nhận — tiêu đề đầy đủ "Giấy xác nhận..." (không viết tắt GXN).
   function renderConfirmationDetailModal(c){
     const wrap = document.createElement('div');
@@ -9625,6 +9780,35 @@ ${fileGenerationTrainingText()}`;
       </div>`;
     wrap.querySelector('#cfd-close').onclick = close;
     wrap.querySelector('#cfd-close2').onclick = close;
+    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+  }
+  // Xem chi tiết 1 Biên lai CHUNG — tiêu đề đầy đủ "Biên lai chung..." (không viết tắt BL).
+  function renderSharedReceiptDetailModal(r){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const sign = r.sign==='-' ? '-' : '+';
+    const signColor = sign==='+' ? '#0d47a1' : '#b71c1c';
+    const d = new Date(r.createdAt);
+    const dateLbl = isNaN(d.getTime()) ? '' : `Ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()} vào lúc ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    const fullTitle = (r.title||'').replace(/^BL chung:\s*/i, 'Biên lai chung: ');
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:680px;">
+        <div class="modal-head" style="background:#fff; border-bottom:1px solid var(--line);"><h3>${styleSharedReceiptTitle(fullTitle)}</h3><button class="modal-close preview-allow" id="srd-close">✕</button></div>
+        <div class="modal-body">
+          <p class="sub" style="margin:0 0 10px;">Biên lai này được lập vào ${dateLbl}</p>
+          <p style="line-height:1.9; white-space:pre-line;">${escapeHtml(r.details||'')}</p>
+          <div class="divider-lbl" style="margin-top:14px;">Người lập Biên lai</div>
+          <div class="kv-row"><span>Họ và tên</span><b>${escapeHtml(r.createdByName||'')}</b></div>
+          <div class="kv-row"><span>Email</span><b>${escapeHtml(r.createdBy||'(không có)')}</b></div>
+          <div class="kv-row"><span>Địa chỉ IP</span><b>${escapeHtml(r.createdByIp||'(không lấy được)')}</b></div>
+          <div class="kv-row"><span>Thiết bị</span><b style="font-size:11px;">${escapeHtml(r.createdByDevice||'(không lấy được)')}</b></div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="srd-close2">Đóng bảng</button></div>
+      </div>`;
+    wrap.querySelector('#srd-close').onclick = close;
+    wrap.querySelector('#srd-close2').onclick = close;
     wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
   }
   function renderReceiptDetailModal(b, r){
@@ -9915,8 +10099,8 @@ ${fileGenerationTrainingText()}`;
             <p class="sub" style="margin:0 0 10px;">Các Biên lai, Giấy xác nhận, dòng nhật ký là KHÔNG thể Xoá hoặc thay đổi thông tin bên trong, và đây là nguồn sự thật duy nhất.</p>
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
               <div style="display:inline-block; padding:6px 14px; background:${TAB_COLORS[state.archiveTab]}; color:${activeLabelTextColor}; font-weight:800;">${TAB_LABELS_UPPER[state.archiveTab]}</div>
-              ${state.archiveTab==='receipts'? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="arc-shared-receipt-btn">Hộp Biên lai dùng Chung</button>` : ''}
-              ${state.archiveTab==='confirmations'? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="arc-shared-conf-btn">Hộp giấy xác nhận dùng Chung</button>` : ''}
+              ${state.archiveTab==='receipts'? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="arc-shared-receipt-btn" style="border:2px solid #4a148c;">Hộp Biên lai dùng Chung</button>` : ''}
+              ${state.archiveTab==='confirmations'? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="arc-shared-conf-btn" style="border:2px solid #1565c0;">Hộp giấy xác nhận dùng Chung</button>` : ''}
             </div>
             <div style="min-height:120px;">
               ${(state.archiveTab==='receipts'||state.archiveTab==='confirmations')? `
@@ -9946,7 +10130,7 @@ ${fileGenerationTrainingText()}`;
       });
       if(state.archiveTab==='receipts' || state.archiveTab==='confirmations'){
         const sharedReceiptBtn = wrap.querySelector('#arc-shared-receipt-btn');
-        if(sharedReceiptBtn) sharedReceiptBtn.onclick = ()=> alert('Nội dung "Hộp Biên lai dùng Chung" sẽ được thiết kế ở bước sau.');
+        if(sharedReceiptBtn) sharedReceiptBtn.onclick = ()=> renderSharedReceiptBoxModal();
         const sharedConfBtn = wrap.querySelector('#arc-shared-conf-btn');
         if(sharedConfBtn) sharedConfBtn.onclick = ()=> renderSharedConfirmationBoxModal();
         wrap.querySelector('#arc-search').oninput = (e)=>{ state.search = e.target.value; rerenderKeepingFocus(render); };
@@ -10101,6 +10285,15 @@ ${fileGenerationTrainingText()}`;
           if(b) renderEarlyRepaymentModal(b);
         };
       });
+      wrap.querySelectorAll('[data-shared-early-repay]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const gid = btn.dataset.sharedEarlyRepay;
+          const ids = (btn.dataset.sharedEarlyRepayIds||'').split(',').filter(Boolean);
+          const groupList = ids.map(id=> state.borrowers.find(b=>b.id===id)).filter(Boolean);
+          if(!groupList.length){ alert('Không tìm thấy người vay nào trong danh sách này.'); return; }
+          renderSharedEarlyRepaymentModal(gid, groupList);
+        };
+      });
       wrap.querySelectorAll('[data-settle-final]').forEach(btn=>{
         btn.onclick = ()=>{
           if(btn.dataset.settleFinalOk!=='1'){
@@ -10206,6 +10399,386 @@ ${fileGenerationTrainingText()}`;
   // =====================================================================
   // Modal "BIÊN LAI TRẢ NỢ TRƯỚC HẠN" — luôn cho phép, không cần điều kiện "gần đến hạn".
   // =====================================================================
+  // "BIÊN LAI CHUNG: TRẢ NỢ TRƯỚC HẠN CHO CÁC HỘ TRONG PHƯƠNG ÁN VAY..." — nội dung y hệt biên lai cá
+  // nhân, chỉ khác là liệt kê riêng từng hộ (có checkbox bật/tắt từng dòng, gạch ngang khi tắt).
+  // Tìm các Quý "CHUNG" giữa NHIỀU hộ vay — chỉ hiện Quý nào mà TẤT CẢ hộ đều có, cùng tên (kể cả
+  // dấu * và #), cùng số tiền (tính TƯƠI MỚI theo box.interestAmount), cùng ngày bắt đầu/kết thúc.
+  function findCommonQuarterLines(groupList, lineKey){
+    if(!groupList.length) return [];
+    const disps = groupList.map(b=> computeInterestPaymentBoxDisplay(b));
+    const firstLines = disps[0][lineKey];
+    const result = [];
+    for(const ref of firstLines){
+      const matched = disps.map(d=> d[lineKey].find(x=> x.name===ref.name));
+      if(matched.some(m=>!m)) continue;
+      const allSame = matched.every(m=> m.box.interestAmount===ref.box.interestAmount && m.box.from===ref.box.from && m.box.to===ref.box.to);
+      if(!allSame) continue;
+      result.push({ name: ref.name, amount: ref.box.interestAmount, from: ref.box.from, to: ref.box.to });
+    }
+    return result;
+  }
+  // "Thông tin chi tiết Quý X của các hộ vay" — bản rút gọn của nút chữ i trong luồng chung.
+  function renderSharedQuarterInfoModal(qData, groupList, isPaid){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const days = daysBetween(qData.from, qData.to);
+    const total = qData.amount * groupList.length;
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:520px;">
+        <div class="modal-head"><h3>Thông tin chi tiết ${escapeHtml(qData.name)} của các hộ vay</h3><button class="modal-close preview-allow" id="sqi-close">✕</button></div>
+        <div class="modal-body">
+          <p>Đây là ${escapeHtml(qData.name)} ${isPaid?'đã đóng lãi':'chưa đóng lãi'}.</p>
+          <p>Bắt đầu từ ngày ${fmtDate(qData.from)} đến ngày ${fmtDate(qData.to)}, tổng số ngày trong quý này là ${days} ngày.</p>
+          <p>Số tiền ${isPaid?'đã đóng':'chưa đóng'} trong quý này là: ${moneySpaced(qData.amount)} (mỗi hộ)</p>
+          <p>Tổng số tiền ${isPaid?'đã đóng':'chưa đóng'} của ${groupList.length} hộ trong quý này là: ${moneySpaced(total)}</p>
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="sqi-close2">Đóng bảng</button></div>
+      </div>`;
+    wrap.querySelector('#sqi-close').onclick = close;
+    wrap.querySelector('#sqi-close2').onclick = close;
+    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+  }
+  // "Chọn quý để tính tiền lãi cho các hộ vay" — y hệt bảng chọn quý cá nhân, chỉ khác không có nút
+  // "nhập số tiền cụ thể", và chỉ hiện các Quý CHUNG (cùng tên, cùng tiền, cùng ngày ở TẤT CẢ hộ).
+  function renderSharedInterestPaymentSelectModal(projectId, groupList){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const proj = state.loanProjects.find(p=>p.id===projectId);
+    const projName = proj? proj.name : '';
+    const namesStr = groupList.map(b=>b.name).join(', ');
+    const selectedNames = new Set();
+    function render(){
+      const pastList = findCommonQuarterLines(groupList, 'unpaidLines');
+      const futureList = findCommonQuarterLines(groupList, 'futureUnpaidLines');
+      const paidList = findCommonQuarterLines(groupList, 'paidLines');
+      const leftoverTotal = groupList.reduce((s,b)=> s+computeInterestPaymentBoxDisplay(b).leftover, 0);
+      const pastSelectedCount = pastList.filter(x=>selectedNames.has(x.name)).length;
+      const futureUnlocked = pastList.length===0 || pastSelectedCount===pastList.length;
+      function renderGroup(list, kind){
+        if(!list.length) return `<p class="sub">Không có quý nào được hiển thị vì không đáp ứng được điều kiện hiển thị ở phía trên (dòng chữ đỏ).</p>`;
+        return `<div style="margin-top:6px;">${list.map((x,idx)=>{
+          const sel = selectedNames.has(x.name);
+          const locked = kind==='future' && !futureUnlocked;
+          return `<span class="qbox-wrap">
+            <button class="qbox-btn preview-allow ${sel?'qbox-selected':''}" data-qname="${escapeHtml(x.name)}" data-kind="${kind}" data-idx="${idx}" ${locked?'style="opacity:.45;"':''}>${escapeHtml(x.name)}</button>
+            <button class="qbox-info-btn preview-allow" data-qinfo-name="${escapeHtml(x.name)}" data-qinfo-kind="${kind}">i</button>
+          </span>`;
+        }).join('')}</div>`;
+      }
+      const selectedList = pastList.concat(futureList).filter(x=>selectedNames.has(x.name));
+      const selectedSum = selectedList.reduce((s,x)=>s+x.amount*groupList.length,0) - leftoverTotal;
+      const canProceed = selectedNames.size>0;
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:900px;">
+          <div class="modal-head"><h3>Chọn quý để tính tiền lãi cho các hộ vay</h3><button class="modal-close preview-allow" id="siap-close">✕</button></div>
+          <div class="modal-body">
+            <p style="margin:0 0 4px; color:#000;">Tổng ${groupList.length} hộ vay: ${escapeHtml(namesStr)}</p>
+            <p class="sub" style="margin:0 0 10px; color:#b71c1c;">Chỉ hiển thị những quý được tính tiền lãi chung, điều kiện hiển thị: Các quý có cùng tên quý như nhau, và số tiền bên trong của từng quý cũng giống hệt nhau (của những hộ trên).</p>
+            <div class="divider-lbl" style="margin-top:0;">Các Quý chưa đóng lãi từ QUÁ KHỨ tới HIỆN TẠI:</div>
+            ${renderGroup(pastList,'past')}
+            <div class="divider-lbl">Các Quý chưa đóng lãi trong TƯƠNG LAI:</div>
+            ${renderGroup(futureList,'future')}
+            ${leftoverTotal>0? `
+            <div style="margin-top:14px; display:flex; align-items:center; gap:6px;">
+              <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" checked disabled>
+                <span>Bổ sung thêm: số tiền dư từ đợt trước ${moneySpaced(leftoverTotal)} của ${groupList.length} hộ vay (Trừ vào biên lai)</span>
+              </label>
+              <button type="button" class="qbox-info-btn preview-allow" id="siap-leftover-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button>
+            </div>
+            <div id="siap-leftover-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin-top:6px;">"Số tiền dư từ đợt trước" của từng hộ sẽ tự động được trừ vào Biên lai chung này — luôn bắt buộc, không thể bỏ chọn.</div>` : ''}
+            <div class="divider-lbl">Các Quý đã đóng lãi XONG:</div>
+            ${paidList.length? `<div style="margin-top:6px;">${paidList.map(x=>`<span class="qbox-wrap">
+              <button class="qbox-btn" disabled style="opacity:.65; cursor:default;">${escapeHtml(x.name)}</button>
+              <button class="qbox-info-btn preview-allow" data-qinfo-name="${escapeHtml(x.name)}" data-qinfo-kind="paid">i</button>
+            </span>`).join('')}</div>` : `<p class="sub">Không có quý nào được hiển thị vì không đáp ứng được điều kiện hiển thị ở phía trên (dòng chữ đỏ).</p>`}
+          </div>
+          <div class="modal-foot" style="justify-content:space-between;">
+            <button class="btn btn-ghost preview-allow" id="siap-cancel">Đóng bảng</button>
+            <div style="display:flex; align-items:center; gap:12px;">
+              ${canProceed? `<span class="sub" style="font-weight:700; color:var(--rice-dark);">Tổng ${groupDigitsRight(String(Math.round(selectedSum)),3)} đồng (trong ${selectedNames.size}-quý được chọn - tiền dư)</span>` : ''}
+              <button class="btn btn-primary preview-allow" id="siap-start" ${canProceed?'':'disabled'}>Bắt đầu tính tiền và lập biên lai</button>
+            </div>
+          </div>
+        </div>`;
+      wrap.querySelector('#siap-close').onclick = close;
+      wrap.querySelector('#siap-cancel').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      wrap.querySelectorAll('[data-qname]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const name = btn.dataset.qname, kind = btn.dataset.kind, idx = parseInt(btn.dataset.idx,10);
+          if(kind==='future'){
+            if(!futureUnlocked){ alert('Phải chọn HẾT các Quý ở phần "QUÁ KHỨ tới HIỆN TẠI" trước khi chọn Quý tương lai (trừ khi không còn Quý nào ở phần đó).'); return; }
+            const already = selectedNames.has(name);
+            if(!already){
+              if(idx>0 && !selectedNames.has(futureList[idx-1].name)){ alert('Chỉ được chọn Quý tương lai theo đúng thứ tự — vui lòng chọn Quý tương lai GẦN NHẤT trước.'); return; }
+              selectedNames.add(name);
+            } else {
+              selectedNames.delete(name);
+              for(let j=idx+1;j<futureList.length;j++) selectedNames.delete(futureList[j].name);
+            }
+          } else {
+            if(selectedNames.has(name)){
+              selectedNames.delete(name);
+              futureList.forEach(x=> selectedNames.delete(x.name));
+            } else {
+              selectedNames.add(name);
+            }
+          }
+          render();
+        };
+      });
+      wrap.querySelectorAll('[data-qinfo-name]').forEach(btn=>{
+        btn.onclick = (e)=>{
+          e.stopPropagation();
+          const kind = btn.dataset.qinfoKind;
+          const list = kind==='past'? pastList : kind==='future'? futureList : paidList;
+          const q = list.find(x=>x.name===btn.dataset.qinfoName);
+          if(q) renderSharedQuarterInfoModal(q, groupList, kind==='paid');
+        };
+      });
+      const leftoverInfoBtn = wrap.querySelector('#siap-leftover-info');
+      const leftoverTip = wrap.querySelector('#siap-leftover-tip');
+      if(leftoverInfoBtn) leftoverInfoBtn.onclick = (e)=>{ e.stopPropagation(); leftoverTip.style.display = leftoverTip.style.display==='none'?'block':'none'; };
+      const startBtn = wrap.querySelector('#siap-start');
+      if(startBtn){
+        startBtn.addEventListener('mouseenter', ()=>{
+          const body = wrap.querySelector('.modal-body');
+          if(body) body.scrollTo({ top: body.scrollHeight, behavior:'smooth' });
+        });
+        startBtn.onclick = ()=>{
+          if(!canProceed) return;
+          close();
+          renderSharedInterestPaymentReceiptModal(projectId, groupList, [...selectedNames].map(name=> pastList.concat(futureList).find(x=>x.name===name)).filter(Boolean));
+        };
+      }
+    }
+    render();
+  }
+  // "BIÊN LAI ĐÓNG TIỀN LÃI ĐỐI VỚI N HỘ VAY THUỘC PHƯƠNG ÁN VAY..." — bước cuối, thực sự đóng lãi
+  // cho từng hộ trong nhóm.
+  function renderSharedInterestPaymentReceiptModal(projectId, groupList, chosenQuarters){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const openedAt = Date.now();
+    const close = ()=> wrap.remove();
+    const proj = state.loanProjects.find(p=>p.id===projectId);
+    const projName = proj? proj.name : '';
+    const namesStr = groupList.map(b=>b.name).join(', ');
+    const leftoverPerBorrower = groupList.map(b=> ({ b, leftover: computeInterestPaymentBoxDisplay(b).leftover }));
+    const leftoverTotal = leftoverPerBorrower.reduce((s,x)=>s+x.leftover,0);
+    const quarterTotal = chosenQuarters.reduce((s,q)=>s+q.amount*groupList.length,0);
+    const grandTotal = quarterTotal - leftoverTotal;
+    let selectedCategoryId = '';
+    let advInfoOpen = false;
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:680px;">
+          <div class="modal-head receipt-head-payment"><h3>BIÊN LAI ĐÓNG TIỀN LÃI ĐỐI VỚI ${groupList.length} HỘ VAY THUỘC PHƯƠNG ÁN VAY ${escapeHtml(projName).toUpperCase()}</h3><button class="modal-close preview-allow" id="sirc-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin:0 0 10px;">Biên lai này được lập vào ngày ${fmtDate(todayStr())}</p>
+            <p style="margin:0 0 6px; font-weight:700;">Tổng ${groupList.length} hộ vay: ${escapeHtml(namesStr)}</p>
+            ${chosenQuarters.map(q=>`<div class="kv-row"><span>${escapeHtml(q.name)} (${moneySpaced(q.amount)} x ${groupList.length} hộ)</span><b>${moneySpaced(q.amount*groupList.length)}</b></div>`).join('')}
+            <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tiền các quý</span><b>= ${moneySpaced(quarterTotal)}</b></div>
+            <div style="display:flex; align-items:center; gap:4px; margin-top:14px;">
+              <span>Bổ sung tiền dư từ đợt trước (trừ vào biên lai)</span>
+              <button type="button" class="qbox-info-btn preview-allow" id="sirc-leftover-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button>
+            </div>
+            <div id="sirc-leftover-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin:6px 0;">Số tiền dư từ đợt trước của từng hộ được tự động trừ vào Biên lai chung này.</div>
+            ${leftoverPerBorrower.map(x=>`<div class="kv-row"><span>${escapeHtml(x.b.name)}</span><b>- ${moneySpaced(x.leftover)}</b></div>`).join('')}
+            <div class="kv-row" style="border-top:1px solid var(--line); margin-top:6px; padding-top:6px;"><span>Tổng tiền dư đợt trước của ${groupList.length} hộ</span><b style="color:#5d4037;">- ${moneySpaced(leftoverTotal)}</b></div>
+            <div class="kv-row big-money-row" style="border-top:2px solid var(--line); margin-top:10px; padding-top:8px;">
+              <span style="display:flex; align-items:center; gap:4px;">Tổng tất cả (số tiền thực nhận) <button type="button" class="qbox-info-btn" id="sirc-total-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button></span>
+              <b>= ${moneySpaced(grandTotal)}</b>
+            </div>
+            <div id="sirc-total-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin:6px 0;">Đây là số tiền nhận được thực tế từ những người đóng lãi.</div>
+            <div class="field" style="margin-top:14px;"><label>Người đóng tiền *</label><input id="sirc-payer" maxlength="30" class="preview-allow" placeholder="Bắt buộc nhập...">
+            </div>
+            <div class="field"><label>Người thu tiền *</label><input id="sirc-collector" maxlength="30" class="preview-allow" value="${escapeHtml((state.identity&&state.identity.name)||'')}"></div>
+            ${receiptCategoryFieldHtml('payment','sirc', selectedCategoryId)}
+            <div id="sirc-advinfo"></div>
+          </div>
+          <div class="modal-foot" style="justify-content:space-between;">
+            <button class="btn btn-ghost preview-allow" id="sirc-cancel">Huỷ (chưa phê duyệt)</button>
+            <button class="btn btn-primary preview-allow" id="sirc-confirm">Xác nhận đóng lãi thành công</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#sirc-close').onclick = close;
+      wrap.querySelector('#sirc-cancel').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      const leftoverInfoBtn = wrap.querySelector('#sirc-leftover-info');
+      const leftoverTip = wrap.querySelector('#sirc-leftover-tip');
+      if(leftoverInfoBtn) leftoverInfoBtn.onclick = (e)=>{ e.stopPropagation(); leftoverTip.style.display = leftoverTip.style.display==='none'?'block':'none'; };
+      const totalInfoBtn = wrap.querySelector('#sirc-total-info');
+      const totalTip = wrap.querySelector('#sirc-total-tip');
+      if(totalInfoBtn) totalInfoBtn.onclick = (e)=>{ e.stopPropagation(); totalTip.style.display = totalTip.style.display==='none'?'block':'none'; };
+      if(!wrap._tipCloserBound){
+        wrap._tipCloserBound = true;
+        document.addEventListener('click', (e)=>{
+          if(!document.body.contains(wrap)) return;
+          const lt = wrap.querySelector('#sirc-leftover-tip'); const tt = wrap.querySelector('#sirc-total-tip');
+          if(lt && lt.style.display!=='none' && !e.target.closest('#sirc-leftover-info') && !e.target.closest('#sirc-leftover-tip')) lt.style.display='none';
+          if(tt && tt.style.display!=='none' && !e.target.closest('#sirc-total-info') && !e.target.closest('#sirc-total-tip')) tt.style.display='none';
+        });
+      }
+      wireReceiptCategoryField(wrap, 'payment', 'sirc', render, (id)=>{ selectedCategoryId = id; });
+      const advEl = wrap.querySelector('#sirc-advinfo');
+      if(advEl) advEl.innerHTML = `
+        <div style="text-align:center; margin-top:14px;"><button type="button" class="btn btn-ghost btn-sm preview-allow" id="sirc-adv-toggle">Thông tin nâng cao</button></div>
+        <div id="sirc-adv-body" style="display:${advInfoOpen?'block':'none'}; margin-top:8px;">
+          <p class="sub" style="margin:0 0 6px;">Phương án vay: ${escapeHtml(projName)}</p>
+          ${groupList.map(b=>`<p class="sub" style="margin:0 0 4px;">${escapeHtml(b.name)} — số tiền vay gốc ${moneySpaced(b.principal)}, lãi suất ${String(parseFloat(b.rate)||0).replace('.',',')}%/năm</p>`).join('')}
+        </div>`;
+      const advBtn = wrap.querySelector('#sirc-adv-toggle');
+      if(advBtn) advBtn.onclick = ()=>{ advInfoOpen = !advInfoOpen; render(); };
+      const confirmBtn = wrap.querySelector('#sirc-confirm');
+      wireConfirmBtnBehavior(wrap, confirmBtn, openedAt);
+      confirmBtn.onclick = async ()=>{
+        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        const payerName = (wrap.querySelector('#sirc-payer').value||'').trim();
+        const collectorName = (wrap.querySelector('#sirc-collector').value||'').trim();
+        if(!payerName){ alert('Vui lòng điền "Người đóng tiền" trước khi xác nhận.'); return; }
+        if(!collectorName){ alert('Vui lòng điền "Người thu tiền" trước khi xác nhận.'); return; }
+        if(!confirm(`Bạn có CHẮC CHẮN muốn xác nhận đóng lãi CHUNG cho ${groupList.length} hộ vay trong phương án "${projName}" không?`)) return;
+        for(const b of groupList){
+          const dispBefore = computeInterestPaymentBoxDisplay(b);
+          const raw = getInterestPaymentBoxRaw(b.id);
+          const perBorrowerLeftover = leftoverPerBorrower.find(x=>x.b.id===b.id).leftover;
+          const perBorrowerAmount = chosenQuarters.reduce((s,q)=>s+q.amount,0) - perBorrowerLeftover;
+          const newTotalPaid = (raw.totalPaid||0) + perBorrowerAmount;
+          await cSet('interestPaymentBoxes/'+b.id, { totalPaid: newTotalPaid, payments: raw.payments||{} });
+          state.interestPaymentBoxes = state.interestPaymentBoxes||{};
+          state.interestPaymentBoxes[b.id] = { totalPaid:newTotalPaid, payments: raw.payments||{} };
+          const dispAfter = computeInterestPaymentBoxDisplay(b);
+          await logQuarterStatusDiff(b, dispBefore, dispAfter,
+            `Đã được đóng lãi thành công bởi Biên lai chung Đóng tiền lãi cho các hộ trong Phương án vay "${projName}" lập ngày ${fmtDate(todayStr())}`,
+            `Đã trở về trạng thái chưa đóng lãi do thay đổi thông tin liên quan tới khoản vay`);
+        }
+        const detailLines = [
+          `Biên lai chung Đóng tiền lãi cho các hộ trong Phương án vay "${projName}" đã được lập vào ngày ${fmtDate(todayStr())}.`,
+          `Tổng ${groupList.length} hộ vay: ${namesStr}`,
+          ...chosenQuarters.map(q=> `${q.name} (${moneySpaced(q.amount)} x ${groupList.length} hộ) = ${moneySpaced(q.amount*groupList.length)}`),
+          `Tổng tiền các quý = ${moneySpaced(quarterTotal)}`,
+          ...leftoverPerBorrower.map(x=> `Tiền dư đợt trước ${x.b.name}: - ${moneySpaced(x.leftover)}`),
+          `Tổng tiền dư đợt trước của ${groupList.length} hộ = - ${moneySpaced(leftoverTotal)}`,
+          `Tổng tất cả (số tiền thực nhận) = ${moneySpaced(grandTotal)}`,
+          `Người đóng tiền: ${payerName}`,
+          `Người thu tiền: ${collectorName}`,
+        ];
+        await pushSharedReceiptRecord('shared_interest_payment', `BL chung: Đóng tiền lãi cho các hộ trong phương án vay ${projName}`,
+          detailLines.join('\n'), grandTotal, '+', groupList.map(b=>b.id), selectedCategoryId||null);
+        await pushLog('xác nhận', `đóng lãi chung cho ${groupList.length} hộ vay trong phương án ${projName}`);
+        close();
+        showBigToast(`Đã phê duyệt thành công: đóng lãi chung cho ${groupList.length} hộ vay (${groupDigitsRight(String(Math.round(grandTotal)),3)}đ)`);
+      };
+    }
+    render();
+  }
+  function renderSharedEarlyRepaymentModal(projectId, groupList){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const openedAt = Date.now();
+    const close = ()=> wrap.remove();
+    const proj = state.loanProjects.find(p=>p.id===projectId);
+    const projName = proj? proj.name : '';
+    const rows = groupList.map(b=>{
+      const disp = computeInterestPaymentBoxDisplay(b);
+      return { b, principal: parseFloat(b.principal)||0, principalChecked:true, interestAmt: disp.unpaidTotal, interestChecked:true };
+    });
+    let advInfoOpen = false;
+    function totals(){
+      const totalPrincipal = rows.reduce((s,r)=> s + (r.principalChecked? r.principal : 0), 0);
+      const totalInterest = rows.reduce((s,r)=> s + (r.interestChecked? r.interestAmt : 0), 0);
+      return { totalPrincipal, totalInterest, grandTotal: totalPrincipal+totalInterest };
+    }
+    function checklistHtml(kind){
+      return rows.map((r,i)=>{
+        const checked = kind==='principal'? r.principalChecked : r.interestChecked;
+        const amt = kind==='principal'? r.principal : r.interestAmt;
+        const label = kind==='principal'? `tiền vay gốc ${escapeHtml(r.b.name)}` : escapeHtml(r.b.name);
+        const style = checked? '' : 'color:#9e9e9e; text-decoration:line-through;';
+        return `<div class="kv-row"><span style="display:flex; align-items:center; gap:6px; ${style}"><input type="checkbox" class="preview-allow srp-chk" data-kind="${kind}" data-idx="${i}" ${checked?'checked':''}> ${label}</span><b style="${style}">${moneySpaced(amt)}</b></div>`;
+      }).join('');
+    }
+    function render(){
+      const { totalPrincipal, totalInterest, grandTotal } = totals();
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:680px;">
+          <div class="modal-head receipt-head-payment"><h3>BIÊN LAI CHUNG: TRẢ NỢ TRƯỚC HẠN CHO CÁC HỘ TRONG PHƯƠNG ÁN VAY ${escapeHtml(projName).toUpperCase()}</h3><button class="modal-close preview-allow" id="srp-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin:0 0 10px;">Biên lai này được lập vào ngày ${fmtDate(todayStr())}</p>
+            <div class="divider-lbl">Tiền vay gốc từng hộ</div>
+            ${checklistHtml('principal')}
+            <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng tiền vay gốc ${rows.length} hộ vay</span><b>= ${moneySpaced(totalPrincipal)}</b></div>
+            <div class="divider-lbl" style="margin-top:14px;">Tiền lãi chưa đóng (tính đến QUÝ hiện tại) của các hộ như sau</div>
+            ${checklistHtml('interest')}
+            <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng tiền lãi chưa đóng của ${rows.length} hộ vay</span><b>= ${moneySpaced(totalInterest)}</b></div>
+            <div class="kv-row big-money-row" style="border-top:2px solid var(--line); margin-top:10px; padding-top:8px;"><span>Số tiền thực tế nhận được</span><b>= ${moneySpaced(grandTotal)}</b></div>
+            <div style="text-align:center; margin-top:14px;"><button type="button" class="btn btn-ghost btn-sm preview-allow" id="srp-adv-toggle">Thông tin nâng cao</button></div>
+            <div id="srp-adv-info" style="display:${advInfoOpen?'block':'none'}; margin-top:8px;">
+              <p class="sub" style="margin:0 0 6px;">Phương án vay: ${escapeHtml(projName)}</p>
+              ${rows.map(r=>`<p class="sub" style="margin:0 0 4px;">${escapeHtml(r.b.name)}${r.b.isHeir? ' (người thừa kế, ngày vay riêng: '+fmtDate(r.b.loanDate)+')' : ''}</p>`).join('')}
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost preview-allow" id="srp-back">Quay lại (không phê duyệt)</button>
+            <button class="btn btn-primary preview-allow" id="srp-confirm">Xác nhận trả nợ trước hạn thành công</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#srp-close').onclick = close;
+      wrap.querySelector('#srp-back').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      wrap.querySelectorAll('.srp-chk').forEach(cb=>{
+        cb.onclick = (e)=>{
+          e.stopPropagation();
+          const i = parseInt(cb.dataset.idx,10);
+          if(cb.dataset.kind==='principal') rows[i].principalChecked = cb.checked; else rows[i].interestChecked = cb.checked;
+          render();
+        };
+      });
+      const advBtn = wrap.querySelector('#srp-adv-toggle');
+      advBtn.onclick = ()=>{ advInfoOpen = !advInfoOpen; render(); };
+      const confirmBtn = wrap.querySelector('#srp-confirm');
+      wireConfirmBtnBehavior(wrap, confirmBtn, openedAt);
+      confirmBtn.onclick = async ()=>{
+        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        const { totalPrincipal, totalInterest, grandTotal } = totals();
+        if(totalPrincipal<=0){ alert('Tổng tiền vay gốc phải lớn hơn 0 mới được lập biên lai này. Vui lòng tích chọn ít nhất 1 hộ vay có tiền gốc.'); return; }
+        if(!confirm(`Bạn có CHẮC CHẮN muốn xác nhận trả nợ trước hạn CHUNG cho ${rows.filter(r=>r.principalChecked).length} hộ vay trong phương án "${projName}" không?`)) return;
+        const settledIds = [];
+        for(const r of rows){
+          if(!r.principalChecked) continue;
+          if(r.interestChecked && r.interestAmt>0) await settleInterestForClosure(r.b, false);
+          await markBorrowerSettled(r.b, 'early', { settledReason:'Trả nợ trước hạn chung theo Phương án vay', heirName:'',
+            settledInterestIncluded: r.interestChecked? r.interestAmt : 0, settledUpToToday:false,
+            settledGrandTotal: r.principal + (r.interestChecked? r.interestAmt : 0), settledMode:'province' });
+          settledIds.push(r.b.id);
+        }
+        const detailLines = [
+          `Biên lai chung Trả nợ trước hạn cho các hộ trong Phương án vay "${projName}" đã được lập vào ngày ${fmtDate(todayStr())}.`,
+          ...rows.filter(r=>r.principalChecked).map(r=> `Tiền vay gốc ${r.b.name}: ${moneySpaced(r.principal)}`),
+          `Tổng tiền vay gốc ${rows.length} hộ vay = ${moneySpaced(totalPrincipal)}`,
+          ...rows.filter(r=>r.interestChecked).map(r=> `Tiền lãi chưa đóng ${r.b.name}: ${moneySpaced(r.interestAmt)}`),
+          `Tổng tiền lãi chưa đóng của ${rows.length} hộ vay = ${moneySpaced(totalInterest)}`,
+          `Số tiền thực tế nhận được = ${moneySpaced(grandTotal)}`,
+        ];
+        await pushSharedReceiptRecord('shared_early_repayment', `BL chung: Trả nợ trước hạn cho các hộ trong phương án vay ${projName}`,
+          detailLines.join('\n'), grandTotal, '+', settledIds);
+        await pushLog('xác nhận', `trả nợ trước hạn chung cho ${settledIds.length} hộ vay trong phương án ${projName}`);
+        close();
+        showBigToast(`Đã phê duyệt thành công: trả nợ trước hạn chung cho ${settledIds.length} hộ vay (${groupDigitsRight(String(Math.round(grandTotal)),3)}đ)`);
+      };
+    }
+    render();
+  }
   function renderEarlyRepaymentModal(b){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
@@ -11970,8 +12543,14 @@ ${fileGenerationTrainingText()}`;
       wrap.querySelectorAll('[data-ia-hist-locked]').forEach(btn=>{
         btn.onclick = ()=> alert('Tính năng "Xem lịch sử đóng lãi" cho cả nhóm đang được nâng cấp, sẽ sớm ra mắt.');
       });
-      wrap.querySelectorAll('[data-ia-pay-locked]').forEach(btn=>{
-        btn.onclick = ()=> alert('Tính năng "Đóng tiền lãi" cho cả nhóm đang được nâng cấp, sẽ sớm ra mắt.');
+      wrap.querySelectorAll('[data-shared-interest-payment]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const gid = btn.dataset.sharedInterestPayment;
+          const ids = (btn.dataset.sharedInterestPaymentIds||'').split(',').filter(Boolean);
+          const groupList = ids.map(id=> state.borrowers.find(b=>b.id===id)).filter(Boolean);
+          if(!groupList.length){ alert('Không tìm thấy người vay nào trong danh sách này.'); return; }
+          renderSharedInterestPaymentSelectModal(gid, groupList);
+        };
       });
       wrap.querySelectorAll('[data-ia-pay]').forEach(btn=>{
         btn.onclick = ()=>{
