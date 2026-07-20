@@ -8687,18 +8687,27 @@ ${fileGenerationTrainingText()}`;
       const projects = activeLoanProjects();
       ensureFilterHamletsInit(hamlets);
       ensureFilterProjectsInit(projects);
+      // Quần thể dùng cho BẢNG THỐNG KÊ CHUNG — PHẢI giống hệt quần thể của "Tất toán khoản vay/Trả
+      // nợ trước hạn" (không loại trừ hộ đang là Nợ rủi ro), để 3 bảng thống kê luôn khớp nhau tuyệt
+      // đối. Đây là biến số HOÀN TOÀN TÁCH BIỆT khỏi danh sách "đủ điều kiện xác nhận Nợ rủi ro" dùng
+      // cho bảng danh sách bên dưới.
+      let statsFullList = state.borrowers.filter(b=>!b.deleted && !b.settled);
+      if(state.search) statsFullList = statsFullList.filter(b=> (b.name+b.cccd+b.phone).toLowerCase().includes(state.search.toLowerCase()));
+      if(state.filterHamlets.length < hamlets.length) statsFullList = statsFullList.filter(b=>state.filterHamlets.includes(b.hamlet));
+      if(state.filterProjectIds.length < projects.length) statsFullList = statsFullList.filter(b=>state.filterProjectIds.includes(b.projectId));
+      { const fs=fundSourcesInUse(); ensureFilterFundSourcesInit(fs); if(state.filterFundSources.length < fs.length) statsFullList = statsFullList.filter(b=>state.filterFundSources.includes((b.fundSource||'').trim())); }
+      { const mgrs=ensureDefaultManagers(); ensureFilterManagersInit(mgrs); if(state.filterManagerIds.length < mgrs.length) statsFullList = statsFullList.filter(b=>state.filterManagerIds.includes(b.managerId||'chihoitruong')); }
+
       let list = state.borrowers.filter(b=>!b.deleted && !b.settled && !b.riskDebt);
       if(state.search) list = list.filter(b=> (b.name+b.cccd+b.phone).toLowerCase().includes(state.search.toLowerCase()));
       if(state.filterHamlets.length < hamlets.length) list = list.filter(b=>state.filterHamlets.includes(b.hamlet));
       if(state.filterProjectIds.length < projects.length) list = list.filter(b=>state.filterProjectIds.includes(b.projectId));
       { const fs=fundSourcesInUse(); ensureFilterFundSourcesInit(fs); if(state.filterFundSources.length < fs.length) list = list.filter(b=>state.filterFundSources.includes((b.fundSource||'').trim())); }
       { const mgrs=ensureDefaultManagers(); ensureFilterManagersInit(mgrs); if(state.filterManagerIds.length < mgrs.length) list = list.filter(b=>state.filterManagerIds.includes(b.managerId||'chihoitruong')); }
-      { const mgrs=ensureDefaultManagers(); ensureFilterManagersInit(mgrs); if(state.filterManagerIds.length < mgrs.length) list = list.filter(b=>state.filterManagerIds.includes(b.managerId||'chihoitruong')); }
       // Chỉ cho phép xác nhận Nợ rủi ro với những hộ ĐỦ ĐIỀU KIỆN: đã từng được gia hạn (bất kể lần
       // nào), HOẶC gần đến hạn ≤60 ngày (kể cả đã quá hạn).
-      const fullList = list; // giữ lại bản đầy đủ (giống hệt danh sách bên Tất toán) để tính "Hộ trong hạn" cho đồng bộ
       list = list.filter(borrowerEligibleForActionList);
-      const statsHtml = renderRiskDebtStatsHtml(list, hamlets, fullList);
+      const statsHtml = renderSettlementStatsHtml(statsFullList, hamlets);
       const tablesHtml = renderRiskDebtTablesHtml(list, projects, false);
 
       let riskList = state.borrowers.filter(b=>!b.deleted && !b.settled && b.riskDebt);
@@ -9185,11 +9194,11 @@ ${fileGenerationTrainingText()}`;
 
     function hangMucDropdownHtml(){
       const allSel = state.rcBoxFilterHangMuc.length===RECEIPT_HANG_MUC_LIST.length;
-      return `<div class="sv-filter-dropdown" style="position:relative; display:inline-block;">
+      return `<div class="sv-filter-dropdown">
         <button type="button" class="btn btn-ghost btn-sm preview-allow" id="rcb-hangmuc-btn">📂 Hạng mục biên lai (${state.rcBoxFilterHangMuc.length})</button>
-        ${state.openFilterDropdown==='rcb-hangmuc'? `<div style="position:absolute; z-index:50; top:100%; left:0; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px; min-width:260px; box-shadow:0 4px 14px rgba(0,0,0,.15);">
-          <label style="display:flex; gap:6px; padding:4px; font-weight:700; cursor:pointer;"><input type="checkbox" id="rcb-hangmuc-all" class="preview-allow" ${allSel?'checked':''}> Tất cả hạng mục biên lai</label>
-          ${RECEIPT_HANG_MUC_LIST.map(([key,label])=>`<label style="display:flex; gap:6px; padding:4px; cursor:pointer;"><input type="checkbox" class="preview-allow rcb-hangmuc-item" data-key="${key}" ${state.rcBoxFilterHangMuc.includes(key)?'checked':''}> ${escapeHtml(label)}</label>`).join('')}
+        ${state.openFilterDropdown==='rcb-hangmuc'? `<div class="sv-filter-panel">
+          <label class="sv-filter-item"><input type="checkbox" id="rcb-hangmuc-all" class="preview-allow" ${allSel?'checked':''}><span><b>Tất cả hạng mục biên lai</b></span></label>
+          ${RECEIPT_HANG_MUC_LIST.map(([key,label])=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow rcb-hangmuc-item" data-key="${key}" ${state.rcBoxFilterHangMuc.includes(key)?'checked':''}><span>${escapeHtml(label)}</span></label>`).join('')}
         </div>` : ''}
       </div>`;
     }
@@ -9200,15 +9209,15 @@ ${fileGenerationTrainingText()}`;
       const paymentLabels = allLabels.filter(l=>l.kind==='payment');
       const refundLabels = allLabels.filter(l=>l.kind==='refund');
       const swatch = (color)=> `<span style="display:inline-block; width:24px; height:8px; background:${color||'#fff'}; border:1px solid var(--line); vertical-align:middle; margin-right:4px;"></span>`;
-      return `<div class="sv-filter-dropdown" style="position:relative; display:inline-block;">
+      return `<div class="sv-filter-dropdown">
         <button type="button" class="btn btn-ghost btn-sm preview-allow" id="rcb-phanloai-btn">🏷️ Phân loại biên lai (${state.rcBoxFilterPhanLoai.length})</button>
-        ${state.openFilterDropdown==='rcb-phanloai'? `<div style="position:absolute; z-index:50; top:100%; left:0; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px; min-width:280px; max-height:300px; overflow:auto; box-shadow:0 4px 14px rgba(0,0,0,.15);">
-          <label style="display:flex; gap:6px; padding:4px; font-weight:700; cursor:pointer;"><input type="checkbox" id="rcb-phanloai-all" class="preview-allow" ${allSel?'checked':''}> Tất cả tên phân loại</label>
+        ${state.openFilterDropdown==='rcb-phanloai'? `<div class="sv-filter-panel" style="min-width:280px;">
+          <label class="sv-filter-item"><input type="checkbox" id="rcb-phanloai-all" class="preview-allow" ${allSel?'checked':''}><span><b>Tất cả tên phân loại</b></span></label>
           ${!allLabels.length? `<p class="sub" style="padding:4px;">Chưa có tên phân loại nào trong bộ nhớ ${subAdminLabelLower()}.</p>` : ''}
           ${paymentLabels.length? `<div class="sub" style="padding:4px 4px 0; color:#1b5e20; font-weight:700;">Thuộc Biên lai Thu lãi</div>` : ''}
-          ${paymentLabels.map(l=>`<label style="display:flex; align-items:center; gap:6px; padding:4px; cursor:pointer; color:#1b5e20;">${swatch(l.color)}<input type="checkbox" class="preview-allow rcb-phanloai-item" data-id="${l.id}" ${state.rcBoxFilterPhanLoai.includes(l.id)?'checked':''}> ${escapeHtml(l.name)}</label>`).join('')}
+          ${paymentLabels.map(l=>`<label class="sv-filter-item" style="color:#1b5e20;">${swatch(l.color)}<input type="checkbox" class="preview-allow rcb-phanloai-item" data-id="${l.id}" ${state.rcBoxFilterPhanLoai.includes(l.id)?'checked':''}><span>${escapeHtml(l.name)}</span></label>`).join('')}
           ${refundLabels.length? `<div class="sub" style="padding:4px 4px 0; color:#b71c1c; font-weight:700;">Thuộc Biên lai trả lại tiền lãi</div>` : ''}
-          ${refundLabels.map(l=>`<label style="display:flex; align-items:center; gap:6px; padding:4px; cursor:pointer; color:#b71c1c;">${swatch(l.color)}<input type="checkbox" class="preview-allow rcb-phanloai-item" data-id="${l.id}" ${state.rcBoxFilterPhanLoai.includes(l.id)?'checked':''}> ${escapeHtml(l.name)}</label>`).join('')}
+          ${refundLabels.map(l=>`<label class="sv-filter-item" style="color:#b71c1c;">${swatch(l.color)}<input type="checkbox" class="preview-allow rcb-phanloai-item" data-id="${l.id}" ${state.rcBoxFilterPhanLoai.includes(l.id)?'checked':''}><span>${escapeHtml(l.name)}</span></label>`).join('')}
         </div>` : ''}
       </div>`;
     }
@@ -9348,11 +9357,11 @@ ${fileGenerationTrainingText()}`;
     function toggleDropdown(kind){ state.openFilterDropdown = state.openFilterDropdown===kind? null : kind; render(); }
     function kindDropdownHtml(){
       const allSel = state.cfBoxFilterKind.length===CONFIRMATION_KIND_LIST.length;
-      return `<div class="sv-filter-dropdown" style="position:relative; display:inline-block;">
+      return `<div class="sv-filter-dropdown">
         <button type="button" class="btn btn-ghost btn-sm preview-allow" id="cfb-kind-btn">📂 Loại giấy xác nhận (${state.cfBoxFilterKind.length})</button>
-        ${state.openFilterDropdown==='cfb-kind'? `<div style="position:absolute; z-index:50; top:100%; left:0; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px; min-width:300px; max-height:320px; overflow:auto; box-shadow:0 4px 14px rgba(0,0,0,.15);">
-          <label style="display:flex; gap:6px; padding:4px; font-weight:700; cursor:pointer;"><input type="checkbox" id="cfb-kind-all" class="preview-allow" ${allSel?'checked':''}> Tất cả loại giấy xác nhận</label>
-          ${CONFIRMATION_KIND_LIST.map(([key,label])=>`<label style="display:flex; gap:6px; padding:4px; cursor:pointer;"><input type="checkbox" class="preview-allow cfb-kind-item" data-key="${key}" ${state.cfBoxFilterKind.includes(key)?'checked':''}> ${escapeHtml(label)}</label>`).join('')}
+        ${state.openFilterDropdown==='cfb-kind'? `<div class="sv-filter-panel" style="min-width:300px;">
+          <label class="sv-filter-item"><input type="checkbox" id="cfb-kind-all" class="preview-allow" ${allSel?'checked':''}><span><b>Tất cả loại giấy xác nhận</b></span></label>
+          ${CONFIRMATION_KIND_LIST.map(([key,label])=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow cfb-kind-item" data-key="${key}" ${state.cfBoxFilterKind.includes(key)?'checked':''}><span>${escapeHtml(label)}</span></label>`).join('')}
         </div>` : ''}
       </div>`;
     }
