@@ -433,6 +433,8 @@
   .iahist-qname{ display:inline-block; cursor:pointer; animation: iahistQuarterPulse 4.6s ease-in-out infinite; transition:transform .15s ease; }
   .iahist-qname:hover{ transform:scale(1.4) !important; animation-play-state:paused; }
   .iahist-qname.iahist-qname-selected{ transform:scale(1.4) !important; animation:none !important; color:#0d5c1f; font-weight:800; }
+  .iahist-qname.iahist-qname-selected-past{ color:#3f51b5 !important; }
+  .iahist-qname.iahist-qname-selected-future{ color:#4a148c !important; }
   /* Dòng số tiền quan trọng (Tổng tất cả số tiền thực nhận, Tổng tiền đã đóng lãi...) — chữ đậm
      xanh lá thật đậm, tự phóng to nhanh 1.1x rồi đứng im 1 giây, tuần hoàn mãi mãi. */
   @keyframes bigMoneyPulse{ 0%,28%,100%{ transform:scale(1); } 14%{ transform:scale(1.1); } }
@@ -1328,11 +1330,6 @@
       if(v) Object.keys(v).forEach(bid=>{ result[bid] = snapToArray(v[bid]); });
       state.quarterStatusLog = result;
     });
-    // Nhật ký: chỉ lấy 500 dòng gần nhất, sắp xếp mới nhất lên đầu
-    const logRef = wref('activityLog').limitToLast(500);
-    const logCb = snap => { state.log = snapToArray(snap.val()).sort((a,b)=> new Date(b.time)-new Date(a.time)); render(); };
-    logRef.on('value', logCb);
-    realtimeUnsubs.push(()=>logRef.off('value', logCb));
     render();
   }
   function detachRealtime(){ realtimeUnsubs.forEach(off=>off()); realtimeUnsubs = []; dataAttached = false; }
@@ -1613,7 +1610,6 @@
       borrowers: state.borrowers,
       expenses: state.expenses,
       trash: state.trash,
-      activityLog: state.log,
     };
     downloadBlob(`Sao-luu-du-lieu_${todayStr()}.json`, JSON.stringify(backup, null, 2), 'application/json');
   }
@@ -1634,7 +1630,6 @@
       await cSet('borrowers', byId(data.borrowers||[]));
       await cSet('expenses', byId(data.expenses||[]));
       await cSet('trash', byId(data.trash||[]));
-      await cSet('activityLog', byId(data.activityLog||[]));
       await cSet('collaborators', data.collaborators||{});
       await pushLog('khôi phục', 'toàn bộ dữ liệu từ file sao lưu');
       alert('Khôi phục dữ liệu thành công! Các thiết bị khác đang mở app sẽ tự động cập nhật theo.');
@@ -3771,20 +3766,34 @@
   // "Danh sách các khu phố" / "Danh sách các ấp"
   function subAdminListLabel(){ return `Danh sách các ${subAdminLabelLower()}`; }
 
-  async function pushLog(action, target){
-    const entry = { id:uid(), time:new Date().toISOString(), user: state.identity.email, userName: state.identity.name, action, target };
-    // Dùng push() để Firebase tự sinh key — mọi thiết bị đang mở sẽ nhận
-    // ngay bản ghi mới qua listener onValue (không cần ghi đè cả mảng).
-    await cPush('activityLog', entry);
-  }
+  // Module "Nhật ký hoạt động" đã bị XOÁ bỏ theo yêu cầu — pushLog() giờ không còn làm gì cả (giữ lại
+  // hàm rỗng để không phải sửa hàng trăm chỗ gọi nó trong toàn bộ code).
+  async function pushLog(action, target){}
   // "Kho Giấy xác nhận" — hạ tầng lưu trữ TỐI GIẢN (chuẩn bị sẵn dữ liệu), giao diện xem lại đầy đủ
   // sẽ được xây dựng sau. Mỗi giấy xác nhận là 1 bản ghi bất biến, không thể sửa/xoá.
   // Lưu 1 Giấy xác nhận — GẮN ĐÚNG vào Hộp giấy xác nhận của 1 người vay cụ thể (borrowerId), y hệt
   // cấu trúc "Kho Biên lai" — để sau này "Hộp giấy xác nhận của [Họ và tên]" đọc được đúng dữ liệu.
   // `b` = null cho các trường hợp không gắn với 1 người cụ thể nào (VD: xoá cả phương án — khi đó
   // gọi hàm này riêng cho TỪNG người vay bên trong, không gọi 1 lần chung).
+  // Lấy thông tin thiết bị (trình duyệt) + địa chỉ IP công khai (nếu lấy được) của người đang thao
+  // tác — CHỈ LẤY 1 LẦN DUY NHẤT cho cả phiên làm việc (cache lại) để tránh gọi mạng nhiều lần không
+  // cần thiết. Nếu không lấy được IP (mất mạng, bị chặn...) thì bỏ qua, không làm gián đoạn gì cả.
+  let __cachedClientIp, __clientIpFetchAttempted = false;
+  async function getClientDeviceInfo(){
+    if(!__clientIpFetchAttempted){
+      __clientIpFetchAttempted = true;
+      try{
+        const res = await fetch('https://api.ipify.org?format=json');
+        const data = await res.json();
+        __cachedClientIp = data && data.ip;
+      }catch(e){ __cachedClientIp = null; }
+    }
+    return { ip: __cachedClientIp||'', userAgent: (typeof navigator!=='undefined' && navigator.userAgent) || '' };
+  }
   async function pushConfirmationDocument(kind, title, details, b){
+    const device = await getClientDeviceInfo();
     const entry = { id:uid(), kind, title, details, createdAt:new Date().toISOString(), createdBy: state.identity.email, createdByName: state.identity.name,
+      createdByIp: device.ip, createdByDevice: device.userAgent,
       borrowerId: b? b.id : null, borrowerName: b? b.name : null };
     await cPush('confirmationDocuments', entry);
     if(b) await cSetRecord('borrowerConfirmations/'+b.id, entry.id, entry);
@@ -4612,15 +4621,10 @@
     return { list, activeCount, settledCount, totalBorrowers, totalOutstanding };
   }
 
-  // ---------- activity feed for bell (recent + alerts) ----------
+  // ---------- activity feed for bell (chỉ còn cảnh báo — đã bỏ "Nhật ký hoạt động") ----------
   function bellItems(){
     const alerts = computeAlerts().map(a=>({type:'alert', ...a}));
-    const recentLogs = state.log.slice(0,8).map(l=>({
-      type:'log', color:'gray',
-      text: `${l.userName||l.user} đã ${l.action} — ${l.target}`,
-      time: l.time
-    }));
-    return [...alerts.map(a=>({...a,time:null})), ...recentLogs];
+    return alerts.map(a=>({...a,time:null}));
   }
 
   // ================= RENDER =================
@@ -6696,7 +6700,6 @@ ${fileGenerationTrainingText()}`;
     items.push({id:'propaganda', ico:'📣', label:'Tạo bài Tuyên truyền'});
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
-    if(isOwner()) items.push({id:'log', ico:'🕘', label:'Nhật ký hoạt động'});
     // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — nằm ngay phía trên "Cài đặt & Chia sẻ"
     items.push({id:'survey', ico:'📝', label:'Biểu mẫu khảo sát'});
     if(isOwner() || settingsPerm()!=='none') items.push({id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'});
@@ -6800,7 +6803,6 @@ ${fileGenerationTrainingText()}`;
     else if(state.activeTab==='propaganda') renderPropagandaTab(content);
     else if(state.activeTab==='members') renderMembersTab(content);
     else if(state.activeTab==='strength') renderStrengthTab(content);
-    else if(state.activeTab==='log') renderLogTab(content);
     else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
@@ -7154,6 +7156,8 @@ ${fileGenerationTrainingText()}`;
     await cSetRecord('permanentlyDeletedBorrowers', archived.id, archived);
     state.permanentlyDeletedBorrowers = (state.permanentlyDeletedBorrowers||[]).filter(x=>x.id!==archived.id);
     state.permanentlyDeletedBorrowers.push(archived);
+    await pushConfirmationDocument('borrower_purge', `Giấy xác nhận xoá vĩnh viễn hộ vay "${archived.name}"`,
+      `Hộ vay "${archived.name}" đã bị xoá vĩnh viễn khỏi Thùng rác vào ngày ${fmtDate(todayStr())}, không thể khôi phục.`, archived);
   }
   // Xoá vĩnh viễn 1 người vay CỤ THỂ ngay trong gói thùng rác của phương án — không ảnh hưởng
   // tới phần còn lại của gói, và KHÔNG thể khôi phục lại riêng người này nữa.
@@ -8129,7 +8133,13 @@ ${fileGenerationTrainingText()}`;
             ? `Chia 4 cấp — Trung ương ${record.splitCentral}%, Tỉnh ${record.splitProvince}%, Xã ${record.splitWard}%, ${subAdminLabel()} ${record.hamletAllocPercent}%`
             : record.allocMode==='wardHamlet' ? `Trích ${record.hamletAllocPercent}% xuống ${subAdminLabelLower()}, còn lại giữ ở cấp xã` : `Phân bổ hết 100% về cấp xã`;
           await pushConfirmationDocument('extension_confirm', `Giấy xác nhận Gia hạn lần ${extLevel} đối với hộ vay "${b.name}"`,
-            `Hộ vay "${b.name}" đã được phê duyệt gia hạn nợ lần ${extLevel} vào ngày ${fmtDate(todayStr())}. Gia hạn từ ngày ${fmtDate(record.from)} đến ngày ${fmtDate(record.to)}. Lãi suất: ${record.rateType==='zero'?'0%/năm (không tính lãi)':`${String(record.ratePct).replace('.',',')}%/năm`}. Cách phân bổ: ${allocLabel}.`, b);
+            [
+              `Hộ vay "${b.name}" đã được phê duyệt gia hạn nợ lần ${extLevel} vào ngày ${fmtDate(todayStr())}.`,
+              `Số tiền vay gốc: ${money(b.principal)}`,
+              `Gia hạn từ ngày ${fmtDate(record.from)} đến ngày ${fmtDate(record.to)}`,
+              `Lãi suất trong thời gian gia hạn: ${record.rateType==='zero'?'0%/năm (không tính lãi)':`${String(record.ratePct).replace('.',',')}%/năm`}`,
+              `Cách phân bổ: ${allocLabel}`,
+            ].join('\n'), b);
         }
         await pushLog('phê duyệt', `gia hạn nợ gốc LẦN ${extLevel} cho ${isGroup? targets.length+' hộ vay' : targets[0].name}`);
         close();
@@ -8142,44 +8152,9 @@ ${fileGenerationTrainingText()}`;
   // Bảng {Thống kê chung} riêng cho modal "Gia hạn nợ" — 5 cột: Địa phương, Tổng dư nợ, Hộ trong
   // hạn, Hộ quá hạn, Hộ được gia hạn.
   function renderExtensionStatsHtml(list, hamlets, fullList){
-    fullList = fullList || list;
-    ensureFilterHamletsInit(hamlets);
-    const selHamlets = state.filterHamlets;
-    const allSelected = selHamlets.length===0 || selHamlets.length===hamlets.length;
-    const orderedHamlets = allSelected ? [] : selHamlets.filter(h=>h!=='Khác').concat(selHamlets.includes('Khác')? ['Khác'] : []);
-    const rows = allSelected
-      ? [{ label: wardFullLabel(), groupList: list, fullGroupList: fullList }]
-      : orderedHamlets.map(h=> ({ label:`${subAdminLabel()} ${h}`, groupList: list.filter(b=>b.hamlet===h), fullGroupList: fullList.filter(b=>b.hamlet===h) }));
-    const rowsHtml = rows.map(r=>{
-      const principalSum = r.groupList.reduce((s,b)=> s+(parseFloat(b.principal)||0), 0);
-      const counts = computeExtensionStatusCounts(r.groupList);
-      // "Hộ trong hạn" LUÔN đồng bộ đúng với con số ở nút Tất toán/Trả nợ trước hạn — tính từ danh
-      // sách ĐẦY ĐỦ (không bị giới hạn bởi điều kiện "Gần đến hạn ≤60 ngày hoặc đang gia hạn").
-      const inTermFull = computeExtensionStatusCounts(r.fullGroupList).inTerm;
-      const nearDue = r.groupList.filter(borrowerIsNearDue60).length;
-      return `<tr>
-        <td class="frz-stat1" style="font-weight:700; background:var(--white);">${escapeHtml(r.label)}</td>
-        <td class="money">${moneySpaced(principalSum)}</td>
-        <td>${inTermFull} hộ</td>
-        <td>${nearDue} hộ</td>
-        <td>${counts.overdue} hộ</td>
-        <td>${counts.extended} hộ</td>
-      </tr>`;
-    }).join('');
-    return `
-      <div class="table-wrap" style="margin-bottom:18px;">
-        <table>
-          <thead><tr>
-            <th class="sv-group-header-th frz-stat1" style="background:var(--paper-2);">Địa phương</th>
-            <th class="sv-group-header-th">Tổng dư nợ</th>
-            <th class="sv-group-header-th">Hộ trong hạn</th>
-            <th class="sv-group-header-th">Gần đến hạn ≤60 ngày</th>
-            <th class="sv-group-header-th">Hộ quá hạn</th>
-            <th class="sv-group-header-th">Hộ được gia hạn</th>
-          </tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>`;
+    // Dùng THẲNG đúng hàm thống kê chuẩn của "Tất toán khoản vay/Trả nợ trước hạn" — đảm bảo tuyệt
+    // đối giống nhau ở cả 3 nút (Tất toán/Trả nợ trước hạn, Gia hạn nợ, Quản lý Nợ rủi ro).
+    return renderSettlementStatsHtml(fullList||list, hamlets);
   }
   // Bảng nhóm theo phương án cho modal "Gia hạn nợ" — cột: Quyết định (nút GIA HẠN) | Lịch sử gia
   // hạn (nút Xem) | Họ và tên | Số tiền gốc | Ngày đến hạn | Ngày gia hạn gần nhất.
@@ -8295,7 +8270,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px;">
-          <div class="modal-head"><h3>📅 Gia hạn nợ</h3><button class="modal-close preview-allow" id="extm-close">✕</button></div>
+          <div class="modal-head" style="background:#e65100;"><h3 style="color:#fff;">📅 Gia hạn nợ</h3><button class="modal-close preview-allow" id="extm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="extm-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;">
@@ -8369,8 +8344,8 @@ ${fileGenerationTrainingText()}`;
         btn.onclick = ()=> alert('Tính năng "Xem lịch sử gia hạn" cho cả nhóm cùng lúc đang được phát triển, sẽ sớm ra mắt. Vui lòng bấm "Xem" ở từng dòng người vay riêng lẻ.');
       });
 
-      if(!state._extOutsideClickBound){
-        state._extOutsideClickBound = true;
+      if(!wrap._outsideClickBound){
+        wrap._outsideClickBound = true;
         document.addEventListener('click', (e)=>{
           if(!state.showExtensionModal || !state.openFilterDropdown) return;
           if(e.target.closest('.sv-filter-dropdown')) return;
@@ -8596,42 +8571,11 @@ ${fileGenerationTrainingText()}`;
   // cột thao tác và không đóng băng hộp chứa Quý (Nợ rủi ro vẫn là khoản vay ĐANG HOẠT ĐỘNG).
   // =====================================================================
   function renderRiskDebtStatsHtml(list, hamlets, fullList){
-    fullList = fullList || list;
-    ensureFilterHamletsInit(hamlets);
-    const selHamlets = state.filterHamlets;
-    const allSelected = selHamlets.length===0 || selHamlets.length===hamlets.length;
-    const orderedHamlets = allSelected ? [] : selHamlets.filter(h=>h!=='Khác').concat(selHamlets.includes('Khác')? ['Khác'] : []);
-    const rows = allSelected
-      ? [{ label: wardFullLabel(), groupList: list, fullGroupList: fullList }]
-      : orderedHamlets.map(h=> ({ label:`${subAdminLabel()} ${h}`, groupList: list.filter(b=>b.hamlet===h), fullGroupList: fullList.filter(b=>b.hamlet===h) }));
-    const rowsHtml = rows.map(r=>{
-      const principalSum = r.groupList.reduce((s,b)=> s+(parseFloat(b.principal)||0), 0);
-      const counts = computeExtensionStatusCounts(r.groupList);
-      const inTermFull = computeExtensionStatusCounts(r.fullGroupList).inTerm;
-      const nearDue = r.groupList.filter(borrowerIsNearDue60).length;
-      return `<tr>
-        <td class="frz-stat1" style="font-weight:700; background:var(--white);">${escapeHtml(r.label)}</td>
-        <td class="money">${moneySpaced(principalSum)}</td>
-        <td>${inTermFull} hộ</td>
-        <td>${nearDue} hộ</td>
-        <td>${counts.overdue} hộ</td>
-        <td>${counts.extended} hộ</td>
-      </tr>`;
-    }).join('');
-    return `
-      <div class="table-wrap" style="margin-bottom:18px;">
-        <table>
-          <thead><tr>
-            <th class="sv-group-header-th frz-stat1">Địa phương</th>
-            <th class="sv-group-header-th">Tổng dư nợ</th>
-            <th class="sv-group-header-th">Hộ trong hạn</th>
-            <th class="sv-group-header-th">Gần đến hạn ≤60 ngày</th>
-            <th class="sv-group-header-th">Hộ quá hạn</th>
-            <th class="sv-group-header-th">Hộ được gia hạn</th>
-          </tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>`;
+    // Dùng THẲNG đúng hàm thống kê chuẩn của "Tất toán khoản vay/Trả nợ trước hạn" — không còn logic
+    // riêng nào nữa, đảm bảo tuyệt đối giống nhau ở cả 3 nút. Dùng fullList (toàn bộ người vay đang
+    // hoạt động, không giới hạn theo điều kiện đủ điều kiện Nợ rủi ro) để các cột luôn phản ánh đúng
+    // thực tế, y hệt cách "Tất toán" luôn hiển thị trên TOÀN BỘ danh sách.
+    return renderSettlementStatsHtml(fullList||list, hamlets);
   }
   // Dùng CHUNG cho cả 2 danh sách: "đang xét" (nút "Nợ rủi ro") và "đã xác nhận" (nút "Lịch sử Nợ
   // rủi ro" + cột ngày xác nhận/lý do), tuỳ tham số isConfirmedList.
@@ -8765,7 +8709,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px;">
-          <div class="modal-head"><h3>⚠️ Thêm, xoá, quản lý Nợ rủi ro</h3><button class="modal-close preview-allow" id="rdm-close">✕</button></div>
+          <div class="modal-head" style="background:#ef9a9a;"><h3 style="color:#7a1f1f;">⚠️ Thêm, xoá, quản lý Nợ rủi ro</h3><button class="modal-close preview-allow" id="rdm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="rdm-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;">
@@ -8836,8 +8780,8 @@ ${fileGenerationTrainingText()}`;
         btn.onclick = ()=>{ state.showRiskDebtBadList = !state.showRiskDebtBadList; renderBody(); };
       });
 
-      if(!state._riskdebtOutsideClickBound){
-        state._riskdebtOutsideClickBound = true;
+      if(!wrap._outsideClickBound){
+        wrap._outsideClickBound = true;
         document.addEventListener('click', (e)=>{
           if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
           if(e.target.closest('.sv-filter-dropdown')) return;
@@ -8931,7 +8875,16 @@ ${fileGenerationTrainingText()}`;
         await markBorrowerRiskDebt(b, reason, date, keepInterest);
         await pushLog('xác nhận', `hộ vay ${b.name} là Nợ rủi ro (lý do: ${reason})`);
         await pushConfirmationDocument('riskdebt_confirm', `Giấy xác nhận là Nợ rủi ro đối với hộ vay "${b.name}"`,
-          `Hộ vay "${b.name}" đã được xác nhận là Nợ rủi ro vào ngày ${fmtDate(todayStr())} (ngày nêu trong hồ sơ thực tế: ${fmtDate(date)}). Lý do: ${reason}. ${keepInterest?'Tiếp tục tính tiền lãi trong thời gian xử lý.':'Không tính tiền lãi kể từ ngày trên trở đi.'}`, b);
+          [
+            `Hộ vay "${b.name}" đã được xác nhận là Nợ rủi ro vào ngày ${fmtDate(todayStr())}.`,
+            `Ngày xác nhận được nêu trong hồ sơ thực tế: ${fmtDate(date)}`,
+            `Lý do: ${reason}`,
+            `Số tiền vay gốc: ${money(b.principal)}`,
+            `Lãi suất: ${String(parseFloat(b.rate)||0).replace('.',',')}%/năm`,
+            `Ngày vay: ${fmtDate(b.loanDate)}`,
+            `Ngày đến hạn (hoặc gia hạn gần nhất): ${fmtDate(dueRef)}`,
+            `Tính tiền lãi trong thời gian xử lý: ${keepInterest?'Có tiếp tục tính lãi':'Không tính lãi kể từ ngày '+fmtDate(date)+' trở đi (đã khoá Quý tương lai)'}`,
+          ].join('\n'), b);
         close();
         refreshOpenRiskDebtModal();
         const contentEl = document.getElementById('content');
@@ -9038,7 +8991,14 @@ ${fileGenerationTrainingText()}`;
       await markBorrowerBadDebt(b, reason, noInterestToo);
       await pushLog('xác nhận', `hộ vay ${b.name} không có khả năng trả nợ (lý do: ${reason})`);
       await pushConfirmationDocument('bad_debt', `Giấy xác nhận không có khả năng trả nợ đối với hộ vay "${b.name}"`,
-        `Hộ vay "${b.name}" đã được phê duyệt là không có khả năng trả nợ vào ngày ${fmtDate(todayStr())}. Lý do: ${reason}${noInterestToo?' (kể cả không thể trả tiền lãi chưa đóng)':''}`, b);
+        [
+          `Hộ vay "${b.name}" đã được phê duyệt là không có khả năng trả nợ vào ngày ${fmtDate(todayStr())}.`,
+          `Lý do: ${reason}`,
+          `Số tiền vay gốc: ${money(b.principal)}`,
+          `Không thể trả luôn cả tiền lãi chưa đóng: ${noInterestToo?'Có':'Không (vẫn trả được tiền lãi)'}`,
+          `Trạng thái Nợ rủi ro trước đó (ngày xác nhận trong hồ sơ thực tế): ${fmtDate(b.riskDebtDate)}`,
+          `Lý do Nợ rủi ro trước đó: ${b.riskDebtReason||''}`,
+        ].join('\n'), b);
       close();
       refreshOpenRiskDebtModal();
       showBigToast(`Đã xác nhận: hộ vay ${b.name} không có khả năng trả nợ`);
@@ -9329,8 +9289,8 @@ ${fileGenerationTrainingText()}`;
       wrap.querySelectorAll('[data-receipt-view]').forEach(el=>{
         el.onclick = ()=>{ const r = allReceipts().find(x=>x.id===el.dataset.receiptView); if(r) renderReceiptDetailModal(b, r); };
       });
-      if(!state._rcBoxOutsideClickBound){
-        state._rcBoxOutsideClickBound = true;
+      if(!wrap._outsideClickBound){
+        wrap._outsideClickBound = true;
         document.addEventListener('click', (e)=>{
           if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
           if(e.target.closest('.sv-filter-dropdown')) return; // click bên trong khu vực bộ lọc (kể cả nhãn/checkbox) -> KHÔNG đóng
@@ -9348,6 +9308,7 @@ ${fileGenerationTrainingText()}`;
     ['borrower_edit','Sửa thông tin hộ vay'],
     ['project_edit','Sửa thông tin hộ vay do thay đổi Phương án vay'],
     ['borrower_delete','Xoá hộ vay'],
+    ['borrower_purge','Xoá vĩnh viễn hộ vay khỏi Thùng rác'],
     ['project_delete','Xoá hộ vay do xoá cả Phương án vay'],
     ['riskdebt_confirm','Là Nợ rủi ro'],
     ['bad_debt','Không có khả năng trả nợ'],
@@ -9449,8 +9410,8 @@ ${fileGenerationTrainingText()}`;
       wrap.querySelectorAll('[data-conf-view]').forEach(el=>{
         el.onclick = ()=>{ const c = allConfirmations().find(x=>x.id===el.dataset.confView); if(c) renderConfirmationDetailModal(c); };
       });
-      if(!state._cfBoxOutsideClickBound){
-        state._cfBoxOutsideClickBound = true;
+      if(!wrap._outsideClickBound){
+        wrap._outsideClickBound = true;
         document.addEventListener('click', (e)=>{
           if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
           if(e.target.closest('.sv-filter-dropdown')) return;
@@ -9474,8 +9435,12 @@ ${fileGenerationTrainingText()}`;
         <div class="modal-head" style="background:#fff; border-bottom:1px solid var(--line);"><h3>${escapeHtml(c.title||'')}</h3><button class="modal-close preview-allow" id="cfd-close">✕</button></div>
         <div class="modal-body">
           <p class="sub" style="margin:0 0 10px;">Giấy này được lập vào ${dateLbl}</p>
-          <p style="line-height:1.7;">${escapeHtml(c.details||'')}</p>
-          <div class="kv-row" style="margin-top:14px;"><span>Người lập</span><b>${escapeHtml(c.createdByName||c.createdBy||'')}</b></div>
+          <p style="line-height:1.9;">${escapeHtml(c.details||'').replace(/\\n/g,'<br>')}</p>
+          <div class="divider-lbl" style="margin-top:14px;">Người lập giấy</div>
+          <div class="kv-row"><span>Họ và tên</span><b>${escapeHtml(c.createdByName||'')}</b></div>
+          <div class="kv-row"><span>Email</span><b>${escapeHtml(c.createdBy||'(không có)')}</b></div>
+          <div class="kv-row"><span>Địa chỉ IP</span><b>${escapeHtml(c.createdByIp||'(không lấy được)')}</b></div>
+          <div class="kv-row"><span>Thiết bị</span><b style="font-size:11px;">${escapeHtml(c.createdByDevice||'(không lấy được)')}</b></div>
         </div>
         <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="cfd-close2">Đóng bảng</button></div>
       </div>`;
@@ -9827,8 +9792,8 @@ ${fileGenerationTrainingText()}`;
             }
           };
         });
-        if(!state._archiveOutsideClickBound){
-          state._archiveOutsideClickBound = true;
+        if(!wrap._outsideClickBound){
+          wrap._outsideClickBound = true;
           document.addEventListener('click', (e)=>{
             if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
             if(e.target.closest('.sv-filter-dropdown')) return;
@@ -9876,7 +9841,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px;">
-          <div class="modal-head"><h3>💰 Phê duyệt tất toán khoản vay hoặc trả nợ trước hạn</h3><button class="modal-close preview-allow" id="setm-close">✕</button></div>
+          <div class="modal-head" style="background:#0d47a1;"><h3 style="color:#fff;">💰 Phê duyệt tất toán khoản vay hoặc trả nợ trước hạn</h3><button class="modal-close preview-allow" id="setm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="setm-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;">
@@ -9963,8 +9928,8 @@ ${fileGenerationTrainingText()}`;
       });
       wireSettledRangeButtons(wrap, renderBody);
 
-      if(!state._settleOutsideClickBound){
-        state._settleOutsideClickBound = true;
+      if(!wrap._outsideClickBound){
+        wrap._outsideClickBound = true;
         document.addEventListener('click', (e)=>{
           if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
           if(e.target.closest('.sv-filter-dropdown')) return;
@@ -10403,9 +10368,10 @@ ${fileGenerationTrainingText()}`;
     const isPaidKey = (key)=> disp.paidKeys.has(key);
 
     // Dòng tên 1 Quý — có hiệu ứng nhảy múa, kèm nút chữ "i" xem chi tiết.
-    const renderQLine = (x)=>{
+    const renderQLine = (x, isFuture)=>{
       const sel = selectedKeys.has(x.box.key);
-      return `<div class="kv-row"><span><button type="button" class="qbox-info-btn" data-qinfo-key="${x.box.key}" style="width:20px; height:20px; font-size:11px; border-radius:50%; margin-right:4px;">i</button><span class="iahist-qname ${sel?'iahist-qname-selected':''}" data-qkey="${x.box.key}">${escapeHtml(x.name)}</span></span><b>${moneySpaced(x.box.interestAmount)}</b></div>`;
+      const selClass = sel ? (isFuture? 'iahist-qname-selected iahist-qname-selected-future' : 'iahist-qname-selected iahist-qname-selected-past') : '';
+      return `<div class="kv-row"><span><button type="button" class="qbox-info-btn" data-qinfo-key="${x.box.key}" style="width:20px; height:20px; font-size:11px; border-radius:50%; margin-right:4px;">i</button><span class="iahist-qname ${selClass}" data-qkey="${x.box.key}">${escapeHtml(x.name)}</span></span><b>${moneySpaced(x.box.interestAmount)}</b></div>`;
     };
 
     const extList = getBorrowerExtensions(b.id);
@@ -10443,10 +10409,10 @@ ${fileGenerationTrainingText()}`;
           <div class="kv-row" style="margin-top:10px;"><span style="display:flex; align-items:center; gap:4px;"><button type="button" class="qbox-info-btn" id="iahist-leftover-info" style="width:20px; height:20px; font-size:11px; border-radius:50%;">i</button> Số tiền còn dư chưa thuộc về quý nào</span><b>${moneySpaced(disp.leftover)}</b></div>
           <div id="iahist-leftover-tip" style="display:none; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:12px; margin-top:4px;">Đây chính là "Số tiền dư từ đợt đóng lãi trước". Số tiền này sẽ tự động trả cho các quý chưa đóng lãi (ưu tiên quý cũ nhất) khi nó đủ số tiền trả cho quý đó, hoặc sẽ được tính vào biên lai thu lãi được lập sau này.</div>
           <div class="divider-lbl">Thông tin các quý chưa đóng lãi (từ quá khứ tới Hiện tại)</div>
-          ${disp.unpaidLines.length? disp.unpaidLines.map(renderQLine).join('') : `<p class="sub">Không còn quý nào chưa đóng lãi từ quá khứ tới hiện tại.</p>`}
+          ${disp.unpaidLines.length? disp.unpaidLines.map(x=>renderQLine(x,false)).join('') : `<p class="sub">Không còn quý nào chưa đóng lãi từ quá khứ tới hiện tại.</p>`}
           <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng ${disp.unpaidLines.length} quý chưa đóng lãi (Quá khứ tới hiện tại)</span><b>= ${moneySpaced(disp.unpaidTotal)}</b></div>
           <div class="divider-lbl">Thông tin các quý chưa đóng lãi (trong Tương lai)</div>
-          ${disp.futureUnpaidLines.length? disp.futureUnpaidLines.map(renderQLine).join('') : `<p class="sub">Không có quý nào chưa đóng lãi trong tương lai.</p>`}
+          ${disp.futureUnpaidLines.length? disp.futureUnpaidLines.map(x=>renderQLine(x,true)).join('') : `<p class="sub">Không có quý nào chưa đóng lãi trong tương lai.</p>`}
           <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng ${disp.futureUnpaidLines.length} quý chưa đóng lãi (tương lai)</span><b>= ${moneySpaced(disp.futureUnpaidTotal)}</b></div>
           <div class="kv-row" style="margin-top:10px; border-top:2px solid var(--line); padding-top:8px;"><span>Tổng ${disp.unpaidLines.length+disp.futureUnpaidLines.length} quý chưa đóng lãi (quá khứ, hiện tại và Tương lai)</span><b>= ${moneySpaced(grandUnpaid)}</b></div>
           <div class="kv-row" style="margin-top:6px; border-top:2px solid var(--line); padding-top:8px;"><span>Tổng tất cả (quá khứ + hiện tại + Tương lai) (${allLineItems.length} quý)</span><b>= ${moneySpaced(theoreticalTotal)}</b></div>
@@ -11051,12 +11017,11 @@ ${fileGenerationTrainingText()}`;
     });
     const allEntries = logs.concat(syntheticEntries);
     allEntries.sort((a,c)=>{
-      const ia = boxOrderIndex[a.key]!=null? boxOrderIndex[a.key] : -1;
-      const ic = boxOrderIndex[c.key]!=null? boxOrderIndex[c.key] : -1;
-      if(ia!==ic) return ic-ia; // Quý mới (chỉ số lớn hơn) lên trước
-      if(a.synthetic && !c.synthetic) return -1; // dòng tổng hợp luôn là "mới hơn" trong cùng 1 Quý
+      // Dòng tổng hợp (không rõ thời điểm) luôn được coi là "mới nhất" -> lên đầu.
+      if(a.synthetic && !c.synthetic) return -1;
       if(!a.synthetic && c.synthetic) return 1;
-      return (c.at||'').localeCompare(a.at||''); // cùng 1 Quý -> lần mới nhất lên trước
+      if(a.synthetic && c.synthetic) return 0;
+      return (c.at||'').localeCompare(a.at||''); // Thời gian mới hơn lên trước, cũ hơn xuống dưới
     });
     function rowHtml(l){
       const isPaid = l.direction==='paid';
@@ -11730,7 +11695,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1400px;">
-          <div class="modal-head"><h3>💰 Tính tiền lãi và phê duyệt đóng lãi</h3><button class="modal-close preview-allow" id="ia-close">✕</button></div>
+          <div class="modal-head" style="background:#1b5e20;"><h3 style="color:#fff;">💰 Tính tiền lãi và phê duyệt đóng lãi</h3><button class="modal-close preview-allow" id="ia-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="ia-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;">
@@ -11792,8 +11757,8 @@ ${fileGenerationTrainingText()}`;
         };
       });
 
-      if(!state._iaOutsideClickBound){
-        state._iaOutsideClickBound = true;
+      if(!wrap._outsideClickBound){
+        wrap._outsideClickBound = true;
         document.addEventListener('click', (e)=>{
           if(!state.showInterestApprovalModal || !state.openFilterDropdown) return;
           if(e.target.closest('.sv-filter-dropdown')) return;
@@ -14932,16 +14897,6 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     });
   }
 
-  function renderLogTab(el){
-    el.innerHTML = `
-      <div class="table-wrap"><table>
-        <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Hành động</th></tr></thead>
-        <tbody>
-          ${state.log.length? state.log.map(l=>`<tr><td>${new Date(l.time).toLocaleString('vi-VN')}</td><td>${l.userName||''} <span class="sub">(${l.user})</span></td><td>${l.action} — ${l.target}</td></tr>`).join('') : `<tr><td colspan="3"><div class="empty-state">Chưa có hoạt động nào</div></td></tr>`}
-        </tbody>
-      </table></div>`;
-  }
-
   // Firebase Realtime Database không cho phép '.', '#', '$', '[', ']' trong key
   // -> mã hoá email thành key an toàn, và lưu email gốc trong chính bản ghi.
   function emailToKey(email){ return (email||'').replace(/[.#$\[\]]/g, c => ({'.':',', '#':'~h~', '$':'~d~', '[':'~lb~', ']':'~rb~'})[c]); }
@@ -15504,8 +15459,17 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         await pushConfirmationDocument('borrower_create', `Giấy xác nhận Tạo khoản vay thành công đối với hộ vay "${updated.name}"`,
           `Hộ vay "${updated.name}" đã được thêm mới thành công vào ngày ${fmtDate(todayStr())}. Số tiền vay gốc: ${money(updated.principal)}${project? `, thuộc phương án "${project.name}"` : ''}. Địa bàn: ${escapeHtml(updated.hamlet||'')}.`, updated);
       } else if(hasChangedB){
+        const FIELD_LABELS_B = { name:'Họ và tên', hamlet:`Địa bàn dân cư (${subAdminLabel()})`, principal:'Số tiền vay gốc', birthYear:'Năm sinh', managerId:'Người quản lý', cccd:'Số CCCD', phone:'Số điện thoại', address:'Địa chỉ hiện tại', preMergerAddress:'Địa chỉ trước sáp nhập', industry:'Ngành nghề', repayAbility:'Khả năng trả nợ', guarantor:'Người bảo lãnh', note:'Ghi chú' };
+        const changedLines = compareKeysB.filter(k=> String(b[k]??'') !== String(updated[k]??'')).map(k=>{
+          const oldV = k==='principal'? money(b[k]||0) : (b[k]||'(để trống)');
+          const newV = k==='principal'? money(updated[k]||0) : (updated[k]||'(để trống)');
+          const mgrName = (id)=>{ const m=ensureDefaultManagers().find(x=>x.id===id); return m? m.name : id; };
+          const oldDisp = k==='managerId'? mgrName(b[k]) : oldV;
+          const newDisp = k==='managerId'? mgrName(updated[k]) : newV;
+          return `${FIELD_LABELS_B[k]||k} được sửa từ "${oldDisp}" thành "${newDisp}"`;
+        });
         await pushConfirmationDocument('borrower_edit', `Giấy xác nhận sửa thông tin hộ vay "${name}"`,
-          `Hộ vay "${name}" đã được sửa thông tin vào ngày ${fmtDate(todayStr())}.`, updated);
+          `Hộ vay "${name}" đã được sửa thông tin vào ngày ${fmtDate(todayStr())}:\n${changedLines.map(l=>'- '+l).join('\n')}`, updated);
       }
       close();
       render();
@@ -15627,7 +15591,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     wrap.querySelector('#qcw-back').onclick = close;
     wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
     wrap.querySelector('#qcw-confirm').onclick = async ()=>{
-      if(!confirm('Bạn có THẬT SỰ chắc chắn muốn đổi mốc thời gian hàng quý cho TẤT CẢ người vay không? Hành động này không thể hoàn tác.')){
+      if(!confirm('Bạn có THẬT SỰ chắc chắn muốn đổi mốc thời gian hàng quý cho TẤT CẢ người vay không? Mỗi lần đổi sẽ tạo ra hàng loạt giấy xác nhận thay đổi thông tin cho từng người vay.')){
         // Bấm "Không" -> tắt HẾT mọi bảng đang hiển thị, kể cả bảng "Chỉnh thời gian tính lãi suất
         // hàng quý" phía sau.
         close();
