@@ -10002,6 +10002,269 @@ ${fileGenerationTrainingText()}`;
       <div class="sub" style="margin-top:4px; text-align:right;">${escapeHtml(e.createdByName||'')} — ${escapeHtml(e.createdBy||'(không có email)')} — IP: ${escapeHtml(e.createdByIp||'(không lấy được)')}</div>
     </div>`;
   }
+  // ===================================================================
+  // "BẢNG ĐỐI CHIẾU & KIỂM ĐỊNH SỐ LIỆU ĐÓNG LÃI - THANH TOÁN KHOẢN VAY" — công cụ kiểm tra/đối
+  // chiếu số liệu thường xuyên, tính toán TƯƠI MỚI hoàn toàn mỗi lần mở, không lưu trữ gì cả.
+  // ===================================================================
+  const AUDIT_C = {
+    money:'#1b5e20', lai:'#1565c0', goc:'#e65100', yearCur:'#6a1b9a', yearLast:'#00838f',
+    qCur:'#3f51b5', qPrev:'#c2185b', ho:'#795548', receipt:'#4a148c', confirm:'#0277bd',
+  };
+  function auditMoney(v){ return `<b style="color:${AUDIT_C.money};">${moneySpaced(Math.round(v||0))} đ</b>`; }
+  function auditLai(){ return `<span style="color:${AUDIT_C.lai}; font-weight:700;">Tiền lãi</span>`; }
+  function auditGoc(){ return `<span style="color:${AUDIT_C.goc}; font-weight:700;">Tiền gốc</span>`; }
+  function auditYearCur(y){ return `<span style="color:${AUDIT_C.yearCur}; font-weight:700;">Năm ${y}</span>`; }
+  function auditYearLast(y){ return `<span style="color:${AUDIT_C.yearLast}; font-weight:700;">Năm ${y} (năm ngoái)</span>`; }
+  function auditQCur(label){ return `<span style="color:${AUDIT_C.qCur}; font-weight:700;">${label} (Quý hiện tại)</span>`; }
+  function auditQPrev(label){ return `<span style="color:${AUDIT_C.qPrev}; font-weight:700;">${label} (Quý trước)</span>`; }
+  function auditHo(){ return `<span style="color:${AUDIT_C.ho};">hộ vay</span>`; }
+  function auditReceipt(){ return `<span style="color:${AUDIT_C.receipt}; font-weight:700;">Biên lai</span>`; }
+  function auditConfirm(){ return `<span style="color:${AUDIT_C.confirm}; font-weight:700;">Giấy xác nhận</span>`; }
+
+  function computeAuditStats(){
+    const allActive = state.borrowers.filter(b=>!b.deleted && !b.settled);
+    const allSettled = state.borrowers.filter(b=>!b.deleted && b.settled);
+    const allNonDeleted = state.borrowers.filter(b=>!b.deleted);
+    const curYear = new Date().getFullYear();
+    const lastYear = curYear-1;
+    const curQNum = parseInt(todayBasedQuarterKey().replace('q',''),10);
+    let prevQNum = curQNum-1, prevQYear = curYear;
+    if(prevQNum<1){ prevQNum=4; prevQYear=curYear-1; }
+    const curQk = 'q'+curQNum, prevQk = 'q'+prevQNum;
+
+    function sumInterestQ(list, qk, year, wantPaid){
+      let s=0;
+      list.forEach(b=>{ const disp=computeInterestPaymentBoxDisplay(b); disp.allBoxes.forEach(bx=>{ if(bx.qk===qk && bx.year===year && disp.paidKeys.has(bx.key)===wantPaid) s+=bx.interestAmount; }); });
+      return s;
+    }
+    function sumInterestYear(list, year, wantPaid){
+      let s=0;
+      list.forEach(b=>{ const disp=computeInterestPaymentBoxDisplay(b); disp.allBoxes.forEach(bx=>{ if(bx.year===year && disp.paidKeys.has(bx.key)===wantPaid) s+=bx.interestAmount; }); });
+      return s;
+    }
+    function countQApprovedYear(list, year){
+      let c=0;
+      list.forEach(b=>{ const disp=computeInterestPaymentBoxDisplay(b); disp.allBoxes.forEach(bx=>{ if(bx.year===year && disp.paidKeys.has(bx.key)) c++; }); });
+      return c;
+    }
+    let interestAllTimeApproved=0;
+    allNonDeleted.forEach(b=>{ interestAllTimeApproved += computeInterestPaymentBoxDisplay(b).paidSum; });
+
+    // Nhóm B: tiền gốc theo hạn
+    let principalDueSoon=0, principalOverdue=0, countDueSoon=0, countOverdue=0;
+    allActive.forEach(b=>{
+      const proj = projectOf(b);
+      const exts = getBorrowerExtensions(b.id);
+      const dueRef = exts.length? exts[exts.length-1].to : (proj? proj.dueDate : b.dueDate);
+      const dLeft = daysRemainingUntil(dueRef);
+      if(dLeft!=null){
+        if(dLeft>0 && dLeft<=60){ principalDueSoon += parseFloat(b.principal)||0; countDueSoon++; }
+        if(dLeft<=0){ principalOverdue += parseFloat(b.principal)||0; countOverdue++; }
+      }
+    });
+
+    // Nhóm C: lãi quá hạn — TOÀN BỘ tiền lãi (chưa đóng/đã đóng) tính TỪ QUÁ KHỨ tới đúng Quý TRƯỚC
+    // Quý hiện tại 1 Quý (KHÔNG tính Quý hiện tại và các Quý tương lai).
+    const quarterOrdinalValue = (qk, year)=> year*4 + parseInt(String(qk).replace('q',''),10);
+    const curQOrdinalForOverdue = quarterOrdinalValue(curQk, curYear);
+    let overdueInterestUnapproved=0, overdueInterestApproved=0, countOverdueInterest=0;
+    allActive.forEach(b=>{
+      const disp = computeInterestPaymentBoxDisplay(b);
+      let hasUnpaidBefore = false;
+      disp.allBoxes.forEach(bx=>{
+        if(quarterOrdinalValue(bx.qk, bx.year) < curQOrdinalForOverdue){
+          if(disp.paidKeys.has(bx.key)) overdueInterestApproved += bx.interestAmount;
+          else { overdueInterestUnapproved += bx.interestAmount; hasUnpaidBefore = true; }
+        }
+      });
+      if(hasUnpaidBefore) countOverdueInterest++;
+    });
+
+    // Nhóm D+E: Tất toán / Trả nợ trước hạn
+    let principalSettledYear=0, principalSettledAllTime=0, countSettledYear=0, interestSettledYear=0;
+    let principalSettledLastYear=0, countSettledLastYear=0, interestSettledLastYear=0;
+    let principalEarlyYear=0, principalEarlyAllTime=0, countEarlyYear=0, interestEarlyYear=0;
+    let principalEarlyLastYear=0, countEarlyLastYear=0, interestEarlyLastYear=0;
+    allSettled.forEach(b=>{
+      const y = b.settledAt? new Date(b.settledAt).getFullYear() : null;
+      const isFinal = b.settledType==='final';
+      const p = parseFloat(b.principal)||0;
+      const interest = b.settledInterestIncluded||0;
+      if(isFinal){
+        principalSettledAllTime += p;
+        if(y===curYear){ principalSettledYear+=p; countSettledYear++; interestSettledYear+=interest; }
+        if(y===lastYear){ principalSettledLastYear+=p; countSettledLastYear++; interestSettledLastYear+=interest; }
+      } else {
+        principalEarlyAllTime += p;
+        if(y===curYear){ principalEarlyYear+=p; countEarlyYear++; interestEarlyYear+=interest; }
+        if(y===lastYear){ principalEarlyLastYear+=p; countEarlyLastYear++; interestEarlyLastYear+=interest; }
+      }
+    });
+
+    // Nhóm F: đã tất toán/TNTH còn nợ lãi
+    const settledUnpaidList = allSettled.filter(b=> computeInterestPaymentBoxDisplay(b).unpaidTotal>0);
+    const settledUnpaidCount = settledUnpaidList.length;
+    const settledUnpaidTotal = settledUnpaidList.reduce((s,b)=> s+computeInterestPaymentBoxDisplay(b).unpaidTotal, 0);
+
+    // Nhóm G: gia hạn nợ
+    let extCount=0, extPrincipalTotal=0, extApprovedThisYear=0, extApprovedLastYear=0;
+    allActive.forEach(b=>{
+      const exts = getBorrowerExtensions(b.id);
+      if(exts.length){
+        extCount++; extPrincipalTotal += parseFloat(b.principal)||0;
+        exts.forEach(e=>{ if(e.savedAt){ const y=new Date(e.savedAt).getFullYear(); if(y===curYear) extApprovedThisYear++; if(y===lastYear) extApprovedLastYear++; } });
+      }
+    });
+
+    // Nhóm H: nợ rủi ro
+    const riskDebtCount = allActive.filter(b=> b.riskDebt).length;
+    const badDebtCount = allActive.filter(b=> b.badDebt).length;
+    const riskDebtPrincipal = allActive.filter(b=>b.riskDebt).reduce((s,b)=>s+(parseFloat(b.principal)||0),0);
+
+    // Nhóm I: tiền dư
+    let leftoverTotal=0, leftoverCount=0;
+    allNonDeleted.forEach(b=>{ const l=computeInterestPaymentBoxDisplay(b).leftover; if(l>0){ leftoverTotal+=l; leftoverCount++; } });
+
+    // Nhóm J: biên lai / giấy xác nhận / nhật ký
+    const logEntries = buildActivityLogEntries();
+    const yearOf = (e)=>{ const d=new Date(e.createdAt); return isNaN(d.getTime())? null : d.getFullYear(); };
+    const receiptCountYear = logEntries.filter(e=> e.type==='receipt' && yearOf(e)===curYear).length;
+    const receiptCountLastYear = logEntries.filter(e=> e.type==='receipt' && yearOf(e)===lastYear).length;
+    const confCountYear = logEntries.filter(e=> e.type==='confirmation' && yearOf(e)===curYear).length;
+    const confCountLastYear = logEntries.filter(e=> e.type==='confirmation' && yearOf(e)===lastYear).length;
+    const logCountYear = logEntries.filter(e=> yearOf(e)===curYear).length;
+    const logCountLastYear = logEntries.filter(e=> yearOf(e)===lastYear).length;
+    const sumReceiptAmount = (sign, year)=> logEntries.filter(e=> e.type==='receipt' && e.sign===sign && yearOf(e)===year).reduce((s,e)=> s+(e.amount||0), 0);
+
+    return {
+      curYear, lastYear, curQNum, prevQNum, prevQYear, curQk, prevQk,
+      interestQCurUnapproved: sumInterestQ(allNonDeleted, curQk, curYear, false),
+      interestQCurApproved: sumInterestQ(allNonDeleted, curQk, curYear, true),
+      interestQPrevUnapproved: sumInterestQ(allNonDeleted, prevQk, prevQYear, false),
+      interestQPrevApproved: sumInterestQ(allNonDeleted, prevQk, prevQYear, true),
+      interestYearCurUnapproved: sumInterestYear(allNonDeleted, curYear, false),
+      interestYearCurApproved: sumInterestYear(allNonDeleted, curYear, true),
+      interestYearLastUnapproved: sumInterestYear(allNonDeleted, lastYear, false),
+      interestYearLastApproved: sumInterestYear(allNonDeleted, lastYear, true),
+      interestAllTimeApproved,
+      qApprovedCountCurYear: countQApprovedYear(allNonDeleted, curYear),
+      qApprovedCountLastYear: countQApprovedYear(allNonDeleted, lastYear),
+      principalDueSoon, principalOverdue, countDueSoon, countOverdue,
+      overdueInterestUnapproved, overdueInterestApproved, countOverdueInterest,
+      principalSettledYear, principalSettledAllTime, countSettledYear, interestSettledYear,
+      principalSettledLastYear, countSettledLastYear, interestSettledLastYear,
+      principalEarlyYear, principalEarlyAllTime, countEarlyYear, interestEarlyYear,
+      principalEarlyLastYear, countEarlyLastYear, interestEarlyLastYear,
+      settledUnpaidCount, settledUnpaidTotal,
+      extCount, extPrincipalTotal, extApprovedThisYear, extApprovedLastYear,
+      riskDebtCount, badDebtCount, riskDebtPrincipal,
+      leftoverTotal, leftoverCount,
+      receiptCountYear, receiptCountLastYear, confCountYear, confCountLastYear, logCountYear, logCountLastYear,
+      sumReceiptPlusYear: sumReceiptAmount('+', curYear), sumReceiptPlusLastYear: sumReceiptAmount('+', lastYear),
+      sumReceiptMinusYear: sumReceiptAmount('-', curYear), sumReceiptMinusLastYear: sumReceiptAmount('-', lastYear),
+    };
+  }
+
+  function renderAuditStatsModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const s = computeAuditStats();
+    const qCurLbl = 'Quý '+s.curQNum, qPrevLbl = 'Quý '+s.prevQNum;
+    function group(title, titleColor, lines){
+      return `<div style="margin-bottom:16px; border:1px solid var(--line); border-radius:10px; overflow:hidden;">
+        <div style="background:#fff; padding:10px 14px; border-bottom:2px solid ${titleColor};"><b style="color:${titleColor}; font-size:14px;">${title}</b></div>
+        <div>${lines.map(l=>`<div style="padding:10px 14px; background:#fff; border-top:1px solid var(--line);">${l}</div>`).join('')}</div>
+      </div>`;
+    }
+    const groupsHtml = [
+      group('💰 Tiền lãi theo Quý/Năm', '#1565c0', [
+        `Số tiền ${auditLai()} trong ${auditQCur(qCurLbl)} chưa phê duyệt là ${auditMoney(s.interestQCurUnapproved)}`,
+        `Số tiền ${auditLai()} trong ${auditQPrev(qPrevLbl)} chưa phê duyệt là ${auditMoney(s.interestQPrevUnapproved)}`,
+        `Số tiền ${auditLai()} trong ${auditYearCur(s.curYear)} chưa phê duyệt là ${auditMoney(s.interestYearCurUnapproved)}`,
+        `Số tiền ${auditLai()} trong ${auditYearLast(s.lastYear)} chưa phê duyệt là ${auditMoney(s.interestYearLastUnapproved)}`,
+        `Số tiền ${auditLai()} trong ${auditQCur(qCurLbl)} đã phê duyệt là ${auditMoney(s.interestQCurApproved)}`,
+        `Số tiền ${auditLai()} trong ${auditQPrev(qPrevLbl)} đã phê duyệt là ${auditMoney(s.interestQPrevApproved)}`,
+        `Số tiền ${auditLai()} trong ${auditYearCur(s.curYear)} đã phê duyệt là ${auditMoney(s.interestYearCurApproved)}`,
+        `Số tiền ${auditLai()} trong ${auditYearLast(s.lastYear)} đã phê duyệt là ${auditMoney(s.interestYearLastApproved)}`,
+        `Số tiền ${auditLai()} luỹ kế từ trước đến nay đã phê duyệt là ${auditMoney(s.interestAllTimeApproved)}`,
+        `Số Quý (lượt) đã được phê duyệt đóng lãi trong ${auditYearCur(s.curYear)} là <b>${s.qApprovedCountCurYear}</b>`,
+        `Số Quý (lượt) đã được phê duyệt đóng lãi trong ${auditYearLast(s.lastYear)} là <b>${s.qApprovedCountLastYear}</b>`,
+      ]),
+      group('🏦 Tiền gốc theo hạn', '#e65100', [
+        `Số tiền ${auditGoc()} sắp đến hạn (≤60 ngày) chưa thanh toán là ${auditMoney(s.principalDueSoon)}`,
+        `Số tiền ${auditGoc()} đã đến hạn chưa thanh toán là ${auditMoney(s.principalOverdue)}`,
+        `Số ${auditHo()} sắp đến hạn (≤60 ngày) chưa thanh toán là <b>${s.countDueSoon}</b>`,
+        `Số ${auditHo()} đã đến hạn chưa thanh toán là <b>${s.countOverdue}</b>`,
+      ]),
+      group('⏰ Lãi quá hạn', '#b71c1c', [
+        `Số tiền ${auditLai()} quá hạn chưa phê duyệt là ${auditMoney(s.overdueInterestUnapproved)}`,
+        `Số tiền ${auditLai()} quá hạn đã phê duyệt là ${auditMoney(s.overdueInterestApproved)}`,
+        `Số ${auditHo()} đang có lãi quá hạn chưa đóng là <b>${s.countOverdueInterest}</b>`,
+      ]),
+      group('✅ Tất toán khoản vay', '#2e7d32', [
+        `Số tiền ${auditGoc()} đã tất toán xong trong ${auditYearCur(s.curYear)} là ${auditMoney(s.principalSettledYear)}`,
+        `Số tiền ${auditGoc()} đã tất toán xong trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.principalSettledLastYear)}`,
+        `Số tiền ${auditGoc()} đã tất toán xong từ trước đến nay là ${auditMoney(s.principalSettledAllTime)}`,
+        `Số ${auditHo()} đã tất toán khoản vay trong ${auditYearCur(s.curYear)} là <b>${s.countSettledYear}</b>`,
+        `Số ${auditHo()} đã tất toán khoản vay trong ${auditYearLast(s.lastYear)} là <b>${s.countSettledLastYear}</b>`,
+        `Số tiền ${auditLai()} đóng kèm khi tất toán trong ${auditYearCur(s.curYear)} là ${auditMoney(s.interestSettledYear)}`,
+        `Số tiền ${auditLai()} đóng kèm khi tất toán trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.interestSettledLastYear)}`,
+      ]),
+      group('📤 Trả nợ trước hạn', '#0d47a1', [
+        `Số tiền ${auditGoc()} đã trả nợ trước hạn trong ${auditYearCur(s.curYear)} là ${auditMoney(s.principalEarlyYear)}`,
+        `Số tiền ${auditGoc()} đã trả nợ trước hạn trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.principalEarlyLastYear)}`,
+        `Số tiền ${auditGoc()} đã trả nợ trước hạn từ trước đến nay là ${auditMoney(s.principalEarlyAllTime)}`,
+        `Số ${auditHo()} đã trả nợ trước hạn trong ${auditYearCur(s.curYear)} là <b>${s.countEarlyYear}</b>`,
+        `Số ${auditHo()} đã trả nợ trước hạn trong ${auditYearLast(s.lastYear)} là <b>${s.countEarlyLastYear}</b>`,
+        `Số tiền ${auditLai()} đóng kèm khi trả nợ trước hạn trong ${auditYearCur(s.curYear)} là ${auditMoney(s.interestEarlyYear)}`,
+        `Số tiền ${auditLai()} đóng kèm khi trả nợ trước hạn trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.interestEarlyLastYear)}`,
+      ]),
+      group('⚠️ Đã tất toán/TNTH nhưng còn nợ lãi', '#ef6c00', [
+        `Số ${auditHo()} đã tất toán/trả nợ trước hạn nhưng còn nợ tiền ${auditLai()} là <b>${s.settledUnpaidCount}</b>`,
+        `Tổng số tiền ${auditLai()} còn nợ của các ${auditHo()} đã tất toán/TNTH là ${auditMoney(s.settledUnpaidTotal)}`,
+      ]),
+      group('📅 Gia hạn nợ', '#6a1b9a', [
+        `Số ${auditHo()} đang trong thời gian gia hạn nợ là <b>${s.extCount}</b>`,
+        `Tổng số tiền ${auditGoc()} đang được gia hạn nợ là ${auditMoney(s.extPrincipalTotal)}`,
+        `Số lượt gia hạn nợ đã phê duyệt trong ${auditYearCur(s.curYear)} là <b>${s.extApprovedThisYear}</b>`,
+        `Số lượt gia hạn nợ đã phê duyệt trong ${auditYearLast(s.lastYear)} là <b>${s.extApprovedLastYear}</b>`,
+      ]),
+      group('🚨 Nợ rủi ro', '#c62828', [
+        `Số ${auditHo()} đang là Nợ rủi ro (trong diện xử lý) là <b>${s.riskDebtCount}</b>`,
+        `Số ${auditHo()} Không có khả năng trả nợ (Nợ xấu) là <b>${s.badDebtCount}</b>`,
+        `Tổng số tiền ${auditGoc()} thuộc diện Nợ rủi ro là ${auditMoney(s.riskDebtPrincipal)}`,
+      ]),
+      group('💧 Tiền dư', '#00838f', [
+        `Tổng số tiền dư (chưa thuộc Quý nào) của tất cả ${auditHo()} là ${auditMoney(s.leftoverTotal)}`,
+        `Số ${auditHo()} đang có tiền dư chưa thuộc Quý nào là <b>${s.leftoverCount}</b>`,
+      ]),
+      group('📋 Biên lai / Giấy xác nhận / Dòng nhật ký', '#4a148c', [
+        `Tổng số ${auditReceipt()} đã lập trong ${auditYearCur(s.curYear)} là <b>${s.receiptCountYear}</b>`,
+        `Tổng số ${auditReceipt()} đã lập trong ${auditYearLast(s.lastYear)} là <b>${s.receiptCountLastYear}</b>`,
+        `Tổng số ${auditConfirm()} đã lập trong ${auditYearCur(s.curYear)} là <b>${s.confCountYear}</b>`,
+        `Tổng số ${auditConfirm()} đã lập trong ${auditYearLast(s.lastYear)} là <b>${s.confCountLastYear}</b>`,
+        `Tổng số dòng nhật ký đã được tạo ra trong ${auditYearCur(s.curYear)} là <b>${s.logCountYear}</b>`,
+        `Tổng số dòng nhật ký đã được tạo ra trong ${auditYearLast(s.lastYear)} là <b>${s.logCountLastYear}</b>`,
+        `Tổng số tiền cộng vào (${auditReceipt()} cộng tiền) trong ${auditYearCur(s.curYear)} là ${auditMoney(s.sumReceiptPlusYear)}`,
+        `Tổng số tiền cộng vào (${auditReceipt()} cộng tiền) trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.sumReceiptPlusLastYear)}`,
+        `Tổng số tiền trừ ra (${auditReceipt()} trừ tiền) trong ${auditYearCur(s.curYear)} là ${auditMoney(s.sumReceiptMinusYear)}`,
+        `Tổng số tiền trừ ra (${auditReceipt()} trừ tiền) trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.sumReceiptMinusLastYear)}`,
+      ]),
+    ].join('');
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:98vw; width:900px; border:6px solid #fbc02d;">
+        <div class="modal-head" style="background:#fbc02d;"><h3 style="color:#000;">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay</h3><button class="modal-close preview-allow" id="audit-close">✕</button></div>
+        <div class="modal-body" style="max-height:78vh; overflow:auto;">
+          ${groupsHtml}
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="audit-close2">Đóng bảng</button></div>
+      </div>`;
+    wrap.querySelector('#audit-close').onclick = close;
+    wrap.querySelector('#audit-close2').onclick = close;
+    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+  }
   function buildActivityLogPanelHtml(){
     if(!state.logFilterKind) state.logFilterKind = LOG_FILTER_KIND_LIST.map(x=>x[0]);
     if(state.logSpecificTime===undefined) state.logSpecificTime = false;
@@ -10200,7 +10463,7 @@ ${fileGenerationTrainingText()}`;
     if(b.__trashProjectName) return b.__trashProjectName;
     return '(Không rõ phương án — có thể đã bị xoá)';
   }
-  function archiveSimpleTableHtml(list, cols, mode, listKind){
+  function archiveSimpleTableHtml(list, cols, mode, listKind, perGroupButtonHtml){
     mode = mode||'receipts';
     const colHeader = mode==='confirmations' ? 'Mở hộp GXN' : 'Mở hộp BL';
     const borderColor = { active:'#2e7d32', settled:'#0d47a1', trash:'#4a148c' }[listKind] || '';
@@ -10212,7 +10475,10 @@ ${fileGenerationTrainingText()}`;
       const groupList = groups[projName];
       return `
       <div style="margin-bottom:14px;">
-        <div class="sv-group-header">📋 ${escapeHtml(projName)} (${groupList.length} người vay)</div>
+        <div class="sv-group-header" style="${perGroupButtonHtml?'display:flex; align-items:center; justify-content:space-between; gap:10px;':''}">
+          <span>📋 ${escapeHtml(projName)} (${groupList.length} người vay)</span>
+          ${perGroupButtonHtml||''}
+        </div>
         <div class="table-wrap"${borderColor?` style="border-color:${borderColor}; border-width:2px;"`:''}><table>
           <thead><tr>
             <th class="frz-col1" style="background:var(--paper-2); min-width:110px;">${colHeader}</th>
@@ -10264,7 +10530,7 @@ ${fileGenerationTrainingText()}`;
     if(!settled.length && !rangeMode) return `<p class="sub" style="padding:10px 0;">Không có hộ vay nào đã tất toán/trả nợ trước hạn mà còn nợ tiền lãi.</p>${settledRangeButtonsHtml(idPrefix)}`;
     const titleHtml = rangeMode? `<div class="divider-lbl">${escapeHtml(sectionTitle)}</div>` : `<div class="divider-lbl">Danh sách khoản vay đã tất toán hoặc trả nợ xong Nhưng chưa hoàn tất việc đóng lãi</div>`;
     if(!settled.length) return `${titleHtml}<p class="sub" style="padding:10px 0;">Không có hộ vay nào.</p>${settledCollapseButtonHtml(idPrefix)}`;
-    return `${titleHtml}${archiveSimpleTableHtml(settled, cols, mode2, 'settled')}${!rangeMode? settledRangeButtonsHtml(idPrefix) : settledCollapseButtonHtml(idPrefix)}`;
+    return `${titleHtml}${archiveSimpleTableHtml(settled, cols, mode2, 'settled', rangeMode? settledCollapseButtonHtml(idPrefix) : null)}${!rangeMode? settledRangeButtonsHtml(idPrefix) : ''}`;
   }
   // Gộp phẳng TẤT CẢ người vay đang nằm trong Thùng rác (Sổ vay vốn) — cả người bị xoá riêng lẻ lẫn
   // người nằm trong gói phương án bị xoá cả cụm — kèm tên phương án + người xoá + ngày xoá.
@@ -13100,61 +13366,7 @@ ${fileGenerationTrainingText()}`;
             <button class="btn btn-sm preview-allow" id="loan-archive-btn" style="background:#4a148c; color:#fff; border-color:#4a148c;">Kho biên lai/giấy xác nhận/dòng nhật ký</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="loan-quarter-settings-btn">Chỉnh thời gian tính lãi suất hàng quý</button>
           </div>
-          <button class="btn btn-block preview-allow" id="loan-approval-details-toggle" style="margin-top:10px; text-align:left; background:var(--paper-2); border:1px solid var(--line); font-weight:700; color:var(--rice-dark);">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay ${state.showLoanApprovalDetails?'▴':'▾'}</button>
-          ${state.showLoanApprovalDetails? `
-          <div class="table-wrap" style="margin-top:10px;">
-            <table>
-              <tbody>
-                ${[
-                  // --- Tiền lãi theo Quý/Năm ---
-                  'Số tiền lãi trong Quý … chưa phê duyệt là…',
-                  'Số tiền lãi trong Năm … chưa phê duyệt là…',
-                  'Số tiền lãi trong Quý … đã phê duyệt là…',
-                  'Số tiền lãi trong Năm … đã phê duyệt là…',
-                  'Số tiền lãi luỹ kế từ trước đến nay đã phê duyệt là…',
-                  'Số Quý (lượt) đã được phê duyệt đóng lãi trong Năm … là…',
-                  // --- Tiền gốc theo hạn ---
-                  'Số tiền gốc sắp đến hạn (≤60 ngày) chưa thanh toán là…',
-                  'Số tiền gốc đã đến hạn chưa thanh toán là…',
-                  'Số hộ vay sắp đến hạn (≤60 ngày) chưa thanh toán là…',
-                  'Số hộ vay đã đến hạn chưa thanh toán là…',
-                  // --- Lãi quá hạn ---
-                  'Số tiền lãi quá hạn chưa phê duyệt là…',
-                  'Số tiền lãi quá hạn đã phê duyệt là…',
-                  'Số hộ vay đang có lãi quá hạn chưa đóng là…',
-                  // --- Tất toán khoản vay ---
-                  'Số tiền gốc đã tất toán xong trong Năm … là…',
-                  'Số tiền gốc đã tất toán xong từ trước đến nay là…',
-                  'Số hộ vay đã tất toán khoản vay trong Năm … là…',
-                  'Số tiền lãi đóng kèm khi tất toán trong Năm … là…',
-                  // --- Trả nợ trước hạn ---
-                  'Số tiền gốc đã trả nợ trước hạn trong Năm … là…',
-                  'Số tiền gốc đã trả nợ trước hạn từ trước đến nay là…',
-                  'Số hộ vay đã trả nợ trước hạn trong Năm … là…',
-                  'Số tiền lãi đóng kèm khi trả nợ trước hạn trong Năm … là…',
-                  // --- Đã tất toán/TNTH nhưng còn nợ lãi ---
-                  'Số hộ đã tất toán/trả nợ trước hạn nhưng còn nợ tiền lãi là…',
-                  'Tổng số tiền lãi còn nợ của các hộ đã tất toán/TNTH là…',
-                  // --- Gia hạn nợ ---
-                  'Số hộ vay đang trong thời gian gia hạn nợ là…',
-                  'Tổng số tiền gốc đang được gia hạn nợ là…',
-                  'Số lượt gia hạn nợ đã phê duyệt trong Năm … là…',
-                  // --- Nợ rủi ro ---
-                  'Số hộ vay đang là Nợ rủi ro (trong diện xử lý) là…',
-                  'Số hộ vay Không có khả năng trả nợ (Nợ xấu) là…',
-                  'Tổng số tiền gốc thuộc diện Nợ rủi ro là…',
-                  // --- Tiền dư ---
-                  'Tổng số tiền dư (chưa thuộc Quý nào) của tất cả hộ vay là…',
-                  'Số hộ vay đang có tiền dư chưa thuộc Quý nào là…',
-                  // --- Biên lai / Giấy xác nhận (kiểm đếm hồ sơ) ---
-                  'Tổng số Biên lai đã lập trong Năm … là…',
-                  'Tổng số Giấy xác nhận đã lập trong Năm … là…',
-                  'Tổng số tiền cộng vào (Biên lai cộng tiền) trong Năm … là…',
-                  'Tổng số tiền trừ ra (Biên lai trừ tiền) trong Năm … là…',
-                ].map((txt,i)=> `<tr style="background:${i%2===0? 'rgba(79,172,254,.14)' : 'rgba(255,213,79,.22)'};"><td style="padding:10px 14px;">${escapeHtml(txt)}</td></tr>`).join('')}
-              </tbody>
-            </table>
-          </div>` : ''}
+          <button class="btn btn-block preview-allow" id="loan-approval-details-toggle" style="margin-top:10px; text-align:left; background:#fff9c4; border:1px solid var(--line); font-weight:700; color:var(--rice-dark);">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay</button>
         </div>
       </div>
 
@@ -13219,7 +13431,7 @@ ${fileGenerationTrainingText()}`;
 
           <div id="borrower-table-area">${renderBorrowerGroupedTablesHtml(list, visibleCols, projects, canEdit, overdueList)}</div>
           ${currentQuarterBoundariesCaptionHtml()}
-          <div style="text-align:center; margin-top:14px;"><button class="btn btn-ghost btn-sm preview-allow" id="lp-borrowers-collapse-all">Rút gọn toàn bộ danh sách</button></div>
+          <div style="text-align:center; margin-top:14px;"><button class="btn btn-ghost btn-sm preview-allow" id="lp-borrowers-collapse-all" style="color:#b71c1c; font-weight:700;">Rút gọn toàn bộ danh sách</button></div>
         </div>`}
       </div>
 
@@ -13346,7 +13558,7 @@ ${fileGenerationTrainingText()}`;
     const loanArchiveBtn = document.getElementById('loan-archive-btn');
     if(loanArchiveBtn) loanArchiveBtn.onclick = ()=> renderArchiveModal();
     const loanApprovalDetailsToggle = document.getElementById('loan-approval-details-toggle');
-    if(loanApprovalDetailsToggle) loanApprovalDetailsToggle.onclick = ()=>{ state.showLoanApprovalDetails = !state.showLoanApprovalDetails; renderDataTab(el); };
+    if(loanApprovalDetailsToggle) loanApprovalDetailsToggle.onclick = ()=> renderAuditStatsModal();
 
     // ---- Bộ lọc đa chọn (Ấp / Phương án vay / Quý / Năm) ----
     document.getElementById('f-search').oninput = e=>{ state.search=e.target.value; rerenderKeepingFocus(()=>renderDataTab(el)); };
