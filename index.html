@@ -1328,6 +1328,7 @@
     });
     bind('sharedConfirmationDocuments', v => { state.sharedConfirmationDocuments = snapToArray(v); });
     bind('sharedBorrowerReceipts', v => { state.sharedBorrowerReceipts = snapToArray(v); });
+    bind('categoryChangeLog', v => { state.categoryChangeLog = snapToArray(v); });
     bind('quarterStatusLog', v => {
       const result = {};
       if(v) Object.keys(v).forEach(bid=>{ result[bid] = snapToArray(v[bid]); });
@@ -1691,6 +1692,7 @@
     borrowerConfirmations:{},       // { [borrowerId]: [ {id,kind,title,details,...} ] } — Kho Giấy xác nhận
     sharedConfirmationDocuments:[], // Kho Giấy xác nhận CHUNG (1 bản ghi, nối link vào nhiều người)
     sharedBorrowerReceipts:[],      // Kho Biên lai CHUNG (1 bản ghi, nối link vào nhiều người)
+    categoryChangeLog:[],           // Nhật ký tạo/sửa tên phân loại biên lai
     quarterStatusLog:{},            // { [borrowerId]: [ {id,key,label,direction,reason,at} ] } — Lịch sử trạng thái Quý
     activeTab:'dashboard',
     reportMode:'quarter',
@@ -2834,6 +2836,13 @@
   // đóng lãi" hoặc ngược lại. CHỈ GHI (write-only), dựa vào so sánh 2 lần ĐỌC (computeInterestPayment-
   // BoxDisplay) trước và sau 1 hành động — TUYỆT ĐỐI KHÔNG đụng vào bất kỳ hàm TÍNH TOÁN nào.
   // =====================================================================
+  // Ghi log khi ai đó TẠO MỚI hoặc SỬA (tên/màu) 1 tên phân loại biên lai — dùng cho Kho dòng nhật ký.
+  async function pushCategoryChangeLog(kind, action, entry){
+    const device = await getClientDeviceInfo();
+    const logEntry = { id:uid(), kind, action, ...entry, at:new Date().toISOString(),
+      createdByName: state.identity.name, createdBy: state.identity.email, createdByIp: device.ip, createdByDevice: device.userAgent };
+    await cPush('categoryChangeLog', logEntry);
+  }
   async function pushQuarterStatusLog(b, box, direction, reason, overrideAt, estimated){
     const entry = { id:uid(), key:box.key, qk:box.qk, year:box.year, label:formatTimelineQuarterLabel(box), direction, reason, at: overrideAt||new Date().toISOString() };
     if(estimated) entry.estimated = true;
@@ -3449,6 +3458,7 @@
       ? `Biên lai là không thể xóa vĩnh viễn hoặc thay đổi thông tin bên trong, vì vậy phân loại biên lai giúp cho quản lý biên lai, tìm kiếm biên lai dễ dàng hơn, có thể tạo các tên phân loại biên lai như sau: chưa có tiền thực nhận, đã có tiền thực nhận, chờ đợi nhận tiền, ghi nhầm tên, "biên lai" thu nhầm, "biên lai" không còn tác dụng, .v.v… không cần ghi thêm chữ "biên lai" vào trong tên phân loại, sau này vẫn có thể thay đổi tên phân loại cho biên lai.`
       : `Biên lai là không thể xóa vĩnh viễn hoặc thay đổi thông tin bên trong, vì vậy phân loại biên lai giúp cho quản lý biên lai, tìm kiếm biên lai dễ dàng hơn, có thể tạo các tên phân loại biên lai như sau: chưa có tiền thực trả, đã có tiền thực trả, chờ đợi trả tiền, trả nhầm, ghi nhầm tên, "biên lai" thu nhầm, "biên lai" không còn tác dụng, .v.v… không cần ghi thêm chữ "biên lai" vào trong tên phân loại, sau này vẫn có thể thay đổi tên phân loại cho biên lai.`;
     let items = (kind==='payment' ? (state.receiptCategoriesPayment||[]) : (state.receiptCategoriesRefund||[])).map(x=>({...x}));
+    const originalItems = items.map(x=>({...x})); // snapshot ban đầu để so sánh phát hiện thay đổi
 
     function render(){
       wrap.innerHTML = `
@@ -3503,6 +3513,19 @@
         const clean = items.filter(it=>it.name && it.name.trim());
         const obj = {}; clean.forEach(it=> obj[it.id]=it);
         await cSet(storageKey, obj);
+        const kindLabel = kind==='payment' ? 'Biên lai thu lãi' : 'Biên lai trả lãi';
+        for(const it of clean){
+          const before = originalItems.find(x=>x.id===it.id);
+          if(!before){
+            await pushCategoryChangeLog(kind, 'created', { name: it.name, color: it.color, kindLabel });
+          } else if(before.name!==it.name && before.color!==it.color){
+            await pushCategoryChangeLog(kind, 'edited_both', { name: it.name, oldName: before.name, color: it.color, oldColor: before.color, kindLabel });
+          } else if(before.name!==it.name){
+            await pushCategoryChangeLog(kind, 'renamed', { name: it.name, oldName: before.name, color: it.color, kindLabel });
+          } else if(before.color!==it.color){
+            await pushCategoryChangeLog(kind, 'recolored', { name: it.name, color: it.color, oldColor: before.color, kindLabel });
+          }
+        }
         if(kind==='payment') state.receiptCategoriesPayment = clean; else state.receiptCategoriesRefund = clean;
         close();
         if(onSaved) onSaved();
@@ -7901,7 +7924,7 @@ ${fileGenerationTrainingText()}`;
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
-        <div class="table-wrap" style="border-color:#1b5e20; border-width:2px;">
+        <div class="table-wrap">
           <table>
             <thead><tr>
               <th class="frz-col1" style="background:var(--paper-2); min-width:110px;">Thông tin đóng lãi</th>
@@ -8246,7 +8269,7 @@ ${fileGenerationTrainingText()}`;
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
-        <div class="table-wrap" style="border-color:#e65100; border-width:2px;">
+        <div class="table-wrap">
           <table>
             <thead><tr><th class="frz-col1" style="background:var(--paper-2); min-width:110px;">Lịch sử gia hạn</th><th class="frz-col2" style="background:var(--paper-2); min-width:110px;">Quyết định</th><th class="frz-col3" style="background:var(--paper-2); min-width:140px;">Họ và tên</th><th>Số tiền gốc</th><th>Ngày đến hạn</th><th>Ngày gia hạn gần nhất</th></tr></thead>
             <tbody>${groupList.map(b=>{
@@ -8333,7 +8356,7 @@ ${fileGenerationTrainingText()}`;
       const tablesHtml = renderExtensionGroupedTablesHtml(list, projects);
 
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:1300px;">
+        <div class="modal" style="max-width:98vw; width:1300px; border:3px solid #e65100;">
           <div class="modal-head" style="background:#e65100;"><h3 style="color:#fff;">📅 Gia hạn nợ</h3><button class="modal-close preview-allow" id="extm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
@@ -8561,7 +8584,7 @@ ${fileGenerationTrainingText()}`;
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
-        <div class="table-wrap" style="border-color:#0d47a1; border-width:2px;">
+        <div class="table-wrap">
           <table>
             <thead><tr><th class="frz-col1" style="background:var(--paper-2); min-width:110px;">Trả nợ trước hạn</th><th class="frz-col2" style="background:var(--paper-2); min-width:110px;">Tất toán khoản vay</th><th class="frz-col3" style="background:var(--paper-2); min-width:140px;">Họ và tên</th><th>Số tiền gốc</th><th>Tiền lãi chưa đóng<br>(Tính đến QUÝ Hiện Tại)</th><th>Tiền lãi chưa đóng<br>(Tính đến Ngày Hiện Tại)</th><th>Ngày đến hạn</th><th>Ngày gia hạn gần nhất</th></tr></thead>
             <tbody>${groupList.map(b=>{
@@ -8658,7 +8681,7 @@ ${fileGenerationTrainingText()}`;
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
-        <div class="table-wrap" style="border-color:#ef9a9a; border-width:2px;">
+        <div class="table-wrap">
           <table>
             <thead><tr>
               <th class="frz-col1" style="background:var(--paper-2); min-width:110px;">${isConfirmedList? 'Xem lịch sử' : 'Xác nhận'}</th>
@@ -8781,7 +8804,7 @@ ${fileGenerationTrainingText()}`;
       const riskHtml = buildRiskDebtListPanelHtml(riskList);
 
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:1300px;">
+        <div class="modal" style="max-width:98vw; width:1300px; border:3px solid #ef9a9a;">
           <div class="modal-head" style="background:#ef9a9a;"><h3 style="color:#7a1f1f;">⚠️ Thêm, xoá, quản lý Nợ rủi ro</h3><button class="modal-close preview-allow" id="rdm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
@@ -9787,6 +9810,7 @@ ${fileGenerationTrainingText()}`;
     ['bienlai_rieng','Biên lai riêng'],
     ['gxn_chung','Giấy xác nhận chung'],
     ['gxn_rieng','Giấy xác nhận riêng'],
+    ['ten_phan_loai','Tên phân loại biên lai'],
   ];
   // Hợp nhất TOÀN BỘ Biên lai (riêng + chung) và Giấy xác nhận (riêng + chung) thành 1 dòng thời gian
   // duy nhất — dùng cho Kho dòng nhật ký. CHỈ ĐỌC dữ liệu sẵn có, không tạo thêm bản ghi nào mới.
@@ -9838,10 +9862,26 @@ ${fileGenerationTrainingText()}`;
         openFn: ()=> renderConfirmationDetailModal(c),
       });
     });
+    (state.categoryChangeLog||[]).forEach(l=>{
+      const swatch = (c)=> `<span style="display:inline-block; width:22px; height:14px; background:${c||'#fff'}; border:1px solid var(--line); vertical-align:middle; margin:0 3px;"></span>`;
+      let titleHtml;
+      if(l.action==='created') titleHtml = `🏷️ Tên phân loại được tạo: "${escapeHtml(l.name)}" màu ${swatch(l.color)} thuộc ${escapeHtml(l.kindLabel)}`;
+      else if(l.action==='renamed') titleHtml = `🏷️ Tên phân loại được sửa từ "${escapeHtml(l.oldName)}" thành "${escapeHtml(l.name)}" thuộc ${escapeHtml(l.kindLabel)}`;
+      else if(l.action==='recolored') titleHtml = `🏷️ Tên phân loại "${escapeHtml(l.name)}" đổi màu từ ${swatch(l.oldColor)} thành ${swatch(l.color)} thuộc ${escapeHtml(l.kindLabel)}`;
+      else titleHtml = `🏷️ Tên phân loại được sửa từ "${escapeHtml(l.oldName)}" (màu ${swatch(l.oldColor)}) thành "${escapeHtml(l.name)}" (màu ${swatch(l.color)}) thuộc ${escapeHtml(l.kindLabel)}`;
+      entries.push({
+        type:'category', scope:'ten_phan_loai',
+        titleHtml,
+        affectedNames: [],
+        createdAt: l.at, createdByName: l.createdByName, createdBy: l.createdBy, createdByIp: l.createdByIp, createdByDevice: l.createdByDevice,
+        openFn: ()=> renderReceiptCategoryManagerModal(l.kind, ()=>{}),
+      });
+    });
     return entries;
   }
   function logEntryMatchesKindFilter(e){
     const sel = state.logFilterKind||[];
+    if(e.type==='category') return sel.includes('ten_phan_loai');
     if(e.type==='receipt'){
       const scopeOk = e.scope==='chung'? sel.includes('bienlai_chung') : sel.includes('bienlai_rieng');
       const signOk = e.sign==='+'? sel.includes('bienlai_cong') : sel.includes('bienlai_tru');
@@ -9862,7 +9902,7 @@ ${fileGenerationTrainingText()}`;
     const dateLbl = isNaN(d.getTime()) ? '' : `Ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()} vào lúc ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
     return `<div class="preview-allow" data-log-entry-idx="${e.__idx}" style="border:1px solid var(--line); border-radius:8px; padding:10px 14px; margin-bottom:8px; cursor:pointer; background:#fff;">
       <div style="font-weight:700;">${e.titleHtml}</div>
-      <div class="sub" style="margin-top:4px;">${escapeHtml(e.affectedNames.join(', '))}</div>
+      ${e.affectedNames.length? `<div class="sub" style="margin-top:4px;">${escapeHtml(e.affectedNames.join(', '))}</div>` : ''}
       <div class="sub" style="margin-top:4px;">${dateLbl}</div>
       <div class="sub" style="margin-top:4px;">${escapeHtml(e.createdByName||'')} — ${escapeHtml(e.createdBy||'(không có email)')} — IP: ${escapeHtml(e.createdByIp||'(không lấy được)')}</div>
     </div>`;
@@ -10073,7 +10113,7 @@ ${fileGenerationTrainingText()}`;
       return `
       <div style="margin-bottom:14px;">
         <div class="sv-group-header">📋 ${escapeHtml(projName)} (${groupList.length} người vay)</div>
-        <div class="table-wrap" style="border-color:${TAB_COLORS[mode]||'#4a148c'}; border-width:2px;"><table>
+        <div class="table-wrap"><table>
           <thead><tr>
             <th class="frz-col1" style="background:var(--paper-2); min-width:110px;">${colHeader}</th>
             <th class="frz-col2" style="background:var(--paper-2); min-width:140px;">Họ và tên</th>
@@ -10224,7 +10264,7 @@ ${fileGenerationTrainingText()}`;
       }
       const activeLabelTextColor = state.archiveTab==='logs' ? '#000' : '#fff';
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:1300px;">
+        <div class="modal" style="max-width:98vw; width:1300px; border:3px solid #7e57c2;">
           <div class="modal-head" style="background:#7e57c2; display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <h3 style="color:#fff; margin:0;">Kho lưu trữ các Biên lai, Giấy xác nhận, dòng nhật ký</h3>
             <div style="display:flex; align-items:center; gap:10px;">
@@ -10251,7 +10291,7 @@ ${fileGenerationTrainingText()}`;
                 </div>
                 <div style="margin-top:14px;">${receiptsBody}</div>
               ` : ''}
-              ${state.archiveTab==='logs'? buildActivityLogPanelHtml() : ''}
+              ${state.archiveTab==='logs'? (function(){ try{ return buildActivityLogPanelHtml(); }catch(err){ console.error('Lỗi khi dựng Kho dòng nhật ký:', err); return `<p class="sub" style="color:var(--red);">Có lỗi khi hiển thị Kho dòng nhật ký: ${escapeHtml(String(err&&err.message||err))}</p>`; } })() : ''}
             </div>
           </div>
           <div class="modal-foot">
@@ -10315,6 +10355,7 @@ ${fileGenerationTrainingText()}`;
         }
       }
       if(state.archiveTab==='logs'){
+       try{
         const toggleDropdown = (kind)=>{ state.openFilterDropdown = state.openFilterDropdown===kind ? null : kind; render(); };
         const kb = wrap.querySelector('#log-kind-btn'); if(kb) kb.onclick=(e)=>{ e.stopPropagation(); toggleDropdown('log-kind'); };
         const kAll = wrap.querySelector('#log-kind-all'); if(kAll) kAll.onclick=(e)=>{ e.stopPropagation(); state.logFilterKind = kAll.checked? LOG_FILTER_KIND_LIST.map(x=>x[0]) : []; render(); };
@@ -10346,6 +10387,7 @@ ${fileGenerationTrainingText()}`;
             if(document.body.contains(wrap)) render();
           });
         }
+       }catch(err){ console.error('Lỗi khi gắn sự kiện Kho dòng nhật ký:', err); }
       }
     }
     if(!state.archiveTab) state.archiveTab = 'receipts';
@@ -10385,7 +10427,7 @@ ${fileGenerationTrainingText()}`;
       const settledHtml = buildSettledBorrowersPanelHtml(settledList);
 
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:1300px;">
+        <div class="modal" style="max-width:98vw; width:1300px; border:3px solid #0d47a1;">
           <div class="modal-head" style="background:#0d47a1;"><h3 style="color:#fff;">💰 Phê duyệt tất toán khoản vay hoặc trả nợ trước hạn</h3><button class="modal-close preview-allow" id="setm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
@@ -12716,7 +12758,7 @@ ${fileGenerationTrainingText()}`;
       { const mgrs=ensureDefaultManagers(); ensureFilterManagersInit(mgrs); if(state.filterManagerIds.length < mgrs.length) list = list.filter(b=>state.filterManagerIds.includes(b.managerId||'chihoitruong')); }
 
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:1400px;">
+        <div class="modal" style="max-width:98vw; width:1400px; border:3px solid #1b5e20;">
           <div class="modal-head" style="background:#1b5e20;"><h3 style="color:#fff;">💰 Tính tiền lãi và phê duyệt đóng lãi</h3><button class="modal-close preview-allow" id="ia-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
