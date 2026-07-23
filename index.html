@@ -7166,9 +7166,19 @@ ${fileGenerationTrainingText()}`;
   // nào) > còn 30-0 ngày > còn 60-31 ngày > còn 90-61 ngày > còn 120-91 ngày. Phương án nào có loại
   // người vay nào CHIẾM ĐA SỐ thì lấy đúng màu của loại đó; bằng nhau thì ưu tiên đúng theo thứ tự
   // liệt kê ở trên. Không khớp loại nào cả (hoặc rỗng) -> màu xanh lá mặc định.
+  // Biến 1 màu rgba(...) sẵn có thành gradient 3D (trắng tinh -> màu gốc -> màu đậm hơn), KHÔNG đổi
+  // logic chọn màu, chỉ đổi CÁCH TÔ MÀU.
+  function rgbaToGradient(rgbaStr){
+    const m = String(rgbaStr).match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+    if(!m) return rgbaStr;
+    const [, r, g, b, a] = m;
+    const alpha = parseFloat(a);
+    const darker = `rgba(${r},${g},${b},${Math.min(1, alpha*2.2).toFixed(3)})`;
+    return `linear-gradient(180deg, #ffffff 0%, ${rgbaStr} 55%, ${darker} 100%)`;
+  }
   function projectGroupHeaderBg(projectId){
     const all = state.borrowers.filter(b=>!b.deleted && b.projectId===projectId);
-    if(!all.length) return 'rgba(76,175,80,.10)';
+    if(!all.length) return rgbaToGradient('rgba(76,175,80,.10)');
     let overdueCount=0, extendedCount=0, d30=0, d60=0, d90=0, d120=0;
     all.forEach(b=>{
       if(borrowerIsOverdueUnhandled(b)){ overdueCount++; return; }
@@ -7193,8 +7203,8 @@ ${fileGenerationTrainingText()}`;
       { n:d120, color:'rgba(255,235,59,.30)' },
     ];
     const max = Math.max(...counts.map(c=>c.n));
-    if(max===0) return 'rgba(76,175,80,.10)';
-    return counts.find(c=>c.n===max).color;
+    if(max===0) return rgbaToGradient('rgba(76,175,80,.10)');
+    return rgbaToGradient(counts.find(c=>c.n===max).color);
   }
   function borrowerProjectName(b){
     const p = projectOf(b);
@@ -7853,7 +7863,7 @@ ${fileGenerationTrainingText()}`;
       const projName = proj ? escapeHtml(proj.name) : '(Không rõ phương án — có thể đã bị xoá)';
       return `
       <div style="margin-bottom:18px;">
-        <div class="sv-group-header" style="background:rgba(211,47,47,.20); border:2px solid #b71c1c; display:flex; align-items:center; gap:6px;"><span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span style="color:#b71c1c; font-weight:800;">📋 ${projName} (${groupList.length} người vay)</span></div>
+        <div class="sv-group-header" style="background:linear-gradient(180deg, #ffffff 0%, rgba(211,47,47,.20) 55%, rgba(211,47,47,.42) 100%); border:2px solid #b71c1c; display:flex; align-items:center; gap:6px;"><span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span style="color:#b71c1c; font-weight:800;">📋 ${projName} (${groupList.length} người vay)</span></div>
         <div class="table-wrap" style="border-color:#2e7d32; border-width:2px;">
           <table>
             <thead><tr>
@@ -7995,7 +8005,7 @@ ${fileGenerationTrainingText()}`;
       const headerHtml = isOverdueBox
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
         : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}`;
-      const headerBg = isOverdueBox ? 'rgba(211,47,47,.16)' : projectGroupHeaderBg(gid);
+      const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
@@ -8079,7 +8089,7 @@ ${fileGenerationTrainingText()}`;
     settledUnpaidList.forEach(b=>{ const key = b.projectId||'__none__'; (settledUnpaidGroups[key]=settledUnpaidGroups[key]||[]).push(b); });
     const settledUnpaidHtml = settledUnpaidList.length? `
       <div style="margin-bottom:18px;">
-        <div class="sv-group-header" style="background:rgba(211,47,47,.16);"><span style="color:#b71c1c; font-weight:800;">⚠️ Đã tất toán/trả nợ trước hạn nhưng CÒN NỢ tiền lãi (${settledUnpaidList.length} hộ)</span></div>
+        <div class="sv-group-header" style="background:linear-gradient(180deg, #ffffff 0%, rgba(211,47,47,.16) 55%, rgba(211,47,47,.35) 100%);"><span style="color:#b71c1c; font-weight:800;">⚠️ Đã tất toán/trả nợ trước hạn nhưng CÒN NỢ tiền lãi (${settledUnpaidList.length} hộ)</span></div>
         ${Object.keys(settledUnpaidGroups).map(gid=>{
           const groupList = settledUnpaidGroups[gid];
           const proj = gid==='__none__'? null : projects.find(p=>p.id===gid);
@@ -8351,7 +8361,7 @@ ${fileGenerationTrainingText()}`;
       const headerHtml = isOverdueBox
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
         : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}`;
-      const headerBg = isOverdueBox ? 'rgba(211,47,47,.16)' : projectGroupHeaderBg(gid);
+      const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
@@ -8443,7 +8453,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #e65100;">
-          <div class="modal-head" style="background:#e65100;"><h3 style="color:#fff;">${waveTextHtmlSlow('📅 Gia hạn nợ')}</h3><button class="modal-close preview-allow" id="extm-close">✕</button></div>
+          <div class="modal-head" style="background:linear-gradient(180deg, #ffb74d 0%, #fb8c00 50%, #e65100 100%);"><h3 style="color:#fff;">${waveTextHtmlSlow('📅 Gia hạn nợ')}</h3><button class="modal-close preview-allow" id="extm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="extm-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
@@ -8668,7 +8678,7 @@ ${fileGenerationTrainingText()}`;
       const headerHtml = isOverdueBox
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
         : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}`;
-      const headerBg = isOverdueBox ? 'rgba(211,47,47,.16)' : projectGroupHeaderBg(gid);
+      const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
@@ -8765,7 +8775,7 @@ ${fileGenerationTrainingText()}`;
       const headerHtml = isOverdueBox
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
         : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}`;
-      const headerBg = isOverdueBox ? 'rgba(211,47,47,.16)' : projectGroupHeaderBg(gid);
+      const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
@@ -8893,7 +8903,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #ef9a9a;">
-          <div class="modal-head" style="background:#ef9a9a;"><h3 style="color:#7a1f1f;">${waveTextHtmlSlow('⚠️ Thêm, xoá, quản lý Nợ rủi ro')}</h3><button class="modal-close preview-allow" id="rdm-close">✕</button></div>
+          <div class="modal-head" style="background:linear-gradient(180deg, #ffffff 0%, #ffcdd2 50%, #ef9a9a 100%);"><h3 style="color:#7a1f1f;">${waveTextHtmlSlow('⚠️ Thêm, xoá, quản lý Nợ rủi ro')}</h3><button class="modal-close preview-allow" id="rdm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="rdm-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
@@ -10028,10 +10038,11 @@ ${fileGenerationTrainingText()}`;
   function auditReceipt(){ return `<span style="color:${AUDIT_C.receipt}; font-weight:700;">Biên lai</span>`; }
   function auditConfirm(){ return `<span style="color:${AUDIT_C.confirm}; font-weight:700;">Giấy xác nhận</span>`; }
 
-  function computeAuditStats(){
-    const allActive = state.borrowers.filter(b=>!b.deleted && !b.settled);
-    const allSettled = state.borrowers.filter(b=>!b.deleted && b.settled);
-    const allNonDeleted = state.borrowers.filter(b=>!b.deleted);
+  function computeAuditStats(hamletFilter){
+    const hamletOk = (b)=> !hamletFilter || hamletFilter.includes(b.hamlet);
+    const allActive = state.borrowers.filter(b=>!b.deleted && !b.settled && hamletOk(b));
+    const allSettled = state.borrowers.filter(b=>!b.deleted && b.settled && hamletOk(b));
+    const allNonDeleted = state.borrowers.filter(b=>!b.deleted && hamletOk(b));
     const curYear = new Date().getFullYear();
     const lastYear = curYear-1;
     const curQNum = parseInt(todayBasedQuarterKey().replace('q',''),10);
@@ -10132,9 +10143,10 @@ ${fileGenerationTrainingText()}`;
     });
 
     // Nhóm H: nợ rủi ro
-    const riskDebtCount = allActive.filter(b=> b.riskDebt).length;
+    const riskDebtCount = allActive.filter(b=> b.riskDebt && !b.badDebt).length;
     const badDebtCount = allActive.filter(b=> b.badDebt).length;
-    const riskDebtPrincipal = allActive.filter(b=>b.riskDebt).reduce((s,b)=>s+(parseFloat(b.principal)||0),0);
+    const riskDebtPrincipal = allActive.filter(b=>b.riskDebt && !b.badDebt).reduce((s,b)=>s+(parseFloat(b.principal)||0),0);
+    const badDebtPrincipal = allActive.filter(b=>b.badDebt).reduce((s,b)=>s+(parseFloat(b.principal)||0),0);
 
     // Nhóm I: tiền dư
     let leftoverTotal=0, leftoverCount=0;
@@ -10176,7 +10188,7 @@ ${fileGenerationTrainingText()}`;
       principalEarlyLastYear, countEarlyLastYear, interestEarlyLastYear,
       settledUnpaidCount, settledUnpaidTotal,
       extCount, extPrincipalTotal, extApprovedThisYear, extApprovedLastYear,
-      riskDebtCount, badDebtCount, riskDebtPrincipal,
+      riskDebtCount, badDebtCount, riskDebtPrincipal, badDebtPrincipal,
       leftoverTotal, leftoverCount,
       receiptCountYear, receiptCountLastYear, confCountYear, confCountLastYear, logCountYear, logCountLastYear,
       sumReceiptPlusYear: sumReceiptAmount('+', curYear), sumReceiptPlusLastYear: sumReceiptAmount('+', lastYear),
@@ -10184,14 +10196,190 @@ ${fileGenerationTrainingText()}`;
     };
   }
 
+  // Tính số tiền lãi ĐÃ ĐƯỢC PHÊ DUYỆT (đã đóng) phân bổ về từng cấp (Trung ương/Tỉnh/Xã/Khu dân cư),
+  // cho từng mốc thời gian (Quý hiện tại/trước/trước nữa x2, Năm hiện tại/ngoái, luỹ kế). Tôn trọng
+  // đúng tỷ lệ % phân bổ đã lưu trên từng hồ sơ vay (b.splitCentral/splitProvince/splitWard) và tỷ lệ
+  // Xã chia lại cho Khu dân cư (b.hamletAllocPercent — CHIA RA từ phần của Xã, không phải cộng thêm).
+  function computeInterestLevelStats(hamletFilter, managerFilter){
+    const filterOk = (b)=> (!hamletFilter || hamletFilter.includes(b.hamlet)) && (!managerFilter || managerFilter.includes(b.managerId||'chihoitruong'));
+    const list = state.borrowers.filter(b=>!b.deleted && filterOk(b));
+    const curYear = new Date().getFullYear();
+    const lastYear = curYear-1;
+    const curQNum = parseInt(todayBasedQuarterKey().replace('q',''),10);
+    const curQk = 'q'+curQNum;
+    function quarterGoBack(qNum, year, offset){
+      let q=qNum-offset, y=year;
+      while(q<1){ q+=4; y-=1; }
+      return { qNum:q, year:y, qk:'q'+q };
+    }
+    const prevQ = quarterGoBack(curQNum, curYear, 1);
+    const qMinus2 = quarterGoBack(curQNum, curYear, 2);
+    const qMinus3 = quarterGoBack(curQNum, curYear, 3);
+    function sumForPeriod(qk, year){
+      let central=0, province=0, ward=0, hamlet=0, total=0;
+      list.forEach(b=>{
+        const disp = computeInterestPaymentBoxDisplay(b);
+        let bTotal=0;
+        disp.allBoxes.forEach(bx=>{
+          if(!disp.paidKeys.has(bx.key)) return;
+          if(qk? (bx.qk===qk && bx.year===year) : (bx.year===year)) bTotal += bx.interestAmount;
+        });
+        if(bTotal<=0) return;
+        const rate = parseFloat(b.rate)||0;
+        if(rate<=0) return;
+        const c = bTotal*(parseFloat(b.splitCentral)||0)/rate;
+        const p = bTotal*(parseFloat(b.splitProvince)||0)/rate;
+        const w = bTotal*(parseFloat(b.splitWard)||0)/rate;
+        const h = w*(parseFloat(b.hamletAllocPercent)||0)/100;
+        central+=c; province+=p; ward+=w; hamlet+=h; total+=bTotal;
+      });
+      return { central, province, ward, hamlet, total };
+    }
+    function sumAllTime(){
+      let central=0, province=0, ward=0, hamlet=0, total=0;
+      list.forEach(b=>{
+        const alloc = computeBorrowerAllocations(b);
+        central+=alloc.central; province+=alloc.province; ward+=alloc.ward; hamlet+=alloc.hamlet; total+=alloc.central+alloc.province+alloc.ward;
+      });
+      return { central, province, ward, hamlet, total };
+    }
+    return {
+      curYear, lastYear, curQNum, curQk, prevQ, qMinus2, qMinus3,
+      cur: sumForPeriod(curQk, curYear), prev: sumForPeriod(prevQ.qk, prevQ.year),
+      m2: sumForPeriod(qMinus2.qk, qMinus2.year), m3: sumForPeriod(qMinus3.qk, qMinus3.year),
+      yearCur: sumForPeriod(null, curYear), yearLast: sumForPeriod(null, lastYear),
+      allTime: sumAllTime(),
+    };
+  }
+  function renderLevelAllocationModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    let timerId = null;
+    const close = ()=>{ if(timerId) clearInterval(timerId); wrap.remove(); };
+    const LC = { total:'#4a148c', central:'#c62828', province:'#ef6c00', ward:'#2e7d32', hamlet:'#0277bd',
+      money:'#1b5e20', qCur:'#3f51b5', qPrev:'#c2185b', qPrev2:'#880e4f', yearCur:'#6a1b9a', yearLast:'#00838f' };
+    function lvlMoney(v){ return `<b style="color:${LC.money};">${moneySpaced(Math.round(v||0))}</b>`; }
+    function render(){
+      const hamlets = state.config.hamlets||[];
+      const managers = ensureDefaultManagers();
+      if(!state.levelAllocFilterHamlets) state.levelAllocFilterHamlets = hamlets.slice();
+      if(!state.levelAllocFilterManagers) state.levelAllocFilterManagers = managers.map(m=>m.id);
+      const hamletAllSel = state.levelAllocFilterHamlets.length===hamlets.length;
+      const managerAllSel = state.levelAllocFilterManagers.length===managers.length;
+      const isFiltered = !hamletAllSel || !managerAllSel;
+      const hamletFilter = hamletAllSel? null : state.levelAllocFilterHamlets;
+      const managerFilter = managerAllSel? null : state.levelAllocFilterManagers;
+      const s = computeInterestLevelStats(hamletFilter, managerFilter);
+      const qCurInfo = {qNum:s.curQNum, year:s.curYear};
+      const ROMAN = ['I','II','III','IV','V'];
+      let groupIdx = 0;
+      function group(title, titleColor, field, extraNote){
+        groupIdx++;
+        const roman = ROMAN[groupIdx-1];
+        if(isFiltered && groupIdx!==5) return '';
+        const lines = [
+          `Số tiền lãi phân bổ trong ${auditQLabel(qCurInfo, s.curYear, 'cur')} là ${lvlMoney(s.cur[field])}`,
+          `Số tiền lãi phân bổ trong ${auditQLabel(s.prevQ, s.curYear, 'prev')} là ${lvlMoney(s.prev[field])}`,
+          `Số tiền lãi phân bổ trong ${auditQLabel(s.qMinus2, s.curYear, 'prev2')} là ${lvlMoney(s.m2[field])}`,
+          `Số tiền lãi phân bổ trong ${auditQLabel(s.qMinus3, s.curYear, 'prev2')} là ${lvlMoney(s.m3[field])}`,
+          `Số tiền lãi phân bổ trong ${auditYearCur(s.curYear)} là ${lvlMoney(s.yearCur[field])}`,
+          `Số tiền lãi phân bổ trong ${auditYearLast(s.lastYear)} là ${lvlMoney(s.yearLast[field])}`,
+          `Số tiền lãi phân bổ luỹ kế từ trước đến nay là ${lvlMoney(s.allTime[field])}`,
+        ];
+        if(extraNote) lines.push(extraNote);
+        return `<div style="margin-bottom:16px; border:1px solid var(--line); border-radius:10px; overflow:hidden;">
+          <div style="background:#fff; padding:10px 14px; border-bottom:2px solid ${titleColor};"><b style="color:${titleColor}; font-size:14px;">${roman}. ${title}</b></div>
+          <div>${lines.map((l,i)=>`<div style="padding:10px 14px; background:#fff; border-top:1px solid var(--line);">${i<lines.length-(extraNote?1:0)?`<b>${i+1}.</b> `:''}${l}</div>`).join('')}</div>
+        </div>`;
+      }
+      const groupsHtml = [
+        group('🏛️ Tất cả các cấp', LC.total, 'total'),
+        group('🏙️ Cấp Trung ương', LC.central, 'central'),
+        group('🏢 Cấp Tỉnh/Thành phố', LC.province, 'province'),
+        group('🏘️ Cấp xã/phường', LC.ward, 'ward'),
+        group('🏠 Cấp Khu dân cư trực thuộc', LC.hamlet, 'hamlet',
+          `<span class="sub" style="font-style:italic;">Ghi chú: Số tiền của cấp Khu dân cư trực thuộc KHÔNG phải nhận trực tiếp từ việc phân bổ lãi suất của các cấp, mà được cấp xã/phường CHIA LẠI từ chính số tiền lãi cấp xã/phường đã nhận được, theo đúng tỷ lệ quy định chung của xã/phường hoặc quy định riêng của từng khoản vay.</span>`),
+      ].join('');
+      const now = new Date();
+      const dateLbl = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+      const bodyEl = wrap.querySelector('#lvlalloc-body-inner');
+      const hamletDropdown = `<div class="sv-filter-dropdown">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="lvlalloc-hamlet-btn" style="${!hamletAllSel?'border:2px solid #b71c1c;':''}">📍 Địa phương (${state.levelAllocFilterHamlets.length})</button>
+        ${state.openFilterDropdown==='lvlalloc-hamlet'? `<div class="sv-filter-panel">
+          <label class="sv-filter-item"><input type="checkbox" id="lvlalloc-hamlet-all" class="preview-allow" ${hamletAllSel?'checked':''}><span><b>Tất cả địa phương</b></span></label>
+          ${hamlets.map(h=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow lvlalloc-hamlet-item" data-h="${escapeHtml(h)}" ${state.levelAllocFilterHamlets.includes(h)?'checked':''}><span>${escapeHtml(h)}</span></label>`).join('')}
+        </div>` : ''}
+      </div>`;
+      const managerDropdown = `<div class="sv-filter-dropdown">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="lvlalloc-manager-btn" style="${!managerAllSel?'border:2px solid #b71c1c;':''}">👤 Người quản lý (${state.levelAllocFilterManagers.length})</button>
+        ${state.openFilterDropdown==='lvlalloc-manager'? `<div class="sv-filter-panel">
+          <label class="sv-filter-item"><input type="checkbox" id="lvlalloc-manager-all" class="preview-allow" ${managerAllSel?'checked':''}><span><b>Tất cả người quản lý</b></span></label>
+          ${managers.map(m=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow lvlalloc-manager-item" data-m="${m.id}" ${state.levelAllocFilterManagers.includes(m.id)?'checked':''}><span>${escapeHtml(m.name)}</span></label>`).join('')}
+        </div>` : ''}
+      </div>`;
+      const bodyHtml = `
+          <p style="color:#000; line-height:1.7; margin:0 0 8px;">Đây là bảng tự động thống kê chi tiết số tiền lãi được phân bổ về từng cấp quản lý (Trung ương, Tỉnh/Thành phố, Xã/phường, Khu dân cư trực thuộc), dựa trên đúng tỷ lệ % phân bổ đã cấu hình cho từng khoản vay và số tiền lãi ĐÃ ĐƯỢC PHÊ DUYỆT (đã đóng) trong từng mốc thời gian. Dùng để đối chiếu số tiền mỗi cấp thực nhận được so với sổ sách báo cáo lên cấp trên.</p>
+          <p style="color:#000; font-weight:700; margin:0 0 14px;">Được tính vào ngày ${dateLbl}</p>
+          <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+            ${hamletDropdown}
+            ${managerDropdown}
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="lvlalloc-reset-btn">↺ Khôi phục bộ lọc gốc</button>
+          </div>
+          ${isFiltered? `<p class="sub" style="color:#b71c1c; margin:0 0 14px;">Đang lọc theo Địa phương/Người quản lý cụ thể — chỉ Nhóm V (Khu dân cư trực thuộc) còn hợp lý để hiển thị, các nhóm còn lại đã tự ẩn.</p>` : ''}
+          ${groupsHtml}`;
+      function wireFilters(container){
+        const hb = container.querySelector('#lvlalloc-hamlet-btn'); if(hb) hb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='lvlalloc-hamlet'?null:'lvlalloc-hamlet'; render(); };
+        const mb = container.querySelector('#lvlalloc-manager-btn'); if(mb) mb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='lvlalloc-manager'?null:'lvlalloc-manager'; render(); };
+        const hAll = container.querySelector('#lvlalloc-hamlet-all'); if(hAll) hAll.onclick=(e)=>{ e.stopPropagation(); state.levelAllocFilterHamlets = hAll.checked? hamlets.slice() : []; render(); };
+        container.querySelectorAll('.lvlalloc-hamlet-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const h=cb.dataset.h; state.levelAllocFilterHamlets = cb.checked? state.levelAllocFilterHamlets.concat([h]) : state.levelAllocFilterHamlets.filter(x=>x!==h); render(); });
+        const mAll = container.querySelector('#lvlalloc-manager-all'); if(mAll) mAll.onclick=(e)=>{ e.stopPropagation(); state.levelAllocFilterManagers = mAll.checked? managers.map(m=>m.id) : []; render(); };
+        container.querySelectorAll('.lvlalloc-manager-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const m=cb.dataset.m; state.levelAllocFilterManagers = cb.checked? state.levelAllocFilterManagers.concat([m]) : state.levelAllocFilterManagers.filter(x=>x!==m); render(); });
+        const rb = container.querySelector('#lvlalloc-reset-btn'); if(rb) rb.onclick = ()=>{ state.levelAllocFilterHamlets = hamlets.slice(); state.levelAllocFilterManagers = managers.map(m=>m.id); state.openFilterDropdown = null; render(); };
+        if(!wrap._lvlallocOutsideClickBound){
+          wrap._lvlallocOutsideClickBound = true;
+          document.addEventListener('click', (e)=>{
+            if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
+            if(e.target.closest('.sv-filter-dropdown')) return;
+            state.openFilterDropdown = null;
+            if(document.body.contains(wrap)) render();
+          });
+        }
+      }
+      if(bodyEl){ bodyEl.innerHTML = bodyHtml; wireFilters(bodyEl); return; }
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:98vw; width:900px; border:6px solid #00acc1;">
+          <div class="modal-head" style="background:linear-gradient(180deg, #4dd0e1 0%, #00acc1 50%, #00838f 100%);"><h3 style="color:#fff;">${waveTextHtmlSlow('📊 Thống kê phân bổ tiền lãi các cấp')}</h3><button class="modal-close preview-allow" id="lvlalloc-close">✕</button></div>
+          <div class="modal-body" style="max-height:78vh; overflow:auto;">
+            <div id="lvlalloc-body-inner">${bodyHtml}</div>
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="lvlalloc-close2">Đóng bảng</button></div>
+        </div>`;
+      wrap.querySelector('#lvlalloc-close').onclick = close;
+      wrap.querySelector('#lvlalloc-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      wireFilters(wrap);
+    }
+    render();
+    timerId = setInterval(render, 1000);
+  }
   function renderAuditStatsModal(){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
     let timerId = null;
     const close = ()=>{ if(timerId) clearInterval(timerId); wrap.remove(); };
+    const AUDIT_GROUP_NAMES = [
+      '💰 Tiền lãi theo Quý/Năm', '⏰ Lãi quá hạn', '💧 Tiền dư', '🏦 Tiền gốc theo hạn',
+      '✅ Tất toán khoản vay', '📤 Trả nợ trước hạn', '⚠️ Đã tất toán/TNTH nhưng còn nợ lãi',
+      '📅 Gia hạn nợ', '🚨 Nợ rủi ro', '📋 Biên lai / Giấy xác nhận / Dòng nhật ký',
+    ];
     function render(){
-      const s = computeAuditStats();
+      const hamlets = state.config.hamlets||[];
+      if(!state.auditFilterHamlets) state.auditFilterHamlets = hamlets.slice();
+      if(!state.auditFilterGroups) state.auditFilterGroups = AUDIT_GROUP_NAMES.map((_,i)=>i+1);
+      const hamletFilter = state.auditFilterHamlets.length < hamlets.length ? state.auditFilterHamlets : null;
+      const s = computeAuditStats(hamletFilter);
       const qCurInfo = {qNum:s.curQNum, year:s.curYear};
       const qPrevInfo = {qNum:s.prevQNum, year:s.prevQYear};
       const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
@@ -10199,6 +10387,7 @@ ${fileGenerationTrainingText()}`;
       function group(title, titleColor, lines){
         groupIdx++;
         const roman = ROMAN[groupIdx-1] || String(groupIdx);
+        if(!state.auditFilterGroups.includes(groupIdx)) return '';
         return `<div style="margin-bottom:16px; border:1px solid var(--line); border-radius:10px; overflow:hidden;">
           <div style="background:#fff; padding:10px 14px; border-bottom:2px solid ${titleColor};"><b style="color:${titleColor}; font-size:14px;">${roman}. ${title}</b></div>
           <div>${lines.map((l,i)=>`<div style="padding:10px 14px; background:#fff; border-top:1px solid var(--line);"><b>${i+1}.</b> ${l}</div>`).join('')}</div>
@@ -10212,19 +10401,19 @@ ${fileGenerationTrainingText()}`;
           `Số tiền ${auditLai()} trong ${auditQLabel(s.qMinus3, s.curYear, 'prev2')} chưa phê duyệt là ${auditMoney(s.interestQMinus3Unapproved)}`,
           `Số tiền ${auditLai()} trong ${auditYearCur(s.curYear)} chưa phê duyệt là ${auditMoney(s.interestYearCurUnapproved)}`,
           `Số tiền ${auditLai()} trong ${auditYearLast(s.lastYear)} chưa phê duyệt là ${auditMoney(s.interestYearLastUnapproved)}`,
-          `Số tiền ${auditLai()} trong ${auditQLabel(qCurInfo, s.curYear, 'cur')} đã phê duyệt là ${auditMoney(s.interestQCurApproved)}`,
-          `Số tiền ${auditLai()} trong ${auditQLabel(qPrevInfo, s.curYear, 'prev')} đã phê duyệt là ${auditMoney(s.interestQPrevApproved)}`,
-          `Số tiền ${auditLai()} trong ${auditQLabel(s.qMinus2, s.curYear, 'prev2')} đã phê duyệt là ${auditMoney(s.interestQMinus2Approved)}`,
-          `Số tiền ${auditLai()} trong ${auditQLabel(s.qMinus3, s.curYear, 'prev2')} đã phê duyệt là ${auditMoney(s.interestQMinus3Approved)}`,
-          `Số tiền ${auditLai()} trong ${auditYearCur(s.curYear)} đã phê duyệt là ${auditMoney(s.interestYearCurApproved)}`,
-          `Số tiền ${auditLai()} trong ${auditYearLast(s.lastYear)} đã phê duyệt là ${auditMoney(s.interestYearLastApproved)}`,
-          `Số tiền ${auditLai()} luỹ kế từ trước đến nay đã phê duyệt là ${auditMoney(s.interestAllTimeApproved)}`,
-          `Số Quý (lượt) đã được phê duyệt đóng lãi trong ${auditYearCur(s.curYear)} là <b>${s.qApprovedCountCurYear}</b>`,
-          `Số Quý (lượt) đã được phê duyệt đóng lãi trong ${auditYearLast(s.lastYear)} là <b>${s.qApprovedCountLastYear}</b>`,
+          `Số tiền ${auditLai()} trong ${auditQLabel(qCurInfo, s.curYear, 'cur')} <u>đã phê duyệt</u> là ${auditMoney(s.interestQCurApproved)}`,
+          `Số tiền ${auditLai()} trong ${auditQLabel(qPrevInfo, s.curYear, 'prev')} <u>đã phê duyệt</u> là ${auditMoney(s.interestQPrevApproved)}`,
+          `Số tiền ${auditLai()} trong ${auditQLabel(s.qMinus2, s.curYear, 'prev2')} <u>đã phê duyệt</u> là ${auditMoney(s.interestQMinus2Approved)}`,
+          `Số tiền ${auditLai()} trong ${auditQLabel(s.qMinus3, s.curYear, 'prev2')} <u>đã phê duyệt</u> là ${auditMoney(s.interestQMinus3Approved)}`,
+          `Số tiền ${auditLai()} trong ${auditYearCur(s.curYear)} <u>đã phê duyệt</u> là ${auditMoney(s.interestYearCurApproved)}`,
+          `Số tiền ${auditLai()} trong ${auditYearLast(s.lastYear)} <u>đã phê duyệt</u> là ${auditMoney(s.interestYearLastApproved)}`,
+          `Số tiền ${auditLai()} luỹ kế từ trước đến nay <u>đã phê duyệt</u> là ${auditMoney(s.interestAllTimeApproved)}`,
+          `Số Quý (lượt) <u>đã được phê duyệt</u> đóng lãi trong ${auditYearCur(s.curYear)} là <b>${s.qApprovedCountCurYear}</b>`,
+          `Số Quý (lượt) <u>đã được phê duyệt</u> đóng lãi trong ${auditYearLast(s.lastYear)} là <b>${s.qApprovedCountLastYear}</b>`,
         ]),
         group('⏰ Lãi quá hạn', '#b71c1c', [
           `Số tiền ${auditLai()} quá hạn chưa phê duyệt là ${auditMoney(s.overdueInterestUnapproved)}`,
-          `Số tiền ${auditLai()} quá hạn đã phê duyệt là ${auditMoney(s.overdueInterestApproved)}`,
+          `Số tiền ${auditLai()} quá hạn <u>đã phê duyệt</u> là ${auditMoney(s.overdueInterestApproved)}`,
           `Số ${auditHo()} đang có lãi quá hạn chưa đóng là <b>${s.countOverdueInterest}</b>`,
           `<span class="sub" style="font-style:italic;">Giải thích: "Lãi quá hạn" là tổng số tiền lãi (chưa đóng hoặc đã đóng) được tính từ quá khứ cho tới đúng ${auditQLabel(qPrevInfo, s.curYear, 'prev')} — KHÔNG bao gồm Quý hiện tại và các Quý trong tương lai.</span>`,
         ]),
@@ -10269,7 +10458,8 @@ ${fileGenerationTrainingText()}`;
         group('🚨 Nợ rủi ro', '#c62828', [
           `Số ${auditHo()} đang là Nợ rủi ro (trong diện xử lý) là <b>${s.riskDebtCount}</b>`,
           `Số ${auditHo()} Không có khả năng trả nợ (Nợ xấu) là <b>${s.badDebtCount}</b>`,
-          `Tổng số tiền ${auditGoc()} thuộc diện Nợ rủi ro là ${auditMoney(s.riskDebtPrincipal)}`,
+          `Tổng số tiền ${auditGoc()} thuộc nợ rủi ro (trong diện đang xử lý) là ${auditMoney(s.riskDebtPrincipal)}`,
+          `Tổng số tiền ${auditGoc()} thuộc diện không có khả năng trả nợ là ${auditMoney(s.badDebtPrincipal)}`,
         ]),
         group('📋 Biên lai / Giấy xác nhận / Dòng nhật ký', '#4a148c', [
           `Tổng số ${auditReceipt()} đã lập trong ${auditYearCur(s.curYear)} là <b>${s.receiptCountYear}</b>`,
@@ -10282,19 +10472,59 @@ ${fileGenerationTrainingText()}`;
           `Tổng số tiền cộng vào (${auditReceipt()} cộng tiền) trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.sumReceiptPlusLastYear)}`,
           `Tổng số tiền trừ ra (${auditReceipt()} trừ tiền) trong ${auditYearCur(s.curYear)} là ${auditMoney(s.sumReceiptMinusYear)}`,
           `Tổng số tiền trừ ra (${auditReceipt()} trừ tiền) trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.sumReceiptMinusLastYear)}`,
+          `<span class="sub" style="font-style:italic;">Ghi chú: Nhóm này luôn luôn tính toán dựa trên số liệu của TOÀN XÃ, không dựa vào bất cứ một Khu dân cư trực thuộc nào cả (không bị ảnh hưởng bởi bộ lọc Địa phương phía trên).</span>`,
         ]),
       ].join('');
       const now = new Date();
       const timeLbl = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')} ngày ${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
       const bodyEl = wrap.querySelector('#audit-body-inner');
+      const allHamletsSel = state.auditFilterHamlets.length===hamlets.length;
+      const allGroupsSel = state.auditFilterGroups.length===AUDIT_GROUP_NAMES.length;
+      const hamletDropdown = `<div class="sv-filter-dropdown">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="audit-hamlet-btn" style="${!allHamletsSel?'border:2px solid #b71c1c;':''}">📍 Địa phương (${state.auditFilterHamlets.length})</button>
+        ${state.openFilterDropdown==='audit-hamlet'? `<div class="sv-filter-panel">
+          <label class="sv-filter-item"><input type="checkbox" id="audit-hamlet-all" class="preview-allow" ${allHamletsSel?'checked':''}><span><b>Tất cả địa phương</b></span></label>
+          ${hamlets.map(h=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow audit-hamlet-item" data-h="${escapeHtml(h)}" ${state.auditFilterHamlets.includes(h)?'checked':''}><span>${escapeHtml(h)}</span></label>`).join('')}
+        </div>` : ''}
+      </div>`;
+      const groupDropdown = `<div class="sv-filter-dropdown">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="audit-group-btn" style="${!allGroupsSel?'border:2px solid #b71c1c;':''}">📂 Nhóm (${state.auditFilterGroups.length})</button>
+        ${state.openFilterDropdown==='audit-group'? `<div class="sv-filter-panel" style="min-width:300px;">
+          <label class="sv-filter-item"><input type="checkbox" id="audit-group-all" class="preview-allow" ${allGroupsSel?'checked':''}><span><b>Tất cả nhóm</b></span></label>
+          ${AUDIT_GROUP_NAMES.map((name,i)=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow audit-group-item" data-g="${i+1}" ${state.auditFilterGroups.includes(i+1)?'checked':''}><span>${ROMAN[i]}. ${escapeHtml(name)}</span></label>`).join('')}
+        </div>` : ''}
+      </div>`;
       const bodyHtml = `
           <p style="color:#000; line-height:1.7; margin:0 0 8px;">Đây là công cụ đối chiếu và kiểm định số liệu — dùng để so sánh nhanh các con số đang có trong Sổ vay vốn với sổ sách thực tế của xã/phường, giúp phát hiện sớm sai lệch (nếu có). Cứ mở bảng này lên bất cứ lúc nào, xem từng dòng và so sánh trực tiếp với sổ tay/sổ giấy đang lưu — nếu con số khớp nhau thì yên tâm, nếu lệch thì nên kiểm tra lại ngay. Toàn bộ số liệu bên dưới được tính lại HOÀN TOÀN MỚI, cập nhật đúng theo thời gian thực từng giây, không lưu trữ sẵn.</p>
           <p style="color:#000; font-weight:700; margin:0 0 14px;">Được tính vào lúc ${timeLbl}</p>
+          <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+            ${hamletDropdown}
+            ${groupDropdown}
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="audit-reset-btn">↺ Khôi phục bộ lọc gốc</button>
+          </div>
           ${groupsHtml}`;
-      if(bodyEl){ bodyEl.innerHTML = bodyHtml; return; }
+      function wireFilters(container){
+        const hb = container.querySelector('#audit-hamlet-btn'); if(hb) hb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='audit-hamlet'?null:'audit-hamlet'; render(); };
+        const gb = container.querySelector('#audit-group-btn'); if(gb) gb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='audit-group'?null:'audit-group'; render(); };
+        const hAll = container.querySelector('#audit-hamlet-all'); if(hAll) hAll.onclick=(e)=>{ e.stopPropagation(); state.auditFilterHamlets = hAll.checked? hamlets.slice() : []; render(); };
+        container.querySelectorAll('.audit-hamlet-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const h=cb.dataset.h; state.auditFilterHamlets = cb.checked? state.auditFilterHamlets.concat([h]) : state.auditFilterHamlets.filter(x=>x!==h); render(); });
+        const gAll = container.querySelector('#audit-group-all'); if(gAll) gAll.onclick=(e)=>{ e.stopPropagation(); state.auditFilterGroups = gAll.checked? AUDIT_GROUP_NAMES.map((_,i)=>i+1) : []; render(); };
+        container.querySelectorAll('.audit-group-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const g=parseInt(cb.dataset.g,10); state.auditFilterGroups = cb.checked? state.auditFilterGroups.concat([g]) : state.auditFilterGroups.filter(x=>x!==g); render(); });
+        const rb = container.querySelector('#audit-reset-btn'); if(rb) rb.onclick = ()=>{ state.auditFilterHamlets = hamlets.slice(); state.auditFilterGroups = AUDIT_GROUP_NAMES.map((_,i)=>i+1); state.openFilterDropdown = null; render(); };
+        if(!wrap._auditOutsideClickBound){
+          wrap._auditOutsideClickBound = true;
+          document.addEventListener('click', (e)=>{
+            if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
+            if(e.target.closest('.sv-filter-dropdown')) return;
+            state.openFilterDropdown = null;
+            if(document.body.contains(wrap)) render();
+          });
+        }
+      }
+      if(bodyEl){ bodyEl.innerHTML = bodyHtml; wireFilters(bodyEl); return; }
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:900px; border:6px solid #fbc02d;">
-          <div class="modal-head" style="background:#fbc02d;"><h3 style="color:#000;">${waveTextHtmlSlow('🔍 Bảng Đối chiếu & Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay')}</h3><button class="modal-close preview-allow" id="audit-close">✕</button></div>
+          <div class="modal-head" style="background:linear-gradient(180deg, #fff9c4 0%, #ffd54f 50%, #fbc02d 100%);"><h3 style="color:#000;">${waveTextHtmlSlow('🔍 Bảng Đối chiếu & Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay')}</h3><button class="modal-close preview-allow" id="audit-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div id="audit-body-inner">${bodyHtml}</div>
           </div>
@@ -10303,6 +10533,7 @@ ${fileGenerationTrainingText()}`;
       wrap.querySelector('#audit-close').onclick = close;
       wrap.querySelector('#audit-close2').onclick = close;
       wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      wireFilters(wrap);
     }
     render();
     timerId = setInterval(render, 1000); // cập nhật lại toàn bộ số liệu + đồng hồ đúng mỗi giây
@@ -10327,6 +10558,43 @@ ${fileGenerationTrainingText()}`;
       filtered = nameMatches.concat(quarterEntries);
     }
     filtered = filtered.sort((a,c)=> (c.createdAt||'').localeCompare(a.createdAt||''));
+    const curYear = new Date().getFullYear();
+    if(!state.logExpandedYears) state.logExpandedYears = [curYear];
+    if(state.logExpandedBucket===undefined) state.logExpandedBucket = null;
+    const byYear = {};
+    filtered.forEach(e=>{ const d=new Date(e.createdAt); const y=isNaN(d.getTime())?null:d.getFullYear(); if(y!=null) (byYear[y]=byYear[y]||[]).push(e); });
+    const recentYears = [];
+    for(let y=curYear; y>=curYear-4; y--){ if(y===curYear || byYear[y]) recentYears.push(y); }
+    const olderBuckets = {};
+    Object.keys(byYear).map(Number).filter(y=> y<curYear-4).forEach(y=>{
+      const yearsAgo = curYear-y;
+      let idx = Math.floor(yearsAgo/5)+1; if(idx<2) idx=2;
+      const fromYear = curYear-5*idx, toYear = curYear-5*(idx-1);
+      if(!olderBuckets[idx]) olderBuckets[idx] = { idx, fromYear, toYear, years:[] };
+      olderBuckets[idx].years.push(y);
+    });
+    const olderBucketList = Object.keys(olderBuckets).map(Number).sort((a,c2)=>a-c2).map(i=>olderBuckets[i]);
+    function yearSectionHtml(y){
+      const isCur = y===curYear;
+      const expanded = state.logExpandedYears.includes(y);
+      const entries = byYear[y]||[];
+      return `<div style="margin-bottom:10px;">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" data-log-year-toggle="${y}">📅 Năm ${y} (${entries.length}) ${expanded?'▴':'▾'}</button>
+        ${expanded? `<div style="margin-top:8px; padding-left:10px; border-left:2px solid var(--line);">
+          ${entries.length? entries.map(activityLogRowHtml).join('') : `<p class="sub">${isCur? 'Chưa có dòng nhật ký nào trong năm nay.' : 'Không có dòng nhật ký nào trong năm này.'}</p>`}
+          <div style="text-align:center; margin-top:6px;"><button type="button" class="btn btn-ghost btn-sm preview-allow" data-log-year-collapse="${y}" style="color:#b71c1c; font-weight:700;">Rút gọn toàn bộ danh sách</button></div>
+        </div>` : ''}
+      </div>`;
+    }
+    const recentHtml = recentYears.map(yearSectionHtml).join('');
+    const olderBucketsHtml = olderBucketList.map(bucket=>{
+      const bucketExpanded = state.logExpandedBucket===bucket.idx;
+      return `<div style="margin-bottom:10px;">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" data-log-bucket-toggle="${bucket.idx}">🗄️ Từ năm ${bucket.toYear} đến ${bucket.fromYear} ${bucketExpanded?'▴':'▾'}</button>
+        ${bucketExpanded? `<div style="margin-top:8px; padding-left:10px; border-left:2px solid var(--line);">${bucket.years.slice().sort((a,c2)=>c2-a).map(yearSectionHtml).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+    const listBodyHtml = (recentHtml + olderBucketsHtml) || `<p class="sub" style="padding:10px 0;">${allEntries.length===0? 'Chưa có dòng nhật ký nào cả.' : 'Không có dòng nhật ký nào theo bộ lọc hiện tại.'}</p>`;
     const allSel = state.logFilterKind.length===LOG_FILTER_KIND_LIST.length;
     const kindDropdown = `<div class="sv-filter-dropdown">
       <button type="button" class="btn btn-ghost btn-sm preview-allow" id="log-kind-btn" style="${!allSel?'border:2px solid #b71c1c;':''}">📂 Loại dòng nhật ký (${state.logFilterKind.length})</button>
@@ -10345,7 +10613,7 @@ ${fileGenerationTrainingText()}`;
         <button class="btn btn-ghost btn-sm preview-allow" id="log-reset-all-btn">↺ Khôi phục bộ lọc gốc</button>
       </div>
       <div style="margin-top:14px; border:2px solid #fbc02d; border-radius:10px; padding:12px; min-height:60vh; max-height:60vh; overflow:auto;">
-        ${filtered.length? filtered.map(activityLogRowHtml).join('') : `<p class="sub" style="padding:10px 0;">${allEntries.length===0? 'Chưa có dòng nhật ký nào cả.' : 'Không có dòng nhật ký nào theo bộ lọc hiện tại.'}</p>`}
+        ${listBodyHtml}
       </div>`;
   }
   function renderConfirmationDetailModal(c){
@@ -10558,9 +10826,10 @@ ${fileGenerationTrainingText()}`;
   // tiền lãi, có nút "Danh sách từ 5 năm..."/"Danh sách cũ hơn 5 năm...", nút "Rút gọn toàn bộ".
   function buildArchiveSettledPanelHtml(allSettledList, cols, mode2, idPrefix){
     if(!allSettledList.length) return `<p class="sub" style="padding:10px 0;">Không có ai trong danh sách này.</p>`;
-    const rangeMode = state.settledExpandedRange; // null (mặc định) | '5y' | 'older'
+    const rangeMode = state.settledExpandedRange; // null (mặc định) | '5y' | số (chỉ số khung 5 năm)
     const fiveYearsAgo = new Date(); fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear()-5);
     const fiveYearsAgoStr = fiveYearsAgo.toISOString();
+    const buckets = settledYearBuckets(allSettledList);
     let settled, sectionTitle;
     if(!rangeMode){
       settled = allSettledList.filter(b=> computeInterestPaymentBoxDisplay(b).unpaidTotal>0);
@@ -10569,8 +10838,9 @@ ${fileGenerationTrainingText()}`;
       settled = allSettledList.filter(b=> (b.settledAt||'') >= fiveYearsAgoStr);
       sectionTitle = 'Danh sách từ 5 năm trước đến thời điểm hiện tại';
     } else {
-      settled = allSettledList.filter(b=> (b.settledAt||'') < fiveYearsAgoStr);
-      sectionTitle = 'Danh sách cũ hơn 5 năm trước';
+      const bucket = buckets.find(bk=>bk.idx===rangeMode);
+      settled = bucket? bucket.list : [];
+      sectionTitle = bucket? `Danh sách từ năm ${bucket.fromYear} đến năm ${bucket.toYear}` : '';
     }
     settled = settled.slice().sort((a,b2)=>{
       if(!rangeMode){
@@ -10580,10 +10850,10 @@ ${fileGenerationTrainingText()}`;
       }
       return (b2.settledAt||'').localeCompare(a.settledAt||'');
     });
-    if(!settled.length && !rangeMode) return `<p class="sub" style="padding:10px 0;">Không có hộ vay nào đã tất toán/trả nợ trước hạn mà còn nợ tiền lãi.</p>${settledRangeButtonsHtml(idPrefix)}`;
+    if(!settled.length && !rangeMode) return `<p class="sub" style="padding:10px 0;">Không có hộ vay nào đã tất toán/trả nợ trước hạn mà còn nợ tiền lãi.</p>${settledRangeButtonsHtml(idPrefix, buckets)}`;
     const titleHtml = rangeMode? `<div class="divider-lbl">${escapeHtml(sectionTitle)}</div>` : `<div class="divider-lbl">Danh sách khoản vay đã tất toán hoặc trả nợ xong Nhưng chưa hoàn tất việc đóng lãi</div>`;
     if(!settled.length) return `${titleHtml}<p class="sub" style="padding:10px 0;">Không có hộ vay nào.</p>${settledCollapseButtonHtml(idPrefix)}`;
-    return `${titleHtml}${archiveSimpleTableHtml(settled, cols, mode2, 'settled', rangeMode? settledCollapseButtonHtml(idPrefix) : null)}${!rangeMode? settledRangeButtonsHtml(idPrefix) : ''}`;
+    return `${titleHtml}${archiveSimpleTableHtml(settled, cols, mode2, 'settled', rangeMode? settledCollapseButtonHtml(idPrefix) : null)}${!rangeMode? settledRangeButtonsHtml(idPrefix, buckets) : ''}`;
   }
   // Gộp phẳng TẤT CẢ người vay đang nằm trong Thùng rác (Sổ vay vốn) — cả người bị xoá riêng lẻ lẫn
   // người nằm trong gói phương án bị xoá cả cụm — kèm tên phương án + người xoá + ngày xoá.
@@ -10723,7 +10993,7 @@ ${fileGenerationTrainingText()}`;
       const activeLabelTextColor = state.archiveTab==='logs' ? '#000' : '#fff';
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #7e57c2;">
-          <div class="modal-head" style="background:#7e57c2; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div class="modal-head" style="background:linear-gradient(180deg, #b39ddb 0%, #7e57c2 50%, #4a148c 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <h3 style="color:#fff; margin:0;">${waveTextHtmlSlow('Kho lưu trữ các Biên lai, Giấy xác nhận, dòng nhật ký')}</h3>
             <div style="display:flex; align-items:center; gap:10px;">
               ${tabBtnsHtml('top')}
@@ -10829,8 +11099,31 @@ ${fileGenerationTrainingText()}`;
           state.logSearch = '';
           state.logFilterKind = LOG_FILTER_KIND_LIST.map(x=>x[0]);
           state.logSpecificTime = false;
+          state.logExpandedYears = [new Date().getFullYear()];
+          state.logExpandedBucket = null;
           render();
         };
+        wrap.querySelectorAll('[data-log-year-toggle]').forEach(btn=>{
+          btn.onclick = ()=>{
+            const y = parseInt(btn.dataset.logYearToggle,10);
+            state.logExpandedYears = state.logExpandedYears.includes(y) ? state.logExpandedYears.filter(x=>x!==y) : state.logExpandedYears.concat([y]);
+            render();
+          };
+        });
+        wrap.querySelectorAll('[data-log-year-collapse]').forEach(btn=>{
+          btn.onclick = ()=>{
+            const y = parseInt(btn.dataset.logYearCollapse,10);
+            state.logExpandedYears = state.logExpandedYears.filter(x=>x!==y);
+            render();
+          };
+        });
+        wrap.querySelectorAll('[data-log-bucket-toggle]').forEach(btn=>{
+          btn.onclick = ()=>{
+            const idx = parseInt(btn.dataset.logBucketToggle,10);
+            state.logExpandedBucket = state.logExpandedBucket===idx ? null : idx;
+            render();
+          };
+        });
         const qb = wrap.querySelector('#f-quarter-btn'); if(qb) qb.onclick=(e)=>{ e.stopPropagation(); toggleDropdown('quarter'); };
         const yb = wrap.querySelector('#f-year-btn'); if(yb) yb.onclick=(e)=>{ e.stopPropagation(); toggleDropdown('year'); };
         wrap.querySelectorAll('.f-quarter-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); toggleQuarterFilter(cb.dataset.key, cb.checked); render(); });
@@ -10894,7 +11187,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #0d47a1;">
-          <div class="modal-head" style="background:#0d47a1;"><h3 style="color:#fff;">${waveTextHtmlSlow('💰 Phê duyệt tất toán khoản vay hoặc trả nợ trước hạn')}</h3><button class="modal-close preview-allow" id="setm-close">✕</button></div>
+          <div class="modal-head" style="background:linear-gradient(180deg, #64b5f6 0%, #1e6fd9 50%, #0d47a1 100%);"><h3 style="color:#fff;">${waveTextHtmlSlow('💰 Phê duyệt tất toán khoản vay hoặc trả nợ trước hạn')}</h3><button class="modal-close preview-allow" id="setm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="setm-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
@@ -13248,7 +13541,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1400px; border:6px solid #1b5e20;">
-          <div class="modal-head" style="background:#1b5e20;"><h3 style="color:#fff;">${waveTextHtmlSlow('💰 Tính tiền lãi và phê duyệt đóng lãi')}</h3><button class="modal-close preview-allow" id="ia-close">✕</button></div>
+          <div class="modal-head" style="background:linear-gradient(180deg, #81c784 0%, #43a047 50%, #1b5e20 100%);"><h3 style="color:#fff;">${waveTextHtmlSlow('💰 Tính tiền lãi và phê duyệt đóng lãi')}</h3><button class="modal-close preview-allow" id="ia-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="ia-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
@@ -13426,17 +13719,18 @@ ${fileGenerationTrainingText()}`;
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h3>💰 Quản lý và phê duyệt hành động cho các khoản vay</h3></div>
+        <div class="panel-head"><h3>💰 Quản lý, thống kê và phê duyệt hành động cho các khoản vay</h3></div>
         <div class="panel-body">
           <div class="toolbar" style="flex-wrap:wrap;">
-            <button class="btn btn-sm preview-allow" id="loan-calc-interest-btn" style="background:#1b5e20; color:#fff; border-color:#1b5e20;">Tính tiền lãi và phê duyệt đóng lãi</button>
-            <button class="btn btn-sm preview-allow" id="loan-approve-settlement-btn" style="background:#0d47a1; color:#fff; border-color:#0d47a1;">Tất toán khoản vay/Trả nợ trước hạn</button>
-            <button class="btn btn-sm preview-allow" id="loan-extend-debt-btn" style="background:#e65100; color:#fff; border-color:#e65100;">Gia hạn nợ</button>
-            <button class="btn btn-sm preview-allow" id="loan-risk-debt-btn" style="background:#ef9a9a; color:#7a1f1f; border-color:#ef9a9a;">Quản lý Nợ rủi ro</button>
-            <button class="btn btn-sm preview-allow" id="loan-archive-btn" style="background:#4a148c; color:#fff; border-color:#4a148c;">Kho biên lai/giấy xác nhận/dòng nhật ký</button>
+            <button class="btn btn-sm preview-allow" id="loan-calc-interest-btn" style="background:linear-gradient(180deg, #ffffff 0%, #43a047 45%, #1b5e20 100%); color:#fff; border-color:#1b5e20; text-shadow:0 1px 2px rgba(0,0,0,.35);">Tính tiền lãi và phê duyệt đóng lãi</button>
+            <button class="btn btn-sm preview-allow" id="loan-approve-settlement-btn" style="background:linear-gradient(180deg, #ffffff 0%, #1e6fd9 45%, #0d47a1 100%); color:#fff; border-color:#0d47a1; text-shadow:0 1px 2px rgba(0,0,0,.35);">Tất toán khoản vay/Trả nợ trước hạn</button>
+            <button class="btn btn-sm preview-allow" id="loan-extend-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #fb8c00 45%, #e65100 100%); color:#fff; border-color:#e65100; text-shadow:0 1px 2px rgba(0,0,0,.35);">Gia hạn nợ</button>
+            <button class="btn btn-sm preview-allow" id="loan-risk-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ffcdd2 50%, #ef9a9a 100%); color:#7a1f1f; border-color:#ef9a9a;">Quản lý Nợ rủi ro</button>
+            <button class="btn btn-sm preview-allow" id="loan-archive-btn" style="background:linear-gradient(180deg, #ffffff 0%, #7b1fa2 45%, #4a148c 100%); color:#fff; border-color:#4a148c; text-shadow:0 1px 2px rgba(0,0,0,.35);">Kho biên lai/giấy xác nhận/dòng nhật ký</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="loan-quarter-settings-btn">Chỉnh thời gian tính lãi suất hàng quý</button>
+            <button class="btn btn-sm preview-allow" id="loan-approval-details-toggle" style="background:linear-gradient(180deg, #ffffff 0%, #fff9c4 50%, #fbc02d 100%); color:var(--rice-dark); border-color:#fbc02d; font-weight:700;">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay</button>
+            <button class="btn btn-sm preview-allow" id="loan-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#fff; border-color:#00acc1; font-weight:700; text-shadow:0 1px 2px rgba(0,0,0,.35);">📊 Thống kê phân bổ tiền lãi các cấp</button>
           </div>
-          <button class="btn btn-block preview-allow" id="loan-approval-details-toggle" style="margin-top:10px; text-align:left; background:#fff9c4; border:1px solid var(--line); font-weight:700; color:var(--rice-dark);">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay</button>
         </div>
       </div>
 
@@ -13629,6 +13923,8 @@ ${fileGenerationTrainingText()}`;
     if(loanArchiveBtn) loanArchiveBtn.onclick = ()=> renderArchiveModal();
     const loanApprovalDetailsToggle = document.getElementById('loan-approval-details-toggle');
     if(loanApprovalDetailsToggle) loanApprovalDetailsToggle.onclick = ()=> renderAuditStatsModal();
+    const loanLevelAllocationBtn = document.getElementById('loan-level-allocation-btn');
+    if(loanLevelAllocationBtn) loanLevelAllocationBtn.onclick = ()=> renderLevelAllocationModal();
 
     // ---- Bộ lọc đa chọn (Ấp / Phương án vay / Quý / Năm) ----
     document.getElementById('f-search').oninput = e=>{ state.search=e.target.value; rerenderKeepingFocus(()=>renderDataTab(el)); };
@@ -16199,13 +16495,33 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // Panel "Danh sách đã Tất toán khoản vay hoặc Trả nợ trước hạn" — nhóm theo phương án vay, trong
   // mỗi nhóm: hộ nào CÒN NỢ tiền lãi (tính đến Quý/Ngày hiện tại) luôn xếp lên đầu tiên; hết nợ lãi
   // thì về lại thứ tự mặc định (mới tất toán trước, cũ sau). Dòng người thừa kế được gạch chân.
+  // Tính các "khung 5 năm" (khung 2 trở lên, khung 1 = "5 năm trước đến hiện tại" tính riêng) đang
+  // THẬT SỰ có ít nhất 1 người vay — không trùng đầu mút giữa các khung với nhau.
+  function settledYearBuckets(allSettled){
+    const curYear = new Date().getFullYear();
+    const fiveYearsAgo = new Date(); fiveYearsAgo.setFullYear(curYear-5);
+    const fiveYearsAgoStr = fiveYearsAgo.toISOString();
+    const older = allSettled.filter(b=> (b.settledAt||'') < fiveYearsAgoStr);
+    const buckets = {};
+    older.forEach(b=>{
+      const settledDate = new Date(b.settledAt || b.dueDate || new Date());
+      const yearsAgo = curYear - settledDate.getFullYear();
+      let idx = Math.floor(yearsAgo/5)+1;
+      if(idx<2) idx=2;
+      (buckets[idx]=buckets[idx]||[]).push(b);
+    });
+    return Object.keys(buckets).map(Number).sort((a,c)=>a-c).map(idx=>({
+      idx, fromYear: curYear-5*idx, toYear: curYear-5*(idx-1), list: buckets[idx],
+    }));
+  }
   function buildSettledBorrowersPanelHtml(preFiltered, idPrefix){
     idPrefix = idPrefix || 'ssp';
     const allSettled = preFiltered || state.borrowers.filter(b=>!b.deleted && b.settled);
     if(!allSettled.length) return `<p class="sub" style="padding:10px 0;">Chưa có hộ vay nào tất toán hoặc trả nợ trước hạn.</p>`;
-    const mode = state.settledExpandedRange; // null (mặc định) | '5y' | 'older'
+    const mode = state.settledExpandedRange; // null (mặc định) | '5y' | số (chỉ số khung 5 năm, >=2)
     const fiveYearsAgo = new Date(); fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear()-5);
     const fiveYearsAgoStr = fiveYearsAgo.toISOString();
+    const buckets = settledYearBuckets(allSettled);
     let settled, sectionTitle;
     if(!mode){
       // Mặc định: CHỈ hiện những người CHƯA đóng lãi xong (tính đến Quý/Ngày hiện tại)
@@ -16215,10 +16531,11 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       settled = allSettled.filter(b=> (b.settledAt||'') >= fiveYearsAgoStr);
       sectionTitle = 'Danh sách từ 5 năm trước đến thời điểm hiện tại';
     } else {
-      settled = allSettled.filter(b=> (b.settledAt||'') < fiveYearsAgoStr);
-      sectionTitle = 'Danh sách cũ hơn 5 năm trước';
+      const bucket = buckets.find(bk=>bk.idx===mode);
+      settled = bucket? bucket.list : [];
+      sectionTitle = bucket? `Danh sách từ năm ${bucket.fromYear} đến năm ${bucket.toYear}` : '';
     }
-    if(!settled.length && !mode) return `<p class="sub" style="padding:10px 0;">Không có hộ vay nào đã tất toán/trả nợ trước hạn mà còn nợ tiền lãi.</p>${settledRangeButtonsHtml(idPrefix)}`;
+    if(!settled.length && !mode) return `<p class="sub" style="padding:10px 0;">Không có hộ vay nào đã tất toán/trả nợ trước hạn mà còn nợ tiền lãi.</p>${settledRangeButtonsHtml(idPrefix, buckets)}`;
     if(!settled.length) return `<p class="sub" style="padding:10px 0;">${escapeHtml(sectionTitle)}: không có hộ vay nào.</p>${settledCollapseButtonHtml(idPrefix)}`;
     const projects = state.loanProjects||[];
     const groups = {};
@@ -16266,12 +16583,13 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         </div>
       </div>`;
     }).join('');
-    return `${mode? `<div class="divider-lbl">${escapeHtml(sectionTitle)}</div>` : `<div class="divider-lbl">Danh sách khoản vay đã tất toán hoặc trả nợ xong Nhưng chưa hoàn tất việc đóng lãi</div>`}${tablesHtml}${!mode? settledRangeButtonsHtml(idPrefix) : ''}`;
+    return `${mode? `<div class="divider-lbl">${escapeHtml(sectionTitle)}</div>` : `<div class="divider-lbl">Danh sách khoản vay đã tất toán hoặc trả nợ xong Nhưng chưa hoàn tất việc đóng lãi</div>`}${tablesHtml}${!mode? settledRangeButtonsHtml(idPrefix, buckets) : ''}`;
   }
-  function settledRangeButtonsHtml(idPrefix){
+  function settledRangeButtonsHtml(idPrefix, buckets){
+    buckets = buckets || [];
     return `<div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
       <button type="button" class="btn btn-ghost btn-sm preview-allow" data-settled-range="5y" data-settled-idprefix="${idPrefix}">Danh sách từ 5 năm trước đến thời điểm hiện tại</button>
-      <button type="button" class="btn btn-ghost btn-sm preview-allow" data-settled-range="older" data-settled-idprefix="${idPrefix}">Danh sách cũ hơn 5 năm trước</button>
+      ${buckets.map(bk=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-settled-range="${bk.idx}" data-settled-idprefix="${idPrefix}">Danh sách từ năm ${bk.fromYear} đến năm ${bk.toYear}</button>`).join('')}
     </div>`;
   }
   function settledCollapseButtonHtml(idPrefix){
@@ -16281,7 +16599,11 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // "Rút gọn toàn bộ danh sách" — dùng ở cả panel gốc lẫn bên trong modal Tất toán/Trả nợ trước hạn.
   function wireSettledRangeButtons(container, rerenderFn){
     container.querySelectorAll('[data-settled-range]').forEach(btn=>{
-      btn.onclick = ()=>{ state.settledExpandedRange = btn.dataset.settledRange; rerenderFn(); };
+      btn.onclick = ()=>{
+        const v = btn.dataset.settledRange;
+        state.settledExpandedRange = v==='5y' ? '5y' : parseInt(v,10);
+        rerenderFn();
+      };
     });
     container.querySelectorAll('[data-settled-collapse]').forEach(btn=>{
       btn.onclick = ()=>{ state.settledExpandedRange = null; rerenderFn(); };
@@ -17365,16 +17687,24 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           if(historyOpen) scrollToHistoryOnRender = true;
           renderBody();
         };
-        wrap.querySelectorAll('[data-hist-view]').forEach(btn=>{
-          btn.onclick = ()=>{
+        // Nút từng dòng "Xem lịch sử" — gắn sự kiện qua UỶ QUYỀN (event delegation) trên `wrap` NGOÀI
+        // CÙNG (chỉ tạo đúng 1 lần, không bao giờ bị thay thế) — khác với các nút BÊN TRONG innerHTML
+        // sẽ bị dựng lại mới hoàn toàn mỗi lần renderBody() chạy, nên gắn trực tiếp .onclick có thể bị
+        // trượt mất trong một số trường hợp. Nhờ uỷ quyền, nút này LUÔN nhận được click.
+        if(!wrap._histViewDelegated){
+          wrap._histViewDelegated = true;
+          wrap.addEventListener('click', (e)=>{
+            const btn = e.target.closest('[data-hist-view]');
+            if(!btn) return;
             const h = (state.quarterSettingsHistory||[]).find(x=>x.id===btn.dataset.histView);
-            if(h) renderQuarterHistoryDetailModal(h, ()=>{
+            if(!h) return;
+            renderQuarterHistoryDetailModal(h, ()=>{
               Object.keys(DEFAULT_QUARTERS).forEach(qk=>{ if(h.quarters[qk]) draft[qk] = JSON.parse(JSON.stringify(h.quarters[qk])); });
               flashTargets = ['q1','q2','q3','q4'].flatMap(qk=>[{qk,part:'start'},{qk,part:'end'}]);
               renderBody();
             });
-          };
-        });
+          });
+        }
       } else if(view.mode==='month'){
         wrap.querySelector('#qim-back-main').onclick = ()=>{ view = {mode:'main'}; renderBody(); };
         wrap.querySelectorAll('[data-qmonth]:not([disabled])').forEach(btn=>{
