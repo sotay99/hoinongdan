@@ -1137,6 +1137,58 @@
   // dùng khi cần thao tác dữ liệu của một mã KHÔNG PHẢI mã đang mở (vd: sau khi khôi phục xong).
   function srefFor(sid, sub){ return rtdb.ref(`secretdata/${sid}/${sub}`); }
 
+  // =====================================================================
+  // BỘ NHỚ DỮ LIỆU CÁ NHÂN — xuyên suốt mọi mã xã, gắn theo đúng tài khoản Google (email) của người
+  // dùng, HOÀN TOÀN TÁCH BIỆT khỏi dữ liệu "data/{wardId}" hay "secretdata/{secretId}" của bất kỳ mã
+  // xã nào. Dù người dùng đăng nhập vào mã xã nào, dữ liệu cá nhân này luôn đi theo họ.
+  // Dùng chung cho nhiều tính năng cá nhân sau này (Bộ xem cột, ghi chú riêng, cài đặt riêng...).
+  // Nếu CHƯA đăng nhập bằng Google, dùng localStorage của trình duyệt làm nơi lưu tạm thay thế —
+  // xem thêm các hàm personalGet/personalSet/personalRemove/personalFetchAll bên dưới, chúng tự động
+  // chọn đúng nguồn (Firebase hay localStorage) và LUÔN GỘP CẢ 2 nguồn khi liệt kê.
+  // =====================================================================
+  function personalEmailKey(){
+    return (state.identity && state.identity.email) ? state.identity.email.toLowerCase().trim().replace(/[.#$\[\]\/]/g,'_') : null;
+  }
+  function isPersonalStorageLinkedToGoogle(){ return !!personalEmailKey(); }
+  // uref(sub) — con trỏ Firebase tới đúng kho dữ liệu cá nhân của người dùng đang đăng nhập, không
+  // phụ thuộc mã xã nào cả. CHỈ dùng được khi đã đăng nhập bằng Google (personalEmailKey() khác null).
+  function uref(sub){
+    const key = personalEmailKey();
+    if(!key) throw new Error('uref() chỉ dùng được khi đã đăng nhập bằng tài khoản Google.');
+    return rtdb.ref(`userPersonalData/${key}/${sub}`);
+  }
+  function personalLocalStorageKey(sub){ return 'personalData_'+sub; }
+  function personalGetLocal(sub){
+    try{ return JSON.parse(localStorage.getItem(personalLocalStorageKey(sub))||'{}'); }catch(e){ return {}; }
+  }
+  function personalSetLocal(sub, obj){
+    try{ localStorage.setItem(personalLocalStorageKey(sub), JSON.stringify(obj)); }catch(e){}
+  }
+  // Lưu 1 bản ghi cá nhân (theo id) — tự chọn Firebase (nếu đã đăng nhập Google) hoặc localStorage.
+  async function personalSet(sub, id, record){
+    if(isPersonalStorageLinkedToGoogle()){ await uref(sub).child(id).set(record); }
+    else { const obj = personalGetLocal(sub); obj[id] = record; personalSetLocal(sub, obj); }
+  }
+  // Xoá 1 bản ghi cá nhân theo id — xoá ở CẢ 2 nguồn phòng khi tồn tại ở cả 2 (vd: vừa mới đăng nhập).
+  async function personalRemove(sub, id){
+    if(isPersonalStorageLinkedToGoogle()){ try{ await uref(sub).child(id).remove(); }catch(e){} }
+    const obj = personalGetLocal(sub); delete obj[id]; personalSetLocal(sub, obj);
+  }
+  // Lấy TOÀN BỘ bản ghi cá nhân — GỘP cả 2 nguồn (Firebase theo email + localStorage của trình
+  // duyệt) thành 1 mảng duy nhất. Nếu 1 bản ghi có mặt ở CẢ 2 nguồn (cùng id), ưu tiên bản Firebase
+  // (mới hơn/đáng tin hơn vì gắn với tài khoản).
+  async function personalFetchAll(sub){
+    const localObj = personalGetLocal(sub);
+    const localArr = Object.keys(localObj).map(id=>({...localObj[id], id}));
+    let fbArr = [];
+    if(isPersonalStorageLinkedToGoogle()){
+      try{ const snap = await uref(sub).once('value'); fbArr = snapToArray(snap.val()); }catch(e){ fbArr = []; }
+    }
+    const fbIds = new Set(fbArr.map(x=>x.id));
+    return fbArr.concat(localArr.filter(x=>!fbIds.has(x.id)));
+  }
+
+
   // ---------------------------------------------------------------------
   // Mục lục toàn hệ thống (chỉ Admin đọc được, dùng cho Module [CÀI ĐẶT ADMIN] — Khu vực 3):
   // mỗi khi "con trỏ" config của 1 mã xã được ghi/cập nhật, đồng bộ 1 bản ghi rút gọn vào
@@ -1329,6 +1381,8 @@
     });
     bind('sharedConfirmationDocuments', v => { state.sharedConfirmationDocuments = snapToArray(v); });
     bind('sharedBorrowerReceipts', v => { state.sharedBorrowerReceipts = snapToArray(v); });
+    bind('columnViewSets', v => { state.columnViewSets = snapToArray(v); });
+    bind('columnViewSetLog', v => { state.columnViewSetLog = snapToArray(v); });
     bind('categoryChangeLog', v => { state.categoryChangeLog = snapToArray(v); });
     bind('quarterStatusLog', v => {
       const result = {};
@@ -1693,6 +1747,8 @@
     borrowerConfirmations:{},       // { [borrowerId]: [ {id,kind,title,details,...} ] } — Kho Giấy xác nhận
     sharedConfirmationDocuments:[], // Kho Giấy xác nhận CHUNG (1 bản ghi, nối link vào nhiều người)
     sharedBorrowerReceipts:[],      // Kho Biên lai CHUNG (1 bản ghi, nối link vào nhiều người)
+    columnViewSets:[],              // "Chế độ xem cột" — Nhóm cá nhân + Nhóm xã phường (Nhóm mẫu là hằng số, không lưu Firebase)
+    columnViewSetLog:[],            // Nhật ký tạo/sửa/đổi tên/xoá Bộ xem cột
     categoryChangeLog:[],           // Nhật ký tạo/sửa tên phân loại biên lai
     quarterStatusLog:{},            // { [borrowerId]: [ {id,key,label,direction,reason,at} ] } — Lịch sử trạng thái Quý
     activeTab:'dashboard',
@@ -7554,6 +7610,209 @@ ${fileGenerationTrainingText()}`;
     state.borrowerColPickerDraftVisible = null;
     state.borrowerColPickerDraftOrder = null;
   }
+  // --- Lưu trữ CÁ NHÂN cho Bộ xem cột — dùng đúng hạ tầng "Bộ nhớ dữ liệu cá nhân" dùng chung (xem
+  // phía trên: personalGet/personalSet/personalRemove/personalFetchAll) — xuyên suốt MỌI mã xã, gắn
+  // theo tài khoản Google (hoặc localStorage nếu chưa đăng nhập), LUÔN gộp cả 2 nguồn khi hiển thị.
+  async function fetchPersonalColViewSetsFirebase(){ return personalFetchAll('columnViewSets'); }
+  async function savePersonalColViewSet(entry){ await personalSet('columnViewSets', entry.id, entry); }
+  async function deletePersonalColViewSet(id){ await personalRemove('columnViewSets', id); }
+  // Ghi log cho mọi hành động tạo/sửa/đổi tên/xoá Bộ xem cột — hiện trong Kho dòng nhật ký.
+  async function pushColumnViewSetLog(action, name, detail){
+    const device = await getClientDeviceInfo();
+    const entry = { id:uid(), action, name, detail: detail||'', at:new Date().toISOString(),
+      createdByName: state.identity.name, createdBy: state.identity.email, createdByIp: device.ip, createdByDevice: device.userAgent };
+    await cPush('columnViewSetLog', entry);
+  }
+  async function pushColumnViewSet(name, group, visible, order){
+    const entry = { id:uid(), name, group, visible, order, createdBy: state.identity.email, createdByName: state.identity.name, createdAt: new Date().toISOString() };
+    if(group==='xaphuong') await cSetRecord('columnViewSets', entry.id, entry);
+    else await savePersonalColViewSet(entry);
+    await pushColumnViewSetLog('created', name, `Nhóm: ${group==='xaphuong'?'Xã phường':'Cá nhân'}`);
+    return entry;
+  }
+  async function updateColumnViewSet(id, name, group, visible, order){
+    const entry = { id, name, group, visible, order, createdBy: state.identity.email, createdByName: state.identity.name, createdAt: new Date().toISOString() };
+    if(group==='xaphuong') await cSetRecord('columnViewSets', id, entry);
+    else await savePersonalColViewSet(entry);
+    await pushColumnViewSetLog('edited', name, 'Đã chỉnh sửa nội dung cột bên trong');
+    return entry;
+  }
+  async function renameColumnViewSetEntry(vs, newName){
+    const entry = {...vs, name:newName};
+    if(vs.group==='xaphuong') await cSetRecord('columnViewSets', vs.id, entry);
+    else await savePersonalColViewSet(entry);
+    await pushColumnViewSetLog('renamed', newName, `Đổi tên từ "${vs.name}" thành "${newName}"`);
+  }
+  async function deleteColumnViewSetEntry(vs){
+    if(vs.group==='xaphuong') await cRemoveRecord('columnViewSets', vs.id);
+    else await deletePersonalColViewSet(vs.id);
+    await pushColumnViewSetLog('deleted', vs.name);
+  }
+  function getDefaultColumnViewSet(){
+    return { id:'__default__', name:'Bộ xem cột Mặc định', group:'mau',
+      visible: defaultVisibleBorrowerCols(), order: normalizeBorrowerColumnOrder(BORROWER_COLUMNS().map(c=>c.key)) };
+  }
+  // Bảng nhỏ đặt tên + chọn Nhóm khi bấm "Lưu tuỳ chỉnh" — lưu thành 1 Bộ xem cột tái sử dụng được.
+  function renderSaveColumnViewSetDialog(visible, order){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:440px;">
+        <div class="modal-head"><h3>💾 Lưu Bộ xem cột</h3><button class="modal-close preview-allow" id="svs-close">✕</button></div>
+        <div class="modal-body">
+          <div class="field"><label>Đặt tên cho Bộ xem cột này (không cần ghi chữ "Bộ xem cột")</label><input id="svs-name" maxlength="30" class="preview-allow" placeholder="VD: Theo dõi phân bổ lãi suất..."></div>
+          <p class="sub">Bạn muốn lưu bộ tuỳ chỉnh cột này vào Nhóm nào?</p>
+        </div>
+        <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+          <button class="btn btn-ghost preview-allow" id="svs-back">Quay lại</button>
+          <button class="btn preview-allow" id="svs-personal" style="background:#c8e6c9; color:#1b5e20; font-weight:700;">Nhóm cá nhân</button>
+          <button class="btn preview-allow" id="svs-ward" style="background:#bbdefb; color:#0d47a1; font-weight:700;">Nhóm xã phường</button>
+        </div>
+      </div>`;
+    wrap.querySelector('#svs-close').onclick = close;
+    wrap.querySelector('#svs-back').onclick = close;
+    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+    async function doSave(group){
+      const name = (wrap.querySelector('#svs-name').value||'').trim();
+      if(!name){ alert('Vui lòng đặt tên cho Bộ xem cột này trước khi lưu.'); return; }
+      close();
+      await pushColumnViewSet(name, group, visible, order);
+      showBigToast(`Đã lưu thành công Bộ xem cột "${name}" vào ${group==='canhan'?'Nhóm cá nhân':'Nhóm xã phường'}!`);
+    }
+    wrap.querySelector('#svs-personal').onclick = ()=> doSave('canhan');
+    wrap.querySelector('#svs-ward').onclick = ()=> doSave('xaphuong');
+  }
+  // Bảng nhỏ đổi tên 1 Bộ xem cột — có xác nhận trước khi lưu.
+  function renderRenameColumnViewSetDialog(vs, onDone){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:420px;">
+        <div class="modal-head"><h3>✏️ Đổi tên Bộ xem cột</h3><button class="modal-close preview-allow" id="rvs-close">✕</button></div>
+        <div class="modal-body">
+          <div class="field"><label>Tên mới (tối đa 30 ký tự)</label><input id="rvs-name" maxlength="30" class="preview-allow" value="${escapeHtml(vs.name)}"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost preview-allow" id="rvs-back">Quay lại</button>
+          <button class="btn btn-primary preview-allow" id="rvs-save">Lưu</button>
+        </div>
+      </div>`;
+    wrap.querySelector('#rvs-close').onclick = close;
+    wrap.querySelector('#rvs-back').onclick = close;
+    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+    wrap.querySelector('#rvs-save').onclick = async ()=>{
+      const newName = (wrap.querySelector('#rvs-name').value||'').trim();
+      if(!newName){ alert('Vui lòng nhập tên mới trước khi lưu.'); return; }
+      if(!confirm(`Bạn có CHẮC CHẮN muốn đổi tên Bộ xem cột "${vs.name}" thành "${newName}" không?`)) return;
+      close();
+      await renameColumnViewSetEntry(vs, newName);
+      showBigToast(`Đã đổi tên thành công thành "${newName}"!`);
+      if(onDone) onDone();
+    };
+  }
+  // "👁️ Chế độ xem cột" — modal 3 nhóm (Mẫu/Cá nhân/Xã phường), y hệt phong cách Kho lưu trữ.
+  async function renderColumnViewSetModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    if(!state.colViewSetTab) state.colViewSetTab = 'mau';
+    if(!state.colViewSetExpanded) state.colViewSetExpanded = [];
+    state._personalColViewSetsFirebase = await fetchPersonalColViewSetsFirebase();
+    const TAB_COLORS2 = { mau:'#8d6e63', canhan:'#2e7d32', xaphuong:'#1565c0' };
+    const TAB_LABELS2 = { mau:'Nhóm mẫu', canhan:'Nhóm cá nhân', xaphuong:'Nhóm xã phường' };
+    function tabBtnsHtml(){
+      return Object.keys(TAB_LABELS2).map(key=>{
+        const active = state.colViewSetTab===key;
+        const color = TAB_COLORS2[key];
+        return `<button type="button" class="archive-tab-btn preview-allow ${active?'active':''}" data-vs-tab="${key}" style="${active?`background:${color}; border-color:${color}; color:#fff;`:''}">${TAB_LABELS2[key]}</button>`;
+      }).join('');
+    }
+    function listForTab(tab){
+      if(tab==='mau') return [getDefaultColumnViewSet()];
+      if(tab==='canhan') return (state._personalColViewSetsFirebase||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+      return (state.columnViewSets||[]).filter(x=>x.group==='xaphuong').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+    }
+    function presetRowHtml(vs){
+      const expanded = state.colViewSetExpanded.includes(vs.id);
+      const cols = BORROWER_COLUMNS();
+      const labels = vs.order.filter(k=>vs.visible.includes(k)).map(k=>{ const c=cols.find(x=>x.key===k); return c? c.label.replace(/<br\s*\/?>/g,' ') : k; });
+      const canEditThis = vs.group==='xaphuong' ? canEditModule('data') : true;
+      return `<div style="border:1px solid var(--line); border-radius:8px; margin-bottom:8px; overflow:hidden;">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" data-vs-toggle="${vs.id}" style="width:100%; text-align:left; border:none; border-radius:0;">📐 ${escapeHtml(vs.name)} ${expanded?'▴':'▾'}</button>
+        ${expanded? `<div style="padding:10px 14px; border-top:1px solid var(--line);">
+          <p class="sub" style="line-height:1.6;">${labels.map(escapeHtml).join(' | ')}</p>
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary btn-sm preview-allow" data-vs-apply="${vs.id}">Áp dụng</button>
+            ${vs.group!=='mau' && canEditThis? `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-vs-edit="${vs.id}">Chỉnh sửa</button>` : ''}
+            ${vs.group!=='mau' && canEditThis? `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-vs-rename="${vs.id}">✏️ Đổi tên</button>` : ''}
+            ${vs.group!=='mau' && !canEditThis? `<span class="sub">Cần có quyền Sửa ở Sổ vay vốn mới được chỉnh sửa/đổi tên Bộ xem cột thuộc Nhóm xã phường.</span>` : ''}
+          </div>
+        </div>` : ''}
+      </div>`;
+    }
+    function render(){
+      const tab = state.colViewSetTab;
+      const list = listForTab(tab);
+      const color = TAB_COLORS2[tab];
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:98vw; width:700px; border:6px solid #fbc02d;">
+          <div class="modal-head" style="background:linear-gradient(180deg, #fff9c4 0%, #ffd54f 50%, #fbc02d 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <h3 style="color:#000;">${waveTextHtmlSlow('👁️ Chế độ xem cột')}</h3>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">${tabBtnsHtml()}</div>
+            <button class="modal-close preview-allow" id="vs-close">✕</button>
+          </div>
+          <div class="modal-body" style="max-height:70vh; overflow:auto;">
+            <div style="background:${color}; color:#fff; font-weight:800; padding:8px 14px; border-radius:8px; margin-bottom:12px;">${TAB_LABELS2[tab].toUpperCase()}</div>
+            ${list.length? list.map(presetRowHtml).join('') : `<p class="sub">Chưa có Bộ xem cột nào trong nhóm này.</p>`}
+          </div>
+          <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+            <button class="btn btn-ghost preview-allow" id="vs-close2">Đóng bảng</button>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">${tabBtnsHtml()}</div>
+          </div>
+        </div>`;
+      wrap.querySelector('#vs-close').onclick = close;
+      wrap.querySelector('#vs-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      wrap.querySelectorAll('[data-vs-tab]').forEach(btn=> btn.onclick = ()=>{ state.colViewSetTab = btn.dataset.vsTab; render(); });
+      wrap.querySelectorAll('[data-vs-toggle]').forEach(btn=> btn.onclick = ()=>{
+        const id = btn.dataset.vsToggle;
+        state.colViewSetExpanded = state.colViewSetExpanded.includes(id) ? state.colViewSetExpanded.filter(x=>x!==id) : state.colViewSetExpanded.concat([id]);
+        render();
+      });
+      wrap.querySelectorAll('[data-vs-apply]').forEach(btn=> btn.onclick = ()=>{
+        const vs = list.find(x=>x.id===btn.dataset.vsApply);
+        if(!vs) return;
+        state.borrowerVisibleCols = vs.visible.slice();
+        state.borrowerColumnOrder = vs.order.slice();
+        close();
+        const el = document.getElementById('content');
+        if(el) renderDataTab(el);
+        showBigToast(`Đã áp dụng Bộ xem cột "${vs.name}"`);
+      });
+      wrap.querySelectorAll('[data-vs-edit]').forEach(btn=> btn.onclick = ()=>{
+        const vs = list.find(x=>x.id===btn.dataset.vsEdit);
+        if(!vs) return;
+        close();
+        state.borrowerColPickerDraftVisible = vs.visible.slice();
+        state.borrowerColPickerDraftOrder = vs.order.slice();
+        state.showColumnPicker = true;
+        state.colViewSetEditingPreset = { id: vs.id, name: vs.name, group: vs.group };
+        const el = document.getElementById('content');
+        if(el) renderDataTab(el);
+      });
+      wrap.querySelectorAll('[data-vs-rename]').forEach(btn=> btn.onclick = ()=>{
+        const vs = list.find(x=>x.id===btn.dataset.vsRename);
+        if(!vs) return;
+        renderRenameColumnViewSetDialog(vs, ()=> render());
+      });
+    }
+    render();
+  }
   async function commitBorrowerColumnPicker(mode){
     // mode: 'save' (lưu chung nếu có quyền) | 'view' (chỉ xem, không lưu) | 'default' (khôi phục gốc)
     const draftVisible = mode==='default' ? defaultVisibleBorrowerCols() : state.borrowerColPickerDraftVisible;
@@ -8453,7 +8712,7 @@ ${fileGenerationTrainingText()}`;
 
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #e65100;">
-          <div class="modal-head" style="background:linear-gradient(180deg, #ffb74d 0%, #fb8c00 50%, #e65100 100%);"><h3 style="color:#fff;">${waveTextHtmlSlow('📅 Gia hạn nợ')}</h3><button class="modal-close preview-allow" id="extm-close">✕</button></div>
+          <div class="modal-head" style="background:linear-gradient(180deg, #ffb74d 0%, #fb8c00 50%, #e65100 100%);"><h3 style="color:#000;">${waveTextHtmlSlow('📅 Gia hạn nợ')}</h3><button class="modal-close preview-allow" id="extm-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div class="toolbar" style="flex-wrap:wrap;">
               <input id="extm-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
@@ -9917,6 +10176,7 @@ ${fileGenerationTrainingText()}`;
     ['gxn_chung','Giấy xác nhận chung'],
     ['gxn_rieng','Giấy xác nhận riêng'],
     ['ten_phan_loai','Tên phân loại biên lai'],
+    ['bo_xem_cot','Bộ xem cột'],
   ];
   // Hợp nhất TOÀN BỘ Biên lai (riêng + chung) và Giấy xác nhận (riêng + chung) thành 1 dòng thời gian
   // duy nhất — dùng cho Kho dòng nhật ký. CHỈ ĐỌC dữ liệu sẵn có, không tạo thêm bản ghi nào mới.
@@ -9983,10 +10243,25 @@ ${fileGenerationTrainingText()}`;
         openFn: ()=> renderReceiptCategoryManagerModal(l.kind, ()=>{}),
       });
     });
+    (state.columnViewSetLog||[]).forEach(l=>{
+      let titleHtml;
+      if(l.action==='created') titleHtml = `📐 Bộ xem cột được tạo: "${escapeHtml(l.name)}"${l.detail?` (${escapeHtml(l.detail)})`:''}`;
+      else if(l.action==='renamed') titleHtml = `📐 Bộ xem cột được ${escapeHtml(l.detail||('đổi tên thành "'+l.name+'"'))}`;
+      else if(l.action==='edited') titleHtml = `📐 Bộ xem cột "${escapeHtml(l.name)}" đã được chỉnh sửa nội dung cột bên trong`;
+      else if(l.action==='deleted') titleHtml = `📐 Bộ xem cột "${escapeHtml(l.name)}" đã bị xoá`;
+      else titleHtml = `📐 Bộ xem cột "${escapeHtml(l.name)}" có thay đổi`;
+      entries.push({
+        type:'colviewset', scope:'bo_xem_cot',
+        titleHtml, affectedNames: [],
+        createdAt: l.at, createdByName: l.createdByName, createdBy: l.createdBy, createdByIp: l.createdByIp, createdByDevice: l.createdByDevice,
+        openFn: ()=> renderColumnViewSetModal(),
+      });
+    });
     return entries;
   }
   function logEntryMatchesKindFilter(e){
     const sel = state.logFilterKind||[];
+    if(e.type==='colviewset') return sel.includes('bo_xem_cot');
     if(e.type==='category') return sel.includes('ten_phan_loai');
     if(e.type==='receipt'){
       const scopeOk = e.scope==='chung'? sel.includes('bienlai_chung') : sel.includes('bienlai_rieng');
@@ -10294,7 +10569,7 @@ ${fileGenerationTrainingText()}`;
         </div>`;
       }
       const groupsHtml = [
-        group('🏛️ Tất cả các cấp', LC.total, 'total'),
+        group('🏛️ Tất cả 3 cấp (TW; tỉnh/Tp; xã/phường)', LC.total, 'total'),
         group('🏙️ Cấp Trung ương', LC.central, 'central'),
         group('🏢 Cấp Tỉnh/Thành phố', LC.province, 'province'),
         group('🏘️ Cấp xã/phường', LC.ward, 'ward'),
@@ -10321,12 +10596,12 @@ ${fileGenerationTrainingText()}`;
       const bodyHtml = `
           <p style="color:#000; line-height:1.7; margin:0 0 8px;">Đây là bảng tự động thống kê chi tiết số tiền lãi được phân bổ về từng cấp quản lý (Trung ương, Tỉnh/Thành phố, Xã/phường, Khu dân cư trực thuộc), dựa trên đúng tỷ lệ % phân bổ đã cấu hình cho từng khoản vay và số tiền lãi ĐÃ ĐƯỢC PHÊ DUYỆT (đã đóng) trong từng mốc thời gian. Dùng để đối chiếu số tiền mỗi cấp thực nhận được so với sổ sách báo cáo lên cấp trên.</p>
           <p style="color:#000; font-weight:700; margin:0 0 14px;">Được tính vào ngày ${dateLbl}</p>
-          <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+          <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:8px;">
             ${hamletDropdown}
             ${managerDropdown}
             <button type="button" class="btn btn-ghost btn-sm preview-allow" id="lvlalloc-reset-btn">↺ Khôi phục bộ lọc gốc</button>
           </div>
-          ${isFiltered? `<p class="sub" style="color:#b71c1c; margin:0 0 14px;">Đang lọc theo Địa phương/Người quản lý cụ thể — chỉ Nhóm V (Khu dân cư trực thuộc) còn hợp lý để hiển thị, các nhóm còn lại đã tự ẩn.</p>` : ''}
+          <p style="color:#b71c1c; font-weight:700; margin:0 0 14px;">${hamletAllSel? 'Đang chọn tất cả địa phương' : (state.levelAllocFilterHamlets.length? `Đang chọn ${state.levelAllocFilterHamlets.length} địa phương: ${state.levelAllocFilterHamlets.map(escapeHtml).join(', ')}` : 'Đang KHÔNG chọn địa phương nào cả (0 địa phương)')} — ${managerAllSel? 'Đang chọn tất cả người quản lý' : (state.levelAllocFilterManagers.length? `Đang chọn ${state.levelAllocFilterManagers.length} người quản lý: ${state.levelAllocFilterManagers.map(id=>{ const m=managers.find(x=>x.id===id); return escapeHtml(m? m.name : id); }).join(', ')}` : 'Đang KHÔNG chọn người quản lý nào cả (0 người)')}${isFiltered? ' — vì vậy chỉ Nhóm V (Khu dân cư trực thuộc) còn hợp lý để hiển thị, các nhóm còn lại đã tự ẩn.' : ''}</p>
           ${groupsHtml}`;
       function wireFilters(container){
         const hb = container.querySelector('#lvlalloc-hamlet-btn'); if(hb) hb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='lvlalloc-hamlet'?null:'lvlalloc-hamlet'; render(); };
@@ -10349,7 +10624,7 @@ ${fileGenerationTrainingText()}`;
       if(bodyEl){ bodyEl.innerHTML = bodyHtml; wireFilters(bodyEl); return; }
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:900px; border:6px solid #00acc1;">
-          <div class="modal-head" style="background:linear-gradient(180deg, #4dd0e1 0%, #00acc1 50%, #00838f 100%);"><h3 style="color:#fff;">${waveTextHtmlSlow('📊 Thống kê phân bổ tiền lãi các cấp')}</h3><button class="modal-close preview-allow" id="lvlalloc-close">✕</button></div>
+          <div class="modal-head" style="background:linear-gradient(180deg, #4dd0e1 0%, #00acc1 50%, #00838f 100%);"><h3 style="color:#000;">${waveTextHtmlSlow('📊 Thống kê phân bổ tiền lãi các cấp')}</h3><button class="modal-close preview-allow" id="lvlalloc-close">✕</button></div>
           <div class="modal-body" style="max-height:78vh; overflow:auto;">
             <div id="lvlalloc-body-inner">${bodyHtml}</div>
           </div>
@@ -10497,11 +10772,12 @@ ${fileGenerationTrainingText()}`;
       const bodyHtml = `
           <p style="color:#000; line-height:1.7; margin:0 0 8px;">Đây là công cụ đối chiếu và kiểm định số liệu — dùng để so sánh nhanh các con số đang có trong Sổ vay vốn với sổ sách thực tế của xã/phường, giúp phát hiện sớm sai lệch (nếu có). Cứ mở bảng này lên bất cứ lúc nào, xem từng dòng và so sánh trực tiếp với sổ tay/sổ giấy đang lưu — nếu con số khớp nhau thì yên tâm, nếu lệch thì nên kiểm tra lại ngay. Toàn bộ số liệu bên dưới được tính lại HOÀN TOÀN MỚI, cập nhật đúng theo thời gian thực từng giây, không lưu trữ sẵn.</p>
           <p style="color:#000; font-weight:700; margin:0 0 14px;">Được tính vào lúc ${timeLbl}</p>
-          <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+          <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:8px;">
             ${hamletDropdown}
             ${groupDropdown}
             <button type="button" class="btn btn-ghost btn-sm preview-allow" id="audit-reset-btn">↺ Khôi phục bộ lọc gốc</button>
           </div>
+          <p style="color:#b71c1c; font-weight:700; margin:0 0 14px;">${allHamletsSel? 'Đang chọn tất cả địa phương' : (state.auditFilterHamlets.length? `Đang chọn ${state.auditFilterHamlets.length} địa phương: ${state.auditFilterHamlets.map(escapeHtml).join(', ')}` : 'Đang KHÔNG chọn địa phương nào cả (0 địa phương)')} — ${allGroupsSel? `Đang chọn tất cả ${AUDIT_GROUP_NAMES.length} nhóm` : (state.auditFilterGroups.length? `Đang chọn ${state.auditFilterGroups.length} nhóm` : 'Đang KHÔNG chọn nhóm nào cả (0 nhóm)')}</p>
           ${groupsHtml}`;
       function wireFilters(container){
         const hb = container.querySelector('#audit-hamlet-btn'); if(hb) hb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='audit-hamlet'?null:'audit-hamlet'; render(); };
@@ -10524,8 +10800,8 @@ ${fileGenerationTrainingText()}`;
       if(bodyEl){ bodyEl.innerHTML = bodyHtml; wireFilters(bodyEl); return; }
       wrap.innerHTML = `
         <div class="modal" style="max-width:98vw; width:900px; border:6px solid #fbc02d;">
-          <div class="modal-head" style="background:linear-gradient(180deg, #fff9c4 0%, #ffd54f 50%, #fbc02d 100%);"><h3 style="color:#000;">${waveTextHtmlSlow('🔍 Bảng Đối chiếu & Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay')}</h3><button class="modal-close preview-allow" id="audit-close">✕</button></div>
-          <div class="modal-body" style="max-height:78vh; overflow:auto;">
+          <div class="modal-head" style="background:linear-gradient(180deg, #fff9c4 0%, #ffd54f 50%, #fbc02d 100%);"><h3 style="color:#000;">${waveTextHtmlSlow('🔍 Bảng Đối chiếu & Kiểm định Số liệu Sổ vay vốn')}</h3><button class="modal-close preview-allow" id="audit-close">✕</button></div>
+          <div class="modal-body" style="max-height:78vh; min-height:78vh; overflow:auto;">
             <div id="audit-body-inner">${bodyHtml}</div>
           </div>
           <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="audit-close2">Đóng bảng</button></div>
@@ -13724,12 +14000,12 @@ ${fileGenerationTrainingText()}`;
           <div class="toolbar" style="flex-wrap:wrap;">
             <button class="btn btn-sm preview-allow" id="loan-calc-interest-btn" style="background:linear-gradient(180deg, #ffffff 0%, #43a047 45%, #1b5e20 100%); color:#fff; border-color:#1b5e20; text-shadow:0 1px 2px rgba(0,0,0,.35);">Tính tiền lãi và phê duyệt đóng lãi</button>
             <button class="btn btn-sm preview-allow" id="loan-approve-settlement-btn" style="background:linear-gradient(180deg, #ffffff 0%, #1e6fd9 45%, #0d47a1 100%); color:#fff; border-color:#0d47a1; text-shadow:0 1px 2px rgba(0,0,0,.35);">Tất toán khoản vay/Trả nợ trước hạn</button>
-            <button class="btn btn-sm preview-allow" id="loan-extend-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #fb8c00 45%, #e65100 100%); color:#fff; border-color:#e65100; text-shadow:0 1px 2px rgba(0,0,0,.35);">Gia hạn nợ</button>
+            <button class="btn btn-sm preview-allow" id="loan-extend-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #fb8c00 45%, #e65100 100%); color:#000; border-color:#e65100; font-weight:700;">Gia hạn nợ</button>
             <button class="btn btn-sm preview-allow" id="loan-risk-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ffcdd2 50%, #ef9a9a 100%); color:#7a1f1f; border-color:#ef9a9a;">Quản lý Nợ rủi ro</button>
             <button class="btn btn-sm preview-allow" id="loan-archive-btn" style="background:linear-gradient(180deg, #ffffff 0%, #7b1fa2 45%, #4a148c 100%); color:#fff; border-color:#4a148c; text-shadow:0 1px 2px rgba(0,0,0,.35);">Kho biên lai/giấy xác nhận/dòng nhật ký</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="loan-quarter-settings-btn">Chỉnh thời gian tính lãi suất hàng quý</button>
-            <button class="btn btn-sm preview-allow" id="loan-approval-details-toggle" style="background:linear-gradient(180deg, #ffffff 0%, #fff9c4 50%, #fbc02d 100%); color:var(--rice-dark); border-color:#fbc02d; font-weight:700;">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Đóng lãi - Thanh toán Khoản vay</button>
-            <button class="btn btn-sm preview-allow" id="loan-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#fff; border-color:#00acc1; font-weight:700; text-shadow:0 1px 2px rgba(0,0,0,.35);">📊 Thống kê phân bổ tiền lãi các cấp</button>
+            <button class="btn btn-sm preview-allow" id="loan-approval-details-toggle" style="background:linear-gradient(180deg, #ffffff 0%, #fff9c4 50%, #fbc02d 100%); color:var(--rice-dark); border-color:#fbc02d; font-weight:700;">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Sổ vay vốn</button>
+            <button class="btn btn-sm preview-allow" id="loan-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#000; border-color:#00acc1; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
           </div>
         </div>
       </div>
@@ -13756,7 +14032,9 @@ ${fileGenerationTrainingText()}`;
             ${buildYearFilterDropdownHtml()}
             <button class="btn btn-ghost btn-sm preview-allow" id="f-reset-all-btn" title="Đưa cả 4 bộ lọc (Ấp/Phương án vay/Quý/Năm) về đúng mặc định ban đầu">↺ Khôi phục bộ lọc gốc</button>
             <div class="spacer"></div>
+            <button class="btn btn-ghost btn-sm preview-allow" id="col-viewset-btn" style="background:linear-gradient(180deg, #ffffff 0%, #fff9c4 50%, #fbc02d 100%); color:var(--rice-dark); border-color:#fbc02d; font-weight:700;">👁️ Chế độ xem cột</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="col-picker-btn">🧩 Tuỳ chỉnh cột (${visibleKeys.length}/${allCols.length})</button>
+            <button class="btn btn-ghost btn-sm preview-allow" id="color-picker-btn">🎨 Tuỳ chỉnh màu</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="exp-excel-btn">⬇️ Xuất Excel</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="print-btn">🖨️ In</button>
           </div>
@@ -13768,13 +14046,15 @@ ${fileGenerationTrainingText()}`;
             return `
           <div style="border:1px dashed var(--gold); border-radius:10px; padding:12px 14px; margin-bottom:12px; background:rgba(199,154,43,.06);">
             <b style="font-size:12.5px; color:var(--rice-dark);">🧩 Tích chọn các cột muốn hiển thị / in / xuất Excel (mặc định ẩn nhóm "nâng cao"):</b>
+            ${state.colViewSetEditingPreset? `<p class="sub" style="color:#0d47a1; font-weight:700;">✏️ Đang chỉnh sửa Bộ xem cột "${escapeHtml(state.colViewSetEditingPreset.name)}"</p>` : ''}
             <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
-              <button class="btn btn-sm preview-allow" id="col-view-btn" style="background:rgba(77,208,225,.32); color:#00695c; font-weight:700;">👁️ Chỉ để xem (không lưu)</button>
+              <button class="btn btn-sm preview-allow" id="col-view-btn" ${state.colViewSetEditingPreset?'disabled':''} style="background:rgba(77,208,225,.32); color:#00695c; font-weight:700;">👁️ Chỉ để xem (không lưu)</button>
               <button class="btn btn-sm preview-allow" id="col-save-btn" style="background:rgba(77,208,225,.32); color:#0d47a1; font-weight:700;">💾 Lưu tuỳ chỉnh</button>
-              <button class="btn btn-ghost btn-sm preview-allow" id="col-default-btn">↺ Khôi phục cài đặt gốc</button>
-              <button class="btn btn-ghost btn-sm preview-allow" id="col-cancel-btn" style="color:var(--red);">✕ Huỷ</button>
+              <button class="btn btn-ghost btn-sm preview-allow" id="col-default-btn" ${state.colViewSetEditingPreset?'disabled':''}>↺ Khôi phục cài đặt gốc</button>
+              ${state.colViewSetEditingPreset? `<button class="btn btn-ghost btn-sm preview-allow" id="col-delete-preset-btn" style="color:var(--red);">🗑️ Xoá bộ xem này</button>` : ''}
+              <button class="btn btn-ghost btn-sm preview-allow" id="col-cancel-btn" style="color:var(--red);">${state.colViewSetEditingPreset? '↩️ Quay lại (không chỉnh sửa)' : '✕ Huỷ'}</button>
             </div>
-            <p class="sub" style="margin-top:10px;">💡 Để thay đổi vị trí cột: nhấn giữ vào biểu tượng ⠿ ở đầu mỗi dòng, kéo lên/xuống rồi thả vào đúng vị trí mong muốn. "Họ và tên" luôn đứng đầu tiên; các cặp cột có 🔗 luôn đi cùng nhau (di chuyển/ẩn/hiện cùng lúc). Việc tích chọn/kéo-thả ở đây CHƯA áp dụng ngay — chỉ khi bấm 1 trong 4 nút phía trên thì bảng danh sách mới thực sự thay đổi theo.</p>
+            <p class="sub" style="margin-top:10px;">💡 Để thay đổi vị trí cột: nhấn giữ vào biểu tượng ⠿ ở đầu mỗi dòng, kéo lên/xuống rồi thả vào đúng vị trí mong muốn.</p>
             ${canEdit? `<p class="sub">Bạn có quyền Sửa ở Sổ vay vốn — bấm "Lưu tuỳ chỉnh" sẽ áp dụng cho TẤT CẢ mọi người xem mã xã này.</p>` : `<p class="sub">Bạn không có quyền Sửa ở Sổ vay vốn — "Lưu tuỳ chỉnh" chỉ áp dụng cho lượt xem của riêng bạn, không lưu lại.</p>`}
             <div id="col-picker-list" style="display:flex; flex-direction:column; gap:6px; margin-top:10px; max-width:480px;">
               ${pickerOrder.map(key=>{
@@ -13989,6 +14269,10 @@ ${fileGenerationTrainingText()}`;
     }
 
     // ---- Tuỳ chỉnh cột (thao tác trên bản NHÁP — không đụng bảng thật cho tới khi bấm 1 trong 4 nút) ----
+    const colViewSetBtn = document.getElementById('col-viewset-btn');
+    if(colViewSetBtn) colViewSetBtn.onclick = ()=> renderColumnViewSetModal();
+    const colorPickerBtn = document.getElementById('color-picker-btn');
+    if(colorPickerBtn) colorPickerBtn.onclick = ()=> alert('Tính năng "Tuỳ chỉnh màu" sẽ được thiết kế ở bước sau.');
     const colPickerBtn = document.getElementById('col-picker-btn');
     if(colPickerBtn) colPickerBtn.onclick = ()=>{
       if(state.showColumnPicker) cancelBorrowerColumnPicker();
@@ -13996,13 +14280,37 @@ ${fileGenerationTrainingText()}`;
       renderDataTab(el);
     };
     const colSaveBtn = document.getElementById('col-save-btn');
-    if(colSaveBtn) colSaveBtn.onclick = async ()=>{ await commitBorrowerColumnPicker('save'); renderDataTab(el); };
+    if(colSaveBtn) colSaveBtn.onclick = async ()=>{
+      const draftVisible = (state.borrowerColPickerDraftVisible||[]).slice();
+      const draftOrder = (state.borrowerColPickerDraftOrder||[]).slice();
+      const editingPreset = state.colViewSetEditingPreset;
+      await commitBorrowerColumnPicker('save');
+      renderDataTab(el);
+      if(editingPreset){
+        state.colViewSetEditingPreset = null;
+        await updateColumnViewSet(editingPreset.id, editingPreset.name, editingPreset.group, draftVisible, draftOrder);
+        showBigToast(`Đã lưu thành công Bộ xem cột "${editingPreset.name}"!`);
+      } else {
+        renderSaveColumnViewSetDialog(draftVisible, draftOrder);
+      }
+    };
     const colViewBtn = document.getElementById('col-view-btn');
-    if(colViewBtn) colViewBtn.onclick = async ()=>{ await commitBorrowerColumnPicker('view'); renderDataTab(el); };
+    if(colViewBtn) colViewBtn.onclick = async ()=>{ if(state.colViewSetEditingPreset) return; await commitBorrowerColumnPicker('view'); renderDataTab(el); };
     const colDefaultBtn = document.getElementById('col-default-btn');
-    if(colDefaultBtn) colDefaultBtn.onclick = async ()=>{ await commitBorrowerColumnPicker('default'); renderDataTab(el); };
+    if(colDefaultBtn) colDefaultBtn.onclick = async ()=>{ if(state.colViewSetEditingPreset) return; await commitBorrowerColumnPicker('default'); renderDataTab(el); };
     const colCancelBtn = document.getElementById('col-cancel-btn');
-    if(colCancelBtn) colCancelBtn.onclick = ()=>{ cancelBorrowerColumnPicker(); renderDataTab(el); };
+    if(colCancelBtn) colCancelBtn.onclick = ()=>{ state.colViewSetEditingPreset = null; cancelBorrowerColumnPicker(); renderDataTab(el); };
+    const colDeletePresetBtn = document.getElementById('col-delete-preset-btn');
+    if(colDeletePresetBtn) colDeletePresetBtn.onclick = async ()=>{
+      const preset = state.colViewSetEditingPreset;
+      if(!preset) return;
+      if(!confirm(`Bạn có CHẮC CHẮN muốn xoá vĩnh viễn Bộ xem cột "${preset.name}" không? Không thể khôi phục.`)) return;
+      await deleteColumnViewSetEntry(preset);
+      state.colViewSetEditingPreset = null;
+      cancelBorrowerColumnPicker();
+      renderDataTab(el);
+      showBigToast(`Đã xoá thành công Bộ xem cột "${preset.name}"!`);
+    };
 
     document.querySelectorAll('[data-col-toggle]').forEach(cb=>{
       cb.onchange = ()=>{
