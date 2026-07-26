@@ -139,7 +139,26 @@
   .sidebar{
     width:220px; flex-shrink:0; background:var(--rice-dark); color:var(--paper);
     display:flex; flex-direction:column; padding:22px 14px;
+    position:fixed; top:0; left:0; height:100vh; overflow-y:auto; z-index:90;
+    transform:translateX(0); transition:transform .44s ease-out;
   }
+  .sidebar.collapsed{ transform:translateX(-100%); }
+  .sidebar-toggle-btn{
+    position:fixed; top:96px; left:0; z-index:500; width:40px; height:40px; border:3px solid #b71c1c;
+    background:var(--gold); color:var(--rice-dark); border-radius:0 10px 10px 0; font-size:17px;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.25);
+    animation: fabBob 4.5s ease-in-out infinite, toggleBtnFade 4s linear infinite;
+    transition: transform .44s ease-out; will-change:transform;
+    transform: translateX(180px);
+  }
+  @keyframes toggleBtnFade{
+    0%,25%{ opacity:1; }
+    50%,75%{ opacity:.3; }
+    100%{ opacity:1; }
+  }
+  .sidebar-toggle-btn.collapsed{ transform:translateX(0); border-radius:0 10px 10px 0; }
+  .sidebar-toggle-btn:hover{ filter:brightness(1.08); }
   .sidebar .brand{display:flex; align-items:center; gap:10px; padding:0 6px 20px; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:16px;}
   .sidebar .brand .ico{font-size:22px;}
   .sidebar .brand .txt{font-size:13.5px; font-weight:700; line-height:1.25;}
@@ -150,10 +169,11 @@
   }
   .nav-item .badge{margin-left:auto; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:20px;}
   .nav-item:hover{background:rgba(255,255,255,.08); color:#fff;}
-  .nav-item.active{background:var(--gold); color:#3A2C05;}
+  .nav-item.active{background:linear-gradient(180deg, rgba(255,255,255,.55) 0%, var(--gold) 65%); color:#3A2C05; font-weight:700;}
   .sidebar .foot{margin-top:auto; padding-top:14px; border-top:1px solid rgba(255,255,255,.12); font-size:11.5px; color:rgba(255,255,255,.55);}
 
-  .main{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .main{flex:1; min-width:0; display:flex; flex-direction:column; margin-left:220px; transition:margin-left .44s ease-out;}
+  .main.sidebar-collapsed{ margin-left:0; }
   .topbar{
     display:flex; align-items:center; justify-content:space-between; gap:16px;
     padding:16px 26px; border-bottom:1px solid var(--line); background:var(--white);
@@ -189,10 +209,10 @@
   .panel{background:var(--white); border:1px solid var(--line); border-radius:14px; margin-bottom:18px;}
   .panel-head{padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;}
   .panel-head h3{font-size:14.5px; color:var(--rice-dark);}
-  .panel-body{padding:16px 18px; animation: panelSlideIn 0.44s ease-out;}
+  .panel-body{padding:16px 18px; animation: panelSlideIn 0.44s ease-out; will-change:transform, opacity;}
   @keyframes panelSlideIn{
-    0%{ opacity:0; transform:translateY(-8px); max-height:0; }
-    100%{ opacity:1; transform:translateY(0); max-height:4000px; }
+    0%{ opacity:0; transform:translateY(-8px); }
+    100%{ opacity:1; transform:translateY(0); }
   }
 
   table{width:100%; border-collapse:collapse; font-size:12.8px;}
@@ -291,9 +311,6 @@
 
   @media (max-width:820px){
     .app-shell{flex-direction:column;}
-    .sidebar{width:100%; flex-direction:row; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:8px 10px;}
-    .sidebar .brand{display:none;}
-    .nav-item{flex-shrink:0; width:auto; white-space:nowrap; padding:10px 14px;}
     .grid3{grid-template-columns:1fr;}
     .form-grid{grid-template-columns:1fr;}
     .topbar{flex-wrap:wrap; padding:14px 16px; gap:10px;}
@@ -782,6 +799,42 @@
   // nhau: hiển thị thật trên HTML (giữ nguyên <br> thành xuống dòng) và xuất Excel/in ấn dạng chữ
   // thô (đổi <br> thành khoảng trắng, KHÔNG được để lọt chữ "<br>" thô vào ô Excel).
   function htmlLabel(label){ return escapeHtml(label).replace(/&lt;br&gt;/g, '<br>'); }
+  // Màn hình bề ngang hẹp (điện thoại, hoặc cửa sổ trình duyệt bị thu hẹp) — khung menu tự thu gọn khi
+  // bấm nút nổi HOẶC bấm bất kỳ đâu trong khung nội dung module hiện hành (KHÔNG áp dụng khi bấm vào
+  // chính các nút module trong khung menu — bấm đổi module thì khung menu vẫn giữ nguyên trạng thái).
+  // Dùng e.target.closest(...) thay vì element.contains(e.target): sau khi render() thay mới toàn bộ
+  // DOM, tham chiếu phần tử CŨ (e.target) không còn là con của phần tử MỚI truy vấn lại nữa — dùng
+  // closest() để kiểm tra đúng theo cây DOM GỐC tại thời điểm bấm, không bị lệch.
+  function isNarrowScreenForSidebar(){ return window.innerWidth<=820; }
+  // Đổi trạng thái thu gọn/mở khung menu bằng cách sửa TRỰC TIẾP class trên các phần tử DOM ĐANG CÓ
+  // SẴN (không gọi render() vẽ lại toàn bộ trang) — vì nếu vẽ lại toàn bộ, phần tử .sidebar bị XOÁ và
+  // TẠO MỚI hoàn toàn, khiến trình duyệt không còn "trạng thái cũ" để nội suy chuyển động, hiệu ứng
+  // CSS transition/animation sẽ mất tác dụng (nhảy tức thì thay vì trượt mượt).
+  function applySidebarCollapsedVisual(collapsed){
+    const sidebarEl = document.querySelector('.sidebar');
+    const mainEl = document.querySelector('.main');
+    const toggleEl = document.querySelector('.sidebar-toggle-btn');
+    if(sidebarEl) sidebarEl.classList.toggle('collapsed', collapsed);
+    if(mainEl) mainEl.classList.toggle('sidebar-collapsed', collapsed);
+    if(toggleEl){
+      toggleEl.classList.toggle('collapsed', collapsed);
+      toggleEl.title = collapsed? 'Mở menu' : 'Thu gọn menu';
+      toggleEl.textContent = collapsed? '▤' : '▥';
+    }
+  }
+  if(!window.__sidebarAutoCollapseDelegated){
+    window.__sidebarAutoCollapseDelegated = true;
+    document.addEventListener('click', (e)=>{
+      if(!isNarrowScreenForSidebar()) return;
+      if(state.sidebarCollapsed) return;
+      if(e.target.closest('.sidebar-toggle-btn')) return; // nút nổi tự xử lý riêng, tránh đóng/mở trùng
+      if(e.target.closest('.sidebar')) return; // bấm bên trong khung menu (kể cả đổi module) -> giữ nguyên, không tự đóng
+      if(e.target.closest('.modal-bg')) return; // bấm bên trong 1 bảng/popup (VD: bảng chào mừng tham quan) -> không tính là bấm vào module hiện hành
+      state.sidebarCollapsed = true;
+      applySidebarCollapsedVisual(true);
+    });
+  }
+
   function plainLabel(label){ return String(label==null?'':label).replace(/<br>/g, ' '); }
   // "Họ và tên" người vay — hiệu ứng nhảy múa (phóng to 1.1 lần rồi nghỉ, tuần hoàn), hover phóng to
   // 1.3 lần, bấm vào thì GIỮ phóng to 1.3 lần + đổi màu xanh dương đậm + icon ✅ (bấm lại để trở về
@@ -830,7 +883,7 @@
     const singleB = borrowers[0];
     const el = document.createElement('div');
     el.id = '__selectedNamesSidePanel';
-    el.style.cssText = 'position:fixed; top:90px; right:0; z-index:99997; background:#eef3fb; border:2px solid #0d47a1; border-right:none; border-radius:10px 0 0 10px; box-shadow:-4px 0 16px rgba(0,0,0,.22); width:210px; max-height:80vh; overflow:auto; padding:14px; animation: sideSlideIn .44s ease-out;';
+    el.style.cssText = 'position:fixed; top:60px; right:0; z-index:99997; background:#eef3fb; border:2px solid #0d47a1; border-right:none; border-radius:10px 0 0 10px; box-shadow:-4px 0 16px rgba(0,0,0,.22); width:210px; max-height:96vh; overflow:auto; padding:14px; animation: sideSlideIn .44s ease-out;';
     function btnHtml(label, enabled, colorClass){
       return `<button type="button" class="ext-action-btn ${colorClass||''} preview-allow" ${enabled?'':'disabled'} style="text-align:left; width:100%; margin-bottom:6px; display:block; ${enabled?'':'opacity:.45; cursor:not-allowed; background:#ddd; color:#888; animation:none;'}" data-side-action="${label}">${label}</button>`;
     }
@@ -1632,18 +1685,16 @@
   // Gắn 2 nút "📄 Xuất file Word" + "🖨️ In" vào 1 vị trí bất kỳ trong modal — bấm vào sẽ lấy đúng
   // nội dung hiện tại của modal (đã loại bỏ nút/ô nhập), mở bảng xem trước.
   function exportPrintButtonsHtml(idPrefix){
-    return `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="${idPrefix}-word">📄 Xuất file Word</button><button type="button" class="btn btn-ghost btn-sm preview-allow" id="${idPrefix}-print">🖨️ In</button>`;
+    return `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="${idPrefix}-word">📄 Xuất file Word hoặc in</button>`;
   }
   function wireExportPrintButtons(wrap, idPrefix, contentSelector, title){
     const wordBtn = wrap.querySelector(`#${idPrefix}-word`);
-    const printBtn = wrap.querySelector(`#${idPrefix}-print`);
     const openPreview = ()=>{
       const sourceEl = wrap.querySelector(contentSelector);
       if(!sourceEl) return;
       renderExportPrintPreviewModal(title, stripInteractiveElementsHtml(sourceEl));
     };
     if(wordBtn) wordBtn.onclick = openPreview;
-    if(printBtn) printBtn.onclick = openPreview;
   }
 
 
@@ -7510,8 +7561,9 @@ ${fileGenerationTrainingText()}`;
       ${state._adminViewingWard? `
       <div class="admin-view-banner">🛡️ ADMIN đang XEM THỬ (chỉ đọc, không sửa được) dữ liệu của mã "${wardId()}". Bấm "Thoát khỏi mã định danh" để quay về mã của bạn.</div>` : ''}
       <div class="app-shell">
-        <div class="sidebar">
-          <div class="brand"><div class="ico">🌾</div><div class="txt">${wardProvinceHeaderLine()||'Chưa chọn mã xã'}<small>${wardId()||''}</small></div></div>
+        <button type="button" class="sidebar-toggle-btn ${state.sidebarCollapsed?'collapsed':''}" id="sidebar-toggle-btn" title="${state.sidebarCollapsed?'Mở menu':'Thu gọn menu'}">${state.sidebarCollapsed?'▤':'▥'}</button>
+        <div class="sidebar ${state.sidebarCollapsed?'collapsed':''}">
+          <div class="brand"><div class="ico">🌾</div><div class="txt">${wardProvinceHeaderLine()||'Chưa chọn mã xã'}<small>Mã ${wardId()||''}</small></div></div>
           ${nav.map(n=>`
             <button class="nav-item ${state.activeTab===n.id?'active':''}" data-tab="${n.id}">
               <span>${n.ico}</span><span>${n.label}</span>
@@ -7528,7 +7580,7 @@ ${fileGenerationTrainingText()}`;
             </div>
           </div>
         </div>
-        <div class="main">
+        <div class="main ${state.sidebarCollapsed?'sidebar-collapsed':''}">
           <div class="topbar">
             <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : nav.find(n=>n.id===state.activeTab).label}</h2>${state.activeTab==='data'? '' : `<div class="sub">${wardTitle()||`Chưa chọn mã xã · chỉ dùng được Thu–Chi nội bộ`} ${wardId()?`· ${state.borrowers.filter(b=>!b.deleted && !b.settled).length} hộ vay đang theo dõi`:''}</div>`}</div>
             <div class="top-actions">
@@ -7541,8 +7593,19 @@ ${fileGenerationTrainingText()}`;
         </div>
       </div>`;
     document.querySelectorAll('.nav-item').forEach(el=>{
-      el.onclick = ()=>{ state.activeTab = el.dataset.tab; state.bellOpen=false; render(); };
+      el.onclick = ()=>{
+        const clickedTab = el.dataset.tab;
+        state.activeTab = clickedTab;
+        state.bellOpen=false;
+        render();
+        setTimeout(()=>{
+          const clickedEl = document.querySelector(`.nav-item[data-tab="${clickedTab}"]`);
+          if(clickedEl) clickedEl.scrollIntoView({behavior:'auto', block:'nearest'});
+        }, 0);
+      };
     });
+    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+    if(sidebarToggleBtn) sidebarToggleBtn.onclick = ()=>{ state.sidebarCollapsed = !state.sidebarCollapsed; applySidebarCollapsedVisual(state.sidebarCollapsed); };
     document.getElementById('bell-btn').onclick = (e)=>{ e.stopPropagation(); state.bellOpen = !state.bellOpen; render(); };
     const pvLogin = document.getElementById('pv-login');
     if(pvLogin) pvLogin.onclick = exitPreviewMode;
@@ -7633,10 +7696,11 @@ ${fileGenerationTrainingText()}`;
         </div>
       </div>`;
     document.body.appendChild(wrap);
-    const close = ()=>{ state._showPreviewWelcome = false; wrap.remove(); };
+    const close = ()=>{ state._showPreviewWelcome = false; state.sidebarCollapsed = false; wrap.remove(); applySidebarCollapsedVisual(false); };
     wrap.querySelector('#pw-skip').onclick = close;
     wrap.querySelector('#pw-guide').onclick = ()=>{
       state._showPreviewWelcome = false;
+      state.sidebarCollapsed = false;
       wrap.remove();
       state.activeTab = 'guide';
       render();
@@ -7662,11 +7726,16 @@ ${fileGenerationTrainingText()}`;
             <b>${adminLevelLabelLower()} ${wardName? escapeHtml(wardName) : '(chưa đặt tên)'}</b>${provName? ` <b>${provType} ${escapeHtml(provName)}</b>` : ''}
             với mã định danh là <b class="mono">${escapeHtml(wardId()||'')}</b>
           </p>
-          <button class="btn btn-primary btn-block" id="ww-welcome-confirm">XÁC NHẬN LÀM VIỆC TRONG SỰ VUI VẺ</button>
         </div>
       </div>`;
     document.body.appendChild(wrap);
-    wrap.querySelector('#ww-welcome-confirm').onclick = ()=>{ state._showWardWelcome = false; wrap.remove(); };
+    wrap.style.pointerEvents = 'none'; // không chặn thao tác của người dùng trong lúc bảng đang tự hiện/tự ẩn
+    setTimeout(()=>{
+      wrap.style.transition = 'transform 1.6s ease-in, opacity 1.6s ease-in';
+      wrap.style.transform = 'translateY(100vh)';
+      wrap.style.opacity = '0';
+      setTimeout(()=>{ state._showWardWelcome = false; wrap.remove(); }, 1700);
+    }, 1500);
   }
 
   function renderBellPanel(){
@@ -8011,7 +8080,7 @@ ${fileGenerationTrainingText()}`;
   function emptyLoanProject(){
     return { id:uid(), name:'', totalCapital:0, disburseDate:todayStr(), dueDate:'',
       fundSourceType: FUND_SOURCE_OPTIONS[0], fundSourceOther:'',
-      interestRate:6.6, splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45,
+      interestRate:8.4, splitCentral:3.5, splitProvince:2, splitWard:2.9, hamletAllocPercent:45,
       createdAt:new Date().toISOString(), deleted:false };
   }
   // Hồ sơ người vay MỚI, kế thừa toàn bộ thiết lập của phương án đã chọn — Admin chỉ cần bổ sung
@@ -8494,6 +8563,267 @@ ${fileGenerationTrainingText()}`;
     render();
   }
 
+  // "✨ Thêm nhanh bằng AI" — khung sườn modal (nội dung bên trong để trống, thiết kế sau).
+  // Cột xem trước dữ liệu AI trích xuất — dùng đúng nhãn như panel Danh sách khoản vay, nhưng chỉ
+  // gồm các trường THÔ trực tiếp trích xuất được (không tính toán/suy ra, vì đây là dữ liệu NHÁP
+  // chưa lưu vào hệ thống).
+  const QUICKADD_PREVIEW_COLS = [
+    ['name','Họ và tên'], ['hamletDisplay','Đơn vị'], ['projectName','Phương án vay'],
+    ['principal','Số tiền gốc (đ)'], ['loanDate','Ngày vay'], ['dueDate','Ngày đến hạn'],
+    ['fundSource','Nguồn vay'], ['rate','Lãi suất (%/năm)'], ['cccd','CCCD'], ['phone','Số điện thoại'], ['address','Địa chỉ'],
+  ];
+  const QUICKADD_REQUIRED_BORROWER = [['name','Họ và tên'], ['projectName','Phương án vay'], ['hamletDisplay','Địa bàn dân cư (Ấp/Khu phố)']];
+  const QUICKADD_REQUIRED_PROJECT = [['name','Tên phương án vay'], ['disburseDate','Ngày giải ngân (ngày vay)'], ['dueDate','Ngày đến hạn trả'], ['interestRate','Lãi suất chung']];
+
+  function quickAddSystemPrompt(){
+    const hamlets = (state.config.hamlets||[]).join(', ') || '(chưa có)';
+    const hamletsOld = (state.config.hamletsOld||[]).join(', ') || '(chưa có)';
+    const projects = (state.loanProjects||[]).filter(p=>!p.deleted).map(p=>p.name).join(', ') || '(chưa có phương án nào)';
+    return `Bạn là trợ lý AI giúp NHẬP NHANH dữ liệu vào "Sổ vay vốn" của Hội Nông dân xã/phường. Đọc tin nhắn văn bản + tài liệu đính kèm (ảnh CCCD, đơn xin vay, sổ ghi chép tay, ảnh scan...) người dùng cung cấp qua nhiều lượt trò chuyện, trích xuất đúng thông tin để THÊM MỚI Người vay (và Phương án vay nếu cần) vào Sổ vay vốn.
+
+QUY TẮC BẮT BUỘC — PHẢI TUÂN THỦ TUYỆT ĐỐI:
+1) CHỈ ĐƯỢC PHÉP THÊM MỚI — không được đề xuất sửa bất kỳ Phương án vay hay Người vay NÀO đã có sẵn trong hệ thống.
+2) Danh sách Ấp/Khu phố HIỆN NAY đã có trong hệ thống: ${hamlets}.
+   Danh sách địa chỉ TRƯỚC SÁP NHẬP (địa chỉ cũ) đã có trong hệ thống: ${hamletsOld}.
+   Nếu người dùng nhắc tới 1 tên địa chỉ KHÔNG khớp với cả 2 danh sách trên, và không rõ đó là địa chỉ hiện nay hay địa chỉ trước sáp nhập, BẮT BUỘC phải hỏi lại người dùng trong "reply": "Đây là địa chỉ hiện nay hay địa chỉ trước sáp nhập (cũ) vậy bạn?" trước khi xếp vào đúng trường "hamlet" (hiện nay) hay "hamletOld" (trước sáp nhập, luôn ghi kèm chữ "(cũ)" ở cuối) trong kết quả.
+   Nếu người dùng xác nhận đây là địa chỉ MỚI (chưa từng có trong 2 danh sách), hãy chủ động thêm nó vào danh sách tương ứng trong "newHamlets"/"newHamletsOld" của kết quả để hệ thống lưu lại cho lần sau.
+3) Danh sách Phương án vay đã có sẵn: ${projects}.
+   Nếu người vay chưa rõ thuộc Phương án vay nào, hãy gợi ý 1 phương án PHÙ HỢP trong danh sách trên (nếu hợp lý dựa theo nguồn vay/thời gian), hoặc hỏi người dùng có muốn tạo Phương án vay MỚI hay không (nếu muốn tạo mới, thu thập đủ: tên phương án, ngày giải ngân, ngày đến hạn, lãi suất chung, tỷ lệ phân bổ Trung ương/Tỉnh/Xã sao cho tổng bằng đúng lãi suất chung).
+4) Các trường BẮT BUỘC không được để trống đối với NGƯỜI VAY: Họ và tên, Phương án vay, Địa bàn dân cư (Ấp/Khu phố).
+   Các trường BẮT BUỘC không được để trống đối với PHƯƠNG ÁN VAY MỚI (nếu cần tạo thêm): Tên phương án vay, Ngày giải ngân, Ngày đến hạn, Lãi suất chung.
+   Nếu còn thiếu trường bắt buộc nào, PHẢI chủ động hỏi lại người dùng trong "reply", đừng tự bịa.
+5) Ngày tháng trong kết quả JSON luôn ở định dạng "YYYY-MM-DD". Số tiền là số nguyên (đơn vị: đồng), không có dấu chấm/phẩy phân cách.
+6) LUÔN LUÔN trả lời bằng ĐÚNG 1 khối JSON hợp lệ duy nhất, KHÔNG thêm bất kỳ chữ nào khác ngoài JSON, KHÔNG dùng markdown code fence, đúng cấu trúc sau:
+{"reply":"câu trả lời trò chuyện tự nhiên, có thể hỏi lại người dùng nếu còn thiếu/chưa rõ thông tin gì","result":{"projects":[{"name":"","fundSourceType":"","interestRate":0,"splitCentral":0,"splitProvince":0,"splitWard":0,"hamletAllocPercent":45,"disburseDate":"","dueDate":"","totalCapital":0}],"borrowers":[{"name":"","hamletDisplay":"","hamletOld":"","projectName":"","principal":0,"loanDate":"","dueDate":"","fundSource":"","rate":0,"cccd":"","phone":"","address":""}],"newHamlets":[],"newHamletsOld":[]}}
+Nếu chưa có đủ dữ liệu để trích xuất bất kỳ người vay/phương án nào, để "borrowers" và "projects" là mảng rỗng, chỉ cần hỏi lại trong "reply".`;
+  }
+
+  function renderQuickAddByAiModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const messages = []; // { role:'user'|'ai', text, attachments:[{name,mimeType,base64}], isFileCard, result }
+    let pendingAttachments = [];
+    let hasDigestedOnce = false;
+    let latestResult = null; // { projects:[], borrowers:[] } — bản mới nhất
+    let busy = false;
+
+    function fmtAttachChip(a){ return `<span style="display:inline-flex; align-items:center; gap:4px; background:#eee; border-radius:20px; padding:3px 10px; font-size:12px;">📎 ${escapeHtml(a.name)}</span>`; }
+
+    function bubbleHtml(m, idx){
+      const isUser = m.role==='user';
+      const bg = isUser? '#dcedc8' : '#e3f2fd';
+      const align = isUser? 'flex-end' : 'flex-start';
+      let inner = `<div style="white-space:pre-line;">${escapeHtml(m.text||'')}</div>`;
+      if(m.attachments && m.attachments.length) inner += `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${m.attachments.map(fmtAttachChip).join('')}</div>`;
+      if(m.isFileCard){
+        const totalCount = (m.result.borrowers||[]).length + (m.result.projects||[]).length;
+        inner = `<button type="button" class="btn btn-sm preview-allow" data-file-card="${idx}" style="background:#fff9c4; border:1px solid #fbc02d; color:#5a4300; font-weight:700;">📄 Bản tổng hợp — ${totalCount} mục (bấm để xem chi tiết)</button>`;
+      }
+      return `<div style="display:flex; justify-content:${align}; margin-bottom:10px;">
+        <div style="max-width:75%; background:${bg}; border-radius:12px; padding:10px 14px; font-size:13.5px; line-height:1.6;">${inner}</div>
+      </div>`;
+    }
+
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:98vw; width:1100px; height:86vh; display:flex; flex-direction:column;">
+          <div class="modal-head"><h3>✨ Thêm nhanh Người vay (Phương án vay) bằng chat với AI</h3><button class="modal-close preview-allow" id="qai-close">✕</button></div>
+          <div class="modal-body" style="flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column;" id="qai-thread">
+            ${messages.length? messages.map(bubbleHtml).join('') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh CCCD, đơn xin vay, sổ ghi chép cũ...) — AI sẽ đợi đến khi bạn bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc.</p>`}
+          </div>
+          <div style="padding:8px 16px; border-top:1px solid var(--line); background:var(--paper-2);">
+            <p class="sub" style="margin:0 0 8px;">${hasDigestedOnce? 'Hệ thống đã đọc được nội dung bên trên. Nếu muốn bổ sung/sửa gì thì nhắn tiếp, AI sẽ tự cập nhật lại bản tổng hợp.' : 'Chưa tiêu hoá tài liệu nào — nhắn/đính kèm xong thì bấm nút bên dưới.'}</p>
+            ${pendingAttachments.length? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">${pendingAttachments.map((a,i)=>`<span style="display:inline-flex; align-items:center; gap:4px; background:#eee; border-radius:20px; padding:3px 10px; font-size:12px;">📎 ${escapeHtml(a.name)} <button type="button" class="preview-allow" data-remove-att="${i}" style="border:none; background:none; cursor:pointer; color:#b71c1c; font-weight:700;">✕</button></span>`).join('')}</div>` : ''}
+            <div style="display:flex; gap:8px; align-items:flex-end;">
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="qai-attach" title="Thêm thành phần (ảnh/tài liệu)">📎</button>
+              <input type="file" id="qai-file-input" multiple accept="image/*,.pdf,.docx,.txt,.csv" style="display:none;">
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="qai-mic" title="Nói bằng giọng nói">🎤</button>
+              <textarea id="qai-input" rows="1" placeholder="Nhắn tin cho AI..." style="flex:1; resize:none; padding:8px 12px; border-radius:10px; border:1px solid var(--line);"></textarea>
+              <button type="button" class="btn btn-primary btn-sm preview-allow" id="qai-send" ${busy?'disabled':''}>➤ Gửi</button>
+            </div>
+            <div style="text-align:center; margin-top:8px;">
+              <button type="button" class="btn btn-sm preview-allow" id="qai-digest" ${busy?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost preview-allow" id="qai-close2">Đóng bảng</button>
+            <button class="btn btn-primary preview-allow" id="qai-add" ${latestResult?'':'disabled'} style="${latestResult?'':'opacity:.45; cursor:not-allowed;'}">➕ Thêm vào Sổ vay vốn</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#qai-close').onclick = close;
+      wrap.querySelector('#qai-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      const threadEl = wrap.querySelector('#qai-thread');
+      if(threadEl) threadEl.scrollTop = threadEl.scrollHeight;
+      wrap.querySelectorAll('[data-file-card]').forEach(btn=> btn.onclick = ()=>{
+        const m = messages[parseInt(btn.dataset.fileCard,10)];
+        if(m && m.result) renderQuickAddFilePreviewModal(m.result);
+      });
+      wrap.querySelectorAll('[data-remove-att]').forEach(btn=> btn.onclick = ()=>{
+        pendingAttachments.splice(parseInt(btn.dataset.removeAtt,10),1); render();
+      });
+      wrap.querySelector('#qai-attach').onclick = ()=> wrap.querySelector('#qai-file-input').click();
+      wrap.querySelector('#qai-file-input').onchange = async (e)=>{
+        const files = Array.from(e.target.files||[]);
+        for(const f of files){
+          const base64 = await fileToBase64(f);
+          pendingAttachments.push({ name:f.name, mimeType:f.type||'application/octet-stream', base64 });
+        }
+        render();
+      };
+      wrap.querySelector('#qai-mic').onclick = ()=> alert('Tính năng nhập bằng giọng nói sẽ được thiết kế ở bước sau.');
+      wrap.querySelector('#qai-send').onclick = doSend;
+      wrap.querySelector('#qai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); doSend(); } });
+      wrap.querySelector('#qai-digest').onclick = ()=> runAiTurn(true);
+      const addBtn = wrap.querySelector('#qai-add');
+      if(addBtn) addBtn.onclick = confirmAndAdd;
+    }
+
+    function doSend(){
+      const inputEl = wrap.querySelector('#qai-input');
+      const text = (inputEl.value||'').trim();
+      if(!text && !pendingAttachments.length) return;
+      messages.push({ role:'user', text, attachments: pendingAttachments });
+      pendingAttachments = [];
+      inputEl.value = '';
+      if(hasDigestedOnce){ render(); runAiTurn(false); }
+      else render(); // TRƯỚC lần tiêu hoá đầu tiên: AI im lặng, chỉ ghi nhận tin nhắn
+    }
+
+    async function runAiTurn(isDigest){
+      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+      if(busy) return;
+      busy = true; render();
+      try{
+        const aiMessages = [
+          { role:'user', text: quickAddSystemPrompt() },
+          { role:'assistant', text: 'Đã hiểu, tôi sẽ luôn trả lời đúng theo cấu trúc JSON yêu cầu.' },
+        ];
+        messages.forEach(m=>{
+          let t = m.text||'';
+          if(m.attachments && m.attachments.length) t += ` (kèm ${m.attachments.length} tài liệu đính kèm)`;
+          aiMessages.push({ role: m.role==='user'?'user':'assistant', text: t || '(tệp đính kèm)' });
+        });
+        // Gắn TOÀN BỘ tệp đính kèm của TẤT CẢ tin nhắn người dùng vào lượt gọi cuối (Gemini chỉ nhận đính kèm ở message cuối)
+        const allAttachments = messages.filter(m=>m.role==='user').flatMap(m=>m.attachments||[]);
+        const opts = allAttachments.length? { attachments: allAttachments } : {};
+        const result = await callAIWithFallback(aiMessages, opts, null);
+        const cleaned = (result.text||'').trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+        let parsed;
+        try{ parsed = JSON.parse(cleaned); }
+        catch(e){ parsed = { reply: result.text || 'Xin lỗi, tôi chưa hiểu rõ, bạn có thể nói lại không?', result:{ projects:[], borrowers:[] } }; }
+        const replyText = parsed.reply || '';
+        const resObj = parsed.result || { projects:[], borrowers:[] };
+        // Ghi nhận địa chỉ mới (nếu AI phát hiện) vào bộ nhớ chung
+        if((resObj.newHamlets && resObj.newHamlets.length) || (resObj.newHamletsOld && resObj.newHamletsOld.length)){
+          if(resObj.newHamlets && resObj.newHamlets.length) state.config.hamlets = Array.from(new Set([...(state.config.hamlets||[]), ...resObj.newHamlets]));
+          if(resObj.newHamletsOld && resObj.newHamletsOld.length) state.config.hamletsOld = Array.from(new Set([...(state.config.hamletsOld||[]), ...resObj.newHamletsOld]));
+          cSet('config', state.config);
+        }
+        if(replyText) messages.push({ role:'ai', text: replyText });
+        if((resObj.borrowers&&resObj.borrowers.length) || (resObj.projects&&resObj.projects.length)){
+          latestResult = resObj;
+          messages.push({ role:'ai', text:'', isFileCard:true, result: resObj });
+        }
+        hasDigestedOnce = true;
+      }catch(err){
+        console.error('Lỗi khi tiêu hoá tài liệu bằng AI:', err);
+        messages.push({ role:'ai', text:`Xin lỗi, có lỗi xảy ra khi xử lý: ${err && err.message ? err.message : err}. Bạn thử lại nhé.` });
+      }
+      busy = false; render();
+    }
+
+    async function confirmAndAdd(){
+      if(!latestResult) return;
+      const missing = [];
+      (latestResult.projects||[]).forEach((p,i)=>{
+        QUICKADD_REQUIRED_PROJECT.forEach(([k,label])=>{ if(!p[k]) missing.push(`Phương án vay #${i+1}: thiếu "${label}"`); });
+      });
+      (latestResult.borrowers||[]).forEach((b,i)=>{
+        QUICKADD_REQUIRED_BORROWER.forEach(([k,label])=>{ if(!b[k]) missing.push(`Người vay #${i+1} (${b.name||'chưa có tên'}): thiếu "${label}"`); });
+      });
+      if(missing.length){
+        alert(`Chưa thể thêm vào Sổ vay vốn — còn thiếu ${missing.length} thông tin bắt buộc:\n\n${missing.join('\n')}\n\nVui lòng chat tiếp với AI để bổ sung đầy đủ rồi bấm "Tiêu hoá tài liệu bằng AI" lại nhé.`);
+        return;
+      }
+      if(!confirm(`Bạn có CHẮC CHẮN muốn thêm ${(latestResult.projects||[]).length} Phương án vay mới và ${(latestResult.borrowers||[]).length} Người vay mới này vào Sổ vay vốn không?`)) return;
+      close();
+      showProcessingToast();
+      try{
+        const projectIdByName = {};
+        for(const p of (latestResult.projects||[])){
+          const existing = (state.loanProjects||[]).find(x=>!x.deleted && x.name.trim().toLowerCase()===p.name.trim().toLowerCase());
+          if(existing){ projectIdByName[p.name] = existing.id; continue; }
+          const newProj = { ...emptyLoanProject(), name:p.name, fundSourceType:p.fundSourceType||FUND_SOURCE_OPTIONS[0],
+            interestRate:parseFloat(p.interestRate)||0, splitCentral:parseFloat(p.splitCentral)||0, splitProvince:parseFloat(p.splitProvince)||0,
+            splitWard:parseFloat(p.splitWard)||0, hamletAllocPercent:p.hamletAllocPercent!=null?parseFloat(p.hamletAllocPercent):45,
+            disburseDate:p.disburseDate||todayStr(), dueDate:p.dueDate||'', totalCapital:parseFloat(p.totalCapital)||0 };
+          await cSetRecord('loanProjects', newProj.id, newProj);
+          state.loanProjects.push(newProj);
+          projectIdByName[p.name] = newProj.id;
+        }
+        for(const b of (latestResult.borrowers||[])){
+          let projId = projectIdByName[b.projectName];
+          if(!projId){ const existing = (state.loanProjects||[]).find(x=>!x.deleted && x.name.trim().toLowerCase()===(b.projectName||'').trim().toLowerCase()); if(existing) projId = existing.id; }
+          const proj = state.loanProjects.find(x=>x.id===projId);
+          const newB = { ...emptyBorrowerForProject(proj), name:b.name, hamlet:b.hamletDisplay||'', principal:parseFloat(b.principal)||0,
+            loanDate:b.loanDate||(proj?proj.disburseDate:todayStr()), dueDate:b.dueDate||(proj?proj.dueDate:''),
+            cccd:b.cccd||'', phone:b.phone||'', address:b.address||'' };
+          await cSetRecord('borrowers', newB.id, newB);
+        }
+        hideProcessingToast();
+        showBigToast(`Đã thêm thành công vào Sổ vay vốn!`);
+        const el = document.getElementById('content');
+        if(el) renderDataTab(el);
+      }catch(err){
+        hideProcessingToast();
+        console.error('Lỗi khi thêm vào Sổ vay vốn:', err);
+        alert(`Có lỗi khi thêm vào Sổ vay vốn: ${err && err.message ? err.message : err}`);
+      }
+    }
+    render();
+  }
+  // Bảng xem trước 1 "file" AI trả về — kiểu bảng tính (cột A,B,C.../dòng 1,2,3... cố định, cột Họ và
+  // tên cũng cố định), dùng đúng nhãn cột như Danh sách khoản vay để dễ trò chuyện với AI về ô/cột/dòng.
+  function renderQuickAddFilePreviewModal(result){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const rows = (result.borrowers||[]).map(b=> QUICKADD_PREVIEW_COLS.map(([k])=> b[k]!=null? String(b[k]) : ''));
+    const colLetters = QUICKADD_PREVIEW_COLS.map((_,i)=> String.fromCharCode(65+i));
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:98vw; width:1200px; height:82vh; display:flex; flex-direction:column;">
+        <div class="modal-head"><h3>📄 Bản tổng hợp AI đã trích xuất</h3><button class="modal-close preview-allow" id="qfp-close">✕</button></div>
+        <div class="modal-body" style="flex:1; overflow:auto; padding:0;">
+          <table style="border-collapse:collapse; width:max-content;">
+            <thead>
+              <tr>
+                <th style="position:sticky; top:0; left:0; z-index:3; background:#c8e6c9; border:1px solid var(--line); padding:6px 10px; min-width:36px;"></th>
+                ${colLetters.map((L,i)=> `<th style="position:sticky; top:0; z-index:2; background:#c8e6c9; border:1px solid var(--line); padding:6px 10px; ${i===0?'left:36px; z-index:3;':''}">${L}</th>`).join('')}
+              </tr>
+              <tr>
+                <th style="position:sticky; top:29px; left:0; z-index:3; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px;"></th>
+                ${QUICKADD_PREVIEW_COLS.map(([k,label],i)=> `<th style="position:sticky; top:29px; z-index:2; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px; white-space:nowrap; ${i===0?'left:36px; z-index:3;':''}">${htmlLabel(label)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.length? rows.map((r,ri)=>`<tr>
+                <td style="position:sticky; left:0; z-index:1; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px; text-align:center; font-weight:700;">${ri+1}</td>
+                ${r.map((cell,ci)=>`<td style="border:1px solid var(--line); padding:6px 10px; white-space:nowrap; ${ci===0?'position:sticky; left:36px; background:#fff; font-weight:700; z-index:1;':''}">${escapeHtml(cell)}</td>`).join('')}
+              </tr>`).join('') : `<tr><td colspan="${QUICKADD_PREVIEW_COLS.length+1}" style="padding:14px; text-align:center;">Chưa có Người vay nào được trích xuất.</td></tr>`}
+            </tbody>
+          </table>
+          ${(result.projects&&result.projects.length)? `<div style="padding:14px;"><b>Phương án vay sẽ được tạo mới:</b> ${result.projects.map(p=>escapeHtml(p.name)).join(', ')}</div>` : ''}
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="qfp-close2">Đóng bảng</button></div>
+      </div>`;
+    wrap.querySelector('#qfp-close').onclick = close;
+    wrap.querySelector('#qfp-close2').onclick = close;
+    wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+  }
   async function renderColumnViewSetModal(){
 
     const wrap = document.createElement('div');
@@ -12202,13 +12532,13 @@ ${fileGenerationTrainingText()}`;
         const mAll = wrap.querySelector('#f-manager-all'); if(mAll) mAll.onclick=(e)=>{ e.stopPropagation(); toggleManagerAll(ensureDefaultManagers(), mAll.checked); render(); };
         wrap.querySelectorAll('.f-manager-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); toggleManagerOne(ensureDefaultManagers(), cb.dataset.id, cb.checked); render(); });
         const resetAllBtn = wrap.querySelector('#arc-reset-all-btn'); if(resetAllBtn) resetAllBtn.onclick=()=>{ resetAllBorrowerFilters(receiptsHamlets, receiptsProjects); render(); };
-        const bt = wrap.querySelector('#arc-borrowers-toggle'); if(bt) bt.onclick = ()=>{ state.archiveShowBorrowers = state.archiveShowBorrowers===false? true : false; if(state.archiveShowBorrowers!==false) showOpeningListToast('Khoản vay đang hoạt động'); rerenderKeepingScroll(wrap, '.modal-body', render); };
-        const rt = wrap.querySelector('#arc-riskdebt-toggle'); if(rt) rt.onclick = ()=>{ state.archiveShowRiskDebt = !state.archiveShowRiskDebt; if(state.archiveShowRiskDebt) showOpeningListToast('Nợ rủi ro'); rerenderKeepingScroll(wrap, '.modal-body', render); };
+        const bt = wrap.querySelector('#arc-borrowers-toggle'); if(bt) bt.onclick = ()=>{ state.archiveShowBorrowers = state.archiveShowBorrowers===false? true : false; if(state.archiveShowBorrowers!==false) showOpeningListToast('Khoản vay đang hoạt động'); rerenderKeepingScroll(wrap, '.modal-body', render); if(state.archiveShowBorrowers!==false) setTimeout(()=>{ const h=wrap.querySelector('#arc-borrowers-toggle'); if(h) h.scrollIntoView({behavior:'smooth', block:'start'}); }, 50); };
+        const rt = wrap.querySelector('#arc-riskdebt-toggle'); if(rt) rt.onclick = ()=>{ state.archiveShowRiskDebt = !state.archiveShowRiskDebt; if(state.archiveShowRiskDebt) showOpeningListToast('Nợ rủi ro'); rerenderKeepingScroll(wrap, '.modal-body', render); if(state.archiveShowRiskDebt) setTimeout(()=>{ const h=wrap.querySelector('#arc-riskdebt-toggle'); if(h) h.scrollIntoView({behavior:'smooth', block:'start'}); }, 50); };
         const rtb = wrap.querySelector('#arc-riskdebt-toggle-bad'); if(rtb) rtb.onclick = ()=>{ state.archiveShowBadDebt = !state.archiveShowBadDebt; rerenderKeepingScroll(wrap, '.modal-body', render); };
-        const st = wrap.querySelector('#arc-settled-toggle'); if(st) st.onclick = ()=>{ state.archiveShowSettled = !state.archiveShowSettled; if(state.archiveShowSettled) showOpeningListToast('đã Tất toán/Trả nợ trước hạn'); rerenderKeepingScroll(wrap, '.modal-body', render); };
+        const st = wrap.querySelector('#arc-settled-toggle'); if(st) st.onclick = ()=>{ state.archiveShowSettled = !state.archiveShowSettled; if(state.archiveShowSettled) showOpeningListToast('đã Tất toán/Trả nợ trước hạn'); rerenderKeepingScroll(wrap, '.modal-body', render); if(state.archiveShowSettled) setTimeout(()=>{ const h=wrap.querySelector('#arc-settled-toggle'); if(h) h.scrollIntoView({behavior:'smooth', block:'start'}); }, 50); };
         wireSettledRangeButtons(wrap, ()=> rerenderKeepingScroll(wrap, '.modal-body', render));
-        const tt = wrap.querySelector('#arc-trash-toggle'); if(tt) tt.onclick = ()=>{ state.archiveShowTrash = !state.archiveShowTrash; if(state.archiveShowTrash) showOpeningListToast('Thùng rác (Sổ vay vốn)'); rerenderKeepingScroll(wrap, '.modal-body', render); };
-        const pt = wrap.querySelector('#arc-purged-toggle'); if(pt) pt.onclick = ()=>{ state.archiveShowPurged = !state.archiveShowPurged; if(state.archiveShowPurged) showOpeningListToast('người vay đã bị xoá vĩnh viễn'); rerenderKeepingScroll(wrap, '.modal-body', render); };
+        const tt = wrap.querySelector('#arc-trash-toggle'); if(tt) tt.onclick = ()=>{ state.archiveShowTrash = !state.archiveShowTrash; if(state.archiveShowTrash) showOpeningListToast('Thùng rác (Sổ vay vốn)'); rerenderKeepingScroll(wrap, '.modal-body', render); if(state.archiveShowTrash) setTimeout(()=>{ const h=wrap.querySelector('#arc-trash-toggle'); if(h) h.scrollIntoView({behavior:'smooth', block:'start'}); }, 50); };
+        const pt = wrap.querySelector('#arc-purged-toggle'); if(pt) pt.onclick = ()=>{ state.archiveShowPurged = !state.archiveShowPurged; if(state.archiveShowPurged) showOpeningListToast('người vay đã bị xoá vĩnh viễn'); rerenderKeepingScroll(wrap, '.modal-body', render); if(state.archiveShowPurged) setTimeout(()=>{ const h=wrap.querySelector('#arc-purged-toggle'); if(h) h.scrollIntoView({behavior:'smooth', block:'start'}); }, 50); };
         wrap.querySelectorAll('[data-open-receipt-box]').forEach(btn=>{
           btn.onclick = ()=>{
             const bid = btn.dataset.openReceiptBox;
@@ -12260,8 +12590,10 @@ ${fileGenerationTrainingText()}`;
         wrap.querySelectorAll('[data-log-year-toggle]').forEach(btn=>{
           btn.onclick = ()=>{
             const y = parseInt(btn.dataset.logYearToggle,10);
+            const opening = !state.logExpandedYears.includes(y);
             state.logExpandedYears = state.logExpandedYears.includes(y) ? state.logExpandedYears.filter(x=>x!==y) : state.logExpandedYears.concat([y]);
             render();
+            if(opening) setTimeout(()=>{ const h=wrap.querySelector(`[data-log-year-toggle="${y}"]`); if(h) h.scrollIntoView({behavior:'smooth', block:'start'}); }, 50);
           };
         });
         wrap.querySelectorAll('[data-log-year-collapse]').forEach(btn=>{
@@ -12274,8 +12606,10 @@ ${fileGenerationTrainingText()}`;
         wrap.querySelectorAll('[data-log-bucket-toggle]').forEach(btn=>{
           btn.onclick = ()=>{
             const idx = parseInt(btn.dataset.logBucketToggle,10);
+            const opening = state.logExpandedBucket!==idx;
             state.logExpandedBucket = state.logExpandedBucket===idx ? null : idx;
             render();
+            if(opening) setTimeout(()=>{ const h=wrap.querySelector(`[data-log-bucket-toggle="${idx}"]`); if(h) h.scrollIntoView({behavior:'smooth', block:'start'}); }, 50);
           };
         });
         const qb = wrap.querySelector('#f-quarter-btn'); if(qb) qb.onclick=(e)=>{ e.stopPropagation(); toggleDropdown('quarter'); };
@@ -14937,7 +15271,7 @@ ${fileGenerationTrainingText()}`;
       </div>` : ''}
 
       <div class="panel">
-        <div class="panel-head" style="cursor:pointer;" id="lp-borrowers-toggle"><h3>👥 Danh sách Khoản vay đang hoạt động (${totalActiveBorrowersCount}) ${state.showBorrowersList===false?'▾':'▴'}</h3>${canEdit? `<button class="btn btn-primary btn-sm" id="lp-add-borrower-any-btn">➕ Thêm người vay</button>` : ''}</div>
+        <div class="panel-head" style="cursor:pointer;" id="lp-borrowers-toggle"><h3>👥 Danh sách Khoản vay đang hoạt động (${totalActiveBorrowersCount}) ${state.showBorrowersList===false?'▾':'▴'}</h3>${canEdit? `<div style="display:flex; gap:8px;"><button class="btn btn-primary btn-sm" id="lp-add-borrower-any-btn">➕ Thêm người vay</button><button class="btn btn-sm preview-allow" id="lp-quickadd-ai-btn-2" style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Thêm nhanh bằng AI</button></div>` : ''}</div>
         ${state.showBorrowersList===false? '' : `<div class="panel-body">
           <div class="toolbar" style="flex-wrap:wrap;">
             <input id="f-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
@@ -15094,11 +15428,14 @@ ${fileGenerationTrainingText()}`;
     const lpBorrowersCollapseAll = document.getElementById('lp-borrowers-collapse-all');
     if(lpBorrowersCollapseAll) lpBorrowersCollapseAll.onclick = ()=>{ state.showBorrowersList = false; renderDataTab(el); };
     const lpNewBtn = document.getElementById('lp-new-btn');
-    if(lpNewBtn) lpNewBtn.onclick = ()=> renderLoanProjectModal(null);
+    if(lpNewBtn) lpNewBtn.onclick = (e)=>{ e.stopPropagation(); renderLoanProjectModal(null); };
     const lpAddBorrowerAnyBtn = document.getElementById('lp-add-borrower-any-btn');
-    if(lpAddBorrowerAnyBtn) lpAddBorrowerAnyBtn.onclick = ()=>{
+    if(lpAddBorrowerAnyBtn) lpAddBorrowerAnyBtn.onclick = (e)=>{
+      e.stopPropagation();
       state.modal = {type:'borrower', payload:null, projectId:null}; render();
     };
+    const lpQuickAddAiBtn2 = document.getElementById('lp-quickadd-ai-btn-2');
+    if(lpQuickAddAiBtn2) lpQuickAddAiBtn2.onclick = (e)=>{ e.stopPropagation(); renderQuickAddByAiModal(); };
     document.querySelectorAll('[data-lp-edit]').forEach(btn=>{
       btn.onclick = ()=> renderLoanProjectModal(state.loanProjects.find(p=>p.id===btn.dataset.lpEdit));
     });
@@ -19038,6 +19375,15 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     wrap.onclick = (e)=>{ if(e.target===wrap){ close(); if(onDone) onDone(null); } };
     wrap.querySelector('#lpm-fundsource-type').onchange = (e)=>{
       wrap.querySelector('#lpm-fundsource-other-wrap').style.display = e.target.value==='Nguồn khác' ? '' : 'none';
+      // Nguồn vay "Cấp trung ương" có bộ mặc định riêng (khác các nguồn vay khác) — tự điền sẵn, người
+      // dùng vẫn có thể tự sửa lại theo ý mình sau đó.
+      if(e.target.value==='Cấp trung ương'){
+        wrap.querySelector('#lpm-rate').value = '8,4';
+        wrap.querySelector('#lpm-central').value = '3,5';
+        wrap.querySelector('#lpm-province').value = '2';
+        wrap.querySelector('#lpm-ward').value = '2,9';
+        wrap.querySelector('#lpm-hamlet-alloc').value = '45';
+      }
     };
     // ---- THỬ NGHIỆM: ô nhập chỉ chứa số thuần khi gõ (không tự chèn dấu cách nhóm 3 số ngay
     // trong lúc gõ — đây chính là nguyên nhân gây lỗi lệch con trỏ khi gõ nhiều chữ số). Số đã
