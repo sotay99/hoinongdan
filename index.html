@@ -319,6 +319,11 @@
     .content{padding:16px;}
     .bell-panel{width:min(340px, calc(100vw - 32px)); right:-8px;}
     .modal-bg{padding:0; align-items:stretch;}
+    /* Các dòng "nhãn / số tiền" trong biên lai (thu lãi, trả lãi, tất toán...) — màn hình hẹp: số tiền
+       luôn xuống HÀNG RIÊNG bên dưới dòng chữ, căn sát lề phải — tránh dòng chữ dài chèn ép số tiền
+       xuống hàng lộn xộn, xấu xí trên điện thoại. */
+    .kv-row{ flex-direction:column; align-items:flex-start; gap:2px; }
+    .kv-row > *:last-child{ align-self:flex-end; text-align:right; }
     /* Nút "➕ Thêm thành phần" (chat AI, siêu ghi chú, tạo bài tuyên truyền, thêm nhanh bằng AI) —
        màn hình hẹp: thu gọn thành hình vuông chỉ còn icon, có hiệu ứng nổi bồng bềnh y hệt nút chat
        AI/siêu ghi chú, logic bên trong giữ nguyên không đổi. */
@@ -892,7 +897,7 @@
       const rcStickyTop = narrow? '' : 'position:sticky; top:0;';
       const rcStickyTop2 = narrow? '' : 'position:sticky; top:29px;';
       const rcStickyLeft0 = narrow? '' : 'position:sticky; left:0;';
-      const rcStickyLeftA = frozen? 'position:sticky; left:36px;' : '';
+      const rcStickyLeftA = frozen? `position:sticky; left:${narrow?0:36}px;` : '';
       wrap.innerHTML = `
         <div class="modal" style="max-width:100vw; width:100vw; height:85vh; display:flex; flex-direction:column; border-radius:0;">
           <div class="modal-head"><h3>${escapeHtml(title)}</h3><button class="modal-close" id="cep-close">✕</button></div>
@@ -1971,6 +1976,95 @@
     clone.querySelectorAll('div,span,p,label').forEach(n=>{ if(!n.textContent.trim() && !n.querySelector('img,svg,table')) n.remove(); });
     return clone.innerHTML;
   }
+  // ---- ĐƯỜNG LINK CÔNG KHAI CHO BIÊN LAI — không cần đăng nhập vẫn xem được, y hệt kiến trúc của
+  // "Khảo sát công khai" (rtdb.ref('surveys/{id}')) — lưu 1 bản HTML đã lập SẴN (đóng băng, không thể
+  // sửa) tại đường dẫn công khai `receipts/{mã biên lai}`, đường link dạng #/bienlai/{mã biên lai}. ----
+  function publicReceiptLink(receiptId){
+    return `${window.location.origin}${window.location.pathname}#/bienlai/${encodeURIComponent(receiptId)}`;
+  }
+  async function ensurePublicReceiptSnapshot(receiptId, title, bodyHtml, createdAt){
+    try{
+      const cfg = state.config||{};
+      const wardLabel = `${adminLevelLabel()} ${(cfg.wardName||'').trim()}`.trim();
+      const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType : 'Tỉnh/Thành phố';
+      const provinceLabel = (cfg.provinceName||'').trim() ? `${provType} ${(cfg.provinceName||'').trim()}` : '';
+      await rtdb.ref('receipts/'+receiptId).set({ title, html: bodyHtml, wardLabel, provinceLabel, createdAt: createdAt||new Date().toISOString(), savedAt: new Date().toISOString() });
+    }catch(e){ console.error('Không lưu được đường link công khai cho biên lai:', e); throw e; }
+  }
+  // Modal nhỏ hiện đường link + nút Sao chép — dùng chung cho mọi loại biên lai.
+  async function renderReceiptLinkModal(receiptId, title, contentSelectorEl, createdAt){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `<div class="modal" style="max-width:520px;"><div class="modal-body" style="text-align:center; padding:28px 24px;"><div class="rice-badge">🔗</div><h3 style="margin:10px 0;">Đang tạo đường link…</h3></div></div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    try{
+      const clone = contentSelectorEl.cloneNode(true);
+      // Bỏ dòng "Biên lai này được lập vào..." trong nội dung — đã có đúng thời gian này ở đầu trang
+      // (Thời gian xuất) rồi, tránh hiện trùng lặp 2 chỗ.
+      clone.querySelectorAll('p').forEach(p=>{ if(/^Biên lai này được lập vào/.test((p.textContent||'').trim())) p.remove(); });
+      const bodyHtml = stripInteractiveElementsHtml(clone);
+      await ensurePublicReceiptSnapshot(receiptId, title, bodyHtml, createdAt);
+      const link = publicReceiptLink(receiptId);
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:520px;">
+          <div class="modal-head"><h3>🔗 Đường link Biên lai</h3><button class="modal-close preview-allow" id="rlm-close">✕</button></div>
+          <div class="modal-body">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="text" readonly value="${escapeHtml(link)}" id="rlm-input" style="flex:1; padding:10px 12px; border-radius:8px; border:1px solid var(--line); font-size:12.5px;">
+              <button type="button" class="btn btn-primary btn-sm preview-allow" id="rlm-copy">📋 Sao chép</button>
+            </div>
+            <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này cho Hộ vay hoặc cho mọi người cùng xem nội dung Biên lai này (qua Messenger, Zalo hoặc các kênh chia sẻ khác).</p>
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="rlm-close2">Đóng bảng</button></div>
+        </div>`;
+      wrap.querySelector('#rlm-close').onclick = close;
+      wrap.querySelector('#rlm-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      wrap.querySelector('#rlm-copy').onclick = ()=>{ writeClipboardSilent(link); showToast('Đã sao chép đường link!'); };
+    }catch(e){
+      wrap.innerHTML = `<div class="modal" style="max-width:480px;"><div class="modal-body" style="text-align:center; padding:28px 24px;"><div class="rice-badge">⚠️</div><h3>Không tạo được đường link</h3><p class="sub">${escapeHtml(String(e&&e.message||e))}</p></div><div class="modal-foot"><button class="btn btn-ghost preview-allow" id="rlm-close3">Đóng bảng</button></div></div>`;
+      wrap.querySelector('#rlm-close3').onclick = close;
+    }
+  }
+  function publicReceiptRouteId(){
+    const m = (window.location.hash||'').match(/^#\/bienlai\/(.+)$/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function renderPublicReceiptPage(receiptId){
+    document.body.classList.add('public-survey-mode');
+    root.innerHTML = '<div class="center-screen">Đang tải biên lai…</div>';
+    (async ()=>{
+      let data = null;
+      try{
+        const snap = await rtdb.ref('receipts/'+receiptId).get();
+        data = (snap && snap.exists()) ? snap.val() : null;
+      }catch(e){ console.error('[Biên lai công khai] Không tải được:', e); data = null; }
+      if(!data){
+        root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">🧾</div><h1>Không tìm thấy biên lai</h1><p class="sub">Đường link này có thể không đúng hoặc biên lai chưa từng được chia sẻ.</p></div></div>`;
+        return;
+      }
+      const d = new Date(data.createdAt||data.savedAt);
+      const exportTimeLbl = isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')} ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+      const plainTitle = String(data.title||'Biên lai').toUpperCase();
+      root.innerHTML = `
+        <div class="center-screen">
+          <div class="auth-card" style="max-width:640px; text-align:left;">
+            <div style="text-align:center; border-bottom:2px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
+              ${data.wardLabel? `<div style="font-weight:800; text-transform:uppercase; font-size:14px;">HỘI NÔNG DÂN ${escapeHtml(data.wardLabel.toUpperCase())}</div>` : ''}
+              ${data.provinceLabel? `<div style="font-weight:600; font-size:13px;">${escapeHtml(data.provinceLabel)}</div>` : ''}
+              <div style="font-weight:800; font-size:16px; margin-top:8px;">${escapeHtml(plainTitle)}</div>
+              <div class="sub" style="margin-top:4px;">Thời gian xuất: ${exportTimeLbl}</div>
+            </div>
+            <p class="sub" style="color:#1b5e20; font-weight:700; margin:6px 0 14px;">Biên lai này đã được lập thành công, Biên lai này Không thể xoá/sửa nội dung bởi bất kỳ ai, được bảo chứng bởi Hoinongdan.sotay.org</p>
+            ${data.html||''}
+            <div style="text-align:center; border-top:2px solid var(--line); margin-top:20px; padding-top:12px;">
+              <a href="https://hoinongdan.sotay.org" style="color:#0d47a1; text-decoration:none; font-weight:700;">https://hoinongdan.sotay.org</a>
+            </div>
+          </div>
+        </div>`;
+    })();
+  }
   // Modal "Xem trước" dùng CHUNG cho mọi nút "Xuất file Word"/"In" gắn trong các modal khác — luôn
   // kèm 4 dòng tiêu đề đầu + dòng chân trang, y hệt phong cách Xuất Excel/In ở panel chính.
   function renderExportPrintPreviewModal(title, contentHtml){
@@ -2715,6 +2809,58 @@
   ];
   function isOwner(){
     return !!(state.identity && state.identity.email && state.config && state.identity.email === state.config.ownerEmail);
+  }
+  // Modal "Thông tin Tài khoản nhận tiền của xã/phường" — 3 khung (Tên tài khoản/Ngân hàng/Số tài
+  // khoản) sửa ĐỘC LẬP nhau, mỗi khung tự khoá/mở khi Sửa/Lưu/Huỷ riêng. Lưu vào state.config (đám
+  // mây, dùng chung toàn xã) — dữ liệu này dùng để sau này tạo mã QR chuyển khoản khi chia sẻ biên lai.
+  function renderWardBankInfoModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const FIELDS = [
+      { key:'accountName', label:'Tên tài khoản' },
+      { key:'bankName', label:'Ngân hàng' },
+      { key:'accountNumber', label:'Số tài khoản' },
+    ];
+    let editing = { accountName:false, bankName:false, accountNumber:false };
+    function currentVal(key){ return (state.config.bankInfo && state.config.bankInfo[key]) || ''; }
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:520px;">
+          <div class="modal-head"><h3>💳 Thông tin Tài khoản nhận tiền của xã/phường</h3><button class="modal-close preview-allow" id="wbi-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin-top:0;">Thông tin này sẽ dùng để tạo mã QR chuyển khoản khi chia sẻ Biên lai qua đường link.</p>
+            ${FIELDS.map(f=>`
+              <div class="field full" style="margin-bottom:14px;">
+                <label>${f.label}</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input type="text" maxlength="30" id="wbi-${f.key}" value="${escapeHtml(currentVal(f.key))}" ${editing[f.key]?'':'disabled'} style="flex:1;">
+                  ${editing[f.key]? `
+                    <button type="button" class="btn btn-ghost btn-sm preview-allow" data-wbi-cancel="${f.key}">Huỷ</button>
+                    <button type="button" class="btn btn-primary btn-sm preview-allow" data-wbi-save="${f.key}">Lưu</button>
+                  ` : `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-wbi-edit="${f.key}">✏️ Sửa</button>`}
+                </div>
+              </div>`).join('')}
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="wbi-close2">Đóng bảng</button></div>
+        </div>`;
+      wrap.querySelector('#wbi-close').onclick = close;
+      wrap.querySelector('#wbi-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
+      wrap.querySelectorAll('[data-wbi-edit]').forEach(btn=> btn.onclick = ()=>{ editing[btn.dataset.wbiEdit] = true; render(); });
+      wrap.querySelectorAll('[data-wbi-cancel]').forEach(btn=> btn.onclick = ()=>{ editing[btn.dataset.wbiCancel] = false; render(); });
+      wrap.querySelectorAll('[data-wbi-save]').forEach(btn=> btn.onclick = async ()=>{
+        const key = btn.dataset.wbiSave;
+        const val = wrap.querySelector(`#wbi-${key}`).value.trim().slice(0,30);
+        state.config.bankInfo = { ...(state.config.bankInfo||{}), [key]: val };
+        await cSet('config', state.config);
+        editing[key] = false;
+        render();
+        showToast('Đã lưu thành công!');
+      });
+    }
+    render();
   }
   function myGrant(){
     if(!state.identity || !state.identity.email || !state.config) return null;
@@ -9041,6 +9187,11 @@ ${fileGenerationTrainingText()}`;
       'hamletAllocPct','hamletAllocAmt',
     ]);
   }
+  function getInterestPaidUnpaidColumnViewSet(){
+    return buildPresetColumnViewSet('__interestpaidunpaid__', 'Bộ xem cột Xem tiền lãi đã đóng, chưa đóng', [
+      'name','hamlet','quartersUnpaid','quartersPaid','unpaidInterestPastToNow','leftoverUnassigned',
+    ]);
+  }
   function getDetailedInterestColumnViewSet(){
     return buildPresetColumnViewSet('__detailinterest__', 'Bộ xem cột Tính tiền lãi Chi tiết', [
       'name','hamlet','principal','rate','interestFromDate','interestToDate','interestDaysCount','quarterInterestAmount',
@@ -9804,7 +9955,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       }).join('');
     }
     function listForTab(tab){
-      if(tab==='mau') return [getDefaultColumnViewSet(), getAllPublicColumnsViewSet(), getBasicLoanInfoColumnViewSet(), getBasicInterestColumnViewSet(), getDetailedInterestColumnViewSet(), getBorrowerInfoColumnViewSet(), getHiddenColumnsViewSet()];
+      if(tab==='mau') return [getDefaultColumnViewSet(), getBasicLoanInfoColumnViewSet(), getBasicInterestColumnViewSet(), getInterestPaidUnpaidColumnViewSet(), getDetailedInterestColumnViewSet(), getBorrowerInfoColumnViewSet(), getAllPublicColumnsViewSet(), getHiddenColumnsViewSet()];
       if(tab==='canhan') return (state._personalColViewSetsFirebase||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
       return (state.columnViewSets||[]).filter(x=>x.group==='xaphuong').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
     }
@@ -13143,10 +13294,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           <div class="kv-row"><span>Địa chỉ IP</span><b>${escapeHtml(r.createdByIp||'(không lấy được)')}</b></div>
           <div class="kv-row"><span>Thiết bị</span><b style="font-size:11px;">${escapeHtml(r.createdByDevice||'(không lấy được)')}</b></div>
         </div>
-        <div class="modal-foot">${exportPrintButtonsHtml('srd-ep')}<button class="btn btn-ghost preview-allow" id="srd-close2">Đóng bảng</button></div>
+        <div class="modal-foot">${exportPrintButtonsHtml('srd-ep')}<button class="btn btn-ghost preview-allow" id="srd-link">🔗 Đường link</button><button class="btn btn-ghost preview-allow" id="srd-close2">Đóng bảng</button></div>
       </div>`;
     wrap.querySelector('#srd-close').onclick = close;
     wrap.querySelector('#srd-close2').onclick = close;
+    wrap.querySelector('#srd-link').onclick = ()=> renderReceiptLinkModal(r.id, fullTitle.replace(/<[^>]+>/g,''), wrap.querySelector('#srd-content'), r.createdAt);
     wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
     const catBtn = wrap.querySelector('#srd-edit-cat');
     if(catBtn) catBtn.onclick = ()=> renderEditReceiptCategoryDialog(r.receiptCategoryId||null, async (newId)=>{
@@ -13247,10 +13399,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             `Mã biên lai: ${r.id}`,
           ])}
         </div>
-        <div class="modal-foot">${exportPrintButtonsHtml('rcd-ep')}<button class="btn btn-ghost preview-allow" id="rcd-close2">Đóng bảng</button></div>
+        <div class="modal-foot">${exportPrintButtonsHtml('rcd-ep')}<button class="btn btn-ghost preview-allow" id="rcd-link">🔗 Đường link</button><button class="btn btn-ghost preview-allow" id="rcd-close2">Đóng bảng</button></div>
       </div>`;
     wrap.querySelector('#rcd-close').onclick = close;
     wrap.querySelector('#rcd-close2').onclick = close;
+    wrap.querySelector('#rcd-link').onclick = ()=> renderReceiptLinkModal(r.id, (RECEIPT_TITLE_HTML[r.categoryKey]||r.displayTitle||'Biên lai').replace(/<[^>]+>/g,''), wrap.querySelector('#rcd-content'), r.createdAt);
     wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
     wireAdvancedInfo(wrap, 'rcd', ()=>{});
     wireExportPrintButtons(wrap, 'rcd-ep', '#rcd-content', (RECEIPT_TITLE_HTML[r.categoryKey]||r.displayTitle||'Biên lai').replace(/<[^>]+>/g,'').replace(/^BL /, 'Biên Lai '));
@@ -14007,7 +14160,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       }
       const selectedList = pastList.concat(futureList).filter(x=>selectedNames.has(x.name));
       const selectedSum = selectedList.reduce((s,x)=>s+x.amount*groupList.length,0) - leftoverTotal;
-      const canProceed = selectedNames.size>0;
+      const canProceed = selectedNames.size>0 && selectedSum>=0;
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:900px;">
           <div class="modal-head"><h3>Chọn quý để tính tiền lãi cho các hộ vay (Biên lai Chung)</h3><button class="modal-close preview-allow" id="siap-close">✕</button></div>
@@ -15569,8 +15722,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           </div>`;
         };
         const selectedCount = selectedKeys.size;
-        const selectedSum = pastList.concat(futureList).filter(x=>selectedKeys.has(x.box.key)).reduce((s,x)=>s+x.amount,0) + (usePrevLeftover? disp.leftover : 0);
-        const canProceed = selectedCount>0;
+        const selectedSum = pastList.concat(futureList).filter(x=>selectedKeys.has(x.box.key)).reduce((s,x)=>s+x.amount,0) - (usePrevLeftover? disp.leftover : 0);
+        const canProceed = selectedCount>0 && selectedSum>=0;
         wrap.innerHTML = `
           <div class="modal" style="max-width:96vw; width:900px;">
             <div class="modal-head"><h3>Chọn quý hoặc nhập số tiền để tính tiền lãi cho hộ vay ${escapeHtml(b.name)}</h3><button class="modal-close preview-allow" id="iapay-close">✕</button></div>
@@ -19379,6 +19532,8 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         </div>
       </div>
 
+      <button type="button" class="btn preview-allow" id="st-bankinfo-btn" style="width:100%; margin-bottom:18px; padding:14px; background:linear-gradient(90deg, #ff8f00 0%, #e65100 50%, #b71c1c 100%); color:#fff; font-weight:800; font-size:14px; border:none; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,.2);">💳 Thông tin Tài khoản nhận tiền của xã/phường</button>
+
       ${isOwner() ? `
       <div class="panel"><div class="panel-head"><h3>🔗 Chia sẻ quyền truy cập</h3></div>
         <div class="panel-body">
@@ -19541,6 +19696,11 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     const stHamletsManageBtn = document.getElementById('st-hamlets-manage-btn');
     if(stHamletsManageBtn) stHamletsManageBtn.onclick = ()=> renderHamletManagerModal(()=> renderSettingsTab(el));
 
+    const stBankInfoBtn = document.getElementById('st-bankinfo-btn');
+    if(stBankInfoBtn) stBankInfoBtn.onclick = ()=>{
+      if(!isOwner()){ alert('Chỉ có Chủ nhân của mã định danh xã/phường này mới có quyền thiết lập thông tin Tài khoản nhận tiền của xã/phường'); return; }
+      renderWardBankInfoModal();
+    };
     const stSaveBtn = document.getElementById('st-save');
     if(stSaveBtn) stSaveBtn.onclick = async ()=>{
       const subAdminType = document.getElementById('st-subadmin').value;
@@ -20541,8 +20701,11 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     };
   }
 
+  const _publicReceiptId = publicReceiptRouteId();
   const _publicSurveyId = publicSurveyRouteId();
-  if(_publicSurveyId){
+  if(_publicReceiptId){
+    renderPublicReceiptPage(_publicReceiptId);
+  } else if(_publicSurveyId){
     renderPublicSurveyPage(_publicSurveyId);
   } else {
     boot();
