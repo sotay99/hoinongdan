@@ -330,9 +330,14 @@
     .modal-head-stack-narrow > div, .modal-head-stack-narrow > button{ order:2; margin-left:auto; }
     /* Bộ lọc dropdown (Địa phương/Phương án vay/Nguồn vay/Người quản lý...) — màn hình hẹp: checkbox
        mặc định của trình duyệt di động thường bị phóng to quá khổ, không đẹp — thu nhỏ lại và căn
-       thẳng hàng với tên (kể cả khi tên dài phải xuống hàng). */
+       thẳng hàng với tên (kể cả khi tên dài phải xuống hàng). Dùng thêm transform:scale làm "bảo
+       hiểm" — 1 số trình duyệt di động không tôn trọng đúng width/height khai báo cho checkbox gốc. */
     .sv-filter-item{ align-items:flex-start; gap:6px; }
-    .sv-filter-item input[type="checkbox"]{ width:15px; height:15px; min-width:15px; margin:2px 0 0; flex-shrink:0; accent-color:var(--gold); }
+    .sv-filter-item input[type="checkbox"]{ width:15px; height:15px; min-width:15px; margin:2px 0 0; flex-shrink:0; accent-color:var(--gold); transform:scale(0.9); transform-origin:center; }
+    /* Khung sổ xuống của bộ lọc — LUÔN neo cố định gọn trong màn hình (không tính theo vị trí nút bấm
+       kích hoạt nó nữa) — trước đây nếu nút bấm nằm gần mép phải màn hình hẹp, khung sổ xuống (rộng
+       tối thiểu 220px) sẽ tràn ra ngoài màn hình, phải vuốt ngang mới thấy hết checkbox. */
+    .sv-filter-panel{ position:fixed !important; left:10px !important; right:10px !important; width:auto !important; min-width:0 !important; max-width:none !important; }
     .modal{max-width:100%; width:100%; min-height:100dvh; border-radius:0; display:flex; flex-direction:column;}
     .modal-body{max-height:none; flex:1;}
     /* Sổ vay vốn — màn hình bề ngang hẹp: TẮT HẲN việc cố định cột (Địa phương/Họ và tên/số thứ tự
@@ -444,10 +449,10 @@
   .reset-filter-active{ animation: resetFilterPulse 12.6s ease-in-out infinite; }
   @keyframes nameDance{ 0%,55%,100%{ transform:scale(1); } 8%{ transform:scale(1.1); } 16%{ transform:scale(1); } }
   @keyframes colNamePulse3x{
-    0%, 16.6%, 33.3%, 50%, 100%{ transform:scale(1); }
-    8.3%, 25%, 41.6%{ transform:scale(1.3); }
+    0%, 14.29%, 28.57%, 42.86%, 57.14%, 71.43%, 85.71%, 100%{ transform:scale(1); }
+    7.14%, 21.43%, 35.71%, 50%, 64.29%, 78.57%, 92.86%{ transform:scale(1.3); }
   }
-  .col-name-pulse{ display:inline-block; animation: colNamePulse3x 0.9s ease-in-out; transform-origin:left center; }
+  .col-name-pulse{ display:inline-block; animation: colNamePulse3x 2.1s ease-in-out; transform-origin:left center; }
   .dancing-name{ display:inline-block; animation: nameDance 1.5s ease-in-out infinite; cursor:pointer; transition:transform .15s ease, color .15s ease; transform-origin:left center; }
   .dancing-name:hover{ animation-play-state:paused; transform:scale(1.3) !important; }
   .dancing-name.name-selected{ animation:none !important; transform:scale(1.3) !important; color:#0d47a1; font-weight:800; }
@@ -835,6 +840,33 @@
   // DOM, tham chiếu phần tử CŨ (e.target) không còn là con của phần tử MỚI truy vấn lại nữa — dùng
   // closest() để kiểm tra đúng theo cây DOM GỐC tại thời điểm bấm, không bị lệch.
   function isNarrowScreenForSidebar(){ return window.innerWidth<=820; }
+  // Khung sổ xuống của bộ lọc (Địa phương/Phương án vay/Nguồn vay...) — màn hình hẹp: CSS đã ép về
+  // position:fixed căn theo 2 mép trái/phải màn hình (luôn gọn trong màn hình, không tràn ra ngoài
+  // nữa) — nhưng vẫn cần JS tính đúng vị trí TRÊN/DƯỚI (top) theo đúng vị trí nút bấm vừa kích hoạt nó,
+  // để khung luôn hiện ngay sát dưới đúng nút đó. Dùng MutationObserver: hễ 1 khung ".sv-filter-panel"
+  // vừa được thêm vào trang là tự tính lại vị trí ngay lập tức.
+  if(!window.__filterPanelPositionObserver){
+    function positionFilterPanel(panel){
+      if(!isNarrowScreenForSidebar()) return;
+      const dropdown = panel.closest('.sv-filter-dropdown');
+      const btn = dropdown ? dropdown.querySelector('button') : null;
+      if(!btn) return;
+      const rect = btn.getBoundingClientRect();
+      panel.style.top = (rect.bottom + 4) + 'px';
+      const maxTop = window.innerHeight - 60;
+      if(parseFloat(panel.style.top) > maxTop) panel.style.top = maxTop + 'px';
+    }
+    window.__filterPanelPositionObserver = new MutationObserver((mutations)=>{
+      mutations.forEach(m=>{
+        m.addedNodes.forEach(node=>{
+          if(node.nodeType!==1) return;
+          if(node.classList && node.classList.contains('sv-filter-panel')) positionFilterPanel(node);
+          else if(node.querySelectorAll) node.querySelectorAll('.sv-filter-panel').forEach(positionFilterPanel);
+        });
+      });
+    });
+    window.__filterPanelPositionObserver.observe(document.body, { childList:true, subtree:true });
+  }
   // Hiệu ứng trượt panel-body CHỈ chạy khi người dùng chủ động bấm mở 1 panel cụ thể (nhẹ, mượt) —
   // KHÔNG chạy khi cả module vừa được tải lần đầu (khi đó có rất nhiều DOM nặng dựng cùng lúc, chạy
   // animation lúc này sẽ gây giật vì luồng chính đang bận dựng layout, không liên quan gì tới việc
@@ -6859,11 +6891,11 @@ ${fileGenerationTrainingText()}`;
             ${state._aiAddMenuOpen? `<div class="ai-add-menu">
               <div class="ai-add-opt" data-ai-add="image">🖼️ Tải ảnh lên</div>
               <div class="ai-add-opt" data-ai-add="doc">📄 Tải tài liệu lên</div>
+              <div class="ai-add-opt" data-ai-add="mic">🎤 ${state._aiMicListening? '✅ Đang nghe — bấm để dừng' : 'Nói để nhập liệu'}</div>
               <div class="ai-add-opt" data-ai-add="websearch">🌐 ${state.aiWebSearchOn? '✅ Đang bật — bấm để tắt' : 'Tìm kiếm web'}</div>
             </div>` : ''}
           </div>
           <textarea id="ai-input" rows="1" placeholder="Nhắn tin cho Chàng Nông dân Thông minh... (Enter để xuống dòng, Ctrl+Enter để gửi)"></textarea>
-          <button class="ai-mic-btn ${state._aiMicListening?'listening':''}" id="ai-mic-btn" type="button" title="Nói để nhập liệu">🎤</button>
           <div class="ai-send-wrap">
             <span class="ai-send-tooltip">${state.aiSending? 'Chỉ bấm nút để dừng — Enter sẽ không có tác dụng' : 'Bấm Ctrl+Enter để gửi nhanh'}</span>
             ${state.aiSending? `<button id="ai-stop-btn" class="ai-stop-btn" title="Dừng câu trả lời">⏹</button>` : `<button id="ai-send-btn">➤</button>`}
@@ -6944,16 +6976,13 @@ ${fileGenerationTrainingText()}`;
         e.stopPropagation();
         const kind = elx.dataset.aiAdd;
         if(kind==='websearch') toggleAiWebSearch();
+        else if(kind==='mic') toggleAiMic();
         else triggerAiFileInput(kind);
       });
     });
     overlay.querySelectorAll('[data-ai-attach-remove]').forEach(btn=>{
       btn.onclick = (e)=>{ e.stopPropagation(); removeAiAttachment(parseInt(btn.dataset.aiAttachRemove,10)); };
     });
-
-    // ---- Micro ----
-    const micBtn = document.getElementById('ai-mic-btn');
-    if(micBtn) micBtn.onclick = toggleAiMic;
 
     // Bấm ra ngoài thì tự đóng các dropdown (chỉ gắn listener DUY NHẤT 1 lần lúc tạo overlay,
     // tránh chồng chất listener qua mỗi lần render lại).
@@ -7114,10 +7143,10 @@ ${fileGenerationTrainingText()}`;
             ${state._aiAddMenuOpen? `<div class="ai-add-menu">
               <div class="ai-add-opt" data-sn-add="file">📄 Tải tài liệu lên (ảnh/PDF/Word/Excel...)</div>
               <div class="ai-add-opt" data-sn-add="folder">🗂️ Thêm thư mục (nhiều tệp cùng lúc)</div>
+              <div class="ai-add-opt" data-sn-add="mic">🎤 ${state._aiMicListening? '✅ Đang nghe — bấm để dừng' : 'Nói để nhập liệu'}</div>
             </div>` : ''}
           </div>
           <textarea id="sn-input" rows="1" placeholder="Gõ nội dung, hoặc tải ảnh/PDF/tài liệu để AI tự tạo ghi chú... (Enter xuống dòng, Ctrl+Enter gửi)" ${state.superNotesProcessing?'disabled':''}></textarea>
-          <button class="ai-mic-btn ${state._aiMicListening?'listening':''}" id="sn-mic-btn" type="button" title="Nói để nhập liệu" ${state.superNotesProcessing?'disabled':''}>🎤</button>
           <div class="ai-send-wrap">
             <span class="ai-send-tooltip">Bấm Ctrl+Enter để gửi nhanh</span>
             <button id="sn-send-btn" ${state.superNotesProcessing?'disabled':''}>➤</button>
@@ -7195,6 +7224,7 @@ ${fileGenerationTrainingText()}`;
       elx.addEventListener('click', (e)=>{
         e.stopPropagation();
         state._aiAddMenuOpen = false;
+        if(elx.dataset.snAdd==='mic'){ toggleNotesMic(); return; }
         const input = document.createElement('input');
         input.type = 'file'; input.multiple = true;
         if(elx.dataset.snAdd==='folder') input.webkitdirectory = true;
@@ -7211,10 +7241,6 @@ ${fileGenerationTrainingText()}`;
         renderSuperNotesOverlay();
       };
     });
-
-    // ---- micro ----
-    const micBtn = document.getElementById('sn-mic-btn');
-    if(micBtn) micBtn.onclick = toggleNotesMic;
 
     // ---- Dừng lại giữa chừng khi AI đang tiêu hoá — huỷ request đang chạy, GIỮ NGUYÊN nội dung/tệp ----
     const stopBtn = document.getElementById('sn-stop-btn');
@@ -8981,8 +9007,10 @@ ${fileGenerationTrainingText()}`;
         <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #ab47bc;">
           <div class="modal-head modal-head-stack-narrow" style="background:linear-gradient(135deg, #8e24aa 0%, #6a1b9a 40%, #1565c0 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <h3 style="color:#fff;">${waveTextHtmlSlow('🎨 Tuỳ chỉnh màu nền cho khoản vay và phương án vay')}</h3>
-            <div style="display:flex; border:2px solid #fbc02d; padding:2px;">${tabBtnsHtml()}</div>
-            <button class="modal-close preview-allow" id="lc-close">✕</button>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex; border:2px solid #fbc02d; padding:2px;">${tabBtnsHtml()}</div>
+              <button class="modal-close preview-allow" id="lc-close">✕</button>
+            </div>
           </div>
           <div class="modal-body" style="max-height:70vh; overflow:auto;">
             <div style="background:${color}; color:#fff; font-weight:800; padding:8px 14px; border-radius:8px; margin-bottom:12px;">${TAB_LABELS3[tab].toUpperCase()}</div>
@@ -9170,10 +9198,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
                 ${state._qaiAddMenuOpen? `<div class="ai-add-menu">
                   <div class="ai-add-opt" data-qai-add="image">🖼️ Tải ảnh lên</div>
                   <div class="ai-add-opt" data-qai-add="doc">📄 Tải tài liệu lên</div>
+                  <div class="ai-add-opt" data-qai-add="mic">🎤 Nói để nhập liệu</div>
                 </div>` : ''}
               </div>
               <textarea id="qai-input" rows="1" placeholder="Nhắn tin cho AI... (Enter để xuống dòng, Ctrl+Enter để gửi)"></textarea>
-              <button class="ai-mic-btn" id="qai-mic-btn" type="button" title="Nói để nhập liệu">🎤</button>
               <div class="ai-send-wrap">
                 <button id="qai-send-btn">➤</button>
               </div>
@@ -9230,6 +9258,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wrap.querySelectorAll('[data-qai-add]').forEach(elx=> elx.addEventListener('click', (e)=>{
         e.stopPropagation();
         state._qaiAddMenuOpen = false;
+        if(elx.dataset.qaiAdd==='mic'){ alert('Tính năng nhập bằng giọng nói sẽ được thiết kế ở bước sau.'); render(); return; }
         wrap.querySelector('#qai-file-input').click();
       }));
       wrap.querySelector('#qai-file-input').onchange = async (e)=>{
@@ -9240,7 +9269,6 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         }
         render();
       };
-      wrap.querySelector('#qai-mic-btn').onclick = ()=> alert('Tính năng nhập bằng giọng nói sẽ được thiết kế ở bước sau.');
       wrap.querySelector('#qai-send-btn').onclick = doSend;
       wrap.querySelector('#qai-input').focus();
       wrap.querySelector('#qai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
@@ -9528,8 +9556,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         <div class="modal" style="max-width:98vw; width:700px; border:6px solid #ff8f00;">
           <div class="modal-head modal-head-stack-narrow" style="background:linear-gradient(180deg, #ffe082 0%, #ffca28 50%, #ff8f00 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <h3 style="color:#000;">${waveTextHtmlSlow('👁️ Chế độ xem cột')}</h3>
-            <div style="display:flex; border:2px solid #fbc02d; padding:2px;">${tabBtnsHtml()}</div>
-            <button class="modal-close preview-allow" id="vs-close">✕</button>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex; border:2px solid #fbc02d; padding:2px;">${tabBtnsHtml()}</div>
+              <button class="modal-close preview-allow" id="vs-close">✕</button>
+            </div>
           </div>
           <div class="modal-body" style="max-height:70vh; overflow:auto;">
             <p class="sub" style="line-height:1.7; margin-bottom:10px;">${VS_TAB_EXPLAIN[tab]}</p>
@@ -15938,7 +15968,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       </div>` : ''}
 
       <div class="panel">
-        <div class="panel-head" style="cursor:pointer;" id="lp-borrowers-toggle"><h3>👥 Danh sách Khoản vay đang hoạt động (${totalActiveBorrowersCount}) ${state.showBorrowersList===false?'▾':'▴'}</h3>${canEdit? `<div style="display:flex; gap:8px;"><button class="btn btn-primary btn-sm" id="lp-add-borrower-any-btn">➕ Thêm người vay</button><button class="btn btn-sm preview-allow" id="lp-quickadd-ai-btn-2" style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Thêm nhanh bằng AI</button></div>` : ''}</div>
+        <div class="panel-head" style="cursor:pointer;" id="lp-borrowers-toggle"><h3 style="color:#1b5e20;">👥 Danh sách Khoản vay đang hoạt động (${totalActiveBorrowersCount}) ${state.showBorrowersList===false?'▾':'▴'}</h3>${canEdit? `<div style="display:flex; gap:8px;"><button class="btn btn-primary btn-sm" id="lp-add-borrower-any-btn">➕ Thêm người vay</button><button class="btn btn-sm preview-allow" id="lp-quickadd-ai-btn-2" style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Thêm nhanh bằng AI</button></div>` : ''}</div>
         ${state.showBorrowersList===false? '' : `<div class="panel-body ${panelBodyAnimClass()}">
           <div class="toolbar" style="flex-wrap:wrap;">
             <input id="f-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
@@ -15963,12 +15993,12 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       </div>
 
       <div class="panel">
-        <div class="panel-head" style="cursor:pointer;" id="loan-riskdebt-toggle"><h3>⚠️ Danh sách khoản vay Nợ rủi ro (${countRiskDebtProcessing()}) ${state.showRiskDebtList?'▴':'▾'}</h3></div>
+        <div class="panel-head" style="cursor:pointer;" id="loan-riskdebt-toggle"><h3 style="color:#f57f17;">⚠️ Danh sách khoản vay Nợ rủi ro (${countRiskDebtProcessing()}) ${state.showRiskDebtList?'▴':'▾'}</h3></div>
         ${state.showRiskDebtList? `<div class="panel-body ${panelBodyAnimClass()}">${buildRiskDebtListPanelHtml()}</div>` : ''}
       </div>
 
       <div class="panel">
-        <div class="panel-head" style="cursor:pointer;" id="loan-settled-toggle"><h3>✅ Danh sách đã Tất toán khoản vay hoặc Trả nợ trước hạn ${state.borrowers.filter(b=>!b.deleted&&b.settled).length? `<span class="sub">(${state.borrowers.filter(b=>!b.deleted&&b.settled).length})</span>` : ''} ${state.showSettledList?'▴':'▾'}</h3></div>
+        <div class="panel-head" style="cursor:pointer;" id="loan-settled-toggle"><h3 style="color:#6a1b9a;">✅ Danh sách đã Tất toán khoản vay hoặc Trả nợ trước hạn ${state.borrowers.filter(b=>!b.deleted&&b.settled).length? `<span class="sub">(${state.borrowers.filter(b=>!b.deleted&&b.settled).length})</span>` : ''} ${state.showSettledList?'▴':'▾'}</h3></div>
         ${state.showSettledList? `<div class="panel-body ${panelBodyAnimClass()}">${buildSettledBorrowersPanelHtml()}</div>` : ''}
       </div>
 
@@ -16604,6 +16634,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const addMenuHtml = state._propagandaAddMenuOpen ? `<div class="ai-add-menu">
         <div class="ai-add-opt" data-pg-add="image">🖼️ Tải ảnh lên</div>
         <div class="ai-add-opt" data-pg-add="file">📄 Tải tài liệu lên</div>
+        <div class="ai-add-opt" data-pg-add="mic">🎤 ${state._propagandaMicListening? '✅ Đang nghe — bấm để dừng' : 'Nói để nhập liệu'}</div>
       </div>` : '';
     const attachRowHtml = state.propagandaPendingAttachments.length ? `<div class="ai-attach-row">
         ${state.propagandaPendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button data-pg-attach-remove="${i}">✕</button></span>`).join('')}
@@ -16636,7 +16667,6 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
               <div class="ai-inputbar">
                 <div class="ai-add-btn" id="pg-add-btn" role="button" tabindex="0">➕<span class="ai-add-label"> Thêm tài liệu/ảnh</span>${addMenuHtml}</div>
                 <textarea id="pg-input" rows="1" placeholder="Gõ nội dung cần tuyên truyền, hoặc bấm 1 nút gợi ý ở trên... (Enter xuống dòng, Ctrl+Enter gửi)"></textarea>
-                <button class="ai-mic-btn ${state._propagandaMicListening?'listening':''}" id="pg-mic-btn" type="button" title="Nói để nhập liệu">🎤</button>
                 <div class="ai-send-wrap">
                   <span class="ai-send-tooltip">${state.propagandaSending? 'Chỉ bấm nút để dừng — Enter sẽ không có tác dụng' : 'Bấm Ctrl+Enter để gửi nhanh'}</span>
                   ${state.propagandaSending? `<button id="pg-stop-btn" class="ai-stop-btn" title="Dừng câu trả lời">⏹</button>` : `<button id="pg-send-btn">➤</button>`}
@@ -16725,12 +16755,13 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const addBtn = document.getElementById('pg-add-btn');
     if(addBtn) addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); state._propagandaAddMenuOpen = !state._propagandaAddMenuOpen; renderPropagandaTab(el); });
     el.querySelectorAll('[data-pg-add]').forEach(elx=>{
-      elx.addEventListener('click', (e)=>{ e.stopPropagation(); triggerPropagandaFileInput(elx.dataset.pgAdd); });
+      elx.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(elx.dataset.pgAdd==='mic'){ state._propagandaAddMenuOpen = false; toggleMicGeneric('pg-input', ()=> renderPropagandaTab(el)); return; }
+        triggerPropagandaFileInput(elx.dataset.pgAdd);
+      });
     });
     el.querySelectorAll('[data-pg-attach-remove]').forEach(btn=> btn.onclick = ()=> removePropagandaAttachment(parseInt(btn.dataset.pgAttachRemove,10)));
-
-    const micBtn = document.getElementById('pg-mic-btn');
-    if(micBtn) micBtn.onclick = ()=> toggleMicGeneric('pg-input', ()=> renderPropagandaTab(el));
 
     const sendBtn = document.getElementById('pg-send-btn');
     const stopBtn = document.getElementById('pg-stop-btn');
