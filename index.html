@@ -227,7 +227,8 @@
   /* Khung dropdown bộ lọc đa chọn (Ấp/Phương án vay/Quý/Năm) ở Sổ vay vốn */
   .sv-filter-dropdown{ position:relative; display:inline-block; }
   .sv-filter-panel{ position:absolute; top:calc(100% + 4px); left:0; z-index:50; background:var(--white); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.18); padding:8px; min-width:220px; max-height:280px; overflow-y:auto; }
-  .sv-filter-item{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; font-size:12.5px; cursor:pointer; white-space:nowrap; }
+  .sv-filter-item{ display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:12.5px; cursor:pointer; white-space:nowrap; }
+  .sv-filter-item input[type="checkbox"]{ width:18px !important; height:18px !important; min-width:18px !important; max-width:18px !important; flex-shrink:0; margin:0 !important; accent-color:var(--gold); }
   .sv-filter-item:hover{ background:var(--paper-2); }
   .sv-filter-item input:disabled + span{ opacity:.35; }
   .sv-filter-item.disabled{ opacity:.4; cursor:not-allowed; }
@@ -328,12 +329,6 @@
     .modal-head-stack-narrow{ flex-wrap:wrap; }
     .modal-head-stack-narrow h3{ width:100%; flex-basis:100%; order:1; }
     .modal-head-stack-narrow > div, .modal-head-stack-narrow > button{ order:2; margin-left:auto; }
-    /* Bộ lọc dropdown (Địa phương/Phương án vay/Nguồn vay/Người quản lý...) — màn hình hẹp: checkbox
-       mặc định của trình duyệt di động thường bị phóng to quá khổ, không đẹp — thu nhỏ lại và căn
-       thẳng hàng với tên (kể cả khi tên dài phải xuống hàng). Dùng thêm transform:scale làm "bảo
-       hiểm" — 1 số trình duyệt di động không tôn trọng đúng width/height khai báo cho checkbox gốc. */
-    .sv-filter-item{ align-items:flex-start; gap:6px; }
-    .sv-filter-item input[type="checkbox"]{ width:15px; height:15px; min-width:15px; margin:2px 0 0; flex-shrink:0; accent-color:var(--gold); transform:scale(0.9); transform-origin:center; }
     /* Khung sổ xuống của bộ lọc — LUÔN neo cố định gọn trong màn hình (không tính theo vị trí nút bấm
        kích hoạt nó nữa) — trước đây nếu nút bấm nằm gần mép phải màn hình hẹp, khung sổ xuống (rộng
        tối thiểu 220px) sẽ tràn ra ngoài màn hình, phải vuốt ngang mới thấy hết checkbox. */
@@ -915,7 +910,7 @@
                   </tr>
                   <tr>
                     <th style="${rcStickyTop2} ${rcStickyLeft0} z-index:3; background:#e8f5e9; border:1px solid var(--line);"></th>
-                    ${secCols.map((c,i)=>`<th style="${rcStickyTop2} z-index:2; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px; white-space:nowrap; ${i===0?rcStickyLeftA+' z-index:3;':''}">${htmlLabel(c.label)}</th>`).join('')}
+                    ${secCols.map((c,i)=>`<th style="${rcStickyTop2} z-index:2; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px; white-space:nowrap; ${c.headerColor?'color:'+c.headerColor+';':''} ${i===0?rcStickyLeftA+' z-index:3;':''}">${htmlLabel(c.label)}</th>`).join('')}
                   </tr>
                 </thead>
                 <tbody>
@@ -1146,6 +1141,7 @@
           { label:'Lãi suất', get:p=> (p.interestRate||0)+'%/năm' },
           { label:'Ngày vay', get:p=> fmtDate(p.disburseDate) },
           { label:'Đến hạn', get:p=> fmtDate(p.dueDate) },
+          { label:'Thời gian còn lại', get:p=> daysRemainingLabel(p.dueDate) },
         ];
         renderColumnHeaderExcelModal('📋 Danh sách Phương án vay đang hoạt động', [{ title:'Danh sách Phương án vay', list: cache.activeProjectsOnly }], cols);
       }
@@ -1156,6 +1152,45 @@
     document.addEventListener('click', (e)=>{
       const el = e.target.closest('.dancing-project-name');
       if(!el) return;
+      if(el.dataset.hamletStatRow!=null){
+        const hamlets = state.config.hamlets||[];
+        const wardRow = computeHamletRowDetailCols(null);
+        wardRow.__isWard = true;
+        const hamletRows = hamlets.map(h=> computeHamletRowDetailCols(h));
+        const allRows = [wardRow, ...hamletRows];
+        // Bọc màu tím đậm cho TOÀN BỘ các cột (không chỉ cột A) ở đúng dòng xã/phường.
+        const wp = (r,val)=> r.__isWard? `<b style="color:#6a1b9a;">${val}</b>` : val;
+        // Màu tiêu đề CỘT — mỗi NHÓM chủng loại 1 màu riêng, để dễ phân biệt giữa hàng chục cột:
+        // đen (tổng quan chung) / xanh lá (liên quan tiền lãi) / xanh dương (tình trạng hạn - tất
+        // toán) / cam (nợ rủi ro) / tím (đã tất toán xong).
+        const COL_GENERAL = '#3e2723', COL_INTEREST = '#1b5e20', COL_DUE = '#0d47a1', COL_RISK = '#e65100', COL_SETTLED = '#6a1b9a', COL_PAID = '#00838f';
+        const cols = [
+          { label:'Địa phương', get:r=> wp(r, escapeHtml(r.hamletLabel)), headerColor: COL_GENERAL },
+          { label:'Số Hộ vay<br>đang hoạt động', get:r=> wp(r, r.B), headerColor: COL_GENERAL },
+          { label:'Tổng dư nợ', get:r=> wp(r, moneySpaced(r.C)), headerColor: COL_GENERAL },
+          { label:'Hộ đã đóng lãi<br>(Quý hiện tại)', get:r=> wp(r, r.D), headerColor: COL_INTEREST },
+          { label:'Hộ chưa đóng lãi<br>(Quý hiện tại)', get:r=> wp(r, r.E), headerColor: COL_INTEREST },
+          { label:'Tiền lãi chưa đóng<br>(Quý hiện tại)', get:r=> wp(r, moneySpaced(r.F)), headerColor: COL_INTEREST },
+          { label:'Hộ chưa đóng lãi<br>(quá khứ đến hiện tại)', get:r=> wp(r, r.G), headerColor: COL_INTEREST },
+          { label:'Tiền lãi chưa đóng<br>(quá khứ đến hiện tại)', get:r=> wp(r, moneySpaced(r.H)), headerColor: COL_INTEREST },
+          { label:`Tiền lãi đã đóng<br>${wardRow.qLabelN} (hiện tại)`, get:r=> wp(r, moneySpaced(r.H1)), headerColor: COL_PAID },
+          { label:`Tiền lãi đã đóng<br>${wardRow.qLabelN1} (quý trước)`, get:r=> wp(r, moneySpaced(r.H2)), headerColor: COL_PAID },
+          { label:`Tiền lãi đã đóng<br>${wardRow.qLabelN2} (trước nữa)`, get:r=> wp(r, moneySpaced(r.H3)), headerColor: COL_PAID },
+          { label:`Tiền lãi đã đóng<br>${wardRow.qLabelN3} (trước nữa)`, get:r=> wp(r, moneySpaced(r.H4)), headerColor: COL_PAID },
+          { label:`Tiền lãi đã đóng<br>Năm ${wardRow.yearN} (Hiện tại)`, get:r=> wp(r, moneySpaced(r.Y1)), headerColor: COL_PAID },
+          { label:`Tiền lãi đã đóng<br>Năm ${wardRow.yearN1} (Năm ngoái)`, get:r=> wp(r, moneySpaced(r.Y2)), headerColor: COL_PAID },
+          { label:'Hộ trong hạn', get:r=> wp(r, r.I), headerColor: COL_DUE },
+          { label:'Gần đến hạn<br>≤60 ngày', get:r=> wp(r, r.J), headerColor: COL_DUE },
+          { label:'Hộ quá hạn', get:r=> wp(r, r.K), headerColor: COL_DUE },
+          { label:'Hộ được<br>gia hạn', get:r=> wp(r, r.L), headerColor: COL_DUE },
+          { label:'Số hộ nợ rủi ro<br>đang xử lý', get:r=> wp(r, r.M), headerColor: COL_RISK },
+          { label:'Số hộ Không<br>thể trả nợ', get:r=> wp(r, r.N), headerColor: COL_RISK },
+          { label:'Số hộ đã tất toán/<br>TNTH xong', get:r=> wp(r, r.O), headerColor: COL_SETTLED },
+          { label:'Tổng Số hộ<br>từ trước tới nay', get:r=> wp(r, r.P), headerColor: COL_GENERAL },
+        ];
+        renderColumnHeaderExcelModal('📊 Thống kê chi tiết theo Địa phương', [{ title:'Thống kê chi tiết', list: allRows }], cols);
+        return;
+      }
       const pid = el.dataset.projectId;
       const proj = state.loanProjects.find(p=>p.id===pid);
       if(proj) renderLoanProjectModal(proj, null, true);
@@ -1179,7 +1214,7 @@
     const singleB = borrowers[0];
     const el = document.createElement('div');
     el.id = '__selectedNamesSidePanel';
-    el.style.cssText = 'position:fixed; top:20px; right:0; z-index:99997; background:#eef3fb; border:2px solid #0d47a1; border-right:none; border-radius:10px 0 0 10px; box-shadow:-4px 0 16px rgba(0,0,0,.22); width:210px; max-height:98vh; overflow:auto; padding:14px; animation: sideSlideIn .44s ease-out;';
+    el.style.cssText = 'position:fixed; top:20px; right:0; z-index:420; background:#eef3fb; border:2px solid #0d47a1; border-right:none; border-radius:10px 0 0 10px; box-shadow:-4px 0 16px rgba(0,0,0,.22); width:210px; max-height:98vh; overflow:auto; padding:14px; animation: sideSlideIn .44s ease-out;';
     function btnHtml(label, enabled, colorClass){
       return `<button type="button" class="ext-action-btn ${colorClass||''} preview-allow" ${enabled?'':'disabled'} style="text-align:left; width:100%; margin-bottom:6px; display:block; ${enabled?'':'opacity:.45; cursor:not-allowed; background:#ddd; color:#888; animation:none;'}" data-side-action="${label}">${label}</button>`;
     }
@@ -2023,11 +2058,13 @@
   // Cột riêng cho Danh sách Phương án vay (khác hẳn cột người vay) khi xuất/in.
   const PROJECT_EXPORT_COLS = [
     { label:'Tên phương án vay', get: p=> escapeHtml(p.name||''), getPlain: p=> p.name||'' },
-    { label:'Nguồn vay', get: p=> escapeHtml(projectFundSourceLabel(p)), getPlain: p=> projectFundSourceLabel(p) },
     { label:'Tổng nguồn vốn (đ)', get: p=> moneySpaced(p.totalCapital||0), getPlain: p=> p.totalCapital||0 },
+    { label:'Đã cho vay (đ)', get: p=> moneySpaced(projectDisbursedTotal(p.id)), getPlain: p=> projectDisbursedTotal(p.id) },
+    { label:'Còn lại (đ)', get: p=> moneySpaced(Math.max(0,(parseFloat(p.totalCapital)||0)-projectDisbursedTotal(p.id))), getPlain: p=> Math.max(0,(parseFloat(p.totalCapital)||0)-projectDisbursedTotal(p.id)) },
     { label:'Lãi suất (%/năm)', get: p=> String(parseFloat(p.interestRate)||0).replace('.',','), getPlain: p=> parseFloat(p.interestRate)||0 },
-    { label:'Ngày vay', get: p=> fmtDate(p.loanDate), getPlain: p=> p.loanDate||'' },
+    { label:'Ngày vay', get: p=> fmtDate(p.disburseDate), getPlain: p=> p.disburseDate||'' },
     { label:'Ngày đến hạn', get: p=> fmtDate(p.dueDate), getPlain: p=> p.dueDate||'' },
+    { label:'Thời gian còn lại', get: p=> daysRemainingLabel(p.dueDate), getPlain: p=> daysRemainingLabel(p.dueDate) },
   ];
   function quarterBoundariesLineHtml(){
     const q = (state.config && state.config.quarters) || DEFAULT_QUARTERS;
@@ -5275,29 +5312,147 @@
   }
 
   // ---- Môi trường THAM QUAN (yêu cầu 2): xem giao diện mẫu, không cần đăng nhập, không đụng Firebase ----
+  // Dữ liệu môi trường THAM QUAN — TỰ SINH MỚI mỗi lần load (không lưu Firebase), NGÀY THÁNG LUÔN
+  // ĐỒNG BỘ theo thời điểm thực tế đang xem (dùng new Date() ngay lúc gọi hàm), để dù 10 năm sau ai
+  // vào tham quan cũng luôn thấy hồ sơ "như mới", không bao giờ lỗi thời.
   function buildDemoState(){
+    const fmt = (d)=> `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const addDays = (d,n)=>{ const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+    const addYears = (d,n)=>{ const r=new Date(d); r.setFullYear(r.getFullYear()+n); return r; };
+    const today = new Date(); today.setHours(0,0,0,0);
+    const NAMES = ['Nguyễn Văn A','Trần Thị B','Lê Văn C','Phạm Thị D','Hoàng Văn E','Vũ Thị F','Đặng Văn G','Bùi Thị H','Đỗ Văn I','Ngô Thị J'];
+    const hamlets = ['Hưng Phước','Phước Thiện','Bù Tam','Mười Mẫu'];
+    let pIdSeq=0, bIdSeq=0;
+    const nextPid = ()=> 'dp'+(++pIdSeq);
+    const nextBid = ()=> 'db'+(++bIdSeq);
+
+    const projects = [];
+    const borrowers = [];
+    const interestPaymentBoxes = {};
+    const loanExtensions = {};
+
+    // ---- Phương án 1: CÒN LÂU MỚI TỚI HẠN — nguồn Trung ương, kỳ hạn 3 năm ----
+    // Ngày vay nằm trong năm hiện tại-1 (đồng bộ động), đến hạn còn rất xa.
+    {
+      const loanDate = new Date(today.getFullYear()-1, 5, 15); // 15/06 năm (hiện tại-1)
+      const dueDate = addYears(loanDate, 3); // còn rất lâu mới tới hạn
+      const pid = nextPid();
+      const totalCapital = 500000000;
+      const n = 5, per = totalCapital/n;
+      projects.push({ id:pid, name:'Trồng rau sạch nhà lưới', totalCapital, disburseDate:fmt(loanDate), dueDate:fmt(dueDate),
+        fundSourceType:'Cấp trung ương', fundSourceOther:'', interestRate:8.4, splitCentral:3.5, splitProvince:2, splitWard:2.9, hamletAllocPercent:45,
+        createdAt:loanDate.toISOString(), updatedAt:loanDate.toISOString(), deleted:false });
+      for(let i=0;i<n;i++){
+        const bid = nextBid();
+        borrowers.push({ id:bid, name:NAMES[i], birthYear:String(1965+i*3), cccd:String(79000000000+i*1111), phone:'09'+(10000000+i*11111),
+          address:'', preMergerAddress:'', industry:'Trồng trọt', repayAbility:'Khá', guarantor:'',
+          projectId:pid, hamlet:hamlets[i%hamlets.length], principal:per, rate:8.4,
+          loanDate:fmt(loanDate), dueDate:fmt(dueDate), fundSource:'Cấp trung ương',
+          splitCentral:3.5, splitProvince:2, splitWard:2.9, hamletAllocPercent:45,
+          checked:false, note:'', prevBalance:0, interestPaid:0, principalPaid:0, isExtended:false, extensionDueDate:'', deleted:false });
+        // Đa dạng lịch sử đóng lãi: người đóng rất nhiều lần, người đóng ít, người chưa đóng lần nào.
+        const yearlyInterest = per*8.4/100;
+        const quarterlyInterest = yearlyInterest/4;
+        const paidQuarters = i===0? 6 : i===1? 3 : i===2? 1 : 0; // A đóng rất nhiều lần, B vừa phải, C mới 1 lần, D/E chưa đóng
+        interestPaymentBoxes[bid] = { totalPaid: Math.round(quarterlyInterest*paidQuarters), payments:{} };
+      }
+    }
+
+    // ---- Phương án 2: SẮP ĐẾN HẠN — CHỈ CÒN ~60 NGÀY — nguồn Cấp tỉnh/thành phố, kỳ hạn 4 năm ----
+    {
+      const dueDate = addDays(today, 58);
+      const loanDate = addYears(dueDate, -4);
+      const pid = nextPid();
+      const totalCapital = 600000000;
+      const n = 10, per = totalCapital/n;
+      projects.push({ id:pid, name:'Chăn nuôi bò sữa khép kín', totalCapital, disburseDate:fmt(loanDate), dueDate:fmt(dueDate),
+        fundSourceType:'Cấp tỉnh/thành phố', fundSourceOther:'', interestRate:6.6, splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45,
+        createdAt:loanDate.toISOString(), updatedAt:loanDate.toISOString(), deleted:false });
+      for(let i=0;i<n;i++){
+        const bid = nextBid();
+        borrowers.push({ id:bid, name:NAMES[i], birthYear:String(1970+i*2), cccd:String(79100000000+i*2222), phone:'09'+(20000000+i*22222),
+          address:'', preMergerAddress:'', industry:'Chăn nuôi', repayAbility:'Trung bình', guarantor:'',
+          projectId:pid, hamlet:hamlets[i%hamlets.length], principal:per, rate:6.6,
+          loanDate:fmt(loanDate), dueDate:fmt(dueDate), fundSource:'Cấp tỉnh/thành phố',
+          splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45,
+          checked:false, note:'', prevBalance:0, interestPaid:0, principalPaid:0, isExtended:false, extensionDueDate:'', deleted:false });
+        const quarterlyInterest = per*6.6/100/4;
+        const paidQuarters = i%4===0? 10 : i%4===1? 4 : i%4===2? 1 : 0;
+        interestPaymentBoxes[bid] = { totalPaid: Math.round(quarterlyInterest*paidQuarters), payments:{} };
+      }
+    }
+
+    // ---- Phương án 3: SẮP ĐẾN HẠN — CHỈ CÒN ~30 NGÀY — nguồn Cấp tỉnh/thành phố, kỳ hạn 2 năm ----
+    {
+      const dueDate = addDays(today, 27);
+      const loanDate = addYears(dueDate, -2);
+      const pid = nextPid();
+      const totalCapital = 450000000;
+      const n = 5, per = totalCapital/n;
+      projects.push({ id:pid, name:'Trồng nấm bào ngư sạch', totalCapital, disburseDate:fmt(loanDate), dueDate:fmt(dueDate),
+        fundSourceType:'Cấp tỉnh/thành phố', fundSourceOther:'', interestRate:6.6, splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45,
+        createdAt:loanDate.toISOString(), updatedAt:loanDate.toISOString(), deleted:false });
+      for(let i=0;i<n;i++){
+        const bid = nextBid();
+        borrowers.push({ id:bid, name:NAMES[i], birthYear:String(1968+i*4), cccd:String(79200000000+i*3333), phone:'09'+(30000000+i*33333),
+          address:'', preMergerAddress:'', industry:'Trồng trọt', repayAbility:'Khá', guarantor:'',
+          projectId:pid, hamlet:hamlets[i%hamlets.length], principal:per, rate:6.6,
+          loanDate:fmt(loanDate), dueDate:fmt(dueDate), fundSource:'Cấp tỉnh/thành phố',
+          splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45,
+          checked:false, note:'', prevBalance:0, interestPaid:0, principalPaid:0, isExtended:false, extensionDueDate:'', deleted:false });
+        const quarterlyInterest = per*6.6/100/4;
+        const paidQuarters = i===0? 5 : i===1? 2 : 0;
+        interestPaymentBoxes[bid] = { totalPaid: Math.round(quarterlyInterest*paidQuarters), payments:{} };
+      }
+    }
+
+    // ---- Phương án 4: ĐƯỢC GIA HẠN NỢ — nguồn Cấp tỉnh/thành phố, kỳ hạn 2 năm ----
+    // Hạn GỐC đã trôi qua (đáng lẽ quá hạn), nhưng nhờ có 1 lần gia hạn nên hệ thống hiển thị đúng là
+    // "đang gia hạn" (không còn là quá hạn) — hạn MỚI (sau gia hạn) còn khoảng 3 tháng nữa.
+    {
+      const origDueDate = addDays(today, -25); // hạn gốc đã qua 25 ngày
+      const loanDate = addYears(origDueDate, -2);
+      const newDueDate = addDays(today, 95); // hạn sau khi gia hạn
+      const pid = nextPid();
+      const totalCapital = 400000000;
+      const n = 10, per = totalCapital/n;
+      projects.push({ id:pid, name:'Nuôi gà thả vườn hữu cơ', totalCapital, disburseDate:fmt(loanDate), dueDate:fmt(origDueDate),
+        fundSourceType:'Cấp tỉnh/thành phố', fundSourceOther:'', interestRate:6.6, splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45,
+        createdAt:loanDate.toISOString(), updatedAt:loanDate.toISOString(), deleted:false });
+      for(let i=0;i<n;i++){
+        const bid = nextBid();
+        borrowers.push({ id:bid, name:NAMES[i], birthYear:String(1972+i*2), cccd:String(79300000000+i*4444), phone:'09'+(40000000+i*44444),
+          address:'', preMergerAddress:'', industry:'Chăn nuôi', repayAbility:'Trung bình', guarantor:'',
+          projectId:pid, hamlet:hamlets[i%hamlets.length], principal:per, rate:6.6,
+          loanDate:fmt(loanDate), dueDate:fmt(origDueDate), fundSource:'Cấp tỉnh/thành phố',
+          splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45,
+          checked:false, note:'', prevBalance:0, interestPaid:0, principalPaid:0, isExtended:true, extensionDueDate:fmt(newDueDate), deleted:false });
+        const quarterlyInterest = per*6.6/100/4;
+        const paidQuarters = i%3===0? 8 : i%3===1? 3 : 0;
+        interestPaymentBoxes[bid] = { totalPaid: Math.round(quarterlyInterest*paidQuarters), payments:{} };
+        loanExtensions[bid] = [{
+          from: fmt(origDueDate), to: fmt(newDueDate), rateType:'same', ratePct:6.6, allocMode:'wardHamlet',
+          hamletAllocPercent:45, splitCentral:null, splitProvince:null, splitWard:null,
+          savedAt: today.toISOString(), savedBy:'demo@example.com', savedByName:'Khách tham quan',
+        }];
+      }
+    }
+
     return {
       config: {
-        wardName:'Bình Minh (Bản xem trước)', adminLevel:'Xã', subAdminType:'Ấp',
-        provinceType:'Tỉnh', provinceName:'Bình Phước (Bản xem trước)',
+        wardName:'Hưng Phước', adminLevel:'Xã', subAdminType:'Ấp',
+        provinceType:'Thành phố', provinceName:'Đồng Nai',
         officerTitle:'Chủ tịch Hội Nông dân', ownerEmail:'demo@example.com',
-        hamlets:['Ấp 1','Ấp 2','Ấp 3'], projects:['Phương án vay chăn nuôi bò','Phương án vay trồng rau sạch'],
+        hamlets, hamletsOld:[], projects: projects.map(p=>p.name),
         quarters: JSON.parse(JSON.stringify(DEFAULT_QUARTERS)),
         retainPercent:30, accessCode:'', accessVersion:0, deleted:false,
         publicPerms:{data:'edit', members:'edit', strength:'edit', internal:'edit'}, grants:{}, secretId:'demo',
       },
-      borrowers: [
-        {id:'d1', name:'Nguyễn Văn A (mẫu)', cccd:'', phone:'', guarantor:'', address:'', industry:'', repayAbility:'', hamlet:'Ấp 1', projectId:'dp1', principal:20000000, rate:6.6, loanDate:'2026-01-10', dueDate:'2026-12-10', fundSource:'', prevBalance:0, interestPaid:0, principalPaid:0, isExtended:false, extensionDueDate:'', checked:false, note:'', deleted:false},
-        {id:'d2', name:'Trần Thị B (mẫu)', cccd:'', phone:'', guarantor:'', address:'', industry:'', repayAbility:'', hamlet:'Ấp 2', projectId:'dp2', principal:15000000, rate:6, loanDate:'2026-02-01', dueDate:'2026-08-01', fundSource:'', prevBalance:0, interestPaid:200000, principalPaid:0, isExtended:false, extensionDueDate:'', checked:false, note:'', deleted:false},
-      ],
-      loanProjects: [
-        {id:'dp1', name:'Phương án vay chăn nuôi bò (mẫu)', totalCapital:100000000, disburseDate:'2026-01-10', dueDate:'2026-12-10', fundSourceType:'Nguồn 841', fundSourceOther:'', interestRate:6.6, splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45, createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', deleted:false},
-        {id:'dp2', name:'Phương án vay trồng rau sạch (mẫu)', totalCapital:50000000, disburseDate:'2026-02-01', dueDate:'2026-08-01', fundSourceType:'Nguồn địa phương', fundSourceOther:'', interestRate:6.6, splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45, createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', deleted:false},
-      ],
+      borrowers, loanProjects: projects,
       expenses: [
-        {id:'e1', date:'2026-03-01', amount:500000, purpose:CAT_MEETING, hamlet:'', purposeOther:'', note:'Họp quý 1 (mẫu)'},
+        {id:'e1', date: fmt(addDays(today,-20)), amount:500000, purpose:CAT_MEETING, hamlet:'', purposeOther:'', note:'Họp giao ban quý (mẫu)'},
       ],
-      trash: [], log: [],
+      trash: [], log: [], interestPaymentBoxes, loanExtensions,
     };
   }
   function enterPreviewMode(){
@@ -5311,6 +5466,8 @@
     state.expenses = demo.expenses;
     state.trash = demo.trash;
     state.log = demo.log;
+    state.interestPaymentBoxes = demo.interestPaymentBoxes;
+    state.loanExtensions = demo.loanExtensions;
     state.activeTab = 'dashboard';
     state.view = 'app';
     state._showPreviewWelcome = true; // yêu cầu 5: bật popup chào mừng ngay lần vào đầu tiên
@@ -5319,7 +5476,7 @@
   function exitPreviewMode(){
     state.previewMode = false;
     state.identity = null;
-    state.config=null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[];
+    state.config=null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.interestPaymentBoxes=null; state.loanExtensions=null;
     state.view = 'login';
     render();
   }
@@ -8540,12 +8697,52 @@ ${fileGenerationTrainingText()}`;
       { key:'repayAbility', label:'Khả năng trả nợ', advanced:true, get:b=> b.repayAbility||'' },
       { key:'guarantor', label:'Người bảo lãnh', advanced:true, get:b=> b.guarantor||'' },
       { key:'note', label:'Ghi chú thêm', advanced:true, get:b=> b.note||'' },
+      ...hiddenInTermAndExtensionColumns(),
     ];
+  }
+  // Sinh đầy đủ các cột ẨN (hidden:true) của "Hệ thống cột Trong hạn" + "Hệ thống cột Gia hạn lần
+  // 1..5" — khớp ĐÚNG với tài liệu hoá ở hiddenColumnSystemsDocs() (Cài đặt Admin). Các cột này
+  // KHÔNG hiện trong "Tuỳ chỉnh cột" thường, chỉ dùng được qua "Bộ xem cột ẩn (Không công khai)".
+  function hiddenInTermAndExtensionColumns(){
+    const money = v=> moneySpaced(v);
+    const pct = v=> String(v).replace('.',',')+'%';
+    const inTerm = [
+      { key:'inTerm_rate', label:'Lãi suất (%/năm)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'rate')) },
+      { key:'inTerm_days', label:'Số ngày tính lãi<br>(trong hạn)', advanced:true, hidden:true, get:b=> getInTermColumnValue(b,'interestDays')+' ngày' },
+      { key:'inTerm_amount', label:'Số tiền lãi<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'interestAmount')) },
+      { key:'inTerm_splitCentralPct', label:'Phân bổ Trung ương (%)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitCentralPct')) },
+      { key:'inTerm_splitCentralAmt', label:'Số tiền về Trung ương (đ)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitCentralAmt')) },
+      { key:'inTerm_splitProvincePct', label:'Phân bổ Cấp Tỉnh (%)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitProvincePct')) },
+      { key:'inTerm_splitProvinceAmt', label:'Số tiền về Cấp Tỉnh (đ)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitProvinceAmt')) },
+      { key:'inTerm_splitWardPct', label:'Phân bổ Cấp Xã (%)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitWardPct')) },
+      { key:'inTerm_splitWardAmt', label:'Số tiền về Cấp Xã (đ)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitWardAmt')) },
+      { key:'inTerm_hamletPct', label:`% Xã phân bổ về ${subAdminLabel()}<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'hamletAllocPct')) },
+      { key:'inTerm_hamletAmt', label:`Số tiền về ${subAdminLabel()} (đ)<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'hamletAllocAmt')) },
+    ];
+    const extLevels = [];
+    for(let lvl=1; lvl<=MAX_LOAN_EXTENSIONS; lvl++){
+      extLevels.push(
+        { key:`ext${lvl}_from`, label:`Ngày bắt đầu gia hạn<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, get:b=>{ const v=getExtensionLevelColumnValue(b,lvl,'extendFrom'); return v? fmtDate(v) : ''; } },
+        { key:`ext${lvl}_to`, label:`Ngày kết thúc gia hạn<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, get:b=>{ const v=getExtensionLevelColumnValue(b,lvl,'extendTo'); return v? fmtDate(v) : ''; } },
+        { key:`ext${lvl}_rate`, label:`Lãi suất (%/năm)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'rate')) },
+        { key:`ext${lvl}_days`, label:`Số ngày tính lãi<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, get:b=> getExtensionLevelColumnValue(b,lvl,'interestDays')+' ngày' },
+        { key:`ext${lvl}_amount`, label:`Số tiền lãi<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'interestAmount')) },
+        { key:`ext${lvl}_splitCentralPct`, label:`Phân bổ Trung ương (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitCentralPct')) },
+        { key:`ext${lvl}_splitCentralAmt`, label:`Số tiền về Trung ương (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitCentralAmt')) },
+        { key:`ext${lvl}_splitProvincePct`, label:`Phân bổ Cấp Tỉnh (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitProvincePct')) },
+        { key:`ext${lvl}_splitProvinceAmt`, label:`Số tiền về Cấp Tỉnh (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitProvinceAmt')) },
+        { key:`ext${lvl}_splitWardPct`, label:`Phân bổ Cấp Xã (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitWardPct')) },
+        { key:`ext${lvl}_splitWardAmt`, label:`Số tiền về Cấp Xã (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitWardAmt')) },
+        { key:`ext${lvl}_hamletPct`, label:`% Xã phân bổ về ${subAdminLabel()}<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'hamletAllocPct')) },
+        { key:`ext${lvl}_hamletAmt`, label:`Số tiền về ${subAdminLabel()} (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'hamletAllocAmt')) },
+      );
+    }
+    return inTerm.concat(extLevels);
   }
   // "advanced:false" = mặc định HIỆN, "advanced:true" = mặc định ẨN (theo đúng bảng mặc định mới).
   // Các cột "Tính lãi từ ngày / đến ngày / Số lãi tồn / Số nợ quá hạn" là trường ĐẶC BIỆT sẽ
   // bổ sung dữ liệu sau — hiện để trống theo đúng yêu cầu.
-  function defaultVisibleBorrowerCols(){ return BORROWER_COLUMNS().filter(c=>!c.advanced).map(c=>c.key); }
+  function defaultVisibleBorrowerCols(){ return BORROWER_COLUMNS().filter(c=>!c.advanced && !c.hidden).map(c=>c.key); }
 
   // Các cặp cột LUÔN đi cùng vị trí VÀ cùng ẩn/hiện với nhau.
   const BORROWER_COL_PAIRS = [['loanDate','dueDate'], ['interestFromDate','interestToDate']];
@@ -8612,11 +8809,15 @@ ${fileGenerationTrainingText()}`;
       state.borrowerVisibleCols = (state.borrowerColumnPrefsShared && state.borrowerColumnPrefsShared.visible)
         ? state.borrowerColumnPrefsShared.visible.slice() : defaultVisibleBorrowerCols();
     }
+    // Đang CHỦ ĐỘNG áp dụng "Bộ xem cột ẩn (Không công khai)" -> KHÔNG lọc bỏ cột hidden, để hiện đủ.
+    if(state._appliedColumnViewSetId==='__hiddencols__') return state.borrowerVisibleCols;
+    const hiddenKeys = new Set(BORROWER_COLUMNS().filter(c=>c.hidden).map(c=>c.key));
+    if(state.borrowerVisibleCols.some(k=>hiddenKeys.has(k))) state.borrowerVisibleCols = state.borrowerVisibleCols.filter(k=>!hiddenKeys.has(k));
     return state.borrowerVisibleCols;
   }
   // Thứ tự cột hiển thị/in/xuất Excel — người dùng kéo-thả để tự sắp xếp lại (xem col-picker).
   function ensureBorrowerColumnOrder(){
-    const allKeys = BORROWER_COLUMNS().filter(c=>!c.hidden).map(c=>c.key);
+    const allKeys = (state._appliedColumnViewSetId==='__hiddencols__' ? BORROWER_COLUMNS() : BORROWER_COLUMNS().filter(c=>!c.hidden)).map(c=>c.key);
     if(!state.borrowerColumnOrder){
       state.borrowerColumnOrder = (state.borrowerColumnPrefsShared && state.borrowerColumnPrefsShared.order)
         ? state.borrowerColumnPrefsShared.order.slice() : allKeys.slice();
@@ -8665,7 +8866,7 @@ ${fileGenerationTrainingText()}`;
             ${!canEdit? `<p class="sub">Bạn không có quyền Sửa ở Sổ vay vốn — "Lưu tuỳ chỉnh" chỉ áp dụng cho lượt xem của riêng bạn, không lưu lại.</p>` : ''}
             <div id="col-picker-list" style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
               ${pickerOrder.map(key=>{
-                const c = colsByKey[key]; if(!c) return '';
+                const c = colsByKey[key]; if(!c || c.hidden) return '';
                 const isFullPaired = BORROWER_COL_PAIRS.some(p=>p.includes(key));
                 const isOrderOnlyPaired = !isFullPaired && BORROWER_COL_ORDER_ONLY_PAIRS.some(p=>p.includes(key));
                 const isFixed = key==='name';
@@ -8697,7 +8898,7 @@ ${fileGenerationTrainingText()}`;
       const backBtn = wrap.querySelector('#cpm-back');
       if(backBtn) backBtn.onclick = ()=>{ state.colViewSetEditingPreset = null; cancelBorrowerColumnPicker(); wrap.remove(); renderColumnViewSetModal(); };
       const viewBtn = wrap.querySelector('#cpm-view');
-      if(viewBtn) viewBtn.onclick = async ()=>{ await commitBorrowerColumnPicker('view'); close(); const el=document.getElementById('content'); if(el && state.activeTab==='data') renderDataTab(el); };
+      if(viewBtn) viewBtn.onclick = async ()=>{ state._appliedColumnViewSetId = null; await commitBorrowerColumnPicker('view'); close(); const el=document.getElementById('content'); if(el && state.activeTab==='data') renderDataTab(el); };
       const defaultBtn = wrap.querySelector('#cpm-default');
       if(defaultBtn) defaultBtn.onclick = async ()=>{
         state.borrowerColPickerDraftVisible = defaultVisibleBorrowerCols();
@@ -8710,6 +8911,7 @@ ${fileGenerationTrainingText()}`;
         const draftOrder = (state.borrowerColPickerDraftOrder||ensureBorrowerColumnOrder()).slice();
         state.borrowerVisibleCols = draftVisible.slice();
         state.borrowerColumnOrder = draftOrder.slice();
+        state._appliedColumnViewSetId = null;
         const el = document.getElementById('content'); if(el && state.activeTab==='data') renderDataTab(el);
         if(editingPreset){
           wrap.remove();
@@ -8810,6 +9012,57 @@ ${fileGenerationTrainingText()}`;
   function getDefaultColumnViewSet(){
     return { id:'__default__', name:'Bộ xem cột Mặc định', group:'mau',
       visible: defaultVisibleBorrowerCols(), order: normalizeBorrowerColumnOrder(BORROWER_COLUMNS().map(c=>c.key)) };
+  }
+  // Bộ xem cột mẫu — hiện HẾT tất cả các cột công khai (không ẩn cột nào, trừ các cột nội bộ đã đánh
+  // dấu hidden:true — những cột đó không bao giờ công khai với người dùng).
+  function getAllPublicColumnsViewSet(){
+    const allPublicKeys = BORROWER_COLUMNS().filter(c=>!c.hidden).map(c=>c.key);
+    return { id:'__allpublic__', name:'Bộ xem cột Tất cả các cột công khai', group:'mau',
+      visible: allPublicKeys, order: normalizeBorrowerColumnOrder(BORROWER_COLUMNS().map(c=>c.key)) };
+  }
+  // Hàm dùng CHUNG để dựng 1 Bộ xem cột MẪU theo đúng danh sách cột + thứ tự đã chỉ định — các cột
+  // KHÔNG được liệt kê sẽ tự động xếp vào cuối theo đúng thứ tự mặc định của hệ thống (không mất cột).
+  function buildPresetColumnViewSet(id, name, orderedKeys){
+    const allKeys = BORROWER_COLUMNS().map(c=>c.key);
+    const fullOrder = orderedKeys.concat(allKeys.filter(k=>!orderedKeys.includes(k)));
+    return { id, name, group:'mau', visible: orderedKeys.slice(), order: normalizeBorrowerColumnOrder(fullOrder) };
+  }
+  function getBasicLoanInfoColumnViewSet(){
+    return buildPresetColumnViewSet('__basicloan__', 'Bộ xem cột Thông tin cơ bản khoản vay', [
+      'name','hamlet','principal','loanDate','dueDate','fundSource','rate',
+      'splitCentralPct','splitProvincePct','splitWardPct','hamletAllocPct',
+      'extensionHistory','overdueRateApplied','latestExtensionDueDate','daysRemaining','managerName',
+    ]);
+  }
+  function getBasicInterestColumnViewSet(){
+    return buildPresetColumnViewSet('__basicinterest__', 'Bộ xem cột Tính tiền lãi Cơ bản', [
+      'name','hamlet','principal','rate','interestFromDate','interestToDate','interestDaysCount','quarterInterestAmount',
+      'splitCentralPct','splitCentralAmt','splitProvincePct','splitProvinceAmt','splitWardPct','splitWardAmt',
+      'hamletAllocPct','hamletAllocAmt',
+    ]);
+  }
+  function getDetailedInterestColumnViewSet(){
+    return buildPresetColumnViewSet('__detailinterest__', 'Bộ xem cột Tính tiền lãi Chi tiết', [
+      'name','hamlet','principal','rate','interestFromDate','interestToDate','interestDaysCount','quarterInterestAmount',
+      'quartersUnpaid','quartersPaid','unpaidInterestPastToNow','leftoverUnassigned',
+      'splitCentralPct','splitCentralAmt','splitProvincePct','splitProvinceAmt','splitWardPct','splitWardAmt',
+      'hamletAllocPct','hamletAllocAmt',
+    ]);
+  }
+  function getBorrowerInfoColumnViewSet(){
+    return buildPresetColumnViewSet('__borrowerinfo__', 'Bộ xem cột Thông tin của Người vay', [
+      'name','hamlet','principal','loanDate','dueDate','daysRemaining',
+      'birthYear','cccd','phone','managerName','address','preMergerAddress','industry','repayAbility','guarantor','note',
+    ]);
+  }
+  // "Bộ xem cột ẩn (Không công khai)" — CHỈ gồm Họ và tên/Đơn vị + TOÀN BỘ các cột đã đánh dấu
+  // hidden:true (không công khai với người dùng thường trong Tuỳ chỉnh cột). Khi đang áp dụng bộ này,
+  // nút "Tuỳ chỉnh cột" sẽ bị khoá lại (xem wiring #col-picker-btn).
+  function getHiddenColumnsViewSet(){
+    const allHidden = BORROWER_COLUMNS().filter(c=>c.hidden && c.key!=='name' && c.key!=='hamlet');
+    const independent = allHidden.filter(c=> c.key==='project' || c.key==='allQuartersDue').map(c=>c.key); // luôn đưa xuống CUỐI CÙNG
+    const rest = allHidden.filter(c=> c.key!=='project' && c.key!=='allQuartersDue').map(c=>c.key); // hệ thống Trong hạn + Gia hạn lần 1-5
+    return buildPresetColumnViewSet('__hiddencols__', 'Bộ xem cột ẩn (Không công khai)', ['name','hamlet', ...rest, ...independent]);
   }
   // Bảng nhỏ đặt tên + chọn Nhóm khi bấm "Lưu tuỳ chỉnh" — lưu thành 1 Bộ xem cột tái sử dụng được.
   function renderSaveColumnViewSetDialog(visible, order, onSaved){
@@ -9119,7 +9372,11 @@ QUY TẮC BẮT BUỘC — PHẢI TUÂN THỦ TUYỆT ĐỐI:
 4) Các trường BẮT BUỘC không được để trống đối với NGƯỜI VAY: Họ và tên, Phương án vay, Địa bàn dân cư (${subAdminUnit}).
    Các trường BẮT BUỘC không được để trống đối với PHƯƠNG ÁN VAY MỚI (nếu cần tạo thêm): Tên phương án vay, Ngày giải ngân, Ngày đến hạn, Lãi suất chung.
    Nếu còn thiếu trường bắt buộc nào, PHẢI chủ động hỏi lại người dùng, đừng tự bịa.
-5) VỀ LÃI SUẤT — hệ thống Sổ vay vốn còn có thêm các cột NỘI BỘ, KHÔNG công khai với người dùng cuối, dùng cho các mốc thời gian sau này (VD: lãi suất áp dụng khi khoản vay được gia hạn lần 1, lần 2...). Khi người dùng chỉ nói "lãi suất chung"/"lãi suất" mà không nói rõ gì thêm, LUÔN LUÔN hiểu đó là lãi suất ÁP DỤNG BAN ĐẦU khi khoản vay còn trong hạn (điền vào trường "rate" của người vay hoặc "interestRate" của phương án) — KHÔNG liên quan gì tới các mốc gia hạn sau này (những mốc đó chưa tồn tại lúc mới tạo khoản vay, không cần và không nên hỏi người dùng về chúng).
+5) VỀ LÃI SUẤT VÀ CÁC CỘT NỘI BỘ (KHÔNG công khai với người dùng cuối) — hệ thống Sổ vay vốn có 2 "hệ thống dữ liệu" tách biệt cho lãi suất, PHẢI hiểu đúng để định tuyến chính xác:
+   a. "TRONG HẠN" — là mức lãi suất/phân bổ ÁP DỤNG NGAY TỪ ĐẦU, khi khoản vay CÒN NGUYÊN VẸN (chưa từng gia hạn). Đây CHÍNH LÀ trường công khai "rate" (người vay) / "interestRate" (phương án) mà bạn đang điền — KHÔNG cần và KHÔNG có trường JSON nào khác riêng cho "trong hạn" cả, vì nó dùng CHUNG 1 giá trị với trường công khai.
+   b. "GIA HẠN LẦN N" (N=1..5) — là các mức lãi suất/phân bổ RIÊNG BIỆT, chỉ phát sinh khi khoản vay đã QUÁ HẠN và được phê duyệt gia hạn thêm 1 khoảng thời gian mới, có "ngày bắt đầu", "ngày kết thúc", "lãi suất áp dụng", "tỷ lệ phân bổ Trung ương/Tỉnh/Xã/Ấp" RIÊNG cho từng lần — HOÀN TOÀN TÁCH BIỆT với lãi suất trong hạn ban đầu.
+   QUY TẮC ĐỊNH TUYẾN: khi người dùng chỉ nói "lãi suất chung"/"lãi suất" mà KHÔNG nhắc gì tới việc quá hạn/gia hạn, LUÔN LUÔN hiểu đó là lãi suất TRONG HẠN (điền vào "rate" của người vay hoặc "interestRate" của phương án) — TUYỆT ĐỐI KHÔNG được tự ý coi đó là lãi suất của 1 lần "gia hạn" nào. CHỈ khi người dùng nói RÕ RÀNG đây là thông tin của 1 lần gia hạn cụ thể (VD: "gia hạn lần 2", "sau khi gia hạn thì lãi suất là...", "hạn mới đến ngày...") thì mới điền vào mảng "extensions" của người vay đó (xem cấu trúc JSON bên dưới) — và PHẢI xác định đúng đây là lần gia hạn thứ MẤY (dựa vào thứ tự người dùng kể, hoặc hỏi lại nếu không rõ).
+   Nếu người vay có lịch sử gia hạn (VD: đang số hoá lại 1 hồ sơ giấy cũ đã từng gia hạn trước đó), mỗi lần gia hạn cần đủ: ngày bắt đầu, ngày kết thúc (hạn mới), lãi suất áp dụng lần đó — nếu thiếu thông tin nào, hỏi lại người dùng, đừng tự bịa.
 6) ĐỒNG NHẤT DỮ LIỆU CẤP PHƯƠNG ÁN: khi bạn đã biết các thông tin thuộc về CẤP PHƯƠNG ÁN VAY (VD: nguồn vay, lãi suất chung, ngày giải ngân, ngày đến hạn) — các thông tin này PHẢI được áp dụng GIỐNG HỆT NHAU cho TẤT CẢ người vay thuộc cùng 1 Phương án vay đó trong "borrowers", tuyệt đối KHÔNG được để người vay này có mà người vay khác trong CÙNG phương án lại thiếu, và KHÔNG được để giá trị khác nhau giữa các người vay trong CÙNG 1 phương án (trừ phi người dùng nói rõ là có ngoại lệ cho 1 người cụ thể nào đó).
 7) KHÔNG BỎ SÓT DỮ LIỆU: trước khi trả lời, rà soát lại TOÀN BỘ nội dung người dùng đã cung cấp (kể cả các lượt nhắn tin trước đó và trong tài liệu đính kèm) — nếu 1 thông tin ĐÃ được cung cấp rõ ràng, BẮT BUỘC phải điền vào đúng trường tương ứng trong kết quả, TUYỆT ĐỐI không được để trống trường đó chỉ vì sơ suất. Chỉ để trống khi thông tin đó THỰC SỰ chưa từng được cung cấp.
 8) THÔNG TIN KHÔNG XẾP ĐƯỢC VÀO CỘT NÀO: nếu người dùng cung cấp 1 thông tin hợp lý về người vay nhưng KHÔNG có trường nào trong cấu trúc kết quả phù hợp để chứa nó, hãy đưa thông tin đó vào trường "note" (ghi chú thêm) của người vay đó — không được bỏ qua, không được cố nhét vào 1 trường không liên quan.
@@ -9127,8 +9384,9 @@ QUY TẮC BẮT BUỘC — PHẢI TUÂN THỦ TUYỆT ĐỐI:
 10) HIỂU VỊ TRÍ Ô KIỂU BẢNG TÍNH: bảng "file" kết quả có các cột được đặt tên A,B,C... theo đúng thứ tự sau: ${colLettersInfo}; các dòng đánh số 1,2,3... theo từng người vay (dòng 1 = người vay đầu tiên). Khi người dùng nhắc tới 1 vị trí kiểu "ô K2", "cột K dòng 2", "hàng 3 cột D"... bạn PHẢI hiểu đúng và ánh xạ về đúng trường dữ liệu + đúng người vay tương ứng để sửa/bổ sung.
 11) CÁCH TRẢ LỜI: Luôn trả lời bằng văn bản trò chuyện TỰ NHIÊN trước (không bọc trong JSON, viết như đang nói chuyện bình thường, có thể dùng **in đậm** khi cần nhấn mạnh). Nếu tại thời điểm này đã trích xuất được ít nhất 1 người vay hoặc 1 phương án vay mới, hãy thêm vào NGAY CUỐI CÙNG câu trả lời (sau phần trò chuyện) một khối mã như sau, ĐÚNG định dạng, không thêm chữ gì khác bên trong khối:
 \`\`\`quickadd-result
-{"projects":[{"name":"","fundSourceType":"","interestRate":0,"splitCentral":0,"splitProvince":0,"splitWard":0,"hamletAllocPercent":45,"disburseDate":"","dueDate":"","totalCapital":0}],"borrowers":[{"name":"","hamletDisplay":"","hamletOld":"","projectName":"","principal":0,"loanDate":"","dueDate":"","fundSource":"","rate":0,"cccd":"","phone":"","address":"","note":""}],"newHamlets":[],"newHamletsOld":[]}
+{"projects":[{"name":"","fundSourceType":"","interestRate":0,"splitCentral":0,"splitProvince":0,"splitWard":0,"hamletAllocPercent":45,"disburseDate":"","dueDate":"","totalCapital":0}],"borrowers":[{"name":"","hamletDisplay":"","hamletOld":"","projectName":"","principal":0,"loanDate":"","dueDate":"","fundSource":"","rate":0,"cccd":"","phone":"","address":"","note":"","extensions":[{"level":1,"from":"","to":"","ratePct":0}]}],"newHamlets":[],"newHamletsOld":[]}
 \`\`\`
+Trường "extensions" là MẢNG RỖNG [] nếu người vay chưa từng gia hạn (đa số trường hợp) — CHỈ điền khi người dùng có nói rõ về lịch sử gia hạn của người vay đó. "level" = 1,2,3... theo đúng thứ tự lần gia hạn (level 1 = lần gia hạn đầu tiên).
 Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã này, chỉ cần trò chuyện/hỏi lại bình thường.`;
   }
 
@@ -9385,8 +9643,30 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           const proj = state.loanProjects.find(x=>x.id===projId);
           const newB = { ...emptyBorrowerForProject(proj), name:b.name, hamlet:b.hamletDisplay||'', principal:parseFloat(b.principal)||0,
             loanDate:b.loanDate||(proj?proj.disburseDate:todayStr()), dueDate:b.dueDate||(proj?proj.dueDate:''),
-            cccd:b.cccd||'', phone:b.phone||'', address:b.address||'', note:b.note||'' };
+            cccd:b.cccd||'', phone:b.phone||'', address:b.address||'', note:b.note||'',
+            // Ưu tiên số liệu của PHƯƠNG ÁN (đã kế thừa sẵn qua emptyBorrowerForProject, đảm bảo đồng
+            // nhất giữa mọi người vay cùng phương án) — nhưng nếu không xác định được phương án nào,
+            // vẫn PHẢI dùng đúng số liệu AI đã trích xuất riêng cho người vay này, không để rơi về mặc
+            // định cứng (6,6%/0/0/0/45%) làm mất dữ liệu AI đã công phu trích xuất được.
+            rate: proj? (parseFloat(proj.interestRate)||0) : (parseFloat(b.rate)||6.6),
+            splitCentral: proj? (parseFloat(proj.splitCentral)||0) : 0,
+            splitProvince: proj? (parseFloat(proj.splitProvince)||0) : 0,
+            splitWard: proj? (parseFloat(proj.splitWard)||0) : (parseFloat(b.rate)||0),
+            hamletAllocPercent: proj? (proj.hamletAllocPercent!=null?parseFloat(proj.hamletAllocPercent):45) : 45,
+            fundSource: proj? projectFundSourceLabel(proj) : (b.fundSource||''),
+          };
           await cSetRecord('borrowers', newB.id, newB);
+          // Nếu AI đã trích xuất được lịch sử gia hạn (VD: đang số hoá lại hồ sơ giấy cũ) -> tạo thật
+          // các bản ghi gia hạn tương ứng, đúng thứ tự "level".
+          const extList = (b.extensions||[]).filter(e=>e && e.to).slice().sort((x,y)=>(x.level||0)-(y.level||0));
+          if(extList.length){
+            const arr = extList.map(e=> ({
+              from: e.from||'', to: e.to, rateType:'custom', ratePct: parseFloat(e.ratePct)||0, allocMode:'wardHamlet',
+              hamletAllocPercent: 45, splitCentral:null, splitProvince:null, splitWard:null,
+              savedAt: new Date().toISOString(), savedBy: state.identity.email||'', savedByName: state.identity.name||'',
+            }));
+            await cSet('loanExtensions/'+newB.id, arr);
+          }
         }
         hideProcessingToast();
         showBigToast(`Đã thêm thành công vào Sổ vay vốn!`);
@@ -9524,11 +9804,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       }).join('');
     }
     function listForTab(tab){
-      if(tab==='mau') return [getDefaultColumnViewSet()];
+      if(tab==='mau') return [getDefaultColumnViewSet(), getAllPublicColumnsViewSet(), getBasicLoanInfoColumnViewSet(), getBasicInterestColumnViewSet(), getDetailedInterestColumnViewSet(), getBorrowerInfoColumnViewSet(), getHiddenColumnsViewSet()];
       if(tab==='canhan') return (state._personalColViewSetsFirebase||[]).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
       return (state.columnViewSets||[]).filter(x=>x.group==='xaphuong').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
     }
-    function fullVsName(vs){ return vs.group==='mau' ? vs.name : `Bộ xem cột ${vs.name}`; }
+    function fullVsName(vs){ const base = vs.group==='mau' ? vs.name : `Bộ xem cột ${vs.name}`; return `${base} (${(vs.visible||[]).length})`; }
     function presetRowHtml(vs){
       const expanded = state.colViewSetExpanded.includes(vs.id);
       const cols = BORROWER_COLUMNS();
@@ -9592,6 +9872,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(!vs) return;
         state.borrowerVisibleCols = vs.visible.slice();
         state.borrowerColumnOrder = vs.order.slice();
+        state._appliedColumnViewSetId = vs.id;
         close();
         const el = document.getElementById('content');
         if(el) renderDataTab(el);
@@ -9745,8 +10026,20 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
 
   // Yêu cầu mới: hiển thị người vay nhóm RIÊNG BIỆT theo từng Phương án vay (mỗi phương án 1 khu
   // vực/bảng riêng có tiêu đề tên phương án), thay vì gộp chung 1 bảng phẳng.
-  // "X năm Y tháng Z ngày" — LUÔN hiện tháng (kể cả 0 tháng); ẩn hẳn phần năm nếu năm=0; ẩn hẳn
-  // phần ngày nếu ngày=0. Dùng để hiện "thời hạn" của phương án vay ở tiêu đề nhóm danh sách.
+  // "X năm Y tháng Z ngày" — ẩn hẳn phần năm nếu năm=0; ẩn hẳn phần ngày nếu ngày=0; phần tháng chỉ ẩn
+  // khi = 0 NHƯNG không có phần ngày theo sau (có ngày theo sau thì vẫn hiện "0 tháng" để nối liền
+  // mạch, ví dụ "3 năm 0 tháng 10 ngày"). Dùng để hiện "thời hạn" của phương án vay ở tiêu đề nhóm.
+  // Số tiền KHÔNG HOẠT ĐỘNG của 1 phương án vay = Tổng vốn - tổng dư nợ của các người vay ĐANG hoạt
+  // động thuộc phương án đó (bao gồm cả phần chưa giải ngân, VÀ phần đã tất toán/TNTH mà không có
+  // người thừa kế tiếp nhận). Trả về chuỗi rỗng nếu toàn bộ vốn đang hoạt động (không cần hiện thêm).
+  function projectInactiveAmountTxt(proj){
+    if(!proj) return '';
+    const totalCapital = parseFloat(proj.totalCapital)||0;
+    const activeSum = state.borrowers.filter(b=>!b.deleted && !b.settled && b.projectId===proj.id).reduce((s,b)=>s+(parseFloat(b.principal)||0),0);
+    const inactive = Math.round((totalCapital - activeSum)*100)/100;
+    if(inactive<=0) return '';
+    return `, còn ${groupDigitsRight(String(Math.round(inactive)),3)} đ không hoạt động`;
+  }
   function calcLoanDuration(startStr, endStr){
     if(!startStr || !endStr) return '';
     const start = new Date(startStr+'T00:00:00');
@@ -9759,7 +10052,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     if(months<0){ years -= 1; months += 12; }
     const parts = [];
     if(years>0) parts.push(`${years} năm`);
-    parts.push(`${months} tháng`);
+    if(months>0 || days>0) parts.push(`${months} tháng`);
     if(days>0) parts.push(`${days} ngày`);
     return parts.join(' ');
   }
@@ -9848,6 +10141,75 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   // TOÀN BỘ người vay đang hiển thị (theo đúng bộ lọc hiện dùng), không phân biệt phương án. Cột
   // "Họ và tên" đổi nhãn hiển thị thành "Địa phương" (không đổi tên cột thật ở nơi khác), cột "Đơn
   // vị" bị ẨN hẳn khỏi bảng này.
+  // Tính đầy đủ 16 cột thống kê chi tiết (A-P) cho 1 Địa phương cụ thể (hamletFilter = tên Ấp/Khu
+  // phố) hoặc TOÀN XÃ (hamletFilter = null) — dùng cho modal Excel khi bấm vào tên địa phương trong
+  // bảng Thống kê chung.
+  function computeHamletRowDetailCols(hamletFilter){
+    const matchHamlet = b=> hamletFilter==null || b.hamlet===hamletFilter;
+    const activeList = state.borrowers.filter(b=>!b.deleted && !b.settled && !b.riskDebt && matchHamlet(b));
+    const settledList = state.borrowers.filter(b=>!b.deleted && b.settled && matchHamlet(b));
+    const riskProcessing = state.borrowers.filter(b=>!b.deleted && !b.settled && b.riskDebt && !b.badDebt && matchHamlet(b));
+    const badDebtList = state.borrowers.filter(b=>!b.deleted && !b.settled && b.riskDebt && b.badDebt && matchHamlet(b));
+    const allEverCount = activeList.length + settledList.length + riskProcessing.length + badDebtList.length;
+    const B = activeList.length;
+    const C = activeList.reduce((s,b)=> s+(parseFloat(b.principal)||0), 0);
+    let D=0,E=0,F=0,G=0,H=0,I=0,J=0,K=0,L=0;
+    // 4 Quý gần nhất: hiện tại (N), N-1, N-2, N-3 — dùng đúng chuỗi thời gian thực tế của khoản vay
+    // (bx.qk/bx.year của TỪNG hộp Quý), không suy diễn cứng theo lịch dương thông thường.
+    const curYear = new Date().getFullYear();
+    const curQNum = parseInt(todayBasedQuarterKey().replace('q',''),10);
+    function quarterGoBackLocal(qNum, year, offset){
+      let q = qNum - offset, y = year;
+      while(q<1){ q+=4; y-=1; }
+      return { qNum:q, year:y, qk:'q'+q };
+    }
+    const qN = { qNum:curQNum, year:curYear, qk:'q'+curQNum };
+    const qN1 = quarterGoBackLocal(curQNum, curYear, 1);
+    const qN2 = quarterGoBackLocal(curQNum, curYear, 2);
+    const qN3 = quarterGoBackLocal(curQNum, curYear, 3);
+    let H1=0, H2=0, H3=0, H4=0; // tiền lãi ĐÃ ĐÓNG của N, N-1, N-2, N-3
+    let Y1=0, Y2=0; // tiền lãi ĐÃ ĐÓNG của Năm hiện tại, Năm ngoái (cộng dồn cả 4 quý trong năm đó)
+    activeList.forEach(b=>{
+      const disp = computeInterestPaymentBoxDisplay(b);
+      const curBox = borrowerCurrentQuarterBox(b);
+      if(curBox){
+        if(disp.paidKeys.has(curBox.key)) D++;
+        else { E++; F += curBox.interestAmount||0; }
+      }
+      if(disp.unpaidLines.length>0) G++;
+      H += disp.unpaidTotal||0;
+      disp.allBoxes.forEach(bx=>{
+        if(!disp.paidKeys.has(bx.key)) return;
+        if(bx.qk===qN.qk && bx.year===qN.year) H1 += bx.interestAmount||0;
+        else if(bx.qk===qN1.qk && bx.year===qN1.year) H2 += bx.interestAmount||0;
+        else if(bx.qk===qN2.qk && bx.year===qN2.year) H3 += bx.interestAmount||0;
+        else if(bx.qk===qN3.qk && bx.year===qN3.year) H4 += bx.interestAmount||0;
+        if(bx.year===curYear) Y1 += bx.interestAmount||0;
+        else if(bx.year===curYear-1) Y2 += bx.interestAmount||0;
+      });
+      const overdueUnhandled = borrowerIsOverdueUnhandled(b);
+      const exts = getBorrowerExtensions(b.id);
+      if(overdueUnhandled) K++;
+      else if(exts.length>0) L++;
+      else I++; // Hộ trong hạn = TOÀN BỘ hộ không quá hạn, không đang gia hạn — kể cả chỉ còn 1 ngày vẫn tính là trong hạn.
+      // "Gần đến hạn ≤60 ngày" là 1 tập con THÔNG TIN THÊM (có thể trùng với "trong hạn" ở trên, không
+      // phải 1 nhóm loại trừ riêng) — khớp đúng logic chuẩn dùng ở Tất toán/Gia hạn nợ/Nợ rủi ro.
+      if(!overdueUnhandled && !(exts.length>0)){
+        const proj = projectOf(b);
+        const d = rawDaysRemaining(proj? proj.dueDate : b.dueDate);
+        if(d!=null && d<=60) J++;
+      }
+    });
+    // Nhãn Quý — nếu năm khác năm hiện tại thì thêm "-năm" vào sau, VD: "Quý 4-2025"
+    const qLabel = (q)=> `Quý ${q.qNum}${q.year!==curYear? '-'+q.year : ''}`;
+    return {
+      hamletLabel: hamletFilter==null? wardFullLabel() : `${subAdminLabel()} ${hamletFilter}`,
+      B, C, D, E, F, G, H, I, J, K, L,
+      M: riskProcessing.length, N: badDebtList.length, O: settledList.length, P: allEverCount,
+      H1, H2, H3, H4, qLabelN: qLabel(qN), qLabelN1: qLabel(qN1), qLabelN2: qLabel(qN2), qLabelN3: qLabel(qN3),
+      Y1, Y2, yearN: curYear, yearN1: curYear-1,
+    };
+  }
   function renderBorrowerOverallStatsHtml(list, visibleCols, hamlets){
     const restCols = visibleCols.slice(1).filter(c=>c.key!=='hamlet'); // ẨN hẳn cột Đơn vị ở bảng này
     const nameHeaderLabel = 'Địa phương';
@@ -9857,14 +10219,14 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const orderedHamlets = allSelected ? [] : selHamlets.filter(h=>h!=='Khác').concat(selHamlets.includes('Khác')? ['Khác'] : []);
     // "Tất cả ấp" -> gộp 1 hàng toàn xã; chọn 1 hoặc nhiều ấp cụ thể -> mỗi ấp 1 hàng riêng.
     const rows = allSelected
-      ? [{ label: wardFullLabel(), groupList: list }]
-      : orderedHamlets.map(h=> ({ label: `${subAdminLabel()} ${h}`, groupList: list.filter(b=>b.hamlet===h) }));
+      ? [{ label: wardFullLabel(), groupList: list, hamletKey:'__all__' }]
+      : orderedHamlets.map(h=> ({ label: `${subAdminLabel()} ${h}`, groupList: list.filter(b=>b.hamlet===h), hamletKey:h }));
     state._svStatsCache = { rows, restCols };
     const rowsHtml = rows.map(r=>{
       const cellVal = (colKey)=> borrowerAggregateCellValue(colKey, r.groupList, { nameOverride: r.label });
       return `<tr>
         <td class="sv-sticky-1" style="background:var(--white);"></td>
-        <td class="sv-sticky-2" style="background:var(--white); font-weight:700;">${escapeHtml(r.label)}</td>
+        <td class="sv-sticky-2" style="background:var(--white); font-weight:700;"><span class="dancing-project-name preview-allow" data-hamlet-stat-row="${escapeHtml(r.hamletKey)}">${escapeHtml(r.label)}</span></td>
         ${restCols.map(c=>`<td class="${c.align==='right'?'money':''}">${cellVal(c.key)}</td>`).join('')}
       </tr>`;
     }).join('');
@@ -9873,7 +10235,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         <table>
           <thead><tr>
             <th class="sv-sticky-1 sv-group-header-th"></th>
-            <th class="sv-sticky-2 sv-group-header-th"><span class="dancing-header preview-allow" data-header-scope="all">${escapeHtml(nameHeaderLabel)}</span></th>
+            <th class="sv-sticky-2 sv-group-header-th"><span class="dancing-header preview-allow" style="color:#6a1b9a;" data-header-scope="all">${escapeHtml(nameHeaderLabel)}</span></th>
             ${restCols.map(c=>`<th>${htmlLabel(c.key==='principal'? 'Tổng dư nợ' : c.label)}</th>`).join('')}
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
@@ -9950,6 +10312,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const duration = proj ? calcLoanDuration(proj.disburseDate, proj.dueDate) : '';
       const capitalTxt = proj ? `, ${groupDigitsRight(String(Math.round(proj.totalCapital||0)),3)} đồng` : '';
       const durationTxt = duration ? `, ${duration}` : '';
+      const inactiveTxt = proj ? projectInactiveAmountTxt(proj) : '';
       const nameCol = visibleCols[0]; // luôn là cột "Họ và tên" vì đã khoá cứng đứng đầu tiên
       const restCols = visibleCols.slice(1);
       const sortingThis = state.sortingBorrowersProjectId===gid;
@@ -9959,7 +10322,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       if(sortingThis && !state._borrowerSortDraft) state._borrowerSortDraft = groupList.map(b=>b.id);
       return `
       <div style="margin-bottom:18px;">
-        <div class="sv-group-header" style="background:${projectGroupHeaderBg(gid)}; display:flex; align-items:center; gap:6px;">${(canEdit && gid!=='__none__')? `<button type="button" class="btn-plain-icon preview-allow" data-borrower-sort-toggle="${gid}" title="Sắp xếp danh sách" style="font-size:15px; cursor:pointer; background:none; border:none;">☰</button>` : ''}<span>📋 ${projName} (${rawGroupList.length} người vay)${capitalTxt}${durationTxt}</span></div>
+        <div class="sv-group-header" style="background:${projectGroupHeaderBg(gid)}; display:flex; align-items:center; gap:6px;">${(canEdit && gid!=='__none__')? `<button type="button" class="btn-plain-icon preview-allow" data-borrower-sort-toggle="${gid}" title="Sắp xếp danh sách" style="font-size:15px; cursor:pointer; background:none; border:none;">☰</button>` : ''}<span>📋 ${projName} (${rawGroupList.length} người vay)${capitalTxt}${durationTxt}${inactiveTxt}</span></div>
         ${sortingThis? `<div style="margin:8px 0;">
           <div style="display:flex; gap:8px;">
             <button class="btn btn-primary btn-sm preview-allow" data-borrower-sort-save="${gid}">💾 Lưu lại thứ tự sắp xếp</button>
@@ -10057,9 +10420,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const duration = proj ? calcLoanDuration(proj.disburseDate, proj.dueDate) : '';
       const capitalTxt = proj ? `, ${groupDigitsRight(String(Math.round(proj.totalCapital||0)),3)} đồng` : '';
       const durationTxt = duration ? `, ${duration}` : '';
+      const inactiveTxt = proj ? projectInactiveAmountTxt(proj) : '';
       const headerHtml = isOverdueBox
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
-        : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}`;
+        : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}${inactiveTxt}`;
       const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
       return `
       <div style="margin-bottom:18px;">
@@ -10408,6 +10772,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const duration = proj ? calcLoanDuration(proj.disburseDate, proj.dueDate) : '';
       const capitalTxt = proj ? `, ${groupDigitsRight(String(Math.round(proj.totalCapital||0)),3)} đồng` : '';
       const durationTxt = duration ? `, ${duration}` : '';
+      const inactiveTxt = proj ? projectInactiveAmountTxt(proj) : '';
       const extCounts = groupList.map(b=>getBorrowerExtensions(b.id).length);
       const allSame = extCounts.length>0 && extCounts.every(c=>c===extCounts[0]);
       const commonLevel = allSame ? extCounts[0] : null;
@@ -10415,7 +10780,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const totalXemLabel = allSame ? (commonLevel>0? `Xem (gH ${commonLevel} lần)` : 'Xem (0)') : 'Xem';
       const headerHtml = isOverdueBox
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
-        : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}`;
+        : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}${inactiveTxt}`;
       const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
       return `
       <div style="margin-bottom:18px;">
@@ -10730,9 +11095,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const duration = proj ? calcLoanDuration(proj.disburseDate, proj.dueDate) : '';
       const capitalTxt = proj ? `, ${groupDigitsRight(String(Math.round(proj.totalCapital||0)),3)} đồng` : '';
       const durationTxt = duration ? `, ${duration}` : '';
+      const inactiveTxt = proj ? projectInactiveAmountTxt(proj) : '';
       const headerHtml = isOverdueBox
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
-        : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}`;
+        : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}${inactiveTxt}`;
       const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
       return `
       <div style="margin-bottom:18px;">
@@ -15852,7 +16218,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const hamlets = state.config.hamlets||[];
     const canEdit = canEditModule('data');
     const projects = activeLoanProjects();
-    const allCols = BORROWER_COLUMNS().filter(c=>!c.hidden);
+    const allCols = state._appliedColumnViewSetId==='__hiddencols__' ? BORROWER_COLUMNS() : BORROWER_COLUMNS().filter(c=>!c.hidden);
     const colOrder = ensureBorrowerColumnOrder();
     const visibleKeys = ensureBorrowerVisibleCols();
     const colsByKey = {}; allCols.forEach(c=> colsByKey[c.key]=c);
@@ -15954,6 +16320,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             <button class="btn btn-sm preview-allow" id="loan-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#000; border-color:#00acc1; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="exp-excel-btn">⬇️ Xuất Excel</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="print-btn">🖨️ In</button>
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="collapse-all-panels-btn" style="background:none; border:none;">Rút gọn mọi thứ</button>
           </div>
         </div>`}
       </div>
@@ -16192,11 +16559,27 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const colorPickerBtn = document.getElementById('color-picker-btn');
     if(colorPickerBtn) colorPickerBtn.onclick = ()=> renderLoanColorModal();
     const colPickerBtn = document.getElementById('col-picker-btn');
-    if(colPickerBtn) colPickerBtn.onclick = ()=> renderColumnPickerModal();
+    if(colPickerBtn) colPickerBtn.onclick = ()=>{
+      if(state._appliedColumnViewSetId==='__hiddencols__'){
+        alert('🔒 Đang xem "Bộ xem cột ẩn (Không công khai)" nên không thể tuỳ chỉnh cột lúc này.\n\nVui lòng vào "👁️ Chế độ xem cột" để đổi sang 1 Bộ xem cột khác, sau đó mới có thể tiếp tục tuỳ chỉnh cột.');
+        return;
+      }
+      renderColumnPickerModal();
+    };
 
     // ---- Xuất Excel / In ----
     document.getElementById('exp-excel-btn').onclick = ()=> renderExportSelectorModal(visibleCols, 'excel');
     document.getElementById('print-btn').onclick = ()=> renderExportSelectorModal(visibleCols, 'print');
+    const collapseAllPanelsBtn = document.getElementById('collapse-all-panels-btn');
+    if(collapseAllPanelsBtn) collapseAllPanelsBtn.onclick = ()=>{
+      state.showProjectsList = false;
+      state.showBorrowersList = false;
+      state.showRiskDebtList = false;
+      state.showSettledList = false;
+      state.showLoanTrash = false;
+      state.showManagePanel = false;
+      renderDataTab(el);
+    };
 
     // ---- Người vay ----
     document.querySelectorAll('[data-view]').forEach(b=>{
