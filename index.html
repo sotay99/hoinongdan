@@ -2963,7 +2963,12 @@
       wardLabel, provinceLabel, bankInfo: cfg.bankInfo||{}, status:'unpaid', replay: paymentCtx.replay||null,
       wardId: wardId(), createdAt: new Date().toISOString(), savedAt: new Date().toISOString(),
     };
-    try{ await rtdb.ref('receipts/'+code).set(record); }
+    // Khử sạch mọi giá trị "undefined" còn sót lại đâu đó bên trong (VD: 1 trường nào đó trong
+    // replay.quarterLines) — Firebase có thể âm thầm từ chối ghi cả nhánh dữ liệu chứa undefined mà
+    // không báo lỗi rõ ràng, khiến "replay" (thứ dùng để áp dụng giao dịch thật sau này) bị mất mà
+    // không hề hay biết. JSON.stringify tự động loại bỏ mọi property "undefined" một cách an toàn.
+    const safeRecord = JSON.parse(JSON.stringify(record));
+    try{ await rtdb.ref('receipts/'+code).set(safeRecord); }
     catch(e){ console.error('Không tạo được Biên lai chưa thanh toán:', e); alert('Có lỗi khi tạo Biên lai chưa thanh toán: '+(e&&e.message||e)); return; }
     renderUnpaidReceiptLinkModal(code);
   }
@@ -3028,6 +3033,13 @@
         } else if(record && record.replay && record.replay.applyFn==='early_repayment'){
           // Áp dụng THẬT giao dịch Trả nợ trước hạn (kể cả tạo hồ sơ người thừa kế nếu có).
           await applyUnpaidEarlyRepayment(record.replay);
+        } else {
+          // KHÔNG có dữ liệu "replay" (VD: biên lai được tạo từ trước khi tính năng này tồn tại) ->
+          // KHÔNG thể tự áp dụng giao dịch thật. Báo rõ cho người dùng biết, tránh hiểu lầm là mọi
+          // việc đã xong trong khi thực ra Hộp lãi/Sổ vay vốn của người vay CHƯA hề được cập nhật gì.
+          hideProcessingToast();
+          if(!confirm('⚠️ Biên lai này KHÔNG có đủ dữ liệu để tự động áp dụng giao dịch (có thể do được tạo từ phiên bản cũ). Nếu tiếp tục, Biên lai sẽ CHỈ chuyển trạng thái hiển thị thành "Đã thanh toán" — bạn cần TỰ vào Sổ vay vốn để ghi nhận thủ công giao dịch này. Bạn có chắc chắn muốn tiếp tục không?')) return;
+          showProcessingToast();
         }
         await rtdb.ref('receipts/'+code).update({ status:'paid', createdAt: new Date().toISOString() });
       }catch(e){
@@ -11296,10 +11308,18 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
               const rowColor = overdueUnhandled ? activeLoanColor('overdue') : exts.length>0 ? activeLoanColor('extended') : daysRemainingRowColor(b.dueDate);
               const textStyle = overdueUnhandled ? 'color:#b71c1c; font-weight:700;' : '';
               const maxedOut = exts.length>=MAX_LOAN_EXTENSIONS;
+              // Khoá riêng khi CHUẨN BỊ gia hạn LẦN TIẾP THEO (lần 2 trở đi) — chỉ mở khoá khi ngày
+              // hiện tại còn ≤15 ngày nữa mới tới "Ngày gia hạn gần nhất", hoặc đã bằng/vượt qua ngày
+              // đó rồi. Nếu còn quá xa (>15 ngày) thì khoá lại, không cho gia hạn tiếp quá sớm.
+              const latestExt = exts.length? exts[exts.length-1] : null;
+              const daysToLatestExtEnd = latestExt? daysRemainingUntil(latestExt.to) : null;
+              const tooEarlyForNextExtension = exts.length>0 && daysToLatestExtEnd!=null && daysToLatestExtEnd>15;
               const rowBg = rowColor || 'var(--white)';
               return `<tr${rowColor? ` style="background:${rowColor};${textStyle}"` : (textStyle?` style="${textStyle}"`:'')}>
                 <td class="frz-col1" style="background:${rowBg};${textStyle}"><button class="ext-action-btn preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ext-history="${b.id}">${xemLabel}</button></td>
-                <td class="frz-col2" style="background:${rowBg};${textStyle}">${maxedOut? `<button class="ext-action-btn" disabled title="Đã đạt tối đa 5 lần gia hạn">GIA HẠN</button>` : `<button class="ext-action-btn preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ext-single="${b.id}">GIA HẠN</button>`}</td>
+                <td class="frz-col2" style="background:${rowBg};${textStyle}">${maxedOut? `<button class="ext-action-btn" disabled title="Đã đạt tối đa 5 lần gia hạn">GIA HẠN</button>`
+                  : tooEarlyForNextExtension? `<button class="ext-action-btn" disabled title="Chưa đến thời điểm được gia hạn lần tiếp theo — Ngày gia hạn gần nhất còn ${daysToLatestExtEnd} ngày nữa mới tới, chỉ được gia hạn tiếp khi còn ≤15 ngày hoặc đã tới/qua ngày đó.">GIA HẠN</button>`
+                  : `<button class="ext-action-btn preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-ext-single="${b.id}">GIA HẠN</button>`}</td>
                 <td class="frz-col3" style="background:${rowBg};${textStyle}${b.isHeir? ' text-decoration:underline;' : ''}">${overdueUnhandled?'⚠️ ':''}${dancingNameHtml(b)}</td>
                 <td class="money">${moneySpaced(b.principal)}</td>
                 <td>${fmtDate(b.dueDate)}</td>
@@ -11601,6 +11621,16 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         ? `<span style="color:#b71c1c; font-weight:800;">⚠️ Quá hạn chưa được xử lý —</span><span>📋 ${projName} (${groupList.length} người vay)</span>`
         : `📋 ${projName} (${groupList.length} người vay)${capitalTxt}${durationTxt}${inactiveTxt}`;
       const headerBg = isOverdueBox ? rgbaToGradient('rgba(211,47,47,.16)') : projectGroupHeaderBg(gid);
+      // Bổ sung: tính trước xem TOÀN BỘ nhóm có đủ điều kiện Tất toán khoản vay không (dùng đúng công
+      // thức từng dòng bên dưới) — nếu có dù chỉ 1 người KHÔNG đủ điều kiện thì khoá TRỰC QUAN luôn nút
+      // "Tất toán khoản vay" ở dòng TỔNG (không chỉ chặn khi bấm vào như trước).
+      const groupSettleFinalOk = groupList.every(b=>{
+        const exts0 = getBorrowerExtensions(b.id);
+        const inExt0 = exts0.length>0;
+        const dueRef0 = exts0.length? exts0[exts0.length-1].to : b.dueDate;
+        const dLeft0 = daysRemainingUntil(dueRef0);
+        return inExt0 || (dLeft0!=null && dLeft0<=60);
+      });
       return `
       <div style="margin-bottom:18px;">
         <div class="sv-group-header" style="background:${headerBg}; display:flex; align-items:center; gap:6px;">${headerHtml}</div>
@@ -11617,7 +11647,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
               const upToTodayAmt = borrowerUnpaidInterestUpToToday(b).total;
               const dueRef = exts.length? exts[exts.length-1].to : b.dueDate;
               const dLeft = daysRemainingUntil(dueRef);
-              const inExt = !!currentActiveExtension(b.id);
+              const inExt = exts.length>0; // ĐÃ TỪNG được gia hạn (bất kể lần, bất kể còn trong khoảng ngày gia hạn hay đã qua) -> luôn cho Tất toán, khoá Trả nợ trước hạn
               const canSettleFinal = inExt || (dLeft!=null && dLeft<=60); // trong thời gian gia hạn -> luôn cho, ngoài ra <=60 ngày kể cả 0/âm
               const canEarlyRepay = !inExt && !b.isHeir && (dLeft==null || dLeft>29); // đang gia hạn hoặc <=29 ngày hoặc là người thừa kế -> khoá
               let earlyRepayReason = '';
@@ -11637,7 +11667,9 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             }).join('')}
             <tr style="background:var(--paper-2); font-weight:700;">
               <td class="frz-col1" style="background:var(--paper-2);"></td>
-              <td class="frz-col2" style="background:var(--paper-2);"><button class="ext-action-btn ext-blue preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-shared-early-repay="${gid}" data-shared-early-repay-ids="${groupList.map(b=>b.id).join(',')}">Tất toán khoản vay</button></td>
+              <td class="frz-col2" style="background:var(--paper-2);">${groupSettleFinalOk
+                ? `<button class="ext-action-btn ext-blue preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-shared-early-repay="${gid}" data-shared-early-repay-ids="${groupList.map(b=>b.id).join(',')}">Tất toán khoản vay</button>`
+                : `<button class="ext-action-btn ext-blue preview-allow" style="animation-delay:${(Math.random()*3.5).toFixed(2)}s;" data-shared-early-repay="${gid}" data-shared-early-repay-ids="${groupList.map(b=>b.id).join(',')}" title="Có ít nhất 1 hộ trong nhóm chưa đủ điều kiện Tất toán khoản vay — bấm vào để xem chi tiết.">Tất toán khoản vay 🔒</button>`}</td>
               <td class="frz-col3" style="background:var(--paper-2);">TỔNG</td>
               <td class="money">${moneySpaced(groupList.reduce((s,b)=>s+(parseFloat(b.principal)||0),0))}</td>
               <td class="money">${moneySpaced(groupList.reduce((s,b)=>{ const d=computeInterestPaymentBoxDisplay(b); return s+d.unpaidTotal; },0))}</td>
