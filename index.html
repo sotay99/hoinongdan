@@ -2960,7 +2960,7 @@
     (paymentCtx.borrowerIds||[]).forEach(id=> borrowerIds[id] = true);
     const record = {
       title: paymentCtx.title||'BL Biên lai', html: bodyHtml, amount: paymentCtx.amount||0, borrowerNames: paymentCtx.borrowerNames||[], borrowerIds,
-      wardLabel, provinceLabel, bankInfo: cfg.bankInfo||{}, status:'unpaid',
+      wardLabel, provinceLabel, bankInfo: cfg.bankInfo||{}, status:'unpaid', replay: paymentCtx.replay||null,
       wardId: wardId(), createdAt: new Date().toISOString(), savedAt: new Date().toISOString(),
     };
     try{ await rtdb.ref('receipts/'+code).set(record); }
@@ -3011,9 +3011,32 @@
     const markPaidBtn = wrap.querySelector('#upl-markpaid');
     if(markPaidBtn) markPaidBtn.onclick = async ()=>{
       if(!confirm('Bạn có CHẮC CHẮN Biên lai này đã được Thanh toán xong không? Sau khi xác nhận, Biên lai sẽ chuyển sang trạng thái Đã thanh toán, giữ nguyên mã và đường link như cũ.')) return;
+      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+      if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+      showProcessingToast();
       try{
+        const snap = await rtdb.ref('receipts/'+code).get();
+        const record = (snap && snap.exists()) ? snap.val() : null;
+        if(record && record.replay && record.replay.applyFn==='interest'){
+          // Áp dụng THẬT giao dịch đóng lãi — cộng đúng tiền vào Hộp lãi của người vay, tạo bản ghi
+          // Biên lai thật trong Hộp Biên lai của người vay đó, y hệt như bấm "Xác nhận đóng lãi thành
+          // công" thông thường.
+          await applyUnpaidInterestPayment(record.replay);
+        } else if(record && record.replay && record.replay.applyFn==='settlement_final'){
+          // Áp dụng THẬT giao dịch Tất toán khoản vay.
+          await applyUnpaidSettlementFinal(record.replay);
+        } else if(record && record.replay && record.replay.applyFn==='early_repayment'){
+          // Áp dụng THẬT giao dịch Trả nợ trước hạn (kể cả tạo hồ sơ người thừa kế nếu có).
+          await applyUnpaidEarlyRepayment(record.replay);
+        }
         await rtdb.ref('receipts/'+code).update({ status:'paid', createdAt: new Date().toISOString() });
-      }catch(e){ console.error('Không xác nhận thanh toán được:', e); alert('Có lỗi khi xác nhận: '+(e&&e.message||e)); return; }
+      }catch(e){
+        hideProcessingToast();
+        console.error('Không xác nhận thanh toán được:', e);
+        alert('Có lỗi khi xác nhận: '+(e&&e.message||e));
+        return;
+      }
+      hideProcessingToast();
       wrap.remove();
       if(opts.onDeleted) opts.onDeleted(); // biên lai không còn ở trạng thái "chưa thanh toán" nữa -> lược khỏi danh sách hộp chưa thanh toán y hệt như xoá
       showBigToast('Đã xác nhận Thanh toán thành công!');
@@ -4098,11 +4121,85 @@
   // "Xác nhận..." nữa, vì số liệu đang xem có thể đã lỗi thời (biên lai kia có thể sắp/vừa được thanh
   // toán). Khoá chỉ hết tác dụng khi Biên lai chưa thanh toán đó không còn trong bộ nhớ đám mây nữa
   // (xoá thủ công hoặc hệ thống tự xoá sau 7 ngày, hoặc sau này chuyển trạng thái thành đã thanh toán).
+  // Áp dụng THẬT sự giao dịch đóng lãi (dùng chung cho cả "theo cách tính Quý" lẫn "theo cách tính
+  // tiền cụ thể") khi 1 Biên lai chưa thanh toán được xác nhận đã Thanh toán xong — tái dùng ĐÚNG các
+  // hàm gốc dùng bởi nút "Xác nhận đóng lãi thành công" thông thường, để tuyệt đối không lệch số liệu.
+  async function applyUnpaidInterestPayment(replay){
+    const b = state.borrowers.find(x=>x.id===replay.borrowerId);
+    if(!b) throw new Error('Không tìm thấy người vay tương ứng (có thể đã bị xoá).');
+    const dispBefore = computeInterestPaymentBoxDisplay(b);
+    const raw = getInterestPaymentBoxRaw(b.id);
+    const payments = Object.assign({}, raw.payments||{});
+    (replay.quarterLines||[]).forEach(q=>{ if(q.key) payments[q.key] = q.amount; });
+    const newTotalPaid = (raw.totalPaid||0) + (replay.amount||0);
+    await cSet('interestPaymentBoxes/'+b.id, { totalPaid:newTotalPaid, payments });
+    state.interestPaymentBoxes = state.interestPaymentBoxes||{};
+    state.interestPaymentBoxes[b.id] = { totalPaid:newTotalPaid, payments };
+    await settleInterestPaymentLeftover(b);
+    const dispAfter = computeInterestPaymentBoxDisplay(b);
+    await logQuarterStatusDiff(b, dispBefore, dispAfter,
+      `Đã được đóng lãi thành công bởi Biên lai thanh toán qua đường link (xác nhận ngày ${fmtDate(todayStr())})`,
+      `Đã trở về trạng thái chưa đóng lãi do thay đổi thông tin liên quan tới khoản vay`);
+    await pushReceiptRecord(b, replay.receiptCategoryKey||'interest_quarter', {
+      amount: replay.amount||0, sign:'+',
+      quarterLines: (replay.quarterLines||[]).map(q=>({ qk:q.qk, year:q.year, amount:q.amount })),
+      categoryLabelId: replay.categoryLabelId||null, extra: { payerName: replay.payerName||'', collectorName: replay.collectorName||'' },
+    });
+    await pushLog('xác nhận', `đóng lãi cho hộ vay ${b.name} qua đường link thanh toán (${moneySpaced(replay.amount||0)})`);
+  }
+  // Áp dụng THẬT sự giao dịch Tất toán khoản vay khi 1 Biên lai chưa thanh toán được xác nhận đã
+  // Thanh toán xong — tái dùng ĐÚNG các hàm gốc (settleInterestForClosure/markBorrowerSettled/
+  // pushReceiptRecord) y hệt nút "Xác nhận tất toán thành công" thông thường. Có thêm 1 lớp an toàn
+  // riêng: nếu người vay đã được tất toán từ trước (VD: nhân viên khác lỡ tất toán thủ công trong lúc
+  // chờ khách chuyển khoản) thì CHẶN LẠI, không tất toán chồng lần 2.
+  async function applyUnpaidSettlementFinal(replay){
+    const b = state.borrowers.find(x=>x.id===replay.borrowerId);
+    if(!b) throw new Error('Không tìm thấy người vay tương ứng (có thể đã bị xoá).');
+    if(b.settled) throw new Error(`Hộ vay "${b.name}" đã được Tất toán từ trước (có thể do thao tác khác trong lúc chờ thanh toán) — không thể tất toán lại lần nữa. Vui lòng kiểm tra lại trong Sổ vay vốn.`);
+    const interestInfo = replay.includeInterest ? await settleInterestForClosure(b, false) : null;
+    await markBorrowerSettled(b, 'final', { settledInterestIncluded: replay.includeInterest? interestInfo.total : 0, settledUpToToday:false, settledGrandTotal: replay.grandTotal,
+      settledSnapshot: buildSettlementSnapshot(b, interestInfo, false, null),
+      ...(replay.viaRiskDebt? { settledViaRiskDebt:true, riskDebt:false } : {}) });
+    await pushReceiptRecord(b, replay.includeInterest? 'settlement_with_interest' : 'settlement_no_interest', {
+      amount: replay.grandTotal, sign:'+',
+      quarterLines: replay.includeInterest? (interestInfo.lines||[]).map(x=>({ qk:x.box.qk, year:x.box.year, amount:x.amount })) : [],
+      extra: { principal: replay.principal, interestIncluded: replay.includeInterest? interestInfo.total : 0, grandTotal: replay.grandTotal, payerName: replay.payerName||'', collectorName: replay.collectorName||'' },
+    });
+    await pushLog('xác nhận', `tất toán khoản vay cho hộ vay ${b.name} qua đường link thanh toán (gốc ${moneySpaced(replay.principal)}${replay.includeInterest?` + lãi`:''})`);
+  }
+  // Áp dụng THẬT sự giao dịch Trả nợ trước hạn khi 1 Biên lai chưa thanh toán được xác nhận đã Thanh
+  // toán xong — bao gồm cả trường hợp có Người thừa kế (tạo hồ sơ mới). Tái dùng ĐÚNG các hàm gốc y
+  // hệt nút "Xác nhận trả nợ trước hạn thành công" thông thường. Cũng có lớp an toàn chống trả nợ
+  // trước hạn chồng lần 2 nếu người vay đã được tất toán/trả nợ trước hạn từ trước.
+  async function applyUnpaidEarlyRepayment(replay){
+    const b = state.borrowers.find(x=>x.id===replay.borrowerId);
+    if(!b) throw new Error('Không tìm thấy người vay tương ứng (có thể đã bị xoá).');
+    if(b.settled) throw new Error(`Hộ vay "${b.name}" đã được Tất toán/Trả nợ trước hạn từ trước (có thể do thao tác khác trong lúc chờ thanh toán) — không thể xử lý lại lần nữa. Vui lòng kiểm tra lại trong Sổ vay vốn.`);
+    const interestInfo = replay.includeInterest ? await settleInterestForClosure(b, replay.upToToday) : null;
+    await markBorrowerSettled(b, 'early', { settledReason: replay.reason||'', heirName: replay.heir? replay.heir.name : '',
+      settledInterestIncluded: (replay.includeInterest? interestInfo.total : 0), settledUpToToday: replay.upToToday,
+      settledGrandTotal: replay.principal + (replay.includeInterest? interestInfo.total : 0), settledMode: replay.mode,
+      settledSnapshot: buildSettlementSnapshot(b, replay.includeInterest? interestInfo : null, replay.upToToday, replay.mode==='heir'? replay.heir : null) });
+    if(replay.mode==='heir' && replay.heir){
+      const heirRecord = { ...emptyBorrowerForProject(projectOf(b)), ...replay.heir, id: uid(), projectId: b.projectId, hamlet: replay.heir.hamlet||b.hamlet, isHeir:true, heirOfBorrowerId: b.id, managerId: b.managerId };
+      await cSetRecord('borrowers', heirRecord.id, heirRecord);
+    }
+    const catKey = replay.mode==='heir'
+      ? (replay.includeInterest? 'early_heir_with_interest' : 'early_heir_no_interest')
+      : (replay.includeInterest? 'early_province_with_interest' : 'early_province_no_interest');
+    await pushReceiptRecord(b, catKey, {
+      amount: replay.principal + (replay.includeInterest? interestInfo.total : 0), sign:'+',
+      quarterLines: replay.includeInterest? (interestInfo.lines||[]).map(x=>({ qk:x.box.qk, year:x.box.year, amount:x.amount })) : [],
+      extra: { principal: replay.principal, interestIncluded: replay.includeInterest? interestInfo.total : 0, heirName: replay.heir? replay.heir.name : '', payerName: replay.payerName||'', collectorName: replay.collectorName||'', mode: replay.mode, isLocalOrOtherFund: replay.isLocalOrOtherFund },
+    });
+    await pushLog('xác nhận', `trả nợ trước hạn cho hộ vay ${b.name} qua đường link thanh toán (gốc ${moneySpaced(replay.principal)}${replay.includeInterest?` + lãi`:''})${replay.heir?`, người thừa kế: ${replay.heir.name}`:''}`);
+  }
   async function assertNoUnpaidReceiptLock(borrowerId, borrowerName){
     try{
-      const snap = await rtdb.ref('receipts').orderByChild('wardId').equalTo(wardId()).get();
+      const snap = await rtdb.ref('receipts').get();
       const val = (snap && snap.exists()) ? snap.val() : {};
-      const conflict = Object.values(val).some(r=> r.status==='unpaid' && r.borrowerIds && r.borrowerIds[borrowerId]);
+      const myWardId = wardId();
+      const conflict = Object.values(val).some(r=> r.status==='unpaid' && r.wardId===myWardId && r.borrowerIds && r.borrowerIds[borrowerId]);
       if(conflict){
         alert(`⚠️ Không thể lưu biên lai này — đã có 1 Biên lai CHƯA THANH TOÁN liên quan đến tiền lãi của hộ vay "${borrowerName}", khiến số liệu bạn đang xem có thể đã lỗi thời.\n\nVui lòng vào "Hộp Biên lai chưa thanh toán" (trong Kho biên lai) để xem Biên lai đó, hoặc xoá Biên lai đó đi (nếu không còn cần dùng) để có thể tiếp tục lập biên lai mới cho hộ vay này.`);
         return false;
@@ -12673,9 +12770,16 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     render();
     (async ()=>{
       try{
-        const snap = await rtdb.ref('receipts').orderByChild('wardId').equalTo(wardId()).get();
+        // KHÔNG dùng orderByChild('wardId').equalTo(...) nữa — truy vấn kiểu này CẦN khai báo chỉ mục
+        // (.indexOn) ở Firebase Rules mới chắc chắn hoạt động đúng, nếu thiếu có thể trả về rỗng một
+        // cách âm thầm. Tải TOÀN BỘ node "receipts" rồi tự lọc phía trình duyệt cho chắc chắn.
+        const snap = await rtdb.ref('receipts').get();
         const val = (snap && snap.exists()) ? snap.val() : {};
-        list = Object.entries(val).filter(([,r])=>r.status==='unpaid').map(([code,r])=>({ ...r, code })).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+        const myWardId = wardId();
+        list = Object.entries(val)
+          .filter(([,r])=> r.status==='unpaid' && r.wardId===myWardId)
+          .map(([code,r])=>({ ...r, code }))
+          .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
       }catch(e){ console.error('Không tải được Hộp biên lai chưa thanh toán:', e); list = []; }
       render();
     })();
@@ -14408,7 +14512,12 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wrap.querySelector('#fsm-interest-toggle').onclick = ()=>{ includeInterest = !includeInterest; render(); };
       wireAdvancedInfo(wrap, 'fsm', (open)=>{ advOpen = open; });
       wireConfirmBtnBehavior(wrap, wrap.querySelector('#fsm-confirm'), openedAt);
-      wireSendPaymentLinkBtn(wrap, 'fsm', ()=>({ title:'BL Tất toán khoản vay', amount: grandTotal, borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
+      wireSendPaymentLinkBtn(wrap, 'fsm', ()=>{
+        const payerName = (wrap.querySelector('#fsm-payer').value||'').trim();
+        const collectorName = (wrap.querySelector('#fsm-collector').value||'').trim();
+        return { title:'BL Tất toán khoản vay', amount: grandTotal, borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body'),
+          replay: { applyFn:'settlement_final', borrowerId:b.id, includeInterest, viaRiskDebt, grandTotal, principal, payerName, collectorName } };
+      });
       wrap.querySelector('#fsm-confirm').onclick = async ()=>{
         if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
         if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
@@ -14957,7 +15066,13 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       if(heirEditBtn) heirEditBtn.onclick = ()=> openHeirEditor(b, heir, (newHeir)=>{ heir = newHeir; render(); });
       wireAdvancedInfo(wrap, 'erm', (open)=>{ advOpen = open; });
       wireConfirmBtnBehavior(wrap, wrap.querySelector('#erm-confirm'), openedAt);
-      wireSendPaymentLinkBtn(wrap, 'erm', ()=>({ title:'BL Trả nợ trước hạn', amount: principal + (includeInterest? interestInfo.total : 0), borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
+      wireSendPaymentLinkBtn(wrap, 'erm', ()=>{
+        const reason = (wrap.querySelector('#erm-reason').value||'').trim();
+        const payerName = (wrap.querySelector('#erm-payer').value||'').trim();
+        const collectorName = (wrap.querySelector('#erm-collector').value||'').trim();
+        return { title:'BL Trả nợ trước hạn', amount: principal + (includeInterest? interestInfo.total : 0), borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body'),
+          replay: { applyFn:'early_repayment', borrowerId:b.id, mode, heir: heir? {...heir} : null, reason, includeInterest, upToToday: mode==='heir', principal, isLocalOrOtherFund, payerName, collectorName } };
+      });
       wrap.querySelector('#erm-confirm').onclick = async ()=>{
         if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
         if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
@@ -16261,7 +16376,16 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const totalInput = wrap.querySelector('#rcpt-grandtotal');
       const errorEl = wrap.querySelector('#rcpt-error');
       const confirmBtn = wrap.querySelector('#rcpt-confirm');
-      wireSendPaymentLinkBtn(wrap, 'rcpt', ()=>({ title:'BL Thu tiền lãi (theo cách tính Quý)', amount: currentGrandTotal(), borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
+      wireSendPaymentLinkBtn(wrap, 'rcpt', ()=>{
+        const finalAmount = currentFinalAmount();
+        const dispNow = computeInterestPaymentBoxDisplay(b);
+        const result = computeReceiptSettlementPreview(b, chosen, finalAmount, dispNow);
+        const quarterLines = result.paidQuarters.concat(result.extraPaidQuarters).map(bx=>({ key:bx.key, qk:bx.qk, year:bx.year, amount:bx.interestAmount }));
+        const payerName = (wrap.querySelector('#rcpt-payer').value||'').trim();
+        const collectorName = (wrap.querySelector('#rcpt-collector').value||'').trim();
+        return { title:'BL Thu tiền lãi (theo cách tính Quý)', amount: currentGrandTotal(), borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body'),
+          replay: { applyFn:'interest', borrowerId:b.id, amount: currentGrandTotal(), quarterLines, payerName, collectorName, categoryLabelId: selectedCategoryId||null, receiptCategoryKey:'interest_quarter' } };
+      });
       const maxAllowed = computeInterestPaymentBoxDisplay(b).unpaidTotal + computeInterestPaymentBoxDisplay(b).futureUnpaidTotal;
       const setError = (msg)=>{
         if(errorEl){ errorEl.textContent = msg||''; errorEl.style.display = msg? 'block' : 'none'; }
@@ -16565,7 +16689,13 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       if(prevToggleBtn) prevToggleBtn.onclick = ()=>{ usePrevLeftover = !usePrevLeftover; updateResults(); };
 
       const confirmBtn = wrap.querySelector('#mrcpt-confirm');
-      wireSendPaymentLinkBtn(wrap, 'mrcpt', ()=>({ title:'BL Thu tiền lãi (theo cách tính tiền cụ thể)', amount: lastFinalAmountForPayment, borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
+      wireSendPaymentLinkBtn(wrap, 'mrcpt', ()=>{
+        const quarterLines = (lastSettlement.paidQuarters||[]).map(bx=>({ key:bx.key, qk:bx.qk, year:bx.year, amount:bx.interestAmount }));
+        const payerName = (wrap.querySelector('#rcpt-payer').value||'').trim();
+        const collectorName = (wrap.querySelector('#rcpt-collector').value||'').trim();
+        return { title:'BL Thu tiền lãi (theo cách tính tiền cụ thể)', amount: lastFinalAmountForPayment, borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body'),
+          replay: { applyFn:'interest', borrowerId:b.id, amount: lastGrandTotal, quarterLines, payerName, collectorName, categoryLabelId: selectedCategoryId||null, receiptCategoryKey:'interest_money' } };
+      });
       if(confirmBtn) confirmBtn.addEventListener('mouseenter', ()=>{
         if(confirmBtn.dataset.locked==='1') return;
         const body = wrap.querySelector('.modal-body');
