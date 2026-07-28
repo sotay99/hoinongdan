@@ -2012,7 +2012,10 @@
           <div class="modal-body">
             <div style="display:flex; gap:8px; align-items:center;">
               <input type="text" readonly value="${escapeHtml(link)}" id="rlm-input" style="flex:1; padding:10px 12px; border-radius:8px; border:1px solid var(--line); font-size:12.5px;">
-              <button type="button" class="btn btn-primary btn-sm preview-allow" id="rlm-copy">📋 Sao chép</button>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button type="button" class="btn btn-primary btn-sm preview-allow" id="rlm-copy" style="flex:1;">📋 Sao chép</button>
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="rlm-view" style="flex:1;">🔍 Xem đường link</button>
             </div>
             <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này - để cho Hộ vay hoặc mọi người cùng xem nội dung Biên lai này (qua Messenger, Zalo hoặc các kênh chia sẻ khác).</p>
           </div>
@@ -2022,6 +2025,7 @@
       wrap.querySelector('#rlm-close2').onclick = close;
       wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
       wrap.querySelector('#rlm-copy').onclick = ()=>{ writeClipboardSilent(link); showToast('Đã sao chép đường link!'); };
+      wrap.querySelector('#rlm-view').onclick = ()=> window.open(link, '_blank');
     }catch(e){
       wrap.innerHTML = `<div class="modal" style="max-width:480px;"><div class="modal-body" style="text-align:center; padding:28px 24px;"><div class="rice-badge">⚠️</div><h3>Không tạo được đường link</h3><p class="sub">${escapeHtml(String(e&&e.message||e))}</p></div><div class="modal-foot"><button class="btn btn-ghost preview-allow" id="rlm-close3">Đóng bảng</button></div></div>`;
       wrap.querySelector('#rlm-close3').onclick = close;
@@ -2044,39 +2048,56 @@
         root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">🧾</div><h1>Không tìm thấy biên lai</h1><p class="sub">Đường link này có thể không đúng hoặc biên lai chưa từng được chia sẻ.</p></div></div>`;
         return;
       }
+      const isUnpaid = data.status==='unpaid';
       const d = new Date(data.createdAt||data.savedAt);
       const exportTimeLbl = isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')} ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
       const plainTitle = String(data.title||'Biên lai')
         .replace(/^BL\b/i, 'BIÊN LAI')
         .replace(/\s*\(THEO CÁCH TÍNH[^)]*\)/i, '')
         .toUpperCase();
+      const borrowerLine = (data.borrowerNames&&data.borrowerNames.length)? `Đối với hộ vay ${data.borrowerNames.map(n=>escapeHtml(n)).join(', ')}` : '';
       root.innerHTML = `
-        <div class="center-screen">
+        <div class="center-screen" style="${isUnpaid?'padding-bottom:90px;':''}">
           <div class="auth-card" style="max-width:640px; text-align:left;">
             <div style="text-align:center; border-bottom:2px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
               ${data.wardLabel? `<div style="font-weight:800; text-transform:uppercase; font-size:14px;">HỘI NÔNG DÂN ${escapeHtml(data.wardLabel.toUpperCase())}</div>` : ''}
               ${data.provinceLabel? `<div style="font-weight:600; font-size:13px;">${escapeHtml(data.provinceLabel)}</div>` : ''}
               <div style="font-weight:800; font-size:16px; margin-top:8px;">${escapeHtml(plainTitle)}</div>
-              <div class="sub" style="margin-top:4px; color:#0d47a1; font-weight:700;">Thời gian xuất: ${exportTimeLbl}</div>
+              ${borrowerLine? `<div style="font-weight:700; font-size:13px; margin-top:4px;">${borrowerLine}</div>` : ''}
+              <div class="sub" style="margin-top:4px; color:${isUnpaid?'#b71c1c':'#0d47a1'}; font-weight:700;">Thời gian xuất: ${exportTimeLbl}</div>
             </div>
-            <p class="sub" style="color:#1b5e20; font-weight:700; margin:6px 0 14px;">Biên lai này đã được lập thành công, Biên lai này Không thể xoá/sửa nội dung bởi bất kỳ ai, được bảo chứng bởi Hoinongdan.sotay.org</p>
+            ${isUnpaid? `
+            <p style="color:#000; margin:6px 0 14px; padding:10px 12px; border:2px solid #b71c1c; border-radius:8px;">Biên lai này CHƯA được thanh toán. Biên lai này sẽ tự mất sau 7 nếu chưa thanh toán. Nếu đã thanh toán xong, Biên lai sẽ tự động chuyển thành trạng thái đã thanh toán (lúc này biên lai sẽ không thể bị xoá/sửa bởi bất kỳ ai). Có thể thoát ra rồi quay lại đây (hoặc tải lại trang web) để xem trạng thái mới nhất của Biên lai (đã thanh toán hay chưa)</p>
+            ` : `
+            <p class="sub" style="color:#1b5e20; font-weight:700; margin:6px 0 14px;">Biên lai này đã được Thanh toán Thành công, Biên lai này Không thể xoá/sửa nội dung bởi bất kỳ ai, được bảo chứng bởi Hoinongdan.sotay.org</p>
+            `}
             ${data.html||''}
             <div style="text-align:center; margin-top:14px;" id="prc-adv-wrap"></div>
             <div style="text-align:center; border-top:2px solid var(--line); margin-top:20px; padding-top:12px;">
               <a href="https://hoinongdan.sotay.org" style="color:#0d47a1; text-decoration:none; font-weight:700;">https://hoinongdan.sotay.org</a>
             </div>
           </div>
+          ${isUnpaid? `
+          <div style="position:fixed; left:0; right:0; bottom:0; padding:14px; background:rgba(255,255,255,.95); box-shadow:0 -4px 12px rgba(0,0,0,.15); text-align:center; z-index:50;">
+            <button type="button" class="preview-allow" id="upp-pay-btn" style="width:100%; max-width:600px; padding:16px; border:none; border-radius:10px; background:linear-gradient(90deg, #d32f2f 0%, #ff6f00 100%); color:#fff; font-weight:800; font-size:15px; cursor:pointer;"><span class="dancing-project-name" style="animation-duration:1.4s;">Bấm vào đây để thanh toán Số tiền này bằng hình thức chuyển khoản</span></button>
+          </div>` : ''}
         </div>`;
       // Khối "Thông tin nâng cao" đã có sẵn trong snapshot (bị ẩn theo style="display:none") — chỉ
-      // cần dựng lại đúng 1 nút bấm để bật/tắt nó, y hệt cách hoạt động trong Hộp Biên lai.
+      // cần dựng lại đúng 1 nút bấm để bật/tắt nó, y hệt cách hoạt động trong Hộp Biên lai. Tên nút
+      // đổi qua lại giữa "Thông tin nâng cao" / "Ẩn thông tin nâng cao" theo đúng trạng thái.
       const advInfoEl = root.querySelector('[id$="-adv-info"]');
       const advWrap = root.querySelector('#prc-adv-wrap');
       if(advInfoEl && advWrap){
+        const setAdvBtnLabel = (open)=>{ const btn = advWrap.querySelector('#prc-adv-toggle'); if(btn) btn.textContent = open? 'Ẩn thông tin nâng cao' : 'Thông tin nâng cao'; };
         advWrap.innerHTML = `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="prc-adv-toggle">Thông tin nâng cao</button>`;
         advWrap.querySelector('#prc-adv-toggle').onclick = ()=>{
-          advInfoEl.style.display = advInfoEl.style.display==='none' ? 'block' : 'none';
+          const opening = advInfoEl.style.display==='none';
+          advInfoEl.style.display = opening ? 'block' : 'none';
+          setAdvBtnLabel(opening);
         };
       }
+      const payBtn = document.getElementById('upp-pay-btn');
+      if(payBtn) payBtn.onclick = ()=> renderUnpaidPaymentQrModal(data, receiptId);
     })();
   }
   // Modal "Xem trước" dùng CHUNG cho mọi nút "Xuất file Word"/"In" gắn trong các modal khác — luôn
@@ -2932,23 +2953,27 @@
     const wardLabel = `${adminLevelLabel()} ${(cfg.wardName||'').trim()}`.trim();
     const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType : 'Tỉnh/Thành phố';
     const provinceLabel = (cfg.provinceName||'').trim() ? `${provType} ${(cfg.provinceName||'').trim()}` : '';
+    // Chụp lại ĐÚNG nội dung đang lập (các quý/tiền lãi/người đóng-thu...) — y hệt cách "Đường link"
+    // của biên lai đã lập thành công chụp lại nội dung modal, để không bị sơ sài chỉ có tổng tiền.
+    const bodyHtml = paymentCtx.contentEl ? stripInteractiveElementsHtml(paymentCtx.contentEl) : '';
+    const borrowerIds = {};
+    (paymentCtx.borrowerIds||[]).forEach(id=> borrowerIds[id] = true);
     const record = {
-      code, title: paymentCtx.title||'Biên lai', amount: paymentCtx.amount||0, borrowerNames: paymentCtx.borrowerNames||[],
+      title: paymentCtx.title||'BL Biên lai', html: bodyHtml, amount: paymentCtx.amount||0, borrowerNames: paymentCtx.borrowerNames||[], borrowerIds,
       wardLabel, provinceLabel, bankInfo: cfg.bankInfo||{}, status:'unpaid',
-      wardId: wardId(), createdAt: new Date().toISOString(),
+      wardId: wardId(), createdAt: new Date().toISOString(), savedAt: new Date().toISOString(),
     };
-    try{ await rtdb.ref('unpaidReceipts/'+code).set(record); }
+    try{ await rtdb.ref('receipts/'+code).set(record); }
     catch(e){ console.error('Không tạo được Biên lai chưa thanh toán:', e); alert('Có lỗi khi tạo Biên lai chưa thanh toán: '+(e&&e.message||e)); return; }
     renderUnpaidReceiptLinkModal(code);
   }
-  function unpaidReceiptLink(code){
-    return `${window.location.origin}${window.location.pathname}#/bienlai-cho/${encodeURIComponent(code)}`;
-  }
-  function renderUnpaidReceiptLinkModal(code){
+  function unpaidReceiptLink(code){ return publicReceiptLink(code); }
+  function renderUnpaidReceiptLinkModal(code, opts){
+    opts = opts || {};
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
-    const close = ()=> wrap.remove();
+    const close = ()=>{ wrap.remove(); if(opts.onClose) opts.onClose(); };
     const link = unpaidReceiptLink(code);
     wrap.innerHTML = `
       <div class="modal" style="max-width:520px;">
@@ -2964,10 +2989,35 @@
           <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này - để cho Hộ vay hoặc mọi người cùng xem Biên lai, và thanh toán trực tiếp qua số tài khoản hoặc mã QR (trong đường link này). có thể chia sẻ đường link qua Messenger, Zalo hoặc các kênh chia sẻ khác.</p>
           <p class="sub" style="color:#b71c1c; font-weight:700; margin-top:10px;">Biên lai chưa thanh toán này đã được tạo thành công, và sẽ ở trong Hộp Biên lai chưa thanh toán (trong Kho biên lai), các Biên lai chưa thanh toán sẽ tự xoá sau 7 ngày nếu không được thanh toán.</p>
         </div>
-        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="upl-close2">Đóng bảng</button></div>
+        <div class="modal-foot">
+          ${opts.showDelete? `
+            <button class="btn btn-ghost preview-allow" id="upl-delete" style="color:var(--red);">🗑️ Xoá Biên lai này</button>
+            <button class="btn preview-allow" id="upl-markpaid" style="background:#1b5e20; color:#fff; border:none;">✅ Xác nhận đã Thanh toán xong</button>
+          ` : ''}
+          <button class="btn btn-ghost preview-allow" id="upl-close2" style="margin-left:auto;">Đóng bảng</button>
+        </div>
       </div>`;
     wrap.querySelector('#upl-close').onclick = close;
     wrap.querySelector('#upl-close2').onclick = close;
+    const deleteBtn = wrap.querySelector('#upl-delete');
+    if(deleteBtn) deleteBtn.onclick = async ()=>{
+      if(!confirm('Bạn có CHẮC CHẮN muốn xoá Biên lai chưa thanh toán này không? Khi xoá thì đường link Biên lai sẽ MẤT LUÔN và KHÔNG THỂ khôi phục lại được.')) return;
+      try{ await rtdb.ref('receipts/'+code).remove(); }
+      catch(e){ console.error('Không xoá được:', e); alert('Có lỗi khi xoá: '+(e&&e.message||e)); return; }
+      wrap.remove();
+      if(opts.onDeleted) opts.onDeleted();
+      showBigToast('Biên lai chưa thanh toán đã bị XOÁ vĩnh viễn');
+    };
+    const markPaidBtn = wrap.querySelector('#upl-markpaid');
+    if(markPaidBtn) markPaidBtn.onclick = async ()=>{
+      if(!confirm('Bạn có CHẮC CHẮN Biên lai này đã được Thanh toán xong không? Sau khi xác nhận, Biên lai sẽ chuyển sang trạng thái Đã thanh toán, giữ nguyên mã và đường link như cũ.')) return;
+      try{
+        await rtdb.ref('receipts/'+code).update({ status:'paid', createdAt: new Date().toISOString() });
+      }catch(e){ console.error('Không xác nhận thanh toán được:', e); alert('Có lỗi khi xác nhận: '+(e&&e.message||e)); return; }
+      wrap.remove();
+      if(opts.onDeleted) opts.onDeleted(); // biên lai không còn ở trạng thái "chưa thanh toán" nữa -> lược khỏi danh sách hộp chưa thanh toán y hệt như xoá
+      showBigToast('Đã xác nhận Thanh toán thành công!');
+    };
     wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
     wrap.querySelector('#upl-copy').onclick = ()=>{ writeClipboardSilent(link); showToast('Đã sao chép đường link!'); };
     wrap.querySelector('#upl-view').onclick = ()=> window.open(link, '_blank');
@@ -2979,57 +3029,14 @@
   }
   function wireSendPaymentLinkBtn(wrap, idPrefix, getCtx){
     const btn = wrap.querySelector(`#${idPrefix}-sendlink`);
-    if(btn) btn.onclick = ()=>{
+    if(btn) btn.onclick = async ()=>{
       const ctx = getCtx();
       if(!ctx || !ctx.amount || ctx.amount<=0){ alert('Chưa xác định được số tiền — vui lòng chọn đủ thông tin trước khi gửi đường link thanh toán.'); return; }
+      const bid = (ctx.borrowerIds||[])[0];
+      const bname = (ctx.borrowerNames||[])[0]||'';
+      if(bid && !(await assertNoUnpaidReceiptLock(bid, bname))) return;
       renderSendPaymentLinkModal(ctx, null);
     };
-  }
-  function publicUnpaidReceiptRouteId(){
-    const m = (window.location.hash||'').match(/^#\/bienlai-cho\/(.+)$/);
-    return m ? decodeURIComponent(m[1]) : null;
-  }
-  function renderPublicUnpaidReceiptPage(code){
-    document.body.classList.add('public-survey-mode');
-    root.innerHTML = '<div class="center-screen">Đang tải biên lai…</div>';
-    (async ()=>{
-      let data = null;
-      try{
-        const snap = await rtdb.ref('unpaidReceipts/'+code).get();
-        data = (snap && snap.exists()) ? snap.val() : null;
-      }catch(e){ console.error('[Biên lai chưa thanh toán] Không tải được:', e); data = null; }
-      if(!data){
-        root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">🧾</div><h1>Không tìm thấy biên lai</h1><p class="sub">Đường link này có thể không đúng, hoặc Biên lai chưa thanh toán đã hết hạn (7 ngày).</p></div></div>`;
-        return;
-      }
-      const isPaid = data.status==='paid';
-      const d = new Date(data.createdAt);
-      const exportTimeLbl = isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')} ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
-      const plainTitle = String(data.title||'Biên lai').replace(/^BL\b/i,'BIÊN LAI').replace(/\s*\(THEO CÁCH TÍNH[^)]*\)/i,'').toUpperCase();
-      root.innerHTML = `
-        <div class="center-screen" style="padding-bottom:90px;">
-          <div class="auth-card" style="max-width:640px; text-align:left;">
-            <div style="text-align:center; border-bottom:2px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-              ${data.wardLabel? `<div style="font-weight:800; text-transform:uppercase; font-size:14px;">HỘI NÔNG DÂN ${escapeHtml(data.wardLabel.toUpperCase())}</div>` : ''}
-              ${data.provinceLabel? `<div style="font-weight:600; font-size:13px;">${escapeHtml(data.provinceLabel)}</div>` : ''}
-              <div style="font-weight:800; font-size:16px; margin-top:8px;">${escapeHtml(plainTitle)}</div>
-              <div class="sub" style="margin-top:4px; ${!isPaid?'color:#b71c1c; font-weight:700;':''}">Thời gian xuất: ${exportTimeLbl}</div>
-            </div>
-            <p class="sub" style="color:${isPaid?'#1b5e20':'#b71c1c'}; font-weight:700; margin:6px 0 14px;">${isPaid? 'Biên lai này đã được THANH TOÁN THÀNH CÔNG.' : 'Biên lai này CHƯA được thanh toán. Biên lai này sẽ tự mất sau 7 nếu chưa thanh toán. Nếu đã thanh toán xong, Biên lai sẽ tự động chuyển thành trạng thái đã thanh toán (lúc này biên lai sẽ không thể bị xoá/sửa bởi bất kỳ ai). Có thể thoát ra rồi quay lại đây (hoặc tải lại trang web) để xem trạng thái mới nhất của Biên lai (đã thanh toán hay chưa)'}</p>
-            <div class="kv-row"><span>Số tiền cần thanh toán</span><b style="color:#1b5e20; font-size:16px;">${moneySpaced(data.amount)} đ</b></div>
-            ${(data.borrowerNames&&data.borrowerNames.length)? `<div class="divider-lbl" style="margin-top:14px;">Hộ vay liên quan</div><p>${data.borrowerNames.map(n=>escapeHtml(n)).join(', ')}</p>` : ''}
-            <div style="text-align:center; border-top:2px solid var(--line); margin-top:20px; padding-top:12px;">
-              <a href="https://hoinongdan.sotay.org" style="color:#0d47a1; text-decoration:none; font-weight:700;">https://hoinongdan.sotay.org</a>
-            </div>
-          </div>
-          ${!isPaid? `
-          <div style="position:fixed; left:0; right:0; bottom:0; padding:14px; background:rgba(255,255,255,.95); box-shadow:0 -4px 12px rgba(0,0,0,.15); text-align:center; z-index:50;">
-            <button type="button" class="preview-allow" id="upp-pay-btn" style="width:100%; max-width:600px; padding:16px; border:none; border-radius:10px; background:linear-gradient(90deg, #d32f2f 0%, #ff6f00 100%); color:#fff; font-weight:800; font-size:15px; cursor:pointer;"><span class="dancing-project-name" style="animation-duration:1.4s;">Bấm vào đây để thanh toán Số tiền này bằng hình thức chuyển khoản</span></button>
-          </div>` : ''}
-        </div>`;
-      const payBtn = document.getElementById('upp-pay-btn');
-      if(payBtn) payBtn.onclick = ()=> renderUnpaidPaymentQrModal(data, code);
-    })();
   }
   function renderUnpaidPaymentQrModal(data, code){
     const wrap = document.createElement('div');
@@ -4084,6 +4091,24 @@
       }
       return true;
     }catch(e){ console.error('Lỗi kiểm tra khoá an toàn:', e); return true; } // lỗi mạng -> không chặn, best-effort
+  }
+  // "Khoá an toàn" cho các biên lai CÓ THỂ tạo Biên lai chưa thanh toán (thu lãi theo Quý/theo tiền,
+  // tất toán, trả nợ trước hạn, thu lãi hộ đã tất toán còn nợ...) — nếu ĐÃ tồn tại 1 Biên lai chưa
+  // thanh toán liên quan tới CÙNG người vay này, thì chặn không cho "Gửi đường link thanh toán" hay
+  // "Xác nhận..." nữa, vì số liệu đang xem có thể đã lỗi thời (biên lai kia có thể sắp/vừa được thanh
+  // toán). Khoá chỉ hết tác dụng khi Biên lai chưa thanh toán đó không còn trong bộ nhớ đám mây nữa
+  // (xoá thủ công hoặc hệ thống tự xoá sau 7 ngày, hoặc sau này chuyển trạng thái thành đã thanh toán).
+  async function assertNoUnpaidReceiptLock(borrowerId, borrowerName){
+    try{
+      const snap = await rtdb.ref('receipts').orderByChild('wardId').equalTo(wardId()).get();
+      const val = (snap && snap.exists()) ? snap.val() : {};
+      const conflict = Object.values(val).some(r=> r.status==='unpaid' && r.borrowerIds && r.borrowerIds[borrowerId]);
+      if(conflict){
+        alert(`⚠️ Không thể lưu biên lai này — đã có 1 Biên lai CHƯA THANH TOÁN liên quan đến tiền lãi của hộ vay "${borrowerName}", khiến số liệu bạn đang xem có thể đã lỗi thời.\n\nVui lòng vào "Hộp Biên lai chưa thanh toán" (trong Kho biên lai) để xem Biên lai đó, hoặc xoá Biên lai đó đi (nếu không còn cần dùng) để có thể tiếp tục lập biên lai mới cho hộ vay này.`);
+        return false;
+      }
+      return true;
+    }catch(e){ console.error('Lỗi kiểm tra khoá an toàn (biên lai chưa thanh toán):', e); return true; } // lỗi mạng -> không chặn, best-effort
   }
   // Tính TOÀN BỘ trạng thái hiện hành của Hộp tiền — luôn tính động từ dữ liệu thô + "hộp chứa Quý"
   // hiện tại, nên tự động đúng theo mọi thay đổi (mốc Quý, lãi suất, gia hạn...).
@@ -12637,14 +12662,20 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wrap.querySelector('#upb-close').onclick = close;
       wrap.querySelector('#upb-close2').onclick = close;
       wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
-      wrap.querySelectorAll('[data-unpaid-view]').forEach(el=> el.onclick = ()=> window.open(unpaidReceiptLink(el.dataset.unpaidView), '_blank'));
+      wrap.querySelectorAll('[data-unpaid-view]').forEach(el=> el.onclick = ()=>{
+        const code = el.dataset.unpaidView;
+        renderUnpaidReceiptLinkModal(code, {
+          showDelete: true,
+          onDeleted: ()=>{ list = (list||[]).filter(r=>r.code!==code); render(); },
+        });
+      });
     }
     render();
     (async ()=>{
       try{
-        const snap = await rtdb.ref('unpaidReceipts').orderByChild('wardId').equalTo(wardId()).get();
+        const snap = await rtdb.ref('receipts').orderByChild('wardId').equalTo(wardId()).get();
         const val = (snap && snap.exists()) ? snap.val() : {};
-        list = Object.values(val).filter(r=>r.status!=='paid').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+        list = Object.entries(val).filter(([,r])=>r.status==='unpaid').map(([code,r])=>({ ...r, code })).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
       }catch(e){ console.error('Không tải được Hộp biên lai chưa thanh toán:', e); list = []; }
       render();
     })();
@@ -13569,7 +13600,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const label = m[1].trim();
         const amount = m[3].replace(/\s+/g,' ').trim();
         const isTotal = /^Tổng/.test(label) && !/hộ vay:/.test(label);
-        out += `<div style="margin:8px 0;"><div${isTotal?' style="font-weight:800;"':''}>${escapeHtml(label)}</div><div style="text-align:right; ${isTotal?'color:#1b5e20; font-weight:800; font-size:15px;':'font-weight:700;'}">${m[2]} ${escapeHtml(amount)}</div></div>`;
+        const sepPrefix = m[2]==='=' ? '= ' : ''; // bỏ hẳn dấu ":" thừa trước số tiền — chỉ giữ dấu "="
+        out += `<div style="margin:8px 0;"><div${isTotal?' style="font-weight:800;"':''}>${escapeHtml(label)}</div><div style="text-align:right; ${isTotal?'color:#1b5e20; font-weight:800; font-size:15px;':'font-weight:700;'}">${sepPrefix}${escapeHtml(amount)}</div></div>`;
       } else {
         out += `<p class="sub" style="margin:6px 0;">${escapeHtml(trimmed)}</p>`;
       }
@@ -14376,7 +14408,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wrap.querySelector('#fsm-interest-toggle').onclick = ()=>{ includeInterest = !includeInterest; render(); };
       wireAdvancedInfo(wrap, 'fsm', (open)=>{ advOpen = open; });
       wireConfirmBtnBehavior(wrap, wrap.querySelector('#fsm-confirm'), openedAt);
-      wireSendPaymentLinkBtn(wrap, 'fsm', ()=>({ title:'Tất toán khoản vay', amount: grandTotal, borrowerNames:[b.name] }));
+      wireSendPaymentLinkBtn(wrap, 'fsm', ()=>({ title:'BL Tất toán khoản vay', amount: grandTotal, borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
       wrap.querySelector('#fsm-confirm').onclick = async ()=>{
         if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
         if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
@@ -14386,6 +14418,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(includeInterest && interestInfo.total>0){
           if(!(await assertInterestBoxStillFresh(b, snapshotTotalPaidAtOpen))) return;
         }
+        if(!(await assertNoUnpaidReceiptLock(b.id, b.name))) return;
         close(); // Bước 1
         showProcessingToast(); // Bước 2
         if(includeInterest && interestInfo.total>0) await settleInterestForClosure(b, false);
@@ -14924,7 +14957,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       if(heirEditBtn) heirEditBtn.onclick = ()=> openHeirEditor(b, heir, (newHeir)=>{ heir = newHeir; render(); });
       wireAdvancedInfo(wrap, 'erm', (open)=>{ advOpen = open; });
       wireConfirmBtnBehavior(wrap, wrap.querySelector('#erm-confirm'), openedAt);
-      wireSendPaymentLinkBtn(wrap, 'erm', ()=>({ title:'Trả nợ trước hạn', amount: principal + (includeInterest? interestInfo.total : 0), borrowerNames:[b.name] }));
+      wireSendPaymentLinkBtn(wrap, 'erm', ()=>({ title:'BL Trả nợ trước hạn', amount: principal + (includeInterest? interestInfo.total : 0), borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
       wrap.querySelector('#erm-confirm').onclick = async ()=>{
         if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
         if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
@@ -14938,6 +14971,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(includeInterest && interestInfo.total>0){
           if(!(await assertInterestBoxStillFresh(b, snapshotTotalPaidAtOpen))) return;
         }
+        if(!(await assertNoUnpaidReceiptLock(b.id, b.name))) return;
         close(); // Bước 1
         showProcessingToast(); // Bước 2
         if(includeInterest && interestInfo.total>0) await settleInterestForClosure(b, upToToday);
@@ -16227,7 +16261,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const totalInput = wrap.querySelector('#rcpt-grandtotal');
       const errorEl = wrap.querySelector('#rcpt-error');
       const confirmBtn = wrap.querySelector('#rcpt-confirm');
-      wireSendPaymentLinkBtn(wrap, 'rcpt', ()=>({ title:'Thu tiền lãi (theo cách tính Quý)', amount: currentGrandTotal(), borrowerNames:[b.name] }));
+      wireSendPaymentLinkBtn(wrap, 'rcpt', ()=>({ title:'BL Thu tiền lãi (theo cách tính Quý)', amount: currentGrandTotal(), borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
       const maxAllowed = computeInterestPaymentBoxDisplay(b).unpaidTotal + computeInterestPaymentBoxDisplay(b).futureUnpaidTotal;
       const setError = (msg)=>{
         if(errorEl){ errorEl.textContent = msg||''; errorEl.style.display = msg? 'block' : 'none'; }
@@ -16349,6 +16383,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const collectorName = (wrap.querySelector('#rcpt-collector').value||'').trim();
         if(!payerName || !collectorName){ alert('Vui lòng điền đầy đủ "Người đóng tiền" và "Người thu tiền" trước khi xác nhận.'); return; }
         if(!(await assertInterestBoxStillFresh(b, snapshotTotalPaidAtOpen))) return;
+        if(!(await assertNoUnpaidReceiptLock(b.id, b.name))) return;
         close(); // Bước 1: đóng ngay bảng đang thao tác
         showProcessingToast(); // Bước 2: hiện thông báo "Hệ thống đang xử lý..."
         const raw = getInterestPaymentBoxRaw(b.id);
@@ -16530,7 +16565,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       if(prevToggleBtn) prevToggleBtn.onclick = ()=>{ usePrevLeftover = !usePrevLeftover; updateResults(); };
 
       const confirmBtn = wrap.querySelector('#mrcpt-confirm');
-      wireSendPaymentLinkBtn(wrap, 'mrcpt', ()=>({ title:'Thu tiền lãi (theo cách tính tiền cụ thể)', amount: lastFinalAmountForPayment, borrowerNames:[b.name] }));
+      wireSendPaymentLinkBtn(wrap, 'mrcpt', ()=>({ title:'BL Thu tiền lãi (theo cách tính tiền cụ thể)', amount: lastFinalAmountForPayment, borrowerNames:[b.name], borrowerIds:[b.id], contentEl: wrap.querySelector('.modal-body') }));
       if(confirmBtn) confirmBtn.addEventListener('mouseenter', ()=>{
         if(confirmBtn.dataset.locked==='1') return;
         const body = wrap.querySelector('.modal-body');
@@ -16544,6 +16579,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const collectorName = (wrap.querySelector('#rcpt-collector').value||'').trim();
         if(!payerName || !collectorName){ alert('Vui lòng điền đầy đủ "Người đóng tiền" và "Người thu tiền" trước khi xác nhận.'); return; }
         if(!(await assertInterestBoxStillFresh(b, snapshotTotalPaidAtOpen))) return;
+        if(!(await assertNoUnpaidReceiptLock(b.id, b.name))) return;
         close(); // Bước 1
         showProcessingToast(); // Bước 2
         const raw = getInterestPaymentBoxRaw(b.id);
@@ -21028,12 +21064,9 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   }
 
   const _publicReceiptId = publicReceiptRouteId();
-  const _publicUnpaidId = publicUnpaidReceiptRouteId();
   const _publicSurveyId = publicSurveyRouteId();
   if(_publicReceiptId){
     renderPublicReceiptPage(_publicReceiptId);
-  } else if(_publicUnpaidId){
-    renderPublicUnpaidReceiptPage(_publicUnpaidId);
   } else if(_publicSurveyId){
     renderPublicSurveyPage(_publicSurveyId);
   } else {
