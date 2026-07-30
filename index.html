@@ -480,6 +480,11 @@
     12.5%, 37.5%, 62.5%, 87.5%{ transform:scale(1.2); }
   }
   .heirvis-pulse{ display:inline-block; animation: heirVisPulse4x 1.2s ease-in-out; transform-origin:left center; }
+  @keyframes flashBlueBorder5x{
+    0%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%{ border-color:#0d47a1; opacity:1; }
+    5%, 15%, 25%, 35%, 45%, 55%, 65%, 75%, 85%, 95%{ border-color:transparent; opacity:.4; }
+  }
+  .flash-blue-border{ animation: flashBlueBorder5x 2.5s linear; }
   .dancing-name{ display:inline-block; animation: nameDance 1.5s ease-in-out infinite; cursor:pointer; transition:transform .15s ease, color .15s ease; transform-origin:left center; }
   .dancing-name:hover{ animation-play-state:paused; transform:scale(1.3) !important; }
   .dancing-name.name-selected{ animation:none !important; transform:scale(1.3) !important; color:#0d47a1; font-weight:800; }
@@ -2146,6 +2151,65 @@
       };
     });
   }
+  const UNPAID_RECEIPT_LIFETIME_MS = 7*24*60*60*1000; // 7 ngày
+  // Khung viền đỏ "Thời gian còn lại để thanh toán..." — dùng CHUNG cho mọi nơi hiển thị Biên lai
+  // chưa thanh toán (đường link công khai, modal đường link lúc lập/lúc xem lại trong Hộp). Tự cập
+  // nhật theo thời gian thực (không đếm giây, chỉ làm tròn xuống phút) và TỰ ĐỘNG xoá vĩnh viễn Biên
+  // lai khỏi đám mây (kèm luôn đường link/mã biên lai) ngay khi đếm về 0.
+  function unpaidReceiptCountdownHtml(elId){
+    return `<p id="${elId}" style="color:#000; margin:6px 0 14px; padding:10px 12px; border:2px solid #b71c1c; border-radius:8px;"></p>`;
+  }
+  function wireUnpaidReceiptCountdown(elId, createdAt, code){
+    const createdMs = new Date(createdAt).getTime();
+    const deadlineMs = createdMs + UNPAID_RECEIPT_LIFETIME_MS;
+    let timer = null;
+    function update(){
+      const el = document.getElementById(elId);
+      if(!el){ if(timer) clearInterval(timer); return; } // phần tử đã bị gỡ khỏi trang (đóng modal...) -> dừng hẳn
+      const remainMs = deadlineMs - Date.now();
+      if(remainMs<=0){
+        el.textContent = 'Thời gian Tồn tại của Biên lai này chỉ còn 0 phút (nếu vẫn chưa được phê duyệt thanh toán xong)';
+        if(timer) clearInterval(timer);
+        // Hết hạn thật sự -> xoá vĩnh viễn Biên lai chưa thanh toán khỏi đám mây (kèm đường link/mã).
+        rtdb.ref('receipts/'+code).remove().catch(e=> console.error('Không tự xoá được Biên lai hết hạn:', e));
+        return;
+      }
+      const totalMinutes = Math.floor(remainMs/60000);
+      const days = Math.floor(totalMinutes/1440);
+      const hours = Math.floor((totalMinutes%1440)/60);
+      const minutes = totalMinutes%60;
+      const parts = [];
+      if(days>0) parts.push(`${days} ngày`); // 0 ngày -> ẩn hẳn, không hiện ra
+      parts.push(`${hours} giờ`);
+      parts.push(`${minutes} phút`);
+      el.textContent = `Thời gian Tồn tại của Biên lai này chỉ còn ${parts.join(' ')} (nếu vẫn chưa được phê duyệt thanh toán xong)`;
+    }
+    update();
+    timer = setInterval(update, 15000); // không cần đếm giây -> cập nhật mỗi 15 giây là đủ mượt
+  }
+  // Khung viền xanh dương "Thời gian chờ duyệt: đã trải qua..." — đếm XUÔI (không phải đếm ngược) kể
+  // từ mốc `paymentRequestedAt` (LẦN ĐẦU TIÊN bấm "Tiếp tục xác nhận"). Có đếm cả giây (khác với khung
+  // đếm ngược 7 ngày ở trên) nên cập nhật mỗi giây, đếm mãi cho tới khi phần tử bị gỡ khỏi trang (biên
+  // lai đã được duyệt hoặc bị xoá tự động, làm trang tự vẽ lại và khung này không còn nữa).
+  function unpaidReceiptWaitingHtml(elId){
+    return `<p id="${elId}" style="color:#000; margin:6px 0 14px; padding:10px 12px; border:2px solid #0d47a1; border-radius:8px;"></p>`;
+  }
+  function wireUnpaidReceiptWaitingTimer(elId, paymentRequestedAt){
+    const startMs = new Date(paymentRequestedAt).getTime();
+    let timer = null;
+    function update(){
+      const el = document.getElementById(elId);
+      if(!el){ if(timer) clearInterval(timer); return; }
+      const elapsedMs = Math.max(0, Date.now() - startMs);
+      const totalSeconds = Math.floor(elapsedMs/1000);
+      const hours = Math.floor(totalSeconds/3600);
+      const minutes = Math.floor((totalSeconds%3600)/60);
+      const seconds = totalSeconds%60;
+      el.textContent = `Thời gian chờ duyệt: đã trải qua ${hours} giờ ${String(minutes).padStart(2,'0')} phút ${String(seconds).padStart(2,'0')} giây`;
+    }
+    update();
+    timer = setInterval(update, 1000);
+  }
   function cleanReceiptContentClone(sourceEl){
     const clone = sourceEl.cloneNode(true);
     clone.querySelectorAll('p').forEach(p=>{ if(/^Biên lai này được lập vào/.test((p.textContent||'').trim())) p.remove(); });
@@ -2161,6 +2225,15 @@
     // tự thêm lại đúng 1 dòng text tĩnh khớp với lựa chọn thật (dựa vào dữ liệu replay đã lưu).
     const ermRadio = clone.querySelector('input[name="erm-mode"]');
     if(ermRadio){ const wrapDiv = ermRadio.closest('div'); if(wrapDiv) wrapDiv.remove(); }
+    // Các khối .field có nhãn "Người trả nợ"/"Người nhận tiền"/"Người đóng tiền"/"Người thu tiền"/
+    // "Lý do trả nợ trước hạn" — sau khi loại input/textarea sẽ để lại NHÃN MỒ CÔI (không có giá trị đi
+    // kèm), gây trùng lặp với khối text tĩnh (CÓ giá trị thật) đã được chèn thêm ở nơi gọi hàm này. Xoá
+    // hẳn các khối .field gốc này đi, chỉ giữ lại đúng 1 bản có giá trị thật.
+    const orphanLabels = ['Người trả nợ','Người nhận tiền','Người đóng tiền','Người thu tiền','Lý do trả nợ trước hạn'];
+    clone.querySelectorAll('.field').forEach(field=>{
+      const lbl = field.querySelector('label');
+      if(lbl && orphanLabels.includes((lbl.textContent||'').trim())) field.remove();
+    });
     return clone;
   }
   async function renderReceiptLinkModal(receiptId, title, contentSelectorEl, createdAt, borrowerNames){
@@ -2217,11 +2290,12 @@
     root.innerHTML = '<div class="center-screen">Đang tải biên lai…</div>';
     let notFoundShown = false;
     let lastAdvOpen = false; // giữ nguyên trạng thái đóng/mở "Thông tin nâng cao" qua các lần vẽ lại
+    let prevPaymentRequestedAt = undefined; // để phát hiện ĐÚNG thời điểm vừa chuyển từ "chưa yêu cầu duyệt" sang "đã yêu cầu duyệt"
     function renderContent(data){
       if(!data){
         if(!notFoundShown){
           notFoundShown = true;
-          root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">🧾</div><h1>Không tìm thấy biên lai</h1><p class="sub">Đường link này có thể không đúng hoặc biên lai chưa từng được chia sẻ.</p></div></div>`;
+          root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">🧾</div><h1>Không tìm thấy biên lai</h1><p class="sub">Đường link này có thể không đúng hoặc chưa từng được chia sẻ. Nếu là "Biên lai CHƯA thanh toán" thì có thể nó đã hết hạn hoặc bị xóa.</p></div></div>`;
         }
         return;
       }
@@ -2234,6 +2308,11 @@
         .replace(/\s*\(THEO CÁCH TÍNH[^)]*\)/i, '')
         .toUpperCase();
       const borrowerLine = (data.borrowerNames&&data.borrowerNames.length)? `Đối với hộ vay ${data.borrowerNames.map(n=>escapeHtml(n)).join(', ')}` : '';
+      // Tiêu đề trang web (hiện phía trên tên tab trình duyệt, và khi xem trước đường link lúc chia sẻ
+      // qua Messenger/Zalo...) — KHÁC HẲN tiêu đề trang chủ chính (chỉ mỗi "Hoinongdan.sotay.org").
+      const pageTitleReceiptName = String(data.title||'Biên lai').replace(/^BL\b/i, 'Biên lai').replace(/\s*\(THEO CÁCH TÍNH[^)]*\)/i, '');
+      const firstBorrowerForTitle = (data.borrowerNames&&data.borrowerNames[0]) || '';
+      document.title = `${pageTitleReceiptName}${firstBorrowerForTitle? ` đối với hộ vay ${firstBorrowerForTitle}` : ''} - Hoinongdan.sotay.org`;
       root.innerHTML = `
         <div class="center-screen" style="${isUnpaid?'padding-bottom:90px;':''}">
           <div class="auth-card" style="max-width:640px; text-align:left;">
@@ -2246,11 +2325,11 @@
             </div>
             ${isUnpaid? `
             ${data.paymentRequestedAt? `
-            <p style="color:#000; margin:6px 0 10px; padding:10px 12px; border:2px solid #0d47a1; border-radius:8px;">Biên Lai này đang chờ duyệt thanh toán bởi người tạo ra Biên lai này. Biên lai có thể tự động chuyển sang trạng thái Đã thanh toán xong một cách tức thì (ngay sau khi được duyệt) mà không cần tải lại trang web. Nhanh nhất là sau 5 giây sẽ được duyệt, chậm nhất là sau 24 giờ. Nếu quá 24h mà chưa thấy được duyệt (Biên lai chưa chuyển trạng thái), Hãy liên hệ qua Số điện thoại chủ tài khoản ở bên dưới HOẶC liên hệ cán bộ Hội Nông dân xã/phường.</p>
+            <p id="prc-blue-box" style="color:#000; margin:6px 0 10px; padding:10px 12px; border:2px solid #0d47a1; border-radius:8px;">Biên Lai này đang chờ duyệt thanh toán bởi người tạo ra Biên lai này. Biên lai có thể tự động chuyển sang trạng thái Đã thanh toán xong một cách tức thì (ngay sau khi được duyệt) mà không cần tải lại trang web. Nhanh nhất là sau 5 giây sẽ được duyệt, chậm nhất là sau 24 giờ. Nếu quá 24h mà chưa thấy được duyệt (Biên lai chưa chuyển trạng thái), Hãy liên hệ qua Số điện thoại chủ tài khoản${(data.bankInfo&&data.bankInfo.phone)?` (${escapeHtml(data.bankInfo.phone)})`:''} HOẶC liên hệ cán bộ Hội Nông dân xã/phường.</p>
+            ${unpaidReceiptWaitingHtml('prc-waiting')}
             ` : ''}
-            <p style="color:#000; margin:6px 0 14px; padding:10px 12px; border:2px solid #b71c1c; border-radius:8px;">${data.paymentRequestedAt
-              ? 'Biên lai này CHƯA được thanh toán. Biên lai này sẽ tự mất sau 7 ngày nếu chưa được duyệt và chưa chuyển trạng thái Đã thanh toán.'
-              : 'Biên lai này CHƯA được thanh toán. Biên lai này sẽ tự mất sau 7 ngày nếu chưa thanh toán. Biên lai có thể tự động chuyển sang trạng thái Đã thanh toán xong một cách tức thì (ngay sau khi được duyệt) mà không cần tải lại trang web'}</p>
+            <p style="color:#000; margin:6px 0 14px; padding:10px 12px; border:2px solid #b71c1c; border-radius:8px;">Biên lai này CHƯA được thanh toán. Biên lai này sẽ tự mất sau 7 ngày nếu chưa được duyệt (chưa chuyển trạng thái Đã thanh toán).</p>
+            ${unpaidReceiptCountdownHtml('prc-countdown')}
             ` : `
             <p class="sub" style="color:#1b5e20; font-weight:700; margin:6px 0 14px;">Biên lai này đã được Thanh toán Thành công, Biên lai này Không thể xoá/sửa nội dung bởi bất kỳ ai, được bảo chứng bởi Hoinongdan.sotay.org</p>
             `}
@@ -2282,15 +2361,33 @@
       if(advInfoEl && advWrap){
         const setAdvBtnLabel = (open)=>{ const btn = advWrap.querySelector('#prc-adv-toggle'); if(btn) btn.textContent = open? 'Ẩn thông tin nâng cao' : 'Thông tin nâng cao'; };
         advWrap.innerHTML = `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="prc-adv-toggle">Thông tin nâng cao</button>`;
+        // Di chuyển hẳn khối nội dung nâng cao (vốn nằm ở vị trí cũ bên trong nội dung Biên lai) ra
+        // NGAY DƯỚI nút bấm này — để nó luôn hiện đúng ngay dưới nút, không lẫn vào giữa nội dung khác.
+        advWrap.appendChild(advInfoEl);
+        advInfoEl.style.textAlign = 'left';
         advInfoEl.style.display = lastAdvOpen? 'block' : 'none';
         setAdvBtnLabel(lastAdvOpen);
         advWrap.querySelector('#prc-adv-toggle').onclick = ()=>{
           lastAdvOpen = advInfoEl.style.display==='none';
           advInfoEl.style.display = lastAdvOpen ? 'block' : 'none';
           setAdvBtnLabel(lastAdvOpen);
+          if(lastAdvOpen){
+            // Cuộn nhẹ xuống thêm 1 xíu để thấy vài dòng đầu của thông tin nâng cao vừa mở ra.
+            setTimeout(()=> window.scrollBy({ top:120, behavior:'smooth' }), 60);
+          }
         };
       }
       const payBtn = document.getElementById('upp-pay-btn');
+      if(isUnpaid) wireUnpaidReceiptCountdown('prc-countdown', data.createdAt, receiptId);
+      if(isUnpaid && data.paymentRequestedAt) wireUnpaidReceiptWaitingTimer('prc-waiting', data.paymentRequestedAt);
+      // Vừa mới chuyển từ "chưa yêu cầu duyệt" sang "đã yêu cầu duyệt" (mới bấm "Tiếp tục xác nhận"
+      // xong) -> tự động cuộn lên đầu trang + cho khung viền xanh nhấp nháy (mất đi hiện lại 5 lần).
+      if(isUnpaid && data.paymentRequestedAt && prevPaymentRequestedAt===null){
+        window.scrollTo({ top:0, behavior:'smooth' });
+        const blueBox = document.getElementById('prc-blue-box');
+        if(blueBox){ blueBox.classList.remove('flash-blue-border'); void blueBox.offsetWidth; blueBox.classList.add('flash-blue-border'); }
+      }
+      prevPaymentRequestedAt = data.paymentRequestedAt || null;
       if(payBtn) payBtn.onclick = ()=> renderUnpaidPaymentQrModal(data, receiptId);
       const copySelfLinkBtn = document.getElementById('prc-copy-self-link');
       wireCopyButtonWithFeedback(copySelfLinkBtn, ()=> publicReceiptLink(receiptId), '📋 Sao chép');
@@ -3235,6 +3332,7 @@
               <button type="button" class="btn btn-primary btn-sm preview-allow" id="upl-copy" style="flex:1;">📋 Sao chép</button>
               <button type="button" class="btn btn-ghost btn-sm preview-allow" id="upl-view" style="flex:1;">🔍 Xem đường link</button>
             </div>
+            ${recordForSummary? unpaidReceiptCountdownHtml('upl-countdown') : ''}
             ${isEarlyRepayment? heirVisibilityToggleHtml('upl', hideHeirInfo) : ''}
             <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này - để cho Hộ vay hoặc mọi người cùng xem Biên lai, và thanh toán trực tiếp qua số tài khoản hoặc mã QR (trong đường link này). có thể chia sẻ đường link qua Messenger, Zalo hoặc các kênh chia sẻ khác.</p>
           </div>
@@ -3247,6 +3345,7 @@
           </div>
         </div>`;
       wireHeirVisibilityToggle(wrap, 'upl', code);
+      if(recordForSummary) wireUnpaidReceiptCountdown('upl-countdown', recordForSummary.createdAt, code);
       wireRest();
     }
     renderBody(false, false, null);
@@ -3377,7 +3476,12 @@
     if(copyPhoneBtn) wireCopyButtonWithFeedback(copyPhoneBtn, phone, 'Sao chép');
     wrap.querySelector('#pcr-continue').onclick = async ()=>{
       try{
-        await rtdb.ref('receipts/'+code).update({ paymentRequestedAt: new Date().toISOString() });
+        // CHỈ ghi mốc thời gian nếu CHƯA TỪNG có — dù bấm "Tiếp tục xác nhận" nhiều lần (sau khi nút bị
+        // khoá 1 phút rồi mở lại), mốc thời gian luôn giữ nguyên đúng LẦN ĐẦU TIÊN.
+        const curSnap = await rtdb.ref('receipts/'+code+'/paymentRequestedAt').get();
+        if(!curSnap || !curSnap.exists()){
+          await rtdb.ref('receipts/'+code).update({ paymentRequestedAt: new Date().toISOString() });
+        }
         // Gửi thông báo cá nhân tới ĐÚNG người đã tạo Biên lai chưa thanh toán này — không gửi cho ai
         // khác trong cùng mã xã/phường.
         if(data.createdByEmail){
@@ -4608,6 +4712,8 @@
         ? `Các hộ trên đều không có Lãi tồn chưa đóng`
         : [...rows.filter(r=>r.interestChecked).map(r=> `Tiền lãi đóng kèm theo ${r.b.name}: ${moneySpaced(r.interestAmt)}`), `Tổng tiền lãi đóng kèm theo của ${interestCount} hộ vay = ${moneySpaced(totalInterest)}`].join('\n'),
       `Số tiền thực tế nhận được = ${moneySpaced(replay.grandTotal)}`,
+      `Người trả nợ: ${replay.payerName||''}`,
+      `Người nhận tiền: ${replay.collectorName||''}`,
       `--- Thông tin nâng cao ---`,
       `Phương án vay: ${replay.projName}`,
       `Địa chỉ: ${allSameHamlet? (groupList[0].hamlet||'') : rows.map(r=>`${r.b.name}: ${r.b.hamlet||''}`).join('; ')}`,
@@ -4623,7 +4729,11 @@
       const snap = await rtdb.ref('receipts').get();
       const val = (snap && snap.exists()) ? snap.val() : {};
       const myWardId = wardId();
-      const conflict = Object.values(val).some(r=> r.status==='unpaid' && r.wardId===myWardId && r.borrowerIds && r.borrowerIds[borrowerId]);
+      // Biên lai chưa thanh toán đã QUÁ 7 NGÀY (dù chưa bị xoá vật lý khỏi đám mây, vì cơ chế tự xoá
+      // chỉ kích hoạt khi có người mở lại) -> coi như KHÔNG CÒN kích hoạt khoá an toàn nữa, y hệt như
+      // đã bị xoá hoặc đã được duyệt.
+      const conflict = Object.values(val).some(r=> r.status==='unpaid' && r.wardId===myWardId && r.borrowerIds && r.borrowerIds[borrowerId]
+        && (Date.now() - new Date(r.createdAt).getTime()) < UNPAID_RECEIPT_LIFETIME_MS);
       if(conflict){
         alert(`⚠️ Không thể lưu biên lai này — đã có 1 Biên lai CHƯA THANH TOÁN liên quan đến tiền lãi của hộ vay "${borrowerName}", khiến số liệu bạn đang xem có thể đã lỗi thời.\n\nVui lòng vào "Hộp Biên lai chưa thanh toán" (trong Kho biên lai) để xem Biên lai đó, hoặc xoá Biên lai đó đi (nếu không còn cần dùng) để có thể tiếp tục lập biên lai mới cho hộ vay này.`);
         return false;
@@ -6982,17 +7092,49 @@
     if(state._aiMicListening){ if(aiRecognition) aiRecognition.stop(); return; }
     aiRecognition = new SR();
     aiRecognition.lang = 'vi-VN';
-    aiRecognition.interimResults = false;
+    // Bật kết quả TẠM THỜI (interim) — để chữ hiện ra NGAY trong lúc đang nói (không cần đợi dừng hẳn
+    // mới thấy gì) — đây chính là nguyên nhân khiến trước đây tưởng như "không có gì xảy ra": trình
+    // duyệt vẫn đang nghe/xử lý, chỉ là KHÔNG hiện chữ nào cho tới khi coi là đã nói xong 1 câu.
+    aiRecognition.interimResults = true;
     aiRecognition.maxAlternatives = 1;
-    aiRecognition.onstart = ()=>{ state._aiMicListening = true; rerenderFn(); };
-    aiRecognition.onerror = ()=>{ state._aiMicListening = false; rerenderFn(); };
+    aiRecognition.continuous = false;
+    let baseValue = ''; // nội dung ĐÃ có sẵn trong ô nhập trước khi bắt đầu nói (giữ nguyên, chỉ nối thêm)
+    let finalTranscript = '';
+    aiRecognition.onstart = ()=>{
+      state._aiMicListening = true;
+      const inputEl = document.getElementById(targetInputId);
+      baseValue = inputEl ? inputEl.value : '';
+      finalTranscript = '';
+      rerenderFn();
+    };
+    aiRecognition.onerror = (e)=>{
+      state._aiMicListening = false;
+      rerenderFn();
+      // Báo lỗi RÕ RÀNG thay vì im lặng — các lỗi thường gặp: "not-allowed" (chưa cấp quyền micro),
+      // "no-speech" (không nghe thấy tiếng nói), "network" (cần kết nối Internet vì trình duyệt gửi âm
+      // thanh lên máy chủ để nhận dạng), "audio-capture" (không tìm thấy micro).
+      const reasons = { 'not-allowed':'Chưa được cấp quyền dùng micro — vui lòng cấp quyền micro cho trang web rồi thử lại.',
+        'no-speech':'Không nghe thấy giọng nói nào — vui lòng thử lại và nói to, rõ hơn.',
+        'network':'Lỗi kết nối mạng — nhận dạng giọng nói CẦN có Internet để hoạt động, vui lòng kiểm tra lại mạng.',
+        'audio-capture':'Không tìm thấy micro trên thiết bị này.' };
+      const msg = reasons[e.error] || `Có lỗi khi nhận dạng giọng nói (${e.error||'không rõ nguyên nhân'}).`;
+      console.error('[Nhận dạng giọng nói] Lỗi:', e.error, e);
+      alert(msg);
+    };
     aiRecognition.onend = ()=>{ state._aiMicListening = false; rerenderFn(); };
     aiRecognition.onresult = (e)=>{
-      const text = e.results[0][0].transcript;
+      let interimTranscript = '';
+      for(let i=e.resultIndex; i<e.results.length; i++){
+        const chunk = e.results[i][0].transcript;
+        if(e.results[i].isFinal) finalTranscript += chunk; else interimTranscript += chunk;
+      }
       const inputEl = document.getElementById(targetInputId);
-      if(inputEl) inputEl.value = (inputEl.value ? inputEl.value + ' ' : '') + text;
+      if(inputEl){
+        const joined = [baseValue, (finalTranscript+interimTranscript).trim()].filter(Boolean).join(' ');
+        inputEl.value = joined;
+      }
     };
-    try{ aiRecognition.start(); }catch(e){ /* đã start rồi thì bỏ qua */ }
+    try{ aiRecognition.start(); }catch(e){ console.error('[Nhận dạng giọng nói] Không khởi động được:', e); }
   }
   function toggleAiMic(){ toggleMicGeneric('ai-input', renderAiChatOverlay); }
   function toggleNotesMic(){ toggleMicGeneric('sn-input', renderSuperNotesOverlay); }
@@ -13298,9 +13440,17 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const snap = await rtdb.ref('receipts').get();
         const val = (snap && snap.exists()) ? snap.val() : {};
         const myWardId = wardId();
-        list = Object.entries(val)
+        const allUnpaidOfWard = Object.entries(val)
           .filter(([,r])=> r.status==='unpaid' && r.wardId===myWardId)
-          .map(([code,r])=>({ ...r, code }))
+          .map(([code,r])=>({ ...r, code }));
+        // Ngay khi mở Hộp này -> tiện thể "kích hoạt" luôn việc dọn dẹp các Biên lai chưa thanh toán
+        // đã quá hạn 7 ngày (dù trước đó chưa có ai mở lại để tự xoá) — xoá thật khỏi đám mây, không
+        // hiện ra trong danh sách nữa.
+        const expired = allUnpaidOfWard.filter(r=> (Date.now() - new Date(r.createdAt).getTime()) >= UNPAID_RECEIPT_LIFETIME_MS);
+        if(expired.length){
+          Promise.all(expired.map(r=> rtdb.ref('receipts/'+r.code).remove().catch(e=>console.error('Không tự xoá được Biên lai quá hạn:', r.code, e))));
+        }
+        list = allUnpaidOfWard.filter(r=> (Date.now() - new Date(r.createdAt).getTime()) < UNPAID_RECEIPT_LIFETIME_MS)
           .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
       }catch(e){ console.error('Không tải được Hộp biên lai chưa thanh toán:', e); list = []; }
       render();
@@ -15469,6 +15619,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             ${checklistHtml('interest')}
             <div class="kv-row" style="border-top:1px solid var(--line); padding-top:6px;"><span>Tổng tiền lãi chưa đóng của ${interestCount} hộ vay</span><b>= ${moneySpaced(totalInterest)}</b></div>`}
             <div class="kv-row big-money-row" style="border-top:2px solid var(--line); margin-top:10px; padding-top:8px;"><span>Số tiền thực tế nhận được</span><b>= ${moneySpaced(grandTotal)}</b></div>
+            <div class="field" style="margin-top:14px;"><label>Người trả nợ</label><input id="srp-payer" maxlength="30" class="preview-allow" value=""></div>
+            <div class="field"><label>Người nhận tiền</label><input id="srp-collector" maxlength="30" class="preview-allow" value="${escapeHtml((state.identity&&state.identity.name)||'')}"></div>
             <div style="text-align:center; margin-top:14px;"><button type="button" class="btn btn-ghost btn-sm preview-allow" id="srp-adv-toggle">Thông tin nâng cao</button></div>
             <div id="srp-adv-info" style="display:${advInfoOpen?'block':'none'}; margin-top:8px;">
               <p class="sub" style="margin:0 0 6px;">Phương án vay: ${escapeHtml(projName)}</p>
@@ -15515,9 +15667,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wireSendPaymentLinkBtn(wrap, 'srp', ()=>{
         const { grandTotal } = totals();
         const checkedRows = rows.filter(r=>r.principalChecked);
+        const payerName = (wrap.querySelector('#srp-payer').value||'').trim();
+        const collectorName = (wrap.querySelector('#srp-collector').value||'').trim();
         return { title:'BL chung: Tất toán khoản vay cho các hộ trong phương án vay '+projName, amount: grandTotal,
           borrowerNames: checkedRows.map(r=>r.b.name), borrowerIds: checkedRows.map(r=>r.b.id), contentEl: wrap.querySelector('.modal-body'),
-          replay: { applyFn:'shared_settlement', projName, grandTotal,
+          replay: { applyFn:'shared_settlement', projName, grandTotal, payerName, collectorName,
             rows: rows.map(r=>({ borrowerId:r.b.id, principal:r.principal, principalChecked:r.principalChecked, interestAmt:r.interestAmt, interestChecked:r.interestChecked })) } };
       }, async ()=>{
         const { totalPrincipal } = totals();
@@ -15538,6 +15692,9 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
         const { totalPrincipal, totalInterest, grandTotal, principalCount, interestCount } = totals();
         if(totalPrincipal<=0){ alert('Tổng tiền vay gốc phải lớn hơn 0 mới được lập biên lai này. Vui lòng tích chọn ít nhất 1 hộ vay có tiền gốc.'); return; }
+        const payerName = (wrap.querySelector('#srp-payer').value||'').trim();
+        const collectorName = (wrap.querySelector('#srp-collector').value||'').trim();
+        if(!payerName || !collectorName){ alert('Vui lòng điền đầy đủ "Người trả nợ" và "Người nhận tiền" trước khi xác nhận.'); return; }
         if(!confirm(`Bạn có CHẮC CHẮN muốn xác nhận tất toán khoản vay CHUNG cho ${principalCount} hộ vay trong phương án "${projName}" không?`)) return;
         for(const r of rows){
           if(!r.principalChecked || !r.interestChecked || r.interestAmt<=0) continue;
@@ -15566,6 +15723,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             ? `Các hộ trên đều không có Lãi tồn chưa đóng`
             : [...rows.filter(r=>r.interestChecked).map(r=> `Tiền lãi đóng kèm theo ${r.b.name}: ${moneySpaced(r.interestAmt)}`), `Tổng tiền lãi đóng kèm theo của ${interestCount} hộ vay = ${moneySpaced(totalInterest)}`].join('\n'),
           `Số tiền thực tế nhận được = ${moneySpaced(grandTotal)}`,
+          `Người trả nợ: ${payerName}`,
+          `Người nhận tiền: ${collectorName}`,
           `--- Thông tin nâng cao ---`,
           `Phương án vay: ${projName}`,
           `Địa chỉ: ${allSameHamlet? (groupList[0].hamlet||'') : rows.map(r=>`${r.b.name}: ${r.b.hamlet||''}`).join('; ')}`,
