@@ -492,6 +492,9 @@
   .dancing-header:hover{ animation-play-state:paused; transform:scale(1.3) !important; text-decoration:underline; }
   .dancing-project-name{ display:inline-block; animation: nameDance 1.5s ease-in-out infinite; cursor:pointer; transition:transform .15s ease; transform-origin:left center; }
   .dancing-project-name:hover{ animation-play-state:paused; transform:scale(1.3) !important; }
+  /* Nút "Bấm vào đây để thanh toán..." — GIỮ hiệu ứng nhảy múa, nhưng TẮT riêng hiệu ứng phóng to
+     khi rê chuột vào (khác với các nơi khác dùng chung class .dancing-project-name). */
+  .upp-pay-text:hover{ transform:none !important; animation-play-state:running !important; }
   @keyframes sideSlideIn{ 0%{ transform:translateX(100%); opacity:0; } 100%{ transform:translateX(0); opacity:1; } }
   @keyframes extPulseBlue{ 0%,100%{ background:#fff; } 50%{ background:#0d3b78; color:#fff; } }
   @keyframes extPulseRedLight{ 0%,100%{ background:#fff; color:#b71c1c; } 50%{ background:#ffcdd2; color:#b71c1c; } }
@@ -2105,9 +2108,9 @@
   // "Khảo sát công khai" (rtdb.ref('surveys/{id}')) — lưu 1 bản HTML đã lập SẴN (đóng băng, không thể
   // sửa) tại đường dẫn công khai `receipts/{mã biên lai}`, đường link dạng #/bienlai/{mã biên lai}. ----
   function publicReceiptLink(receiptId){
-    return `${window.location.origin}${window.location.pathname}#/bienlai/${encodeURIComponent(receiptId)}`;
+    return `${window.location.origin}/bienlai/${encodeURIComponent(receiptId)}`;
   }
-  async function ensurePublicReceiptSnapshot(receiptId, title, bodyHtml, createdAt, borrowerNames){
+  async function ensurePublicReceiptSnapshot(receiptId, title, bodyHtml, createdAt, borrowerNames, amount){
     try{
       const cfg = state.config||{};
       const wardLabel = `${adminLevelLabel()} ${(cfg.wardName||'').trim()}`.trim();
@@ -2116,7 +2119,7 @@
       // Dùng update() (GỘP thêm/ghi đè từng trường) thay vì set() (THAY THẾ TOÀN BỘ) — vì biên lai này
       // có thể đang dùng CHUNG đúng 1 mã với 1 Biên lai chưa thanh toán cũ đã chuyển trạng thái (để giữ
       // nguyên 1 đường link duy nhất cho cả 2 giai đoạn) — nếu dùng set() sẽ xoá mất status/bankInfo/...
-      await rtdb.ref('receipts/'+receiptId).update({ title, html: bodyHtml, wardLabel, provinceLabel, status:'paid', borrowerNames: borrowerNames||[], createdAt: createdAt||new Date().toISOString(), savedAt: new Date().toISOString() });
+      await rtdb.ref('receipts/'+receiptId).update({ title, html: bodyHtml, wardLabel, provinceLabel, status:'paid', borrowerNames: borrowerNames||[], amount: amount||0, createdAt: createdAt||new Date().toISOString(), savedAt: new Date().toISOString() });
     }catch(e){ console.error('Không lưu được đường link công khai cho biên lai:', e); throw e; }
   }
   // Modal nhỏ hiện đường link + nút Sao chép — dùng chung cho mọi loại biên lai.
@@ -2236,7 +2239,7 @@
     });
     return clone;
   }
-  async function renderReceiptLinkModal(receiptId, title, contentSelectorEl, createdAt, borrowerNames){
+  async function renderReceiptLinkModal(receiptId, title, contentSelectorEl, createdAt, borrowerNames, amount){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.innerHTML = `<div class="modal" style="max-width:520px;"><div class="modal-body" style="text-align:center; padding:28px 24px;"><div class="rice-badge">🔗</div><h3 style="margin:10px 0;">Đang tạo đường link…</h3></div></div>`;
@@ -2245,7 +2248,7 @@
     try{
       const clone = cleanReceiptContentClone(contentSelectorEl);
       const bodyHtml = stripInteractiveElementsHtml(clone);
-      await ensurePublicReceiptSnapshot(receiptId, title, bodyHtml, createdAt, borrowerNames);
+      await ensurePublicReceiptSnapshot(receiptId, title, bodyHtml, createdAt, borrowerNames, amount);
       const link = publicReceiptLink(receiptId);
       // Xác định đây có phải Biên lai Trả nợ trước hạn không (dựa vào tiêu đề đã truyền vào) — nếu
       // đúng thì hiện thêm thành phần "Hiện/Ẩn thông tin người thừa kế".
@@ -2282,8 +2285,13 @@
     }
   }
   function publicReceiptRouteId(){
-    const m = (window.location.hash||'').match(/^#\/bienlai\/(.+)$/);
-    return m ? decodeURIComponent(m[1]) : null;
+    // Dạng MỚI (path-based, để Cloud Function đọc được server-side, phục vụ xem trước link khi chia
+    // sẻ qua Messenger/Zalo): https://.../bienlai/ma
+    const pathMatch = (window.location.pathname||'').match(/\/bienlai\/([^/?#]+)/);
+    if(pathMatch) return decodeURIComponent(pathMatch[1]);
+    // Dạng CŨ (hash-based) — vẫn nhận diện để các đường link đã chia sẻ trước đây không bị hỏng.
+    const hashMatch = (window.location.hash||'').match(/^#\/bienlai\/(.+)$/);
+    return hashMatch ? decodeURIComponent(hashMatch[1]) : null;
   }
   function renderPublicReceiptPage(receiptId){
     document.body.classList.add('public-survey-mode');
@@ -2295,7 +2303,7 @@
       if(!data){
         if(!notFoundShown){
           notFoundShown = true;
-          root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">🧾</div><h1>Không tìm thấy biên lai</h1><p class="sub">Đường link này có thể không đúng hoặc chưa từng được chia sẻ. Nếu là "Biên lai CHƯA thanh toán" thì có thể nó đã hết hạn hoặc bị xóa.</p></div></div>`;
+          root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">🧾</div><h1>Không tìm thấy biên lai</h1><p class="sub">Đường link này có thể không đúng hoặc chưa từng được chia sẻ. Nếu là "Biên lai CHƯA thanh toán" thì có thể nó đã hết hạn hoặc bị xóa.</p><p style="margin-top:14px;"><a href="https://hoinongdan.sotay.org" style="color:#0d47a1; text-decoration:none; font-weight:700;">https://hoinongdan.sotay.org</a></p></div></div>`;
         }
         return;
       }
@@ -2330,8 +2338,10 @@
             ` : ''}
             <p style="color:#000; margin:6px 0 14px; padding:10px 12px; border:2px solid #b71c1c; border-radius:8px;">Biên lai này CHƯA được thanh toán. Biên lai này sẽ tự mất sau 7 ngày nếu chưa được duyệt (chưa chuyển trạng thái Đã thanh toán).</p>
             ${unpaidReceiptCountdownHtml('prc-countdown')}
+            <p style="color:#000; margin:0 0 14px;">Mỗi năm gồm 4 quý, mỗi quý gồm 3 tháng</p>
             ` : `
             <p class="sub" style="color:#1b5e20; font-weight:700; margin:6px 0 14px;">Biên lai này đã được Thanh toán Thành công, Biên lai này Không thể xoá/sửa nội dung bởi bất kỳ ai, được bảo chứng bởi Hoinongdan.sotay.org</p>
+            <p style="color:#000; margin:0 0 14px;">Mỗi năm gồm 4 quý, mỗi quý gồm 3 tháng</p>
             `}
             ${data.html||''}
             <div style="text-align:center; margin-top:14px;" id="prc-adv-wrap"></div>
@@ -2348,7 +2358,7 @@
           </div>
           ${isUnpaid? `
           <div style="position:fixed; left:0; right:0; bottom:0; padding:14px; background:rgba(255,255,255,.95); box-shadow:0 -4px 12px rgba(0,0,0,.15); text-align:center; z-index:50;">
-            <button type="button" class="preview-allow" id="upp-pay-btn" style="width:100%; max-width:600px; padding:16px; border:none; border-radius:10px; background:linear-gradient(90deg, #d32f2f 0%, #ff6f00 100%); color:#fff; font-weight:800; font-size:15px; cursor:pointer;"><span class="dancing-project-name" style="animation-duration:1.4s;">Bấm vào đây để thanh toán Số tiền này bằng hình thức chuyển khoản</span></button>
+            <button type="button" class="preview-allow" id="upp-pay-btn" style="width:100%; max-width:600px; padding:16px; border:none; border-radius:10px; background:linear-gradient(90deg, #d32f2f 0%, #ff6f00 100%); color:#fff; font-weight:800; font-size:15px; cursor:pointer;"><span class="dancing-project-name upp-pay-text" style="animation-duration:1.4s;">Bấm vào đây để thanh toán Số tiền này bằng hình thức chuyển khoản</span></button>
           </div>` : ''}
         </div>`;
       // Khối "Thông tin nâng cao" đã có sẵn trong snapshot (bị ẩn theo style="display:none") — chỉ
@@ -3517,7 +3527,7 @@
           <p style="color:#0d47a1; font-weight:700;">Vui lòng quét mã QR này để chuyển tiền hoặc sao chép các nội dung chuyển khoản ở bên dưới</p>
           <img id="uqr-img" src="${qrUrl}" alt="Mã QR chuyển khoản" style="width:220px; height:220px; margin:10px auto; display:block; border:1px solid var(--line); border-radius:8px;">
           <button type="button" class="btn btn-ghost btn-sm preview-allow" id="uqr-download">⬇️ Tải ảnh QR về máy</button>
-          <p style="color:#0d47a1; font-weight:700; margin:6px 0 14px;">Số tài khoản này đã được bảo đảm bởi người chia sẻ đường link</p>
+          <p style="color:#0d47a1; font-weight:700; margin:6px 0 14px;">Số tài khoản này Được kiểm chứng bởi người chia sẻ Biên lai (qua đường Link)</p>
           <div class="kv-row"><span>Tên tài khoản</span><b>${escapeHtml(bi.accountName||'')}</b></div>
           <div class="kv-row"><span>Ngân hàng</span><b>${escapeHtml(bi.bankName||'')} <button type="button" class="btn btn-ghost btn-sm preview-allow uqr-copy-btn" data-uqr-copy="${escapeHtml(bi.bankName||'')}">Sao chép</button></b></div>
           <div class="kv-row"><span>Số tài khoản</span><b>${escapeHtml(bi.accountNumber||'')} <button type="button" class="btn btn-ghost btn-sm preview-allow uqr-copy-btn" data-uqr-copy="${escapeHtml(bi.accountNumber||'')}">Sao chép</button></b></div>
@@ -4669,6 +4679,7 @@
         ? `Các hộ này không có hộ nào có tiền dư từ đợt trước`
         : [...perBorrower.filter(pb=>pb.leftover>0).map(pb=> `Tiền dư đợt trước ${pb.b.name}: - ${moneySpaced(pb.leftover)}`), `Tổng tiền dư đợt trước của ${groupList.length} hộ = - ${moneySpaced(replay.leftoverTotal)}`].join('\n'),
       `Tổng tất cả (số tiền thực nhận) = ${moneySpaced(replay.grandTotal)}`,
+      ...(replay.chosenQuarters||[]).map(q=> `${q.name} tính từ ngày ${fmtDate(q.from)} đến ngày ${fmtDate(q.to)}`),
       `Người đóng tiền: ${replay.payerName||''}`,
       `Người thu tiền: ${replay.collectorName||''}`,
       `--- Thông tin nâng cao ---`,
@@ -5631,7 +5642,7 @@
     }
     const base = `Tổng tiền (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả đủ cho các quý ở trên`;
     if(leftoverAmount<=0.5) return `${base}.`;
-    return `${base}, số tiền dư còn lại chưa thuộc về quý nào là ${moneySpaced(leftoverAmount)}, số tiền này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay.`;
+    return `${base}, số tiền dư còn lại là ${moneySpaced(leftoverAmount)}, số tiền này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay.`;
   }
   function buildReceiptExplanation(result, chosenSum, grandTotal){
     if(Math.abs(grandTotal-chosenSum)<0.5) return ''; // bằng nhau -> không cần giải thích
@@ -5639,16 +5650,16 @@
     const names = (list)=> list.map(bx=>formatTimelineQuarterLabel(bx)).join(', ');
     if(grandTotal < chosenSum){
       if(paidQuarters.length===0){
-        return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) không đủ trả cho bất cứ quý nào ở trên, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
+        return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) không đủ trả cho bất cứ quý nào ở trên, số tiền còn dư là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
       }
-      return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) chỉ đủ trả cho ${names(paidQuarters)}, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
+      return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) chỉ đủ trả cho ${names(paidQuarters)}, số tiền còn dư là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay, ${names(unpaidChosenQuarters)} sẽ chưa được tính là đóng lãi xong`;
     }
     // grandTotal > chosenSum
     if(extraPaidQuarters.length===0){
-      return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
+      return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
     }
     const afterChosenLeftover = Math.round((grandTotal-chosenSum)*100)/100;
-    return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư là ${moneySpaced(afterChosenLeftover)}, số tiền dư này sẽ được trả luôn cho ${names(extraPaidQuarters)}, số tiền còn lại chưa thuộc về quý nào là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
+    return `Tổng tiền: ${moneySpaced(grandTotal)} (Tiền thực nhận + Tiền dư từ đợt trước) sẽ trả cho ${names(paidQuarters)}, số tiền còn dư là ${moneySpaced(afterChosenLeftover)}, số tiền dư này sẽ được trả luôn cho ${names(extraPaidQuarters)}, số tiền còn lại là: ${moneySpaced(leftoverAmount)}, số tiền dư này sẽ được cộng dồn vào Tổng số tiền đã đóng lãi của hộ vay`;
   }
   // Trả về { unpaidText, paidText } cho cột công khai "Quý chưa/đã đóng lãi" — nguồn dữ liệu giờ là
   // Hộp tiền đóng lãi (không còn dùng checkbox phê duyệt cũ nữa).
@@ -14438,7 +14449,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     wrap.querySelector('#srd-close2').onclick = close;
     wrap.querySelector('#srd-link').onclick = ()=>{
       const names = (r.affectedBorrowerIds||[]).map(id=>{ const bx = state.borrowers.find(x=>x.id===id); return bx? bx.name : null; }).filter(Boolean);
-      renderReceiptLinkModal(r.id, fullTitle.replace(/<[^>]+>/g,''), wrap.querySelector('#srd-content'), r.createdAt, names);
+      renderReceiptLinkModal(r.id, fullTitle.replace(/<[^>]+>/g,''), wrap.querySelector('#srd-content'), r.createdAt, names, r.amount);
     };
     wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
     const catBtn = wrap.querySelector('#srd-edit-cat');
@@ -14488,6 +14499,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         <div class="kv-row" style="margin-top:10px;"><span>Số tiền vay gốc</span><b>${moneySpaced(extra.principal||0)}</b></div>
         ${extra.interestIncluded? `<div class="kv-row"><span>Tiền lãi đóng kèm theo (tính đến ngày/Quý lập biên lai)</span><b>${moneySpaced(extra.interestIncluded)}</b></div>${quarterTableHtml}` : `<p class="sub" style="margin-top:6px;">Chưa trả tiền lãi chưa đóng trong biên lai này.</p>`}
         <div class="kv-row big-money-row" style="border-top:2px solid var(--line); margin-top:10px; padding-top:8px;"><span>Số tiền thực tế nhận được</span><b>= ${moneySpaced(r.amount)}</b></div>
+        ${(r.quarterLines&&r.quarterLines.length)? r.quarterLines.map(q=>{ const qd = resolveQuarterDatesForYear(q.qk, q.year); return `<p class="sub" style="margin:4px 0 0;">${quarterLbl(q.qk)}/${q.year} bắt đầu từ ngày ${fmtDate(qd.from)} đến ngày ${fmtDate(qd.to)}</p>`; }).join('') : ''}
         ${extra.heirName? `<div class="kv-row heir-info-block" style="margin-top:8px;"><span>Người thừa kế</span><b>${escapeHtml(extra.heirName)}</b></div>` : ''}
         ${extra.isLocalOrOtherFund!=null? `<div class="kv-row"><span>Hình thức</span><b>${extra.isLocalOrOtherFund?'Trả lại cho cấp quản lý vốn vay':'Trả lại cấp Tỉnh/Thành phố hoặc Trung ương'}</b></div>` : ''}
         <div class="divider-lbl" style="margin-top:14px;">Người trả / Người nhận</div>
@@ -14519,6 +14531,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       bodyExtraHtml = `
         ${quarterTableHtml}
         <div class="kv-row big-money-row" style="border-top:2px solid var(--line); margin-top:10px; padding-top:8px;"><span>${sign==='+'?'Tổng số tiền thực nhận':'Tổng số tiền trả lại'}</span><b>= ${moneySpaced(r.amount)}</b></div>
+        ${(r.quarterLines&&r.quarterLines.length)? r.quarterLines.map(q=>{ const qd = resolveQuarterDatesForYear(q.qk, q.year); return `<p class="sub" style="margin:4px 0 0;">${quarterLbl(q.qk)}/${q.year} bắt đầu từ ngày ${fmtDate(qd.from)} đến ngày ${fmtDate(qd.to)}</p>`; }).join('') : ''}
+        ${extra.explanation? `<p class="sub" style="margin:6px 0 0;">${escapeHtml(extra.explanation)}</p>` : ''}
         ${(extra.payerName||extra.collectorName)? `
         <div class="divider-lbl" style="margin-top:14px;">Người đóng / Người thu</div>
         <div class="kv-row"><span>${sign==='+'?'Người đóng tiền':'Người trả lại tiền'}</span><b>${escapeHtml(extra.payerName||'')}</b></div>
@@ -14545,7 +14559,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       </div>`;
     wrap.querySelector('#rcd-close').onclick = close;
     wrap.querySelector('#rcd-close2').onclick = close;
-    wrap.querySelector('#rcd-link').onclick = ()=> renderReceiptLinkModal(r.id, (RECEIPT_TITLE_HTML[r.categoryKey]||r.displayTitle||'Biên lai').replace(/<[^>]+>/g,''), wrap.querySelector('#rcd-content'), r.createdAt, [b.name]);
+    wrap.querySelector('#rcd-link').onclick = ()=> renderReceiptLinkModal(r.id, (RECEIPT_TITLE_HTML[r.categoryKey]||r.displayTitle||'Biên lai').replace(/<[^>]+>/g,''), wrap.querySelector('#rcd-content'), r.createdAt, [b.name], r.amount);
     wrap.onclick = (e)=>{ if(e.target===wrap) close(); };
     wireAdvancedInfo(wrap, 'rcd', ()=>{});
     wireExportPrintButtons(wrap, 'rcd-ep', '#rcd-content', (RECEIPT_TITLE_HTML[r.categoryKey]||r.displayTitle||'Biên lai').replace(/<[^>]+>/g,'').replace(/^BL /, 'Biên Lai '));
@@ -15554,6 +15568,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             ? `Các hộ này không có hộ nào có tiền dư từ đợt trước`
             : [...leftoverPerBorrower.map(x=> `Tiền dư đợt trước ${x.b.name}: - ${moneySpaced(x.leftover)}`), `Tổng tiền dư đợt trước của ${groupList.length} hộ = - ${moneySpaced(leftoverTotal)}`].join('\n'),
           `Tổng tất cả (số tiền thực nhận) = ${moneySpaced(grandTotal)}`,
+          ...chosenQuarters.map(q=> `${q.name} tính từ ngày ${fmtDate(q.from)} đến ngày ${fmtDate(q.to)}`),
           `Người đóng tiền: ${payerName}`,
           `Người thu tiền: ${collectorName}`,
           `--- Thông tin nâng cao ---`,
@@ -16522,7 +16537,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     if(fullQuarters.length) parts.push(`${names(fullQuarters)} sẽ quay về trạng thái CHƯA đóng lãi.`);
     if(partialQuarter){
       const remain = Math.round((partialQuarter.fullAmount-partialQuarter.amount)*100)/100;
-      parts.push(`Số tiền còn sót lại sẽ tiếp tục trả cho ${formatTimelineQuarterLabel(partialQuarter.box)} — nhưng chỉ đủ trả ${moneySpaced(partialQuarter.amount)} trong tổng ${moneySpaced(partialQuarter.fullAmount)} của quý này, nên ${formatTimelineQuarterLabel(partialQuarter.box)} cũng sẽ quay về trạng thái CHƯA đóng lãi xong, còn phần chưa trả lại được là ${moneySpaced(remain)} sẽ trở thành số tiền dư MỚI chưa thuộc về quý nào trong Hộp tiền đóng lãi.`);
+      parts.push(`Số tiền còn sót lại sẽ tiếp tục trả cho ${formatTimelineQuarterLabel(partialQuarter.box)} — nhưng chỉ đủ trả ${moneySpaced(partialQuarter.amount)} trong tổng ${moneySpaced(partialQuarter.fullAmount)} của quý này, nên ${formatTimelineQuarterLabel(partialQuarter.box)} cũng sẽ quay về trạng thái CHƯA đóng lãi xong, còn phần chưa trả lại được là ${moneySpaced(remain)} sẽ trở thành số tiền dư MỚI trong Hộp tiền đóng lãi.`);
     }
     return parts.join(' ');
   }
@@ -16749,7 +16764,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         { const boxByKeyRfm = {}; borrowerQuarterBoxes(b).forEach(bx=> boxByKeyRfm[bx.key]=bx);
           await pushReceiptRecord(b, 'refund_money', { amount:lastRefundAmount, sign:'-',
             quarterLines: lastResult.removedKeys.map(k=>{ const p=parseQuarterBoxKey(k); const bx=boxByKeyRfm[k]; return p? {...p, amount: bx? bx.interestAmount : 0} : null; }).filter(Boolean),
-            categoryLabelId: selectedCategoryId||null, extra: { payerName, collectorName, reason } });
+            categoryLabelId: selectedCategoryId||null, extra: { payerName, collectorName, reason, explanation: buildRefundMoneyExplanation(lastRefundAmount, lastResult) } });
         }
         await pushLog('xác nhận', `trả lại tiền lãi đã đóng (theo cách tính tiền) cho hộ vay ${b.name} (${moneySpaced(lastRefundAmount)})`);
         hideProcessingToast(); // Bước 4
@@ -17307,7 +17322,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         await pushReceiptRecord(b, 'interest_quarter', {
           amount: grandTotal, sign:'+',
           quarterLines: result.paidQuarters.concat(result.extraPaidQuarters).map(bx=>({ qk:bx.qk, year:bx.year, amount:bx.interestAmount })),
-          categoryLabelId: selectedCategoryId||null, extra: { payerName, collectorName },
+          categoryLabelId: selectedCategoryId||null, extra: { payerName, collectorName, explanation: buildReceiptExplanation(result, chosenSum, finalAmount) },
         });
         await pushLog('xác nhận', `đóng lãi cho hộ vay ${b.name} (${moneySpaced(finalAmount)})`);
         refreshOpenIAModal();
@@ -17505,7 +17520,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         await pushReceiptRecord(b, onSuccessExtra? 'interest_money_riskdebt' : 'interest_money', {
           amount: lastFinalAmount, sign:'+',
           quarterLines: lastSettlement.paidQuarters.map(bx=>({ qk:bx.qk, year:bx.year, amount:bx.interestAmount })),
-          categoryLabelId: selectedCategoryId||null, extra: { payerName, collectorName },
+          categoryLabelId: selectedCategoryId||null, extra: { payerName, collectorName, explanation: buildMoneyBasedExplanation(lastSettlement.paidQuarters, lastSettlement.leftoverAmount) },
         });
         await pushLog('xác nhận', `đóng lãi (theo cách tính tiền) cho hộ vay ${b.name} (${moneySpaced(lastFinalAmount)})`);
         if(onSuccessExtra) onSuccessExtra(); else refreshOpenIAModal();
