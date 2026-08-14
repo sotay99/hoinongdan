@@ -666,6 +666,19 @@
   .fab-notes-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
   @media (max-width:640px){ .fab-notes-wrap{ right:14px; bottom:82px; } .fab-notes-btn{ width:54px; height:54px; font-size:22px; } }
 
+  /* "Chat với Mọi người" — nút thứ 3, ngay dưới "Siêu ghi chú", cùng kích thước/kiểu dáng/hiệu ứng,
+     cùng khoảng cách 74px như giữa 2 nút phía trên. */
+  .fab-people-btn{
+    position:fixed; right:22px; bottom:170px; width:60px; height:60px; border-radius:50%;
+    background:linear-gradient(145deg, #64b5f6, #1565c0); color:#fff; border:none;
+    box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; z-index:400; font-size:26px;
+    display:flex; align-items:center; justify-content:center;
+    animation: fabBob 4.5s ease-in-out infinite;
+  }
+  .fab-people-btn:hover{ filter:brightness(1.08); }
+  .fab-people-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
+  @media (max-width:640px){ .fab-people-btn{ right:14px; bottom:150px; width:54px; height:54px; font-size:22px; } }
+
   /* Cây thư mục/tệp trong sidebar Siêu ghi chú */
   .sn-crumbs{ font-size:11px; color:rgba(255,255,255,.75); padding:0 10px 8px; word-break:break-word; }
   .sn-crumbs span{ cursor:pointer; text-decoration:underline; }
@@ -7723,6 +7736,116 @@
   // ---------- TRỢ LÝ AI "ANH NÔNG DÂN THÔNG MINH" (Gemini) ----------
   // Nút chat tròn bập bềnh (góc dưới-phải) + không gian chat toàn màn hình kiểu Gemini, có
   // lịch sử các đoạn chat lưu theo tài khoản Google (users/{email}/aiChats/...).
+  // Kéo-thả THEO NHÓM — kéo bất kỳ 1 phần tử nào trong nhóm thì TẤT CẢ các phần tử còn lại cũng di
+  // chuyển theo ĐÚNG CÙNG khoảng cách, luôn "dính liền" với nhau như 1 khối duy nhất. Chỉ theo chiều
+  // dọc, không lưu lại vĩnh viễn (giống hệt nguyên tắc của makeVerticallyDraggable ở trên).
+  // elements: mảng các {el, verticalProp} — mỗi phần tử tự có cạnh định vị riêng (thường đều là
+  // 'bottom' với bộ 3 nút nổi này).
+  function makeGroupDraggable(elements){
+    elements.forEach(({el})=>{
+      if(!el || el.dataset.vDragGroupWired) return;
+      el.dataset.vDragGroupWired = '1';
+      let dragging = false, startY = 0, startVals = [], moved = false;
+      const onDown = (e)=>{
+        dragging = true; moved = false;
+        startY = (e.touches? e.touches[0].clientY : e.clientY);
+        startVals = elements.map(({el:e2, verticalProp:p})=> parseFloat(getComputedStyle(e2)[p]) || 0);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, {passive:false});
+        document.addEventListener('touchend', onUp);
+      };
+      const onMove = (ev)=>{
+        if(!dragging) return;
+        const curY = (ev.touches? ev.touches[0].clientY : ev.clientY);
+        const deltaY = curY - startY;
+        if(Math.abs(deltaY) > 4) moved = true;
+        if(!moved) return;
+        ev.preventDefault();
+        elements.forEach(({el:e2, verticalProp:p}, i)=>{
+          const newVal = p==='bottom' ? startVals[i] - deltaY : startVals[i] + deltaY;
+          const maxVal = window.innerHeight - e2.offsetHeight - 4;
+          e2.style[p] = Math.max(4, Math.min(maxVal, newVal)) + 'px';
+        });
+      };
+      const onUp = ()=>{
+        dragging = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+        if(moved){
+          elements.forEach(({el:e2})=>{
+            const suppressClick = (ev)=>{ ev.stopPropagation(); ev.preventDefault(); };
+            e2.addEventListener('click', suppressClick, { capture:true, once:true });
+          });
+        }
+      };
+      el.addEventListener('mousedown', onDown);
+      el.addEventListener('touchstart', onDown, {passive:true});
+    });
+  }
+  // Cho phép kéo-thả 1 nút/khung nổi (fixed) theo CHIỀU DỌC MÀ THÔI (không cho đổi vị trí ngang) —
+  // dùng chung cho nút Chat AI, Siêu ghi chú, và nút Thao tác (ẩn/hiện menu). Vị trí thay đổi NGAY LẬP
+  // TỨC theo thời gian thực trong lúc đang kéo. KHÔNG lưu lại vị trí — mỗi lần vào lại app (tải lại
+  // trang) đều tự động bắt đầu lại đúng vị trí mặc định ban đầu, đúng yêu cầu; trong CÙNG 1 phiên làm
+  // việc thì vị trí vừa kéo được giữ nguyên xuyên suốt (vì phần tử DOM không bị tạo lại giữa các lần
+  // vẽ lại — chỉ tạo đúng 1 lần).
+  // verticalProp: 'bottom' hoặc 'top' — tuỳ phần tử đang định vị theo cạnh nào.
+  // rememberKey (tuỳ chọn): nếu phần tử này có thể bị VẼ LẠI (tạo mới) thường xuyên trong 1 phiên làm
+  // việc (VD nút "Thao tác" — nằm trong HTML render() chính, không giống nút Chat AI/Siêu ghi chú được
+  // tạo đúng 1 lần) — truyền vào 1 tên khoá bất kỳ để hàm này tự ghi nhớ + tự áp dụng lại đúng vị trí
+  // đã kéo mỗi lần phần tử mới được tạo ra, không bị "quên" mất vị trí sau mỗi lần vẽ lại.
+  window.__vDragPositions = window.__vDragPositions || {};
+  function makeVerticallyDraggable(el, verticalProp, rememberKey){
+    if(rememberKey && window.__vDragPositions[rememberKey]!=null){
+      el.style[verticalProp] = window.__vDragPositions[rememberKey] + 'px';
+    }
+    if(!el || el.dataset.vDragWired) return;
+    el.dataset.vDragWired = '1';
+    let dragging = false, startY = 0, startVal = 0, moved = false;
+    const getVal = ()=> parseFloat(getComputedStyle(el)[verticalProp]) || 0;
+    const onDown = (e)=>{
+      // Bỏ qua nếu bấm đúng vào 1 nút/khung có thể cuộn ngang riêng bên trong (không áp dụng ở đây,
+      // nhưng để phòng hờ mở rộng về sau).
+      dragging = true; moved = false;
+      startY = (e.touches? e.touches[0].clientY : e.clientY);
+      startVal = getVal();
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove, {passive:false});
+      document.addEventListener('touchend', onUp);
+    };
+    const onMove = (e)=>{
+      if(!dragging) return;
+      const curY = (e.touches? e.touches[0].clientY : e.clientY);
+      const deltaY = curY - startY;
+      if(Math.abs(deltaY) > 4) moved = true;
+      if(!moved) return;
+      e.preventDefault();
+      // "bottom" tăng khi kéo LÊN (deltaY âm) — "top" tăng khi kéo XUỐNG (deltaY dương).
+      const newVal = verticalProp==='bottom' ? startVal - deltaY : startVal + deltaY;
+      const maxVal = window.innerHeight - el.offsetHeight - 4;
+      const clamped = Math.max(4, Math.min(maxVal, newVal));
+      el.style[verticalProp] = clamped + 'px';
+      if(rememberKey) window.__vDragPositions[rememberKey] = clamped;
+    };
+    const onUp = ()=>{
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+      // Nếu chỉ bấm (không kéo di chuyển gì) thì để nguyên hành vi click bình thường (mở Chat AI/Siêu
+      // ghi chú/Thao tác) — chặn sự kiện click "ảo" phát sinh ngay sau khi vừa kéo thả xong.
+      if(moved){
+        const suppressClick = (ev)=>{ ev.stopPropagation(); ev.preventDefault(); };
+        el.addEventListener('click', suppressClick, { capture:true, once:true });
+      }
+    };
+    el.addEventListener('mousedown', onDown);
+    el.addEventListener('touchstart', onDown, {passive:true});
+  }
   // =====================================================================
   // Chỉ hiển thị nút chat khi đang ở trong app (không hiện ở màn đăng nhập/welcome/onboarding).
   function syncFloatingChat(){
@@ -7737,6 +7860,10 @@
       if(notesWrap) notesWrap.remove();
       const notesOverlay = document.getElementById('super-notes-overlay');
       if(notesOverlay) notesOverlay.remove();
+      const peopleBtn = document.getElementById('fab-people-btn');
+      if(peopleBtn) peopleBtn.remove();
+      const peopleOverlay = document.getElementById('people-chat-overlay');
+      if(peopleOverlay) peopleOverlay.remove();
       return;
     }
     if(!btn){
@@ -7765,7 +7892,7 @@
         notesWrap = document.createElement('div');
         notesWrap.id = 'fab-notes-wrap';
         notesWrap.className = 'fab-notes-wrap';
-        notesWrap.innerHTML = `<span class="fab-notes-label">📓 Siêu ghi chú</span><button id="fab-notes-btn" class="fab-notes-btn fab-intro" title="Siêu ghi chú">🗒️</button>`;
+        notesWrap.innerHTML = `<button id="fab-notes-btn" class="fab-notes-btn fab-intro" title="Siêu ghi chú">🗒️</button>`;
         document.body.appendChild(notesWrap);
         notesWrap.querySelector('#fab-notes-btn').onclick = openSuperNotes;
         setTimeout(()=>{ const b = document.getElementById('fab-notes-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
@@ -7777,6 +7904,42 @@
         if(notesOverlay) notesOverlay.remove();
       }
     }
+
+    // ---- Icon "Chat với Mọi người" — nút thứ 3, luôn nằm ngay dưới "Siêu ghi chú", LUÔN dính liền
+    // và di chuyển CÙNG LÚC với 2 nút phía trên khi kéo-thả bất kỳ nút nào trong 3 nút này.
+    let peopleBtn = document.getElementById('fab-people-btn');
+    if(!peopleBtn){
+      peopleBtn = document.createElement('button');
+      peopleBtn.id = 'fab-people-btn';
+      peopleBtn.className = 'fab-people-btn fab-intro';
+      peopleBtn.title = 'Chat với Mọi người';
+      peopleBtn.textContent = '💬';
+      peopleBtn.onclick = openPeopleChat;
+      document.body.appendChild(peopleBtn);
+      setTimeout(()=>{ const b = document.getElementById('fab-people-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
+    }
+    // Kéo-thả THEO NHÓM — kéo bất kỳ 1 trong 3 nút này thì cả 3 luôn di chuyển cùng nhau, dính liền.
+    makeGroupDraggable([
+      { el: btn, verticalProp: 'bottom' },
+      { el: notesWrap, verticalProp: 'bottom' },
+      { el: peopleBtn, verticalProp: 'bottom' },
+    ]);
+  }
+  // Mở modal "Chat với Mọi người" — chiếm trọn màn hình (cả rộng lẫn hẹp), nội dung tạm thời để trống,
+  // sẽ xây dựng sau.
+  function openPeopleChat(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:100vw; width:100vw; height:100dvh; max-height:100dvh; border-radius:0; display:flex; flex-direction:column;">
+        <div class="modal-head"><h3>💬 Chat với Mọi người (hoinongdan.sotay.org)</h3><button class="modal-close preview-allow" id="people-chat-close">✕</button></div>
+        <div class="modal-body" style="flex:1; display:flex; align-items:center; justify-content:center;">
+          <p class="sub" style="text-align:center; font-size:15px;">🚧 Tính năng đang được xây dựng, sẽ sớm ra mắt.</p>
+        </div>
+      </div>`;
+    wrap.id = 'people-chat-overlay';
+    document.body.appendChild(wrap);
+    wrap.querySelector('#people-chat-close').onclick = ()=> wrap.remove();
   }
   // Chuyển từ Chat AI sang Siêu ghi chú và ngược lại — ẩn bên này, mở thẳng bên kia, mượt mà.
   async function openSuperNotes(){
@@ -10299,7 +10462,10 @@ ${fileGenerationTrainingText()}`;
       };
     });
     const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
-    if(sidebarToggleBtn) sidebarToggleBtn.onclick = ()=>{ state.sidebarCollapsed = !state.sidebarCollapsed; applySidebarCollapsedVisual(state.sidebarCollapsed); };
+    if(sidebarToggleBtn){
+      sidebarToggleBtn.onclick = ()=>{ state.sidebarCollapsed = !state.sidebarCollapsed; applySidebarCollapsedVisual(state.sidebarCollapsed); };
+      makeVerticallyDraggable(sidebarToggleBtn, 'top', 'sidebarToggle');
+    }
     document.getElementById('bell-btn').onclick = (e)=>{ e.stopPropagation(); state.bellOpen = !state.bellOpen; render(); };
     const pvLogin = document.getElementById('pv-login');
     if(pvLogin) pvLogin.onclick = exitPreviewMode;
