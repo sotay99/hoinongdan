@@ -410,6 +410,11 @@
        tối thiểu 220px) sẽ tràn ra ngoài màn hình, phải vuốt ngang mới thấy hết checkbox. */
     .sv-filter-panel{ position:fixed !important; left:10px !important; right:10px !important; width:auto !important; min-width:0 !important; max-width:none !important; z-index:390 !important; }
     .modal{max-width:100%; width:100%; min-height:100dvh; border-radius:0; display:flex; flex-direction:column;}
+    /* Ngoại lệ: các popup chào mừng nhỏ (chỉ có vài dòng chữ) — KHÔNG áp dụng quy tắc chiếm toàn màn
+       hình ở trên, để khung nền trắng chỉ bao vừa đủ đúng nội dung chữ bên trong, không che phủ toàn bộ
+       màn hình phía sau app (lỗi thật đã xảy ra trước đây). */
+    .modal-bg.welcome-popup-bg{ align-items:center !important; padding:20px !important; }
+    .modal-bg.welcome-popup-bg .modal{ min-height:0 !important; width:auto !important; max-width:92vw !important; border-radius:16px !important; }
     .modal-body{max-height:none; flex:1;}
     /* Sổ vay vốn — màn hình bề ngang hẹp: TẮT HẲN việc cố định cột (Địa phương/Họ và tên/số thứ tự
        dòng-cột) ở TẤT CẢ các panel và TẤT CẢ các modal có danh sách — cho cuộn ngang thoải mái, không
@@ -796,13 +801,16 @@
     75%{ transform:translate(-50%,-50%) scale(1.03) rotate(-2deg); }
     100%{ transform:translate(-50%,-50%) scale(1) rotate(0deg); opacity:1; }
   }
-  @keyframes bigToastFadeOut{ 0%{ opacity:1; } 100%{ opacity:0; } }
+  @keyframes bigToastFadeOut{
+    0%{ transform:translate(-50%,-50%); opacity:1; }
+    100%{ transform:translate(-50%, calc(-50% + 60vh)); opacity:0; }
+  }
   .big-toast{
     position:fixed; top:44%; left:50%; z-index:99999; background:#1b7a3d; color:#fff; font-weight:800;
     font-size:16px; padding:20px 32px; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.4);
     text-align:center; max-width:90vw; animation: bigToastPopDance 1s ease-out forwards; pointer-events:none;
   }
-  .big-toast.big-toast-fading{ animation: bigToastFadeOut 1s ease-in forwards; }
+  .big-toast.big-toast-fading{ animation: bigToastFadeOut 1.2s ease-in forwards; }
 
 
   /* Hiệu ứng chữ "CHÚC ĐỒNG CHÍ..." nổi lềnh bềnh nhẹ nhàng như trên mặt nước, ở các popup chào mừng */
@@ -2728,7 +2736,7 @@
               <button type="button" class="btn btn-ghost btn-sm preview-allow" id="rlm-view" style="flex:1;">🔍 Xem đường link</button>
             </div>
             ${isEarlyRepayment? heirVisibilityToggleHtml('rlm', hideHeirInfo) : ''}
-            <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này - để cho Hộ vay hoặc mọi người cùng xem nội dung Biên lai này (qua Messenger, Zalo hoặc các kênh chia sẻ khác).</p>
+            <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này - để cho Hộ vay hoặc mọi người cùng xem nội dung Biên lai này (qua Messenger, Zalo hoặc các kênh chia sẻ khác). Nếu chia sẻ qua Zalo: tiến hành dán link vào khung chat rồi đợi 3 - 5 giây (để hiện bản xem trước nội dung) rồi mới bấm nút gửi đi ; Nếu chia sẻ qua Messenger (Facebook) thì cần lưu ý thêm: khuyên nên dùng điện thoại, cách dán link như cách làm chia sẻ qua Zalo</p>
           </div>
           <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="rlm-close2">Đóng bảng</button></div>
         </div>`;
@@ -2784,7 +2792,7 @@
         <div class="center-screen" style="${isUnpaid?'padding-bottom:90px;':''}">
           <div class="auth-card" style="max-width:640px; text-align:left;">
             <div style="text-align:center; border-bottom:2px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-              ${data.wardLabel? `<div style="font-weight:800; text-transform:uppercase; font-size:14px;">HỘI NÔNG DÂN ${escapeHtml(data.wardLabel.toUpperCase())}</div>` : ''}
+              ${data.wardLabel? `<div style="font-weight:800; text-transform:uppercase; font-size:14px;">HỘI NÔNG DÂN<br>${escapeHtml(data.wardLabel.toUpperCase())}</div>` : ''}
               ${data.provinceLabel? `<div style="font-weight:600; font-size:13px;">${escapeHtml(data.provinceLabel)}</div>` : ''}
               <div style="font-weight:800; font-size:16px; margin-top:8px;">${escapeHtml(plainTitle)}</div>
               ${borrowerLine? `<div style="font-weight:700; font-size:17.5px; color:#6a1b9a; margin-top:4px;">${borrowerLine}</div>` : ''}
@@ -2903,7 +2911,7 @@
     const dateLbl = new Date().toLocaleString('vi-VN');
     const fullBodyHtml = `
       <div style="text-align:center;">
-        <div style="font-weight:800; font-size:14px;">${escapeHtml(hoiNongDanTitle())}</div>
+        <div style="font-weight:800; font-size:14px;">${hoiNongDanTitleHtml()}</div>
         <div style="font-size:12.5px;">${escapeHtml(provinceTitle())}</div>
       </div>
       <div class="print-title" style="margin:10px 0 4px; text-align:center;">${escapeHtml(title.toUpperCase())}</div>
@@ -3175,7 +3183,8 @@
     const projLabel = projectFilterLabel(activeLoanProjects());
     const hamletLabel = hamletFilterLabel(state.config.hamlets||[]);
     const headerLines = [
-      [hoiNongDanTitle()],
+      ['HỘI NÔNG DÂN'],
+      [wardTitleUpper()],
       [provinceTitle()],
       [`BÁO CÁO SỔ VAY VỐN — Phương án: ${projLabel} — ${subAdminLabel()}: ${hamletLabel}`],
       [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`],
@@ -3186,7 +3195,7 @@
     const aoa = [...headerLines, colLabels, ...dataRows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     applyExcelCellFormatting(ws, aoa, headerLines.length);
-    boldExcelRow(ws, 2); // dòng tiêu đề file (VD "BÁO CÁO SỔ VAY VỐN — Phương án: ... — Ấp: ...")
+    boldExcelRow(ws, 3); // dòng tiêu đề file (VD "BÁO CÁO SỔ VAY VỐN — Phương án: ... — Ấp: ...") — đã +1 do thêm dòng "HỘI NÔNG DÂN" tách riêng ở trên
     const lastCol = Math.max(0, visibleCols.length - 1);
     ws['!merges'] = headerLines.map((line,r)=> (line.length? { s:{r,c:0}, e:{r,c:lastCol} } : null)).filter(Boolean);
     ws['!cols'] = visibleCols.map(()=>({wch:20}));
@@ -3203,7 +3212,7 @@
     const hamletLabel = hamletFilterLabel(state.config.hamlets||[]);
     const maxCols = Math.max(visibleCols.length, ...sections.map(s=> (s.cols||visibleCols).length), 1);
     const headerLines = [
-      [hoiNongDanTitle()], [provinceTitle()],
+      ['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()],
       [`BÁO CÁO SỔ VAY VỐN — Phương án: ${projLabel} — ${subAdminLabel()}: ${hamletLabel}`],
       [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], [],
     ];
@@ -3232,7 +3241,7 @@
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     sectionHeaderRows.forEach(rowIdx=> applyExcelCellFormatting(ws, aoa, rowIdx));
     sectionTitleRows.forEach(rowIdx=> boldExcelRow(ws, rowIdx));
-    boldExcelRow(ws, 2); // dòng tiêu đề file (VD "BÁO CÁO SỔ VAY VỐN — Phương án: ... — Ấp: ...")
+    boldExcelRow(ws, 3); // dòng tiêu đề file (VD "BÁO CÁO SỔ VAY VỐN — Phương án: ... — Ấp: ...") — đã +1 do thêm dòng "HỘI NÔNG DÂN" tách riêng ở trên
     ws['!merges'] = merges;
     ws['!cols'] = Array.from({length:maxCols}, ()=>({wch:20}));
     const wb = XLSX.utils.book_new();
@@ -3335,7 +3344,7 @@
     const hamletLabel = hamletFilterLabel(state.config.hamlets||[]);
     const printInnerHtml = `
       <div style="text-align:center;">
-        <div style="font-weight:800; font-size:14px;">${escapeHtml(hoiNongDanTitle())}</div>
+        <div style="font-weight:800; font-size:14px;">${hoiNongDanTitleHtml()}</div>
         <div style="font-size:12.5px;">${escapeHtml(provinceTitle())}</div>
       </div>
       <div class="print-title" style="margin:10px 0 4px; text-align:center;">SỔ VAY VỐN</div>
@@ -3399,7 +3408,7 @@
     }).join('');
     const printInnerHtml = `
       <div style="text-align:center;">
-        <div style="font-weight:800; font-size:14px;">${escapeHtml(hoiNongDanTitle())}</div>
+        <div style="font-weight:800; font-size:14px;">${hoiNongDanTitleHtml()}</div>
         <div style="font-size:12.5px;">${escapeHtml(provinceTitle())}</div>
       </div>
       <div class="print-title" style="margin:10px 0 4px; text-align:center;">SỔ VAY VỐN</div>
@@ -3458,7 +3467,7 @@
     return `
       <div class="print-header">
         <div class="print-header-left">
-          <div><b>${cfg.wardName ? hoiNongDanTitle() : `HỘI NÔNG DÂN ${adminLevelLabel().toUpperCase()} ...`}</b></div>
+          <div><b>${cfg.wardName ? hoiNongDanTitleHtml() : `HỘI NÔNG DÂN ${adminLevelLabel().toUpperCase()} ...`}</b></div>
           <div>BAN CHẤP HÀNH</div>
         </div>
         <div class="print-header-right">
@@ -3963,7 +3972,7 @@
             </div>
             ${recordForSummary? unpaidReceiptCountdownHtml('upl-countdown') : ''}
             ${isEarlyRepayment? heirVisibilityToggleHtml('upl', hideHeirInfo) : ''}
-            <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này - để cho Hộ vay hoặc mọi người cùng xem Biên lai, và thanh toán trực tiếp qua số tài khoản hoặc mã QR (trong đường link này). có thể chia sẻ đường link qua Messenger, Zalo hoặc các kênh chia sẻ khác.</p>
+            <p class="sub" style="margin-top:12px;">Có thể sao chép và chia sẻ đường link này - để cho Hộ vay hoặc mọi người cùng xem Biên lai, và thanh toán trực tiếp qua số tài khoản hoặc mã QR (trong đường link này). có thể chia sẻ đường link qua Messenger, Zalo hoặc các kênh chia sẻ khác. Nếu chia sẻ qua Zalo: tiến hành dán link vào khung chat rồi đợi 3 - 5 giây (để hiện bản xem trước nội dung) rồi mới bấm nút gửi đi ; Nếu chia sẻ qua Messenger (Facebook) thì cần lưu ý thêm: khuyên nên dùng điện thoại, cách dán link như cách làm chia sẻ qua Zalo</p>
             ${(uplReason!=null)? `<div class="kv-row"><span>Lý do trả nợ trước hạn</span><b>${escapeHtml(uplReason||'(không có)')} <button type="button" class="btn btn-ghost btn-sm preview-allow" id="upl-edit-reason" style="padding:2px 8px;">✏️ Sửa</button></b></div>` : ''}
             ${uplCatId? `<div class="divider-lbl" style="margin-top:14px;">Phân loại biên lai</div><div class="kv-row"><span style="display:flex; align-items:center; gap:6px;">${escapeHtml(uplCatName)}<span style="display:inline-block; width:30px; height:10px; background:${uplCatColor}; border:1px solid var(--line);"></span></span><button type="button" class="btn btn-ghost btn-sm preview-allow" id="upl-edit-cat" style="padding:2px 8px;">✏️ Sửa</button></div>` : ''}
           </div>
@@ -6580,6 +6589,12 @@
     const t = wardTitleUpper();
     return t ? `HỘI NÔNG DÂN ${t}` : 'HỘI NÔNG DÂN';
   }
+  // Bản 2 DÒNG (xuống hàng ngay sau "DÂN") — dùng cho MỌI nơi hiển thị dạng HTML (xuất Word, in, xem
+  // biên lai qua đường link...) — dòng 1: "HỘI NÔNG DÂN", dòng 2: "XÃ/PHƯỜNG [tên]".
+  function hoiNongDanTitleHtml(){
+    const t = wardTitleUpper();
+    return t ? `HỘI NÔNG DÂN<br>${escapeHtml(t)}` : 'HỘI NÔNG DÂN';
+  }
   // "Hội Nông dân Xã Hưng Phước" (không viết hoa toàn bộ — dùng trong câu văn thường)
   function hoiNongDanNatural(){
     const t = wardTitle();
@@ -8939,7 +8954,7 @@ ${fileGenerationTrainingText()}`;
     document.body.appendChild(el);
     setTimeout(()=>{
       el.classList.add('big-toast-fading');
-      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1000);
+      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1200); // khớp đúng thời lượng animation trôi xuống mới (1.2s)
     }, 1000 + 4000);
   }
   // Thông báo nhỏ "Bạn đang ở trong ..." — hiện 2 giây rồi tự biến mất, dùng khi mở modal hoặc
@@ -8953,7 +8968,7 @@ ${fileGenerationTrainingText()}`;
     document.body.appendChild(el);
     setTimeout(()=>{
       el.classList.add('big-toast-fading');
-      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1000);
+      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1200); // khớp đúng thời lượng animation trôi xuống mới (1.2s)
     }, 2000);
   }
   // Thông báo "Đang mở Danh sách ..." — nền vàng đậm, hiện 2 giây rồi tự biến mất, dùng khi mở (bật
@@ -8967,7 +8982,7 @@ ${fileGenerationTrainingText()}`;
     document.body.appendChild(el);
     setTimeout(()=>{
       el.classList.add('big-toast-fading');
-      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1000);
+      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1200); // khớp đúng thời lượng animation trôi xuống mới (1.2s)
     }, 2000);
   }
   function writeClipboardSilent(text){
@@ -10361,13 +10376,13 @@ ${fileGenerationTrainingText()}`;
   // Yêu cầu 5: Popup chào mừng môi trường tham quan — 2 nút [Xem hướng dẫn] / [Bỏ qua]
   function renderPreviewWelcomePopup(){
     const wrap = document.createElement('div');
-    wrap.className = 'modal-bg';
+    wrap.className = 'modal-bg welcome-popup-bg';
     wrap.innerHTML = `
       <div class="modal" style="max-width:640px;">
         <div class="modal-body" style="text-align:center; padding:28px 24px;">
           <div class="rice-badge" style="margin:0 auto 12px;">🌾</div>
           <h3 class="welcome-float-title" style="margin:0 0 16px;">Chúc đồng chí một ngày làm việc vui vẻ!</h3>
-          <p class="sub" style="margin:0 0 24px; font-size:clamp(11px, 3vw, 20px); line-height:1.35; color:var(--ink);">Đây là môi trường tham quan, đồng chí có muốn xem hướng dẫn cụ thể không?</p>
+          <p class="sub" style="margin:0 0 24px; font-size:clamp(22px, 6vw, 40px); line-height:1.35; color:var(--ink);">Đây là môi trường tham quan, đồng chí có muốn xem hướng dẫn cụ thể không?</p>
           <div style="display:flex; gap:10px;">
             <button class="btn btn-ghost" id="pw-skip" style="flex:1;">Bỏ qua</button>
             <button class="btn btn-primary" id="pw-guide" style="flex:1;">Xem hướng dẫn</button>
@@ -10395,7 +10410,7 @@ ${fileGenerationTrainingText()}`;
     const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType.toLowerCase() : 'tỉnh/thành phố';
     const provName = (cfg.provinceName||'').trim();
     const wrap = document.createElement('div');
-    wrap.className = 'modal-bg';
+    wrap.className = 'modal-bg welcome-popup-bg';
     wrap.innerHTML = `
       <div class="modal" style="max-width:680px;">
         <div class="modal-body" style="text-align:center; padding:28px 24px;">
@@ -11691,7 +11706,7 @@ ${fileGenerationTrainingText()}`;
       const draft = currentDraft();
       const color = TAB_COLORS3[tab];
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #ab47bc;">
+        <div class="modal" style="max-width:98vw; width:1300px; border:6px solid ${color};">
           <div class="modal-head modal-head-stack-narrow" style="background:linear-gradient(135deg, #8e24aa 0%, #6a1b9a 40%, #1565c0 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <h3 style="color:#fff;">${waveTextHtmlSlow('🎨 Tuỳ chỉnh màu nền cho khoản vay và phương án vay')}</h3>
             <div style="display:flex; align-items:center; gap:10px;">
@@ -13133,7 +13148,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const list = listForTab(tab);
       const color = TAB_COLORS2[tab];
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:700px; border:6px solid #ff8f00;">
+        <div class="modal" style="max-width:98vw; width:700px; border:6px solid ${color};">
           <div class="modal-head modal-head-stack-narrow" style="background:linear-gradient(180deg, #ffe082 0%, #ffca28 50%, #ff8f00 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <h3 style="color:#000;">${waveTextHtmlSlow('👁️ Chế độ xem cột')}</h3>
             <div style="display:flex; align-items:center; gap:10px;">
@@ -17193,8 +17208,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       }
       const activeLabelTextColor = state.archiveTab==='logs' ? '#000' : '#fff';
       wrap.innerHTML = `
-        <div class="modal" style="max-width:98vw; width:1300px; border:6px solid #7e57c2;">
-          <div class="modal-head modal-head-stack-narrow" style="background:linear-gradient(180deg, #b39ddb 0%, #7e57c2 50%, #4a148c 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div class="modal" style="max-width:98vw; width:1300px; border:6px solid ${TAB_COLORS[state.archiveTab]};">
+          <div class="modal-head modal-head-stack-narrow" style="background:linear-gradient(180deg, #9575cd 0%, #512da8 50%, #311b92 100%); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <h3 style="color:#fff; margin:0;">${waveTextHtmlSlow('Kho lưu trữ các Biên lai, Giấy xác nhận, dòng nhật ký')}</h3>
             <div style="display:flex; align-items:center; gap:10px;">
               ${tabBtnsHtml('top')}
@@ -18556,8 +18571,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   function renderInterestPaymentHistoryModal(b){
     const disp = computeInterestPaymentBoxDisplay(b);
     const wrap = document.createElement('div');
-    wrap.className = 'modal-bg';
-    const grandUnpaid = disp.unpaidTotal + disp.futureUnpaidTotal;
+    wrap.className = 'modal-bg';    const grandUnpaid = disp.unpaidTotal + disp.futureUnpaidTotal;
     const selectedKeys = new Set();
     const allLineItems = disp.paidLines.concat(disp.unpaidLines, disp.futureUnpaidLines);
     const boxByKey = {}; allLineItems.forEach(x=> boxByKey[x.box.key]=x.box);
@@ -18646,7 +18660,6 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     }
 
     function wire(){
-      document.body.contains(wrap) || document.body.appendChild(wrap);
       const close = ()=> wrap.remove();
       wrap.querySelector('#iahist-close').onclick = close;
       wrap.querySelector('#iahist-close2').onclick = close;
@@ -18726,6 +18739,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       if(deselectAllBtn) deselectAllBtn.onclick = ()=>{ selectedKeys.clear(); renderBody(); };
     }
 
+    document.body.appendChild(wrap);
     renderBody();
   }
 
@@ -20353,7 +20367,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       document.body.appendChild(el);
       setTimeout(()=>{
         el.classList.add('big-toast-fading');
-        setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1000);
+        setTimeout(()=>{ if(el.parentNode) el.remove(); }, 1200); // khớp đúng thời lượng animation trôi xuống mới (1.2s)
       }, 3000);
     };
     const lpQuickAddAiBtn2 = document.getElementById('lp-quickadd-ai-btn-2');
@@ -21727,11 +21741,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   }
   function exportSurveyExcel(draft, headers, rows){
     if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
-    const headerLines = [ [hoiNongDanTitle()], [provinceTitle()], [`KẾT QUẢ KHẢO SÁT: ${draft.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], [] ];
+    const headerLines = [ ['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [`KẾT QUẢ KHẢO SÁT: ${draft.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], [] ];
     const aoa = [...headerLines, headers.map(h=>String(h).toUpperCase()), ...rows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     applyExcelCellFormatting(ws, aoa, headerLines.length);
-    boldExcelRow(ws, 2); // dòng tiêu đề file (VD "KẾT QUẢ KHẢO SÁT: ...")
+    boldExcelRow(ws, 3); // dòng tiêu đề file (VD "KẾT QUẢ KHẢO SÁT: ...") — đã +1 do thêm dòng "HỘI NÔNG DÂN" tách riêng ở trên
     const lastCol = Math.max(0, headers.length-1);
     ws['!merges'] = headerLines.map((line,r)=> (line.length? {s:{r,c:0}, e:{r,c:lastCol}} : null)).filter(Boolean);
     ws['!cols'] = headers.map(()=>({wch:22}));
@@ -21748,7 +21762,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     if(ncols>16){ fontSize=7; pad='2px 3px'; } else if(ncols>12){ fontSize=8; pad='3px 4px'; } else if(ncols>9){ fontSize=9.5; pad='4px 5px'; } else if(ncols>6){ fontSize=11; pad='5px 6px'; }
     area.innerHTML = `
       <div style="text-align:center;">
-        <div style="font-weight:800; font-size:14px;">${escapeHtml(hoiNongDanTitle())}</div>
+        <div style="font-weight:800; font-size:14px;">${hoiNongDanTitleHtml()}</div>
         <div style="font-size:12.5px;">${escapeHtml(provinceTitle())}</div>
       </div>
       <div class="print-title" style="margin:10px 0 4px; text-align:center;">KẾT QUẢ KHẢO SÁT: ${escapeHtml(draft.title)}</div>
