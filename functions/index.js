@@ -159,7 +159,7 @@ exports.receiptMeta = functions.https.onRequest(async (req, res) => {
     <meta property="og:title" content="${escapeHtml(ogTitle)}">
     <meta property="og:description" content="${escapeHtml(description)}">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="${escapeHtml(req.protocol + "://" + req.get("host") + req.originalUrl)}">
+    <meta property="og:url" content="${escapeHtml("https://hoinongdan.sotay.org" + req.originalUrl)}">
     ${ogImageUrl ? `<meta property="og:image" content="${escapeHtml(ogImageUrl)}">` : ""}
     <meta name="twitter:card" content="${ogImageUrl ? "summary_large_image" : "summary"}">
     <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
