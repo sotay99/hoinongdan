@@ -652,8 +652,9 @@
     box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; z-index:400; font-size:26px;
     display:flex; align-items:center; justify-content:center;
     animation: fabBob 4.5s ease-in-out infinite;
+    opacity:.55; transition: opacity .2s ease;
   }
-  .fab-chat:hover{ filter:brightness(1.08); }
+  .fab-chat:hover{ filter:brightness(1.08); opacity:1; }
   @media (max-width:640px){ .fab-chat{ right:14px; bottom:14px; width:54px; height:54px; font-size:22px; } }
 
   /* "Siêu ghi chú" — icon bồng bềnh nằm ngay trên đầu icon Chat AI, y hệt kiểu dáng/hiệu ứng */
@@ -661,8 +662,8 @@
   .fab-notes-label{ background:var(--rice-dark); color:#fff; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,.18); }
   .fab-notes-btn{ width:60px; height:60px; border-radius:50%; background:linear-gradient(145deg, var(--gold), var(--rice-dark)); color:#fff; border:none;
     box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; font-size:26px; display:flex; align-items:center; justify-content:center;
-    animation: fabBob 4.5s ease-in-out infinite; }
-  .fab-notes-btn:hover{ filter:brightness(1.08); }
+    animation: fabBob 4.5s ease-in-out infinite; opacity:.55; transition: opacity .2s ease; }
+  .fab-notes-btn:hover{ filter:brightness(1.08); opacity:1; }
   .fab-notes-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
   @media (max-width:640px){ .fab-notes-wrap{ right:14px; bottom:82px; } .fab-notes-btn{ width:54px; height:54px; font-size:22px; } }
 
@@ -674,8 +675,9 @@
     box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; z-index:400; font-size:26px;
     display:flex; align-items:center; justify-content:center;
     animation: fabBob 4.5s ease-in-out infinite;
+    opacity:.55; transition: opacity .2s ease;
   }
-  .fab-people-btn:hover{ filter:brightness(1.08); }
+  .fab-people-btn:hover{ filter:brightness(1.08); opacity:1; }
   .fab-people-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
   @media (max-width:640px){ .fab-people-btn{ right:14px; bottom:150px; width:54px; height:54px; font-size:22px; } }
 
@@ -1138,6 +1140,13 @@
   if(!window.__modalCloseAnimPatched){
     window.__modalCloseAnimPatched = true;
     const originalRemove = Element.prototype.remove;
+    // Công khai ra ngoài để những nơi cần "đóng modal cũ, dựng modal mới THAY THẾ NGAY LẬP TỨC" (VD sau
+    // khi lưu xong 1 bảng quản lý con — địa bàn dân cư/người quản lý/địa chỉ trước sáp nhập — rồi vẽ
+    // lại modal cha) có thể gọi thẳng bản KHÔNG có hiệu ứng trễ này — tránh tình trạng modal CŨ vẫn còn
+    // tồn tại trong DOM (đang chờ hết 450ms hiệu ứng biến mất) CÙNG LÚC với modal MỚI vừa dựng lên, dẫn
+    // đến 2 modal có CÙNG ID phần tử con trùng nhau — khiến các thao tác tìm-theo-ID (VD khôi phục lại
+    // dữ liệu form đang gõ dở) bị nhầm lẫn, ghi/đọc nhầm vào modal CŨ (sắp biến mất) thay vì modal MỚI.
+    window.__instantRemoveModal = (el)=>{ if(el) originalRemove.call(el); };
     Element.prototype.remove = function(){
       if(this.classList && this.classList.contains('modal-bg') && !this.classList.contains('modal-bg-closing')){
         this.classList.add('modal-bg-closing');
@@ -1161,6 +1170,22 @@
   // liệu bất đồng bộ (vẽ khung rỗng trước, tải Firebase xong vẽ lại lần 2 — lần 2 tạo ra .modal MỚI,
   // nếu không tắt kịp sẽ kích hoạt lại animation từ đầu, gây cảm giác "biến mất rồi hiện lại" khó chịu,
   // đặc biệt rõ trên màn hình điện thoại).
+  // Cảnh báo khi người dùng cố rời khỏi trang (bấm nút quay lại của trình duyệt, đóng tab, gõ địa chỉ
+  // khác, tải lại trang...) — áp dụng cho TOÀN BỘ app, bất kỳ lúc nào đang mở trang. LƯU Ý QUAN TRỌNG:
+  // theo đúng quy định bảo mật của MỌI trình duyệt hiện đại (từ khoảng năm 2011 trở đi), không trang
+  // web nào được phép tự đặt NỘI DUNG của dòng cảnh báo này nữa (để tránh các trang lừa đảo giả mạo
+  // cảnh báo hệ thống) — trình duyệt sẽ luôn tự hiện đúng 1 dòng cảnh báo CHUNG do chính nó quy định
+  // (thường có dạng "Những thay đổi bạn đã thực hiện có thể không được lưu."), không thể sửa thành
+  // đúng nguyên văn "sẽ thoát khỏi hoinongdan.sotay.org" như mong muốn — đây là giới hạn kỹ thuật chung
+  // của mọi trình duyệt, không phải do app này thiếu sót.
+  if(!window.__beforeUnloadWarningWired){
+    window.__beforeUnloadWarningWired = true;
+    window.addEventListener('beforeunload', (e)=>{
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    });
+  }
   if(!window.__modalEnterMarkObserver){
     window.__modalEnterMarkObserver = new MutationObserver((mutList)=>{
       mutList.forEach(mut=>{
@@ -4045,7 +4070,7 @@
         // LẦN NỮA, tạo ra 2 biên lai giống hệt nhau (lỗi thật đã xảy ra, nay chặn dứt điểm tại đây).
         if(!record || record.status==='paid'){
           close();
-          alert(record? 'Biên lai này đã được phê duyệt thanh toán xong, không thể mở lại được nữa.' : 'Biên lai này đã bị xoá, không thể mở lại được nữa.');
+          alert(record? 'Biên lai này đã được phê duyệt thanh toán xong.' : 'Biên lai này đã bị xoá.');
           return;
         }
         const isEarlyRepayment = !!(record && record.replay && record.replay.applyFn==='early_repayment');
@@ -5979,7 +6004,7 @@
         const obj = {}; clean.forEach(it=> obj[it.id]={id:it.id,name:it.name});
         await cSet('borrowerManagers', obj);
         state.borrowerManagers = clean;
-        close();
+        window.__instantRemoveModal(wrap); // xoá NGAY LẬP TỨC — tránh trùng ID với modal cha sắp dựng lại ngay sau đây
         if(onSaved) onSaved();
       };
     }
@@ -6067,7 +6092,11 @@
         const newCfg = {...state.config, hamlets: clean, hamletsLegacyHidden: legacy};
         await cSet('config', newCfg);
         state.config = newCfg;
-        close();
+        // Dùng xoá NGAY LẬP TỨC (không hiệu ứng trễ) — vì onSaved() thường dựng lại modal cha NGAY sau
+        // đây; nếu để hiệu ứng đóng trễ như bình thường, modal quản lý này vẫn còn tồn tại trong DOM
+        // một lúc, có thể trùng ID với phần tử trong modal cha mới dựng, gây nhầm lẫn khi khôi phục dữ
+        // liệu form đang gõ dở (lỗi thật đã xảy ra, nay chặn dứt điểm ngay tại nguồn).
+        window.__instantRemoveModal(wrap);
         if(onSaved) onSaved();
       };
     }
@@ -6141,7 +6170,11 @@
         const newCfg = {...state.config, hamletsLegacyHidden: clean};
         await cSet('config', newCfg);
         state.config = newCfg;
-        close();
+        // Dùng xoá NGAY LẬP TỨC (không hiệu ứng trễ) — vì onSaved() thường dựng lại modal cha NGAY sau
+        // đây; nếu để hiệu ứng đóng trễ như bình thường, modal quản lý này vẫn còn tồn tại trong DOM
+        // một lúc, có thể trùng ID với phần tử trong modal cha mới dựng, gây nhầm lẫn khi khôi phục dữ
+        // liệu form đang gõ dở (lỗi thật đã xảy ra, nay chặn dứt điểm ngay tại nguồn).
+        window.__instantRemoveModal(wrap);
         if(onSaved) onSaved();
       };
     }
@@ -7758,14 +7791,23 @@
       const onMove = (ev)=>{
         if(!dragging) return;
         const curY = (ev.touches? ev.touches[0].clientY : ev.clientY);
-        const deltaY = curY - startY;
+        let deltaY = curY - startY;
         if(Math.abs(deltaY) > 4) moved = true;
         if(!moved) return;
         ev.preventDefault();
+        // QUAN TRỌNG: tính CHUNG 1 khoảng dịch chuyển (deltaY) cho CẢ NHÓM, giới hạn theo đúng phần tử
+        // nào sắp chạm biên màn hình SỚM NHẤT — để cả nhóm LUÔN dừng lại CÙNG LÚC, giữ nguyên khoảng
+        // cách ban đầu giữa các nút, không còn tình trạng nút này chạm biên trước rồi bị các nút khác
+        // "đè" chồng lên khi chúng tiếp tục di chuyển.
+        elements.forEach(({el:e2, verticalProp:p}, i)=>{
+          const rawVal = p==='bottom' ? startVals[i] - deltaY : startVals[i] + deltaY;
+          const maxVal = window.innerHeight - e2.offsetHeight - 4;
+          if(rawVal < 4) deltaY = p==='bottom' ? (startVals[i]-4) : -(4-startVals[i]);
+          else if(rawVal > maxVal) deltaY = p==='bottom' ? (startVals[i]-maxVal) : (maxVal-startVals[i]);
+        });
         elements.forEach(({el:e2, verticalProp:p}, i)=>{
           const newVal = p==='bottom' ? startVals[i] - deltaY : startVals[i] + deltaY;
-          const maxVal = window.innerHeight - e2.offsetHeight - 4;
-          e2.style[p] = Math.max(4, Math.min(maxVal, newVal)) + 'px';
+          e2.style[p] = newVal + 'px';
         });
       };
       const onUp = ()=>{
@@ -7775,10 +7817,16 @@
         document.removeEventListener('touchmove', onMove);
         document.removeEventListener('touchend', onUp);
         if(moved){
-          elements.forEach(({el:e2})=>{
-            const suppressClick = (ev)=>{ ev.stopPropagation(); ev.preventDefault(); };
-            e2.addEventListener('click', suppressClick, { capture:true, once:true });
-          });
+          // CHỈ chặn click "ma" trên ĐÚNG phần tử vừa được cầm để kéo (el) — KHÔNG chặn ở 2 phần tử còn
+          // lại trong nhóm (chúng không hề được bấm, chỉ bị "rê theo", không có click ma nào phát sinh
+          // ở đó cả). Tự động GỠ bộ chặn sau 300ms (không dùng {once:true} chờ vô thời hạn) — vì sau 1
+          // cú kéo thật sự (có di chuyển), trình duyệt thường KHÔNG tự phát sinh sự kiện click nào cả,
+          // nên bộ chặn kiểu "chờ đúng 1 lần" sẽ vô tình "ăn mất" lần bấm THẬT SỰ kế tiếp của người
+          // dùng, khiến phải bấm tới 2 lần mới có tác dụng — đây chính là lỗi thật đã xảy ra, nay sửa
+          // bằng cách giới hạn thời gian chặn thay vì chờ đúng 1 sự kiện bất kỳ khi nào nó tới.
+          const suppressClick = (ev)=>{ ev.stopPropagation(); ev.preventDefault(); };
+          el.addEventListener('click', suppressClick, { capture:true });
+          setTimeout(()=> el.removeEventListener('click', suppressClick, { capture:true }), 300);
         }
       };
       el.addEventListener('mousedown', onDown);
@@ -7840,7 +7888,8 @@
       // ghi chú/Thao tác) — chặn sự kiện click "ảo" phát sinh ngay sau khi vừa kéo thả xong.
       if(moved){
         const suppressClick = (ev)=>{ ev.stopPropagation(); ev.preventDefault(); };
-        el.addEventListener('click', suppressClick, { capture:true, once:true });
+        el.addEventListener('click', suppressClick, { capture:true });
+        setTimeout(()=> el.removeEventListener('click', suppressClick, { capture:true }), 300);
       }
     };
     el.addEventListener('mousedown', onDown);
@@ -10590,10 +10639,22 @@ ${fileGenerationTrainingText()}`;
     document.body.appendChild(wrap);
     wrap.style.pointerEvents = 'none'; // không chặn thao tác của người dùng trong lúc bảng đang tự hiện/tự ẩn
     setTimeout(()=>{
-      wrap.style.transition = 'transform 1.6s ease-in, opacity 1.6s ease-in';
-      wrap.style.transform = 'translateY(100vh)';
-      wrap.style.opacity = '0';
-      setTimeout(()=>{ state._showWardWelcome = false; wrap.remove(); }, 1700);
+      // GIAI ĐOẠN 1: trôi xuống cho tới khi chạm SÁT ĐÁY màn hình thì DỪNG lại (không trôi tiếp ngay,
+      // không mờ đi vội) — tính đúng khoảng cách còn lại từ mép dưới bảng tới mép dưới màn hình.
+      const rect = wrap.getBoundingClientRect();
+      const distToBottom = Math.max(0, window.innerHeight - rect.bottom);
+      wrap.style.transition = 'transform 1s ease-in';
+      wrap.style.transform = `translateY(${distToBottom}px)`;
+      setTimeout(()=>{
+        // GIAI ĐOẠN 2: đứng im ĐÚNG TẠI VỊ TRÍ SÁT ĐÁY này trong 2 giây — không làm gì cả.
+        setTimeout(()=>{
+          // GIAI ĐOẠN 3: tiếp tục trôi xuống thêm + mờ dần rồi biến mất hẳn.
+          wrap.style.transition = 'transform 1.2s ease-in, opacity 1.2s ease-in';
+          wrap.style.transform = `translateY(${distToBottom + Math.max(200, rect.height)}px)`;
+          wrap.style.opacity = '0';
+          setTimeout(()=>{ state._showWardWelcome = false; wrap.remove(); }, 1250);
+        }, 2000);
+      }, 1050);
     }, 1500);
   }
 
@@ -11955,10 +12016,10 @@ ${fileGenerationTrainingText()}`;
   // gồm các trường THÔ trực tiếp trích xuất được (không tính toán/suy ra, vì đây là dữ liệu NHÁP
   // chưa lưu vào hệ thống).
   const QUICKADD_PREVIEW_COLS = [
-    ['name','Họ và tên'], ['hamletDisplay','Đơn vị'], ['hamletOld','Đơn vị trước sáp nhập'], ['projectName','Phương án vay'],
+    ['name','Họ và tên'], ['hamletDisplay','Đơn vị'], ['projectName','Phương án vay'],
     ['principal','Số tiền gốc (đ)'], ['loanDate','Ngày vay'], ['dueDate','Ngày đến hạn'],
     ['fundSource','Nguồn vay'], ['rate','Lãi suất (%/năm)'], ['birthYear','Năm sinh'], ['managerId','Người quản lý'],
-    ['cccd','CCCD'], ['phone','Số điện thoại'], ['address','Địa chỉ cụ thể'],
+    ['cccd','CCCD'], ['phone','Số điện thoại'], ['address','Địa chỉ cụ thể'], ['hamletOld','Đơn vị trước sáp nhập'],
     ['industry','Ngành nghề SXKD'], ['repayAbility','Khả năng trả nợ'], ['guarantor','Người bảo lãnh'], ['note','Ghi chú thêm'],
   ];
   const QUICKADD_REQUIRED_BORROWER = [['name','Họ và tên'], ['projectName','Phương án vay'], ['hamletDisplay','Địa bàn dân cư (Ấp/Khu phố)']];
@@ -12180,7 +12241,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(m && m.result) renderQuickAddFilePreviewModal(m.result);
       });
       const viewFileBtn = wrap.querySelector('#qai-view-file');
-      if(viewFileBtn) viewFileBtn.onclick = ()=> renderQuickAddFilePreviewModal(latestResult);
+      if(viewFileBtn) viewFileBtn.onclick = ()=> renderQuickAddFilePreviewModal(latestResult, render);
       wrap.querySelectorAll('[data-remove-att]').forEach(btn=> btn.onclick = ()=>{
         pendingAttachments.splice(parseInt(btn.dataset.removeAtt,10),1); render();
       });
@@ -12548,12 +12609,12 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   }
   // Bảng xem trước 1 "file" AI trả về — kiểu bảng tính (cột A,B,C.../dòng 1,2,3... cố định, cột Họ và
   // tên cũng cố định), dùng đúng nhãn cột như Danh sách khoản vay để dễ trò chuyện với AI về ô/cột/dòng.
-  function renderQuickAddFilePreviewModal(result){
+  function renderQuickAddFilePreviewModal(result, onClose){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch;';
     document.body.appendChild(wrap);
-    const close = ()=> wrap.remove();
+    const close = ()=>{ wrap.remove(); if(onClose) onClose(); };
     const colLetters = QUICKADD_PREVIEW_COLS.map((_,i)=> String.fromCharCode(65+i));
     let editMode = false;
     let zoomPct = 100;
@@ -12669,13 +12730,16 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         </tr></tbody>
       </table>`;
     }
-    function tableHtml(list, projIdx){
+    function tableHtml(list, projIdx, projName){
       const visibleCols = QUICKADD_PREVIEW_COLS.filter(([k])=> !QUICKADD_PROJECT_LEVEL_BORROWER_KEYS.has(k));
       const visibleColLetters = QUICKADD_PREVIEW_COLS.map((c,i)=>({c,i})).filter(({c})=> !QUICKADD_PROJECT_LEVEL_BORROWER_KEYS.has(c[0])).map(({i})=> colLetters[i]);
-      // Nút "+" thêm người vay ĐẦU TIÊN — CHỈ hiện khi phương án này (mới, đang sửa) CHƯA có bất kỳ
-      // người vay nào cả — có người vay rồi thì ẩn hẳn (đã có nút "+" ở dòng tiêu đề phương án lo việc
-      // thêm người vay tiếp theo rồi, nút này chỉ dành riêng cho trường hợp "chưa có ai" mà thôi).
-      const showFirstAddBtn = editMode && list.length===0 && projIdx!=null && projIdx>=0;
+      // Nút "+" thêm người vay ĐẦU TIÊN — CHỈ hiện khi phương án này (mới HOẶC đã có sẵn được ghim vào
+      // hồ sơ) CHƯA có bất kỳ người vay nào cả — có người vay rồi thì ẩn hẳn (đã có nút "+" ở dòng tiêu
+      // đề phương án lo việc thêm người vay tiếp theo rồi, nút này chỉ dành riêng cho trường hợp "chưa
+      // có ai" mà thôi). Dùng TÊN phương án (không chỉ dựa vào projIdx) — vì phương án ĐÃ CÓ SẴN được
+      // ghim vào hồ sơ không có mặt trong result.projects nên projIdx sẽ là -1, trước đây khiến nút này
+      // không hiện ra được cho trường hợp đó (lỗi thật đã xảy ra, nay sửa).
+      const showFirstAddBtn = editMode && list.length===0 && !!projName;
       return `
       <table style="border-collapse:collapse; width:max-content; margin-bottom:20px;">
         <thead>
@@ -12686,7 +12750,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           </tr>
           <tr>
             ${editMode? `<th style="position:sticky; top:29px; left:0; z-index:3; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px;"></th>` : ''}
-            <th style="position:sticky; top:29px; left:${editMode?'30px':'0'}; z-index:3; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px; text-align:center;">${showFirstAddBtn? `<button type="button" class="preview-allow" data-proj-add-borrower="__first__${projIdx}" style="width:22px; height:22px; border-radius:6px; border:none; background:#1565c0; color:#fff; font-weight:800; cursor:pointer; font-size:13px; line-height:1;">+</button>` : ''}</th>
+            <th style="position:sticky; top:29px; left:${editMode?'30px':'0'}; z-index:3; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px; text-align:center;">${showFirstAddBtn? `<button type="button" class="preview-allow" data-proj-add-borrower="${escapeHtml(projName)}" style="width:22px; height:22px; border-radius:6px; border:none; background:#1565c0; color:#fff; font-weight:800; cursor:pointer; font-size:13px; line-height:1;">+</button>` : ''}</th>
             ${visibleCols.map(([k,label],i)=> `<th style="position:sticky; top:29px; z-index:2; background:#e8f5e9; border:1px solid var(--line); padding:6px 10px; white-space:nowrap; ${i===0?`left:${editMode?66:36}px; z-index:3;`:''}">${htmlLabel(label)}</th>`).join('')}
           </tr>
         </thead>
@@ -12748,7 +12812,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     }
     wrap.innerHTML = `
       <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
-        <div class="modal-head"><h3>📋 Hồ sơ đang soạn${editMode? ' — Đang sửa thủ công' : ''}</h3><button class="modal-close preview-allow" id="qfp-close">✕</button></div>
+        <div class="modal-head" style="${editMode? 'background:linear-gradient(180deg, #ef5350 0%, #c62828 50%, #7f0000 100%);' : ''}"><h3 style="${editMode?'color:#fff;':''}">${editMode? waveTextHtmlSlow('📋 Hồ sơ đang soạn — Đang sửa thủ công') : '📋 Hồ sơ đang soạn'}</h3><button class="modal-close preview-allow" id="qfp-close">✕</button></div>
         ${editMode? `<p class="sub" style="margin:8px 14px 0; color:#5a4300;">💡 Bấm vào từng ô để sửa trực tiếp, xong thì bấm "💾 Lưu thay đổi".</p>` : ''}
         <div class="modal-body" id="qfp-modal-body" style="flex:1; overflow:auto; padding:14px;">
           <div id="qfp-zoom-wrap" style="transform:scale(${zoomPct/100}); transform-origin:top left; width:${zoomPct}%;">
@@ -12778,7 +12842,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             <p style="font-weight:800; margin:10px 0 6px;">${titleTextHtml} (${groups[name].length} người vay)${showProjectInfoRow? projPlusMenuHtml(name, isExisting, projIdx) : ''}</p>
             ${summaryLineHtml}
             ${showProjectInfoRow? projectInfoRowHtml(name, isExisting, projIdx) : ''}
-            ${tableHtml(groups[name], projIdx)}
+            ${tableHtml(groups[name], projIdx, name)}
           `;
           }).join('');
           })() : `<div style="text-align:center; padding:30px 16px;">
@@ -23812,7 +23876,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     wrap.querySelector('#m-cancel').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
     const gotoEditBtn = wrap.querySelector('#m-goto-edit');
-    if(gotoEditBtn) gotoEditBtn.onclick = ()=>{ wrap.remove(); state.modal.forceReadOnly = false; renderModal(); };
+    if(gotoEditBtn) gotoEditBtn.onclick = ()=>{ window.__instantRemoveModal(wrap); state.modal.forceReadOnly = false; renderModal(); };
     wrap.querySelector('#m-adv-toggle').onclick = ()=>{
       const body = wrap.querySelector('#m-adv-body');
       body.style.display = body.style.display==='none' ? '' : 'none';
@@ -23828,7 +23892,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         const savedModalBody = wrap.querySelector('.modal-body');
         const savedScroll = savedModalBody ? savedModalBody.scrollTop : null;
         renderHamletManagerModal(()=>{
-          wrap.remove();
+          window.__instantRemoveModal(wrap);
           renderModal();
           Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el && id!=='m-hamlet') el.value = savedValues[id]; });
           const newModalBody = document.querySelector('.modal-bg .modal-body');
@@ -23849,7 +23913,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         wrap.querySelectorAll('input[id], select[id], textarea[id]').forEach(el=>{ if(el.id!=='m-project-picker') savedValues[el.id] = el.value; });
         renderLoanProjectModal(null, (newId)=>{
           if(newId) state.modal.projectId = newId;
-          wrap.remove();
+          window.__instantRemoveModal(wrap);
           renderModal();
           requestAnimationFrame(()=>{
             Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el) el.value = savedValues[id]; });
@@ -23898,7 +23962,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           const savedModalBody = wrap.querySelector('.modal-body');
           const savedScroll = savedModalBody ? savedModalBody.scrollTop : null;
           renderBorrowerManagerModal(()=>{
-            wrap.remove();
+            window.__instantRemoveModal(wrap);
             renderModal();
             Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el && id!=='m-manager') el.value = savedValues[id]; });
             const newModalBody = document.querySelector('.modal-bg .modal-body');
@@ -23948,7 +24012,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       const savedModalBody = wrap.querySelector('.modal-body');
       const savedScroll = savedModalBody ? savedModalBody.scrollTop : null;
       renderLegacyAddressManagerModal(()=>{
-        wrap.remove();
+        window.__instantRemoveModal(wrap);
         renderModal();
         Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el && id!=='m-legacy-address') el.value = savedValues[id]; });
         const newModalBody = document.querySelector('.modal-bg .modal-body');
