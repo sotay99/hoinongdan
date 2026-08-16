@@ -651,16 +651,16 @@
      qua thuộc tính data-tooltip. Chỉ áp dụng khi có thiết bị chuột thật (hover) — không hiện trên cảm
      ứng (tránh vướng víu khi chạm trên điện thoại/máy tính bảng). */
   @media (hover:hover){
-    [data-tooltip]{ position:relative; }
+    [data-tooltip]{ position:relative !important; }
     [data-tooltip]:hover::after{
       content: attr(data-tooltip);
       position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
       background:#212121; color:#fff; padding:6px 12px; border-radius:8px; font-size:13px;
-      white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,.35); pointer-events:none; z-index:401;
+      white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,.35); pointer-events:none; z-index:9999;
     }
     [data-tooltip]:hover::before{
       content:''; position:absolute; right:calc(100% + 4px); top:50%; transform:translateY(-50%);
-      border:6px solid transparent; border-left-color:#212121; pointer-events:none; z-index:401;
+      border:6px solid transparent; border-left-color:#212121; pointer-events:none; z-index:9999;
     }
   }
   .fab-chat{
@@ -12342,12 +12342,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
                 <button id="qai-send-btn">➤</button>
               </div>
             </div>
-            <div style="text-align:center; margin:8px 0;">
-              <button type="button" class="btn btn-sm preview-allow" id="qai-digest" ${(busy || !hasAnyUserContent)?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent)?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>
-            </div>
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost preview-allow" id="qai-close2">Đóng bảng</button>
+            <button type="button" class="btn btn-sm preview-allow" id="qai-digest" ${(busy || !hasAnyUserContent)?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent)?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>
             <button class="btn btn-primary preview-allow" id="qai-add" ${resultIsEmpty()?'disabled':''} style="${resultIsEmpty()?'opacity:.45; cursor:not-allowed;':'display:inline-block; animation: bigMoneyPulse 1.4s ease-in-out infinite;'}">➕ Thêm vào Sổ vay vốn</button>
           </div>
         </div>`;
@@ -12928,7 +12926,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column; border:6px solid ${editMode?'#c62828':'#fbc02d'};">
         <div class="modal-head" style="${editMode? 'background:linear-gradient(180deg, #ef5350 0%, #c62828 50%, #7f0000 100%);' : ''}"><h3 style="${editMode?'color:#fff;':''}">${editMode? waveTextHtmlSlow('📋 Hồ sơ đang soạn — Đang sửa thủ công') : '📋 Hồ sơ đang soạn'}</h3><button class="modal-close preview-allow" id="qfp-close">✕</button></div>
         ${editMode? `<p class="sub" style="margin:8px 14px 0; color:#5a4300;">💡 Bấm vào từng ô để sửa trực tiếp, xong thì bấm "💾 Lưu thay đổi".</p>` : ''}
-        <div class="modal-body" id="qfp-modal-body" style="flex:1; overflow:auto; padding:14px;">
+        <div class="modal-body" id="qfp-modal-body" style="flex:1; overflow:auto; padding:14px; ${editMode?'background:#fff0f0;':''}">
           <div id="qfp-zoom-wrap" style="transform:scale(${zoomPct/100}); transform-origin:top left; width:${zoomPct}%;">
           ${groupOrder.length? (function(){
             // Đánh số thứ tự "Chưa có tên (N)" cho các phương án MỚI đang bị trùng tên rỗng — tính 1
