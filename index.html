@@ -650,18 +650,16 @@
      hình) khi rê chuột vào — dùng chung cho cả 3 nút nổi (Chat AI / Siêu ghi chú / Chat với Mọi người)
      qua thuộc tính data-tooltip. Chỉ áp dụng khi có thiết bị chuột thật (hover) — không hiện trên cảm
      ứng (tránh vướng víu khi chạm trên điện thoại/máy tính bảng). */
-  @media (hover:hover){
-    [data-tooltip]{ position:relative !important; }
-    [data-tooltip]:hover::after{
-      content: attr(data-tooltip);
-      position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
-      background:#212121; color:#fff; padding:6px 12px; border-radius:8px; font-size:13px;
-      white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,.35); pointer-events:none; z-index:9999;
-    }
-    [data-tooltip]:hover::before{
-      content:''; position:absolute; right:calc(100% + 4px); top:50%; transform:translateY(-50%);
-      border:6px solid transparent; border-left-color:#212121; pointer-events:none; z-index:9999;
-    }
+  [data-tooltip]{ position:relative !important; }
+  [data-tooltip]:hover::after{
+    content: attr(data-tooltip);
+    position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
+    background:#212121; color:#fff; padding:6px 12px; border-radius:8px; font-size:13px;
+    white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,.35); pointer-events:none; z-index:9999;
+  }
+  [data-tooltip]:hover::before{
+    content:''; position:absolute; right:calc(100% + 4px); top:50%; transform:translateY(-50%);
+    border:6px solid transparent; border-left-color:#212121; pointer-events:none; z-index:9999;
   }
   .fab-chat{
     position:fixed; right:22px; bottom:22px; width:60px; height:60px; border-radius:50%;
@@ -697,6 +695,17 @@
   .fab-people-btn:hover{ filter:brightness(1.08); opacity:1; }
   .fab-people-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
   @media (max-width:640px){ .fab-people-btn{ right:14px; bottom:150px; width:54px; height:54px; font-size:22px; } }
+
+  /* 2 nút cuộn lên đầu/xuống cuối modal — tự động chèn cho MỌI modal trong toàn app (xem đoạn script
+     phía dưới), luôn thẳng hàng dọc, sát mép phải màn hình, đè lên modal đang hiện ra. */
+  .modal-scroll-btn{
+    position:fixed; right:6px; width:38px; height:38px; border-radius:50%; border:none;
+    background:linear-gradient(145deg, #616161, #212121); color:#fff; font-size:16px; font-weight:800;
+    cursor:pointer; z-index:9990; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.35); opacity:.55; transition: opacity .2s ease;
+  }
+  .modal-scroll-btn:hover{ opacity:1; }
+  @media (max-width:640px){ .modal-scroll-btn{ width:32px; height:32px; font-size:14px; right:4px; } }
 
   /* Cây thư mục/tệp trong sidebar Siêu ghi chú */
   .sn-crumbs{ font-size:11px; color:rgba(255,255,255,.75); padding:0 10px 8px; word-break:break-word; }
@@ -1226,6 +1235,56 @@
       });
     });
     window.__modalEnterMarkObserver.observe(document.body, { childList:true, subtree:true });
+  }
+  // Tự động chèn 2 nút "cuộn lên đầu/cuộn xuống cuối" cho MỌI modal-bg xuất hiện trong toàn app — kể cả
+  // modal con nằm lồng sâu bên trong modal khác, kể cả modal xây dựng trong tương lai (không cần sửa
+  // bất kỳ đoạn code JS nào tạo modal, đây là cơ chế TOÀN CỤC áp dụng tự động). Mỗi modal-bg có cặp nút
+  // RIÊNG của chính nó — 2 nút LUÔN thẳng hàng dọc, kéo-thả CÙNG NHAU (dùng lại đúng makeGroupDraggable
+  // đã xây cho 3 nút Chat AI/Siêu ghi chú/Chat với Mọi người), độ mờ 55% giống hệt 3 nút đó.
+  if(!window.__modalScrollBtnObserver){
+    window.__modalScrollBtnObserver = new MutationObserver((mutList)=>{
+      mutList.forEach(mut=>{
+        mut.addedNodes.forEach(node=>{
+          if(node.nodeType!==1) return;
+          const bgEls = [];
+          if(node.classList && node.classList.contains('modal-bg')) bgEls.push(node);
+          if(node.querySelectorAll) node.querySelectorAll('.modal-bg').forEach(el=> bgEls.push(el));
+          bgEls.forEach(bg=>{
+            if(bg.dataset.scrollBtnsAdded) return;
+            bg.dataset.scrollBtnsAdded = '1';
+            // Tìm đúng khung có thể cuộn của modal này — ưu tiên .modal-body (khung nội dung có
+            // overflow:auto), nếu không có thì cuộn thẳng chính modal-bg (trường hợp modal tự cuộn ở
+            // cấp ngoài cùng, ít gặp hơn nhưng vẫn cần phòng hờ).
+            const getScrollTarget = ()=> bg.querySelector('.modal-body') || bg;
+            const upBtn = document.createElement('button');
+            upBtn.type = 'button';
+            upBtn.className = 'modal-scroll-btn preview-allow';
+            upBtn.title = 'Cuộn lên đầu';
+            upBtn.textContent = '▲';
+            upBtn.style.top = '35vh';
+            const downBtn = document.createElement('button');
+            downBtn.type = 'button';
+            downBtn.className = 'modal-scroll-btn preview-allow';
+            downBtn.title = 'Cuộn xuống cuối';
+            downBtn.textContent = '▼';
+            downBtn.style.top = 'calc(35vh + 46px)';
+            const scrollToTop = ()=>{ const t = getScrollTarget(); if(t) t.scrollTo({ top:0, behavior:'smooth' }); };
+            const scrollToBottom = ()=>{ const t = getScrollTarget(); if(t) t.scrollTo({ top:t.scrollHeight, behavior:'smooth' }); };
+            upBtn.addEventListener('click', scrollToTop);
+            upBtn.addEventListener('mouseenter', scrollToTop);
+            downBtn.addEventListener('click', scrollToBottom);
+            downBtn.addEventListener('mouseenter', scrollToBottom);
+            bg.appendChild(upBtn);
+            bg.appendChild(downBtn);
+            makeGroupDraggable([
+              { el: upBtn, verticalProp: 'top' },
+              { el: downBtn, verticalProp: 'top' },
+            ]);
+          });
+        });
+      });
+    });
+    window.__modalScrollBtnObserver.observe(document.body, { childList:true, subtree:true });
   }
   // Tự động cuộn tới đúng vị trí mục VỪA BẤM trong BẤT KỲ menu bộ lọc nào (mọi bộ lọc dùng chung class
   // ".sv-filter-item") — áp dụng ĐÚNG logic đã làm tốt ở bộ lọc "Phương án vay" cho TOÀN BỘ app, không
@@ -10767,12 +10826,17 @@ ${fileGenerationTrainingText()}`;
       const rect = wrap.getBoundingClientRect();
       const distToBottom = Math.max(0, window.innerHeight - rect.bottom);
       wrap.style.transition = 'transform 1s ease-in';
+      void wrap.offsetHeight; // ÉP BUỘC trình duyệt tính toán lại layout NGAY LÚC NÀY — "chốt" trạng
+      // thái BAN ĐẦU (transform hiện tại) trước khi đổi sang giá trị mới bên dưới. Nếu thiếu bước này,
+      // trình duyệt có thể "gộp" 2 thay đổi CSS liên tiếp lại làm 1, bỏ qua hẳn hiệu ứng chuyển động
+      // (nhảy thẳng tới vị trí cuối, KHÔNG chạy transition) — đây chính là lỗi thật đã xảy ra.
       wrap.style.transform = `translateY(${distToBottom}px)`;
       setTimeout(()=>{
         // GIAI ĐOẠN 3: đứng im ĐÚNG TẠI VỊ TRÍ SÁT ĐÁY này thêm 2 giây nữa.
         setTimeout(()=>{
           // GIAI ĐOẠN 4: tiếp tục trượt xuống thêm + mờ dần rồi biến mất hẳn.
           wrap.style.transition = 'transform 1.2s ease-in, opacity 1.2s ease-in';
+          void wrap.offsetHeight; // ép buộc tương tự — xem giải thích ở trên
           wrap.style.transform = `translateY(${distToBottom + Math.max(200, rect.height)}px)`;
           wrap.style.opacity = '0';
           setTimeout(()=>{ state._showWardWelcome = false; wrap.remove(); }, 1250);
