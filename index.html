@@ -646,6 +646,23 @@
   .receipt-head-refund{ background:#ffcdd2 !important; }
   .receipt-head-refund h3{ color:#7a1010 !important; }
   .refund-btn{ border:1px solid #c62828; border-radius:8px; padding:6px 14px; font-weight:700; color:#b71c1c; cursor:pointer; animation: refundBtnPulse 12.6s ease-in-out infinite; }
+  /* Tooltip tuỳ chỉnh — hiện NGAY BÊN CẠNH icon (bên trái, vì các nút này luôn nằm sát mép phải màn
+     hình) khi rê chuột vào — dùng chung cho cả 3 nút nổi (Chat AI / Siêu ghi chú / Chat với Mọi người)
+     qua thuộc tính data-tooltip. Chỉ áp dụng khi có thiết bị chuột thật (hover) — không hiện trên cảm
+     ứng (tránh vướng víu khi chạm trên điện thoại/máy tính bảng). */
+  @media (hover:hover){
+    [data-tooltip]{ position:relative; }
+    [data-tooltip]:hover::after{
+      content: attr(data-tooltip);
+      position:absolute; right:calc(100% + 10px); top:50%; transform:translateY(-50%);
+      background:#212121; color:#fff; padding:6px 12px; border-radius:8px; font-size:13px;
+      white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,.35); pointer-events:none; z-index:401;
+    }
+    [data-tooltip]:hover::before{
+      content:''; position:absolute; right:calc(100% + 4px); top:50%; transform:translateY(-50%);
+      border:6px solid transparent; border-left-color:#212121; pointer-events:none; z-index:401;
+    }
+  }
   .fab-chat{
     position:fixed; right:22px; bottom:22px; width:60px; height:60px; border-radius:50%;
     background:linear-gradient(145deg, var(--gold), var(--rice-dark)); color:#fff; border:none;
@@ -2800,7 +2817,7 @@
   }
   function renderPublicReceiptPage(receiptId){
     document.body.classList.add('public-survey-mode');
-    root.innerHTML = '<div class="center-screen">Đang tải biên lai…</div>';
+    root.innerHTML = `<div class="center-screen">${waveTextHtmlSlow('Đang tải biên lai…')}</div>`;
     let notFoundShown = false;
     let lastAdvOpen = true; // mặc định MỞ SẴN khi vừa vào trang — người xem có thể tự ẩn/hiện tuỳ ý sau đó
     let prevPaymentRequestedAt = undefined; // để phát hiện ĐÚNG thời điểm vừa chuyển từ "chưa yêu cầu duyệt" sang "đã yêu cầu duyệt"
@@ -3980,7 +3997,19 @@
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
-    const close = ()=>{ wrap.remove(); if(opts.onClose) opts.onClose(); };
+    const close = ()=>{
+      if(!opts.showDelete){
+        // Đang trong LUỒNG TẠO BIÊN LAI MỚI (không phải xem lại từ Hộp biên lai chưa thanh toán) — bấm
+        // "Đóng bảng"/X sẽ đóng hết TẤT CẢ modal trung gian (VD modal nhập thông tin thanh toán, modal
+        // này...) — CHỈ GIỮ LẠI đúng modal ĐẦU TIÊN (modal gốc "Tính tiền lãi và phê duyệt đóng lãi"
+        // hoặc "Tất toán khoản vay hoặc trả nợ trước hạn" — modal đã mở TRƯỚC KHI bắt đầu tạo biên lai).
+        const allModals = Array.from(document.querySelectorAll('.modal-bg'));
+        allModals.slice(1).forEach(el=> el.remove());
+      } else {
+        wrap.remove();
+      }
+      if(opts.onClose) opts.onClose();
+    };
     const link = unpaidReceiptLink(code);
     function renderBody(isEarlyRepayment, hideHeirInfo, recordForSummary){
       // Phân loại biên lai — CHỈ hiển thị khi xem từ Hộp biên lai chưa thanh toán (opts.showDelete) VÀ
@@ -6079,7 +6108,7 @@
         if(items.some(n=> !n || !n.trim())){ alert('Không thể lưu khi còn ô địa bàn dân cư để trống — vui lòng điền đầy đủ hoặc xoá ô trống đó.'); return; }
         const clean = items.map(n=>n.trim());
         if(isLocal){
-          close();
+          window.__instantRemoveModal(wrap);
           if(onSaved) onSaved(clean);
           return;
         }
@@ -6103,6 +6132,84 @@
     render();
   }
 
+  // =====================================================================
+  // "DANH SÁCH NGUỒN VAY" — 4 nguồn cố định (Trung ương/Tỉnh-thành phố/Nguồn 841/Nguồn địa phương) hiện
+  // CHỈ ĐỂ XEM, không sửa/xoá được — phía dưới cho phép thêm/sửa/xoá các nguồn vay TUỲ CHỈNH (thay thế
+  // hẳn cho khái niệm "Nguồn khác" + trường "Tên nguồn vay khác" cũ, đã trở nên thừa thãi).
+  // =====================================================================
+  function renderFundSourceManagerModal(onSaved){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    let items = (state.config.customFundSources||[]).slice();
+
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:480px;">
+          <div class="modal-head"><h3>Danh sách Nguồn vay</h3><button class="modal-close" id="fsm-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin:0 0 12px;">4 nguồn vay cố định bên dưới luôn có sẵn cho mọi xã/phường, không sửa/xoá được. Nếu nguồn vay của địa phương bạn không nằm trong 4 nguồn này, hãy thêm vào danh sách "Nguồn vay tuỳ chỉnh" phía dưới.</p>
+            <div class="divider-lbl">4 nguồn vay cố định (chỉ xem)</div>
+            ${FUND_SOURCE_OPTIONS.filter(o=>o!=='Nguồn khác').map(name=>`
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                <input value="${escapeHtml(name)}" disabled style="flex:1; opacity:.7;">
+              </div>`).join('')}
+            <div class="divider-lbl" style="margin-top:14px;">Nguồn vay tuỳ chỉnh (của riêng địa phương bạn)</div>
+            ${items.map((name,i)=>`
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                <button type="button" data-fsm-del="${i}" style="border:1px solid var(--line); border-radius:50%; width:24px; height:24px; color:#c00; background:#fff; cursor:pointer;">✕</button>
+                <input data-fsm-name="${i}" maxlength="20" value="${escapeHtml(name)}" style="flex:1;">
+              </div>`).join('')}
+            <button class="btn btn-ghost btn-sm" id="fsm-add" ${items.length>=30?'disabled':''}>Thêm +</button>
+            ${items.length>=30? `<p class="sub" style="color:var(--red);">Đã đạt tối đa 30 nguồn vay tuỳ chỉnh.</p>` : ''}
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" id="fsm-cancel">Đóng bảng quay lại</button>
+            <button class="btn btn-primary" id="fsm-save">Lưu vào bộ nhớ chung</button>
+          </div>
+        </div>`;
+      wire();
+    }
+    function wire(){
+      wrap.querySelector('#fsm-close').onclick = close;
+      wrap.querySelector('#fsm-cancel').onclick = close;
+      wrap.querySelectorAll('[data-fsm-name]').forEach(inp=>{
+        inp.oninput = ()=>{ items[parseInt(inp.dataset.fsmName,10)] = inp.value; };
+      });
+      wrap.querySelectorAll('[data-fsm-del]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const idx = parseInt(btn.dataset.fsmDel,10);
+          const name = items[idx];
+          if(name && name.trim() && !confirm(`Xoá nguồn vay tuỳ chỉnh "${name}"?`)) return;
+          items.splice(idx,1); render();
+        };
+      });
+      const addBtn = wrap.querySelector('#fsm-add');
+      if(addBtn) addBtn.onclick = ()=>{
+        if(items.length>=30) return;
+        if(items.length && !items[items.length-1].trim()){ alert('Vui lòng nhập tên cho ô vừa thêm trước khi thêm ô mới.'); return; }
+        items.push('');
+        render();
+      };
+      const saveBtn = wrap.querySelector('#fsm-save');
+      if(saveBtn) saveBtn.onclick = async ()=>{
+        if(items.some(n=> !n || !n.trim())){ alert('Không thể lưu khi còn ô nguồn vay để trống — vui lòng điền đầy đủ hoặc xoá ô trống đó.'); return; }
+        const clean = items.map(n=>n.trim());
+        const newCfg = {...state.config, customFundSources: clean};
+        await cSet('config', newCfg);
+        state.config = newCfg;
+        // Dùng xoá NGAY LẬP TỨC (không hiệu ứng trễ) — vì onSaved() thường dựng lại modal cha NGAY sau
+        // đây; nếu để hiệu ứng đóng trễ như bình thường, modal quản lý này vẫn còn tồn tại trong DOM
+        // một lúc, có thể trùng ID với phần tử trong modal cha mới dựng, gây nhầm lẫn khi khôi phục dữ
+        // liệu form đang gõ dở (lỗi thật đã xảy ra ở các modal quản lý khác trước đây, nay chặn ngay từ
+        // đầu cho modal này).
+        window.__instantRemoveModal(wrap);
+        if(onSaved) onSaved(clean);
+      };
+    }
+    render();
+  }
   // =====================================================================
   // "DANH SÁCH ĐỊA CHỈ TRƯỚC SÁP NHẬP" — thay thế nút "Khác..." cũ. Lưu ở state.config.hamletsLegacyHidden
   // (mỗi phần tử đã là chuỗi đầy đủ "Tên (cũ)"). Tự động gợi ý sẵn 1 mục cho MỖI địa bàn dân cư đang
@@ -6571,6 +6678,19 @@
   function surveyQTypeHasOptions(t){ return t==='radio' || t==='checkbox' || t==='dropdown'; }
   // Danh sách "Nguồn vay" của 1 Phương án vay — chọn "Nguồn khác" thì phải tự gõ tên nguồn cụ thể.
   const FUND_SOURCE_OPTIONS = ['Cấp trung ương', 'Cấp tỉnh/thành phố', 'Nguồn 841', 'Nguồn địa phương', 'Nguồn khác'];
+  // Danh sách lựa chọn Nguồn vay ĐẦY ĐỦ — 4 nguồn cố định + các nguồn TUỲ CHỈNH đã lưu ở
+  // state.config.customFundSources + lựa chọn "+ Thêm nguồn khác" ở cuối cùng để mở modal quản lý. Nếu
+  // giá trị hiện tại (currentVal) là 1 tên KHÔNG nằm trong bất kỳ danh sách nào (VD do AI trích xuất ra
+  // 1 tên lạ, hoặc nguồn tuỳ chỉnh đã bị xoá sau đó) thì vẫn giữ lại, chèn thêm vào đầu để không mất dữ
+  // liệu gốc.
+  function fundSourceSelectOptionsHtml(currentVal){
+    const fixed = FUND_SOURCE_OPTIONS.filter(o=>o!=='Nguồn khác');
+    const custom = state.config.customFundSources||[];
+    const all = [...fixed, ...custom];
+    let extra = '';
+    if(currentVal && !all.includes(currentVal)) extra = `<option value="${escapeHtml(currentVal)}" selected>${escapeHtml(currentVal)}</option>`;
+    return extra + all.map(o=>`<option value="${escapeHtml(o)}" ${currentVal===o?'selected':''}>${escapeHtml(o)}</option>`).join('') + `<option value="__add_fundsource__">+ Thêm nguồn khác</option>`;
+  }
   // ---------------------------------------------------------------------
   // Khi Admin thêm/sửa người vay mà gõ tên 1 địa bàn (ấp/thôn/khu phố) chưa từng có trong danh
   // sách — TỰ ĐỘNG thêm tên đó vào config.hamlets (sẽ hiện ra ở Cài đặt & Chia sẻ), ĐỒNG THỜI duy
@@ -7761,7 +7881,7 @@
     if(state.view==='wallet'){ renderWallet(); syncFloatingChat(); return; }
     if(state.view==='onboarding'){ renderOnboarding(); syncFloatingChat(); return; }
     if(state.view==='app'){ (isPending() ? renderPendingScreen() : renderApp()); syncFloatingChat(); return; }
-    root.innerHTML = '<div class="center-screen">Đang tải…</div>';
+    root.innerHTML = `<div class="center-screen">${waveTextHtmlSlow('Đang tải: Hoinongdan.sotay.org')}</div>`;
     syncFloatingChat();
   }
 
@@ -7920,6 +8040,7 @@
       btn.id = 'fab-chat-btn';
       btn.className = 'fab-chat fab-intro'; // Yêu cầu 6: nhún nhảy 5 giây đầu để thu hút sự chú ý
       btn.title = 'Chàng Nông dân Thông minh — Trợ lý AI';
+      btn.dataset.tooltip = 'Chat với AI';
       btn.textContent = '🤖';
       btn.onclick = openAiChat;
       document.body.appendChild(btn);
@@ -7941,7 +8062,7 @@
         notesWrap = document.createElement('div');
         notesWrap.id = 'fab-notes-wrap';
         notesWrap.className = 'fab-notes-wrap';
-        notesWrap.innerHTML = `<button id="fab-notes-btn" class="fab-notes-btn fab-intro" title="Siêu ghi chú">🗒️</button>`;
+        notesWrap.innerHTML = `<button id="fab-notes-btn" class="fab-notes-btn fab-intro" title="Siêu ghi chú" data-tooltip="Siêu ghi chú">🗒️</button>`;
         document.body.appendChild(notesWrap);
         notesWrap.querySelector('#fab-notes-btn').onclick = openSuperNotes;
         setTimeout(()=>{ const b = document.getElementById('fab-notes-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
@@ -7962,6 +8083,7 @@
       peopleBtn.id = 'fab-people-btn';
       peopleBtn.className = 'fab-people-btn fab-intro';
       peopleBtn.title = 'Chat với Mọi người';
+      peopleBtn.dataset.tooltip = 'Chat với Mọi người';
       peopleBtn.textContent = '💬';
       peopleBtn.onclick = openPeopleChat;
       document.body.appendChild(peopleBtn);
@@ -10638,24 +10760,25 @@ ${fileGenerationTrainingText()}`;
       </div>`;
     document.body.appendChild(wrap);
     wrap.style.pointerEvents = 'none'; // không chặn thao tác của người dùng trong lúc bảng đang tự hiện/tự ẩn
+    // GIAI ĐOẠN 1: đứng im NGUYÊN VỊ TRÍ GIỮA MÀN HÌNH đúng 2 giây (không làm gì cả).
     setTimeout(()=>{
-      // GIAI ĐOẠN 1: trôi xuống cho tới khi chạm SÁT ĐÁY màn hình thì DỪNG lại (không trôi tiếp ngay,
-      // không mờ đi vội) — tính đúng khoảng cách còn lại từ mép dưới bảng tới mép dưới màn hình.
+      // GIAI ĐOẠN 2: trượt xuống cho tới khi chạm SÁT ĐÁY màn hình thì DỪNG lại — tính đúng khoảng
+      // cách còn lại từ mép dưới bảng tới mép dưới màn hình tại đúng thời điểm này.
       const rect = wrap.getBoundingClientRect();
       const distToBottom = Math.max(0, window.innerHeight - rect.bottom);
       wrap.style.transition = 'transform 1s ease-in';
       wrap.style.transform = `translateY(${distToBottom}px)`;
       setTimeout(()=>{
-        // GIAI ĐOẠN 2: đứng im ĐÚNG TẠI VỊ TRÍ SÁT ĐÁY này trong 2 giây — không làm gì cả.
+        // GIAI ĐOẠN 3: đứng im ĐÚNG TẠI VỊ TRÍ SÁT ĐÁY này thêm 2 giây nữa.
         setTimeout(()=>{
-          // GIAI ĐOẠN 3: tiếp tục trôi xuống thêm + mờ dần rồi biến mất hẳn.
+          // GIAI ĐOẠN 4: tiếp tục trượt xuống thêm + mờ dần rồi biến mất hẳn.
           wrap.style.transition = 'transform 1.2s ease-in, opacity 1.2s ease-in';
           wrap.style.transform = `translateY(${distToBottom + Math.max(200, rect.height)}px)`;
           wrap.style.opacity = '0';
           setTimeout(()=>{ state._showWardWelcome = false; wrap.remove(); }, 1250);
         }, 2000);
       }, 1050);
-    }, 1500);
+    }, 2000);
   }
 
   function renderBellPanel(){
@@ -12029,7 +12152,7 @@ ${fileGenerationTrainingText()}`;
   // lại ở từng dòng người vay nữa) ngay phía trên bảng danh sách người vay của phương án đó.
   const QUICKADD_PROJECT_FIELDS = [
     ['name','Tên phương án'], ['totalCapital','Tổng số tiền nguồn vốn (đ)'], ['disburseDate','Ngày giải ngân (ngày vay)'], ['dueDate','Ngày đến hạn trả'],
-    ['fundSourceType','Nguồn vay'], ['fundSourceOther','Tên nguồn vay khác'], ['interestRate','Lãi suất (%/năm)'], ['splitCentral','Phân bổ Cấp TW (%)'], ['splitProvince','Phân bổ Cấp Tỉnh (%)'],
+    ['fundSourceType','Nguồn vay'], ['interestRate','Lãi suất (%/năm)'], ['splitCentral','Phân bổ Cấp TW (%)'], ['splitProvince','Phân bổ Cấp Tỉnh (%)'],
     ['splitWard','Phân bổ Cấp Xã (%)'], ['hamletAllocPercent','% Xã chia Ấp'],
   ];
   // Các cột (trong QUICKADD_PREVIEW_COLS) mà giá trị của nó ĐÃ được thể hiện ở dòng Phương án vay riêng
@@ -12047,7 +12170,7 @@ ${fileGenerationTrainingText()}`;
     // mới có thể LUÔN tôn trọng đúng thông tin đã có sẵn trong hệ thống (không bịa, không để người
     // dùng "ép" đổi thông tin phương án vay đã tồn tại).
     const existingProjectsDetail = eligibleProjectsForBorrowerAssignment().map(p=>
-      `- "${p.name}": Tổng vốn=${p.totalCapital||0}đ, Ngày giải ngân=${p.disburseDate||''}, Ngày đến hạn=${p.dueDate||''}, Nguồn vay=${p.fundSourceType||''}${p.fundSourceOther?' ('+p.fundSourceOther+')':''}, Lãi suất=${p.interestRate||0}%/năm, Phân bổ TW=${p.splitCentral||0}%, Phân bổ Tỉnh=${p.splitProvince||0}%, Phân bổ Xã=${p.splitWard||0}%, %Xã chia Ấp=${p.hamletAllocPercent||0}%`
+      `- "${p.name}": Tổng vốn=${p.totalCapital||0}đ, Ngày giải ngân=${p.disburseDate||''}, Ngày đến hạn=${p.dueDate||''}, Nguồn vay=${p.fundSourceType||''}, Lãi suất=${p.interestRate||0}%/năm, Phân bổ TW=${p.splitCentral||0}%, Phân bổ Tỉnh=${p.splitProvince||0}%, Phân bổ Xã=${p.splitWard||0}%, %Xã chia Ấp=${p.hamletAllocPercent||0}%`
     ).join('\n') || '(chưa có phương án vay nào trong hệ thống)';
     const colLettersInfo = QUICKADD_PREVIEW_COLS.map(([,label],i)=> `${String.fromCharCode(65+i)}=${label}`).join(', ');
     const subAdminUnit = subAdminLabel(); // "Ấp"/"Khu phố"/"Thôn"/...
@@ -12120,9 +12243,9 @@ ${existingProjectsDetail}
 10) HIỂU VỊ TRÍ Ô KIỂU BẢNG TÍNH: bảng "file" kết quả có các cột được đặt tên A,B,C... theo đúng thứ tự sau: ${colLettersInfo}; các dòng đánh số 1,2,3... theo từng người vay (dòng 1 = người vay đầu tiên). Khi người dùng nhắc tới 1 vị trí kiểu "ô K2", "cột K dòng 2", "hàng 3 cột D"... bạn PHẢI hiểu đúng và ánh xạ về đúng trường dữ liệu + đúng người vay tương ứng để sửa/bổ sung.
 11) CÁCH TRẢ LỜI: Luôn trả lời bằng văn bản trò chuyện TỰ NHIÊN trước (không bọc trong JSON, viết như đang nói chuyện bình thường, có thể dùng **in đậm** khi cần nhấn mạnh). Nếu tại thời điểm này đã trích xuất được ít nhất 1 người vay hoặc 1 phương án vay mới, hãy thêm vào NGAY CUỐI CÙNG câu trả lời (sau phần trò chuyện) một khối mã như sau, ĐÚNG định dạng, không thêm chữ gì khác bên trong khối:
 \`\`\`quickadd-result
-{"projects":[{"name":"","fundSourceType":"","fundSourceOther":"","interestRate":"","splitCentral":"","splitProvince":"","splitWard":"","hamletAllocPercent":"","disburseDate":"","dueDate":"","totalCapital":""}],"borrowers":[{"name":"","hamletDisplay":"","hamletOld":"","projectName":"","principal":"","loanDate":"","dueDate":"","fundSource":"","rate":"","birthYear":"","managerId":"","cccd":"","phone":"","address":"","industry":"","repayAbility":"","guarantor":"","note":"","extensions":[{"level":1,"from":"","to":"","ratePct":""}]}],"newHamlets":[],"newHamletsOld":[]}
+{"projects":[{"name":"","fundSourceType":"","interestRate":"","splitCentral":"","splitProvince":"","splitWard":"","hamletAllocPercent":"","disburseDate":"","dueDate":"","totalCapital":""}],"borrowers":[{"name":"","hamletDisplay":"","hamletOld":"","projectName":"","principal":"","loanDate":"","dueDate":"","fundSource":"","rate":"","birthYear":"","managerId":"","cccd":"","phone":"","address":"","industry":"","repayAbility":"","guarantor":"","note":"","extensions":[{"level":1,"from":"","to":"","ratePct":""}]}],"newHamlets":[],"newHamletsOld":[]}
 \`\`\`
-Trường "fundSourceOther" CHỈ điền khi "fundSourceType" là "Nguồn khác" (tên nguồn vay cụ thể, tối đa 15 ký tự) — các trường hợp khác để trống. Trường "managerId" là "chihoitruong" (mặc định) nếu người dùng không nói rõ ai là người quản lý hộ vay này — nếu người dùng CÓ nhắc tên người quản lý cụ thể mà bạn không chắc đúng mã định danh, hãy điền TÊN người đó vào thẳng trường này (hệ thống sẽ tự đối chiếu). "birthYear"/"industry"/"repayAbility"/"guarantor" chỉ điền khi người dùng CÓ cung cấp thông tin tương ứng (năm sinh / ngành nghề sản xuất kinh doanh / khả năng trả nợ / người bảo lãnh), không tự bịa.
+Trường "fundSourceType" LUÔN điền TÊN NGUỒN VAY TRỰC TIẾP (không có trường phụ nào khác nữa) — CÁC NGUỒN VAY ĐÃ CÓ SẴN để chọn gồm: "Cấp trung ương", "Cấp tỉnh/thành phố", "Nguồn 841", "Nguồn địa phương"${(state.config.customFundSources||[]).length? ', '+state.config.customFundSources.map(s=>`"${s}"`).join(', ') : ''} — LUÔN ưu tiên dùng ĐÚNG một trong các tên có sẵn này nếu phù hợp (kể cả khi người dùng gõ không dấu/viết tắt/gần đúng); CHỈ điền 1 tên MỚI (chưa có trong danh sách trên) khi người dùng nói rõ ràng đây là 1 nguồn vay HOÀN TOÀN KHÁC, chưa từng có trong danh sách. Trường "managerId" là "chihoitruong" (mặc định) nếu người dùng không nói rõ ai là người quản lý hộ vay này — nếu người dùng CÓ nhắc tên người quản lý cụ thể mà bạn không chắc đúng mã định danh, hãy điền TÊN người đó vào thẳng trường này (hệ thống sẽ tự đối chiếu). "birthYear"/"industry"/"repayAbility"/"guarantor" chỉ điền khi người dùng CÓ cung cấp thông tin tương ứng (năm sinh / ngành nghề sản xuất kinh doanh / khả năng trả nợ / người bảo lãnh), không tự bịa.
 Trường "extensions" là MẢNG RỖNG [] nếu người vay chưa từng gia hạn (đa số trường hợp) — CHỈ điền khi người dùng có nói rõ về lịch sử gia hạn của người vay đó. "level" = 1,2,3... theo đúng thứ tự lần gia hạn (level 1 = lần gia hạn đầu tiên).
 Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã này, chỉ cần trò chuyện/hỏi lại bình thường.`;
   }
@@ -12713,16 +12836,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             if(k==='name') return `<td style="${cellStyle}"><input type="text" maxlength="60" data-proj-edit-idx="${projIdx}" data-proj-edit-k="${k}" value="${escapeHtml(rawVal)}" style="${inputBaseStyle}"></td>`;
             if(k==='totalCapital') return `<td style="${cellStyle}"><input type="text" inputmode="numeric" data-proj-edit-idx="${projIdx}" data-proj-edit-k="${k}" data-proj-edit-money="1" value="${escapeHtml(rawVal)}" placeholder="Chỉ nhập số" style="${inputBaseStyle}"></td>`;
             if(k==='fundSourceType'){
-              const opts = FUND_SOURCE_OPTIONS.slice();
-              if(rawVal && !opts.includes(rawVal)) opts.unshift(rawVal); // giữ lại giá trị AI trích xuất dù chưa khớp danh sách chuẩn, không làm mất dữ liệu
-              return `<td style="${cellStyle}"><select id="qfp-proj-fundSourceType-${projIdx}" data-proj-edit-idx="${projIdx}" data-proj-edit-k="${k}" style="${inputBaseStyle}">${opts.map(o=>`<option value="${escapeHtml(o)}" ${rawVal===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}</select></td>`;
-            }
-            if(k==='fundSourceOther'){
-              // Y HỆT form thật: chỉ CÓ Ý NGHĨA khi "Nguồn vay" = "Nguồn khác" — các trường hợp còn lại
-              // thì làm MỜ + KHOÁ ô này lại (không xoá cột, vì vẫn cần khi người dùng đổi lại "Nguồn
-              // khác" sau này), tránh gây hiểu nhầm là 1 trường vô nghĩa/thừa thãi.
-              const isRelevant = src.fundSourceType==='Nguồn khác';
-              return `<td style="${cellStyle} ${isRelevant?'':'opacity:.4;'}"><input type="text" id="qfp-proj-fundSourceOther-${projIdx}" maxlength="20" data-proj-edit-idx="${projIdx}" data-proj-edit-k="${k}" value="${escapeHtml(rawVal)}" placeholder="${isRelevant?'Nhập tên nguồn vay cụ thể':'Nếu là Nguồn vay Khác'}" ${isRelevant?'':'disabled'} style="${inputBaseStyle}"></td>`;
+              return `<td style="${cellStyle}"><select id="qfp-proj-fundSourceType-${projIdx}" data-proj-edit-idx="${projIdx}" data-proj-edit-k="${k}" style="${inputBaseStyle}">${fundSourceSelectOptionsHtml(rawVal)}</select></td>`;
             }
             // interestRate/splitCentral/splitProvince/splitWard/hamletAllocPercent: số thập phân kiểu VN (dấu phẩy)
             return `<td style="${cellStyle}"><input type="text" inputmode="decimal" data-proj-edit-idx="${projIdx}" data-proj-edit-k="${k}" data-proj-edit-decimal="1" value="${escapeHtml(rawVal.replace('.',','))}" style="${inputBaseStyle}"></td>`;
@@ -12811,7 +12925,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       </table>`;
     }
     wrap.innerHTML = `
-      <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
+      <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column; border:6px solid ${editMode?'#c62828':'#fbc02d'};">
         <div class="modal-head" style="${editMode? 'background:linear-gradient(180deg, #ef5350 0%, #c62828 50%, #7f0000 100%);' : ''}"><h3 style="${editMode?'color:#fff;':''}">${editMode? waveTextHtmlSlow('📋 Hồ sơ đang soạn — Đang sửa thủ công') : '📋 Hồ sơ đang soạn'}</h3><button class="modal-close preview-allow" id="qfp-close">✕</button></div>
         ${editMode? `<p class="sub" style="margin:8px 14px 0; color:#5a4300;">💡 Bấm vào từng ô để sửa trực tiếp, xong thì bấm "💾 Lưu thay đổi".</p>` : ''}
         <div class="modal-body" id="qfp-modal-body" style="flex:1; overflow:auto; padding:14px;">
@@ -12950,17 +13064,25 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       };
       disburseInput.addEventListener('input', syncFromDisburse);
       dueInput.addEventListener('input', syncFromDue);
-      // Đồng bộ TRỰC TIẾP, KHÔNG ĐỘ TRỄ: đổi "Nguồn vay" thì lập tức mở khoá/đóng khoá đúng ô "Tên
-      // nguồn vay khác" ngay, không cần vẽ lại cả bảng mới thấy được (trước đây chỉ tính đúng 1 lần lúc
-      // vẽ ra, phải đóng mở lại toàn bộ modal mới cập nhật — đây là lỗi thật, nay đã sửa).
+      // Chọn "+ Thêm nguồn khác" thì mở modal quản lý Nguồn vay — lưu/khôi phục toàn bộ giá trị form
+      // trước/sau, đúng mẫu đã áp dụng cho các cột địa bàn/người quản lý/địa chỉ trước sáp nhập khác.
       const fundTypeSelect = wrap.querySelector(`#qfp-proj-fundSourceType-${pi}`);
-      const fundOtherInput = wrap.querySelector(`#qfp-proj-fundSourceOther-${pi}`);
-      if(fundTypeSelect && fundOtherInput){
+      if(fundTypeSelect){
+        fundTypeSelect.dataset.prev = fundTypeSelect.value;
         fundTypeSelect.addEventListener('change', ()=>{
-          const isRelevant = fundTypeSelect.value==='Nguồn khác';
-          fundOtherInput.disabled = !isRelevant;
-          fundOtherInput.placeholder = isRelevant? 'Nhập tên nguồn vay cụ thể' : 'Nếu là Nguồn vay Khác';
-          fundOtherInput.closest('td').style.opacity = isRelevant? '1' : '.4';
+          if(fundTypeSelect.value!=='__add_fundsource__'){ fundTypeSelect.dataset.prev = fundTypeSelect.value; return; }
+          const prevVal = fundTypeSelect.dataset.prev;
+          const savedByKey = [];
+          const savedProjByKey = [];
+          wrap.querySelectorAll('[data-edit-b]').forEach(el=> savedByKey.push([el.dataset.editB, el.dataset.editK, el.value]));
+          wrap.querySelectorAll('[data-proj-edit-idx]').forEach(el=> savedProjByKey.push([el.dataset.projEditIdx, el.dataset.projEditK, el.value]));
+          renderFundSourceManagerModal((newList)=>{
+            state.config.customFundSources = newList;
+            render();
+            savedByKey.forEach(([b2,k2,v2])=>{ const el=wrap.querySelector(`[data-edit-b="${b2}"][data-edit-k="${k2}"]`); if(el) el.value=v2; });
+            savedProjByKey.forEach(([p2,k2,v2])=>{ const el=wrap.querySelector(`[data-proj-edit-idx="${p2}"][data-proj-edit-k="${k2}"]`); if(el && !(p2===String(pi) && k2==='fundSourceType')) el.value=v2; });
+          });
+          fundTypeSelect.value = prevVal;
         });
       }
     });
@@ -13177,7 +13299,16 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           result.projects = result.projects || [];
           result.projects.push({ name:tempName, fundSourceType:'', interestRate:'', splitCentral:'', splitProvince:'', splitWard:'', hamletAllocPercent:'', disburseDate:'', dueDate:'', totalCapital:'' });
           result._manuallyEdited = true;
+          // Lưu lại toàn bộ giá trị đang có trên form TRƯỚC khi vẽ lại — tránh mất các ký tự người dùng
+          // đang gõ dở (lỗi kinh điển: vẽ lại toàn bộ HTML sẽ xoá sạch giá trị của các ô KHÔNG được lưu
+          // vào state trước đó).
+          const savedByKey = [];
+          const savedProjByKey = [];
+          wrap.querySelectorAll('[data-edit-b]').forEach(el=> savedByKey.push([el.dataset.editB, el.dataset.editK, el.value]));
+          wrap.querySelectorAll('[data-proj-edit-idx]').forEach(el=> savedProjByKey.push([el.dataset.projEditIdx, el.dataset.projEditK, el.value]));
           render();
+          savedByKey.forEach(([b2,k2,v2])=>{ const el=wrap.querySelector(`[data-edit-b="${b2}"][data-edit-k="${k2}"]`); if(el) el.value=v2; });
+          savedProjByKey.forEach(([p2,k2,v2])=>{ const el=wrap.querySelector(`[data-proj-edit-idx="${p2}"][data-proj-edit-k="${k2}"]`); if(el) el.value=v2; });
           requestAnimationFrame(()=>{
             const el = wrap.querySelector(`input[data-proj-edit-k="name"][value="${tempName}"]`);
             if(el) el.scrollIntoView({ block:'center', behavior:'smooth' });
@@ -13190,7 +13321,13 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           if(!result._pinnedExistingProjectNames.includes(name)) result._pinnedExistingProjectNames.push(name);
           result._manuallyEdited = true;
           pClose();
+          const savedByKey = [];
+          const savedProjByKey = [];
+          wrap.querySelectorAll('[data-edit-b]').forEach(el=> savedByKey.push([el.dataset.editB, el.dataset.editK, el.value]));
+          wrap.querySelectorAll('[data-proj-edit-idx]').forEach(el=> savedProjByKey.push([el.dataset.projEditIdx, el.dataset.projEditK, el.value]));
           render();
+          savedByKey.forEach(([b2,k2,v2])=>{ const el=wrap.querySelector(`[data-edit-b="${b2}"][data-edit-k="${k2}"]`); if(el) el.value=v2; });
+          savedProjByKey.forEach(([p2,k2,v2])=>{ const el=wrap.querySelector(`[data-proj-edit-idx="${p2}"][data-proj-edit-k="${k2}"]`); if(el) el.value=v2; });
           // Cuộn tới đúng vị trí phương án vay đã có sẵn vừa được hiện ra trong file đang sửa.
           requestAnimationFrame(()=>{
             const titles = wrap.querySelectorAll('p[style*="font-weight:800"]');
@@ -24545,11 +24682,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
             </div>
             <div class="field"><label>Ngày đến hạn trả *</label><input type="date" id="lpm-due" value="${p.dueDate||''}"></div>
             <div class="field"><label>Nguồn vay *</label>
-              <select id="lpm-fundsource-type">${FUND_SOURCE_OPTIONS.map(o=>`<option value="${o}" ${p.fundSourceType===o?'selected':''}>${o}</option>`).join('')}</select>
-            </div>
-            <div class="field" id="lpm-fundsource-other-wrap" style="${p.fundSourceType==='Nguồn khác'?'':'display:none;'}">
-              <label>Tên nguồn vay khác <span class="sub">(tối đa 15 ký tự)</span></label>
-              <input id="lpm-fundsource-other" maxlength="20" value="${escapeHtml(p.fundSourceOther||'')}" placeholder="Nhập tên nguồn vay cụ thể">
+              <select id="lpm-fundsource-type">${fundSourceSelectOptionsHtml(p.fundSourceType)}</select>
             </div>
             <div class="field"><label>Lãi suất người vay phải trả (%/năm) *</label><input type="text" inputmode="decimal" id="lpm-rate" value="${String(p.interestRate||0).replace('.',',')}" placeholder="Vd: 6,6"></div>
           </div>
@@ -24603,7 +24736,22 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     wrap.querySelector('#lpm-cancel').onclick = ()=>{ close(); if(onDone) onDone(null); };
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được)
     wrap.querySelector('#lpm-fundsource-type').onchange = (e)=>{
-      wrap.querySelector('#lpm-fundsource-other-wrap').style.display = e.target.value==='Nguồn khác' ? '' : 'none';
+      if(e.target.value==='__add_fundsource__'){
+        const savedValues = {};
+        wrap.querySelectorAll('input[id], select[id], textarea[id]').forEach(el=>{ if(el.id!=='lpm-fundsource-type') savedValues[el.id] = el.value; });
+        const prevVal = p.fundSourceType || FUND_SOURCE_OPTIONS[0];
+        renderFundSourceManagerModal((newList)=>{
+          state.config.customFundSources = newList;
+          window.__instantRemoveModal(wrap);
+          p.fundSourceType = prevVal;
+          renderLoanProjectModal(p, onDone, forceReadOnly);
+          requestAnimationFrame(()=>{
+            Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el) el.value = savedValues[id]; });
+          });
+        });
+        e.target.value = prevVal;
+        return;
+      }
       // Nguồn vay "Cấp trung ương" có bộ mặc định riêng (khác các nguồn vay khác) — tự điền sẵn, người
       // dùng vẫn có thể tự sửa lại theo ý mình sau đó.
       if(e.target.value==='Cấp trung ương'){
@@ -24706,21 +24854,19 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         return;
       }
       const fundSourceType = wrap.querySelector('#lpm-fundsource-type').value;
-      const fundSourceOther = wrap.querySelector('#lpm-fundsource-other').value.trim();
-      if(fundSourceType==='Nguồn khác' && !fundSourceOther){ alert('Vui lòng nhập tên nguồn vay khác.'); return; }
       const updated = {
         ...p, name,
         totalCapital,
         interestRate,
         disburseDate, dueDate,
-        fundSourceType, fundSourceOther,
+        fundSourceType,
         splitCentral, splitProvince, splitWard,
         hamletAllocPercent,
         updatedAt: new Date().toISOString(), deleted:false,
       };
       // Phát hiện có thay đổi THẬT SỰ hay không (so với dữ liệu gốc trước khi sửa) — chỉ khi có thay
       // đổi mới cần cảnh báo + lập giấy xác nhận + lan truyền xuống người vay bên trong.
-      const compareKeys = ['name','totalCapital','interestRate','disburseDate','dueDate','fundSourceType','fundSourceOther','splitCentral','splitProvince','splitWard','hamletAllocPercent'];
+      const compareKeys = ['name','totalCapital','interestRate','disburseDate','dueDate','fundSourceType','splitCentral','splitProvince','splitWard','hamletAllocPercent'];
       const hasChanged = !isNew && compareKeys.some(k=> String(p[k]??'') !== String(updated[k]??''));
       if(hasChanged){
         const memberCount = state.borrowers.filter(b=>!b.deleted && b.projectId===p.id).length;
@@ -24744,7 +24890,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         }
         // GIẤY XÁC NHẬN CHUNG — chỉ lập đúng 1 bản ghi duy nhất cho cả phương án, nối link vào Hộp
         // giấy xác nhận của TẤT CẢ người vay bị ảnh hưởng (thay vì lập hàng loạt giấy trùng lặp).
-        const FIELD_LABELS_P = { name:'Tên phương án', totalCapital:'Tổng vốn', interestRate:'Lãi suất', disburseDate:'Ngày giải ngân', dueDate:'Ngày đến hạn', fundSourceType:'Nguồn vay', fundSourceOther:'Nguồn vay khác', splitCentral:'Tỷ lệ phân bổ Trung ương', splitProvince:'Tỷ lệ phân bổ Tỉnh', splitWard:'Tỷ lệ phân bổ Xã', hamletAllocPercent:`Tỷ lệ phân bổ ${subAdminLabel()}` };
+        const FIELD_LABELS_P = { name:'Tên phương án', totalCapital:'Tổng vốn', interestRate:'Lãi suất', disburseDate:'Ngày giải ngân', dueDate:'Ngày đến hạn', fundSourceType:'Nguồn vay', splitCentral:'Tỷ lệ phân bổ Trung ương', splitProvince:'Tỷ lệ phân bổ Tỉnh', splitWard:'Tỷ lệ phân bổ Xã', hamletAllocPercent:`Tỷ lệ phân bổ ${subAdminLabel()}` };
         const changedFieldKeys = compareKeys.filter(k=> String(p[k]??'') !== String(updated[k]??''));
         const MONEY_FIELDS_P = ['totalCapital'];
         const changedFieldLines = changedFieldKeys.map(k=>{
