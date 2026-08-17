@@ -546,6 +546,17 @@
     50%{ border-color: #b71c1c; box-shadow:0 0 0 2px rgba(183,28,28,.35); }
   }
   .m-project-picker-flash{ animation: projectPickerBorderFlash 0.5s ease-in-out 6; }
+  /* Nhấp nháy màu nền cho Ô NHẬP LIỆU vừa được thêm mới (phương án vay mới, người vay mới) — KHÔNG khai
+     báo màu ở 0%/100% nên trình duyệt tự dùng ĐÚNG màu nền GỐC hiện có của từng ô (trắng nếu đang cho
+     nhập, xám nếu đang bị khoá chỉ xem) làm điểm bắt đầu/kết thúc — chỉ cần định nghĩa đúng màu VÀNG ở
+     giữa (50%) là đủ, hoạt động đúng cho MỌI trường hợp màu nền khác nhau mà không cần biết trước. Lặp
+     đúng 5 lần rồi đứng yên hẳn (không dùng infinite). */
+  @keyframes newFieldBgFlash{ 50%{ background-color:#fff9c4; } }
+  .new-field-flash{ animation: newFieldBgFlash 0.35s ease-in-out 5; }
+  /* Nhảy múa (phóng to 1,1 lần rồi về lại) đúng 5 lần rồi đứng yên hẳn — dùng cho tiêu đề phương án vay
+     khi có người vay bên trong phương án đó vừa bị xoá đi. */
+  @keyframes projectTitleDanceOnDelete{ 50%{ transform:scale(1.1); } }
+  .project-title-dance{ display:inline-block; animation: projectTitleDanceOnDelete 0.3s ease-in-out 5; }
   @keyframes dragHintBlinkTwice{
     0%{ opacity:1; }
     9.375%{ opacity:0; }
@@ -10849,7 +10860,16 @@ ${fileGenerationTrainingText()}`;
     // chính trình duyệt điều khiển toàn bộ thời gian (đáng tin cậy trên mọi thiết bị, kể cả di động):
     // nảy vào mắt người dùng (0 -> 0.5s) -> đứng im 3.5 giây -> trôi xuống + mờ dần biến mất (0.9s cuối).
     wrap.style.animation = 'wardWelcomeBottomSequence 4.9s ease-in forwards';
-    wrap.addEventListener('animationend', ()=>{ state._showWardWelcome = false; wrap.remove(); });
+    // QUAN TRỌNG: sự kiện "animationend" LAN LÊN (bubble) từ phần tử con — khung .modal bên trong có
+    // hiệu ứng xuất hiện RIÊNG của nó (cơ chế chung áp dụng cho MỌI modal trong toàn app, ~0.66 giây),
+    // nếu không kiểm tra rõ ràng thì sự kiện animationend CỦA PHẦN TỬ CON đó sẽ bị nhầm là animation
+    // CỦA wrap đã xong, khiến bảng bị xoá quá sớm (đúng là lỗi thật đã xảy ra — mất sau ~1 giây thay vì
+    // đủ 4.9 giây như thiết kế). Chỉ xử lý khi animationName khớp ĐÚNG và event.target CHÍNH LÀ wrap.
+    wrap.addEventListener('animationend', (e)=>{
+      if(e.target!==wrap || e.animationName!=='wardWelcomeBottomSequence') return;
+      state._showWardWelcome = false;
+      wrap.remove();
+    });
   }
 
   function renderBellPanel(){
@@ -13282,6 +13302,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             }
             window.__qfpCurrentResult.borrowers.push(blank);
             window.__qfpCurrentResult._manuallyEdited = true;
+            const newBorrowerIdx = window.__qfpCurrentResult.borrowers.length - 1;
             if(window.__qfpCurrentRender) window.__qfpCurrentRender();
             const wrapNow = window.__qfpCurrentWrap;
             if(wrapNow){
@@ -13292,6 +13313,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
                 const rows = wrapNow.querySelectorAll('[data-edit-b][data-edit-k="name"]');
                 const lastRow = rows[rows.length-1];
                 if(lastRow) lastRow.closest('tr').scrollIntoView({ block:'center', behavior:'auto' });
+                // Nhấp nháy màu nền cho TẤT CẢ ô nhập liệu của đúng dòng người vay vừa được thêm mới.
+                wrapNow.querySelectorAll(`[data-edit-b="${newBorrowerIdx}"]`).forEach(fieldEl=> fieldEl.classList.add('new-field-flash'));
               });
             }
           }
@@ -13378,9 +13401,12 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           render();
           savedByKey.forEach(([b2,k2,v2])=>{ const el=wrap.querySelector(`[data-edit-b="${b2}"][data-edit-k="${k2}"]`); if(el) el.value=v2; });
           savedProjByKey.forEach(([p2,k2,v2])=>{ const el=wrap.querySelector(`[data-proj-edit-idx="${p2}"][data-proj-edit-k="${k2}"]`); if(el) el.value=v2; });
+          const newProjIdx = result.projects.length - 1;
           requestAnimationFrame(()=>{
             const el = wrap.querySelector(`input[data-proj-edit-k="name"][value="${tempName}"]`);
             if(el) el.scrollIntoView({ block:'center', behavior:'smooth' });
+            // Nhấp nháy màu nền cho TẤT CẢ ô nhập liệu của đúng dòng phương án vay vừa được thêm mới.
+            wrap.querySelectorAll(`[data-proj-edit-idx="${newProjIdx}"]`).forEach(fieldEl=> fieldEl.classList.add('new-field-flash'));
           });
         };
         pw.querySelectorAll('.apk-pick').forEach(btn=> btn.onclick = ()=>{
@@ -13449,6 +13475,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         ow.querySelector('#bopt-close2').onclick = oClose;
         // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
         ow.querySelector('#bopt-delete').onclick = ()=>{
+          const deletedProjName = b.projectName; // lưu lại TRƯỚC khi xoá, dùng để tìm đúng tiêu đề phương án cần nhảy múa
           result.borrowers = result.borrowers.filter((x,i)=> i!==bIdx);
           result._manuallyEdited = true;
           oClose();
@@ -13462,6 +13489,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             const newBody = wrap.querySelector('#qfp-modal-body');
             if(newBody && savedBodyScroll!=null) newBody.scrollTop = savedBodyScroll;
             window.scrollTo({ top: savedWinScroll, behavior:'auto' });
+            // Nhảy múa (phóng to/thu nhỏ 5 lần) cho tiêu đề phương án vay chứa người vừa bị xoá.
+            if(deletedProjName){
+              const titles = wrap.querySelectorAll('p[style*="font-weight:800"]');
+              for(const t of titles){ if(t.textContent.includes(deletedProjName)){ t.classList.add('project-title-dance'); break; } }
+            }
           });
           showBigToast(`Đã xoá người vay "${b.name||'(chưa có tên)'}" khỏi bản nháp.`);
         };
