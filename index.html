@@ -637,15 +637,17 @@
   /* Nhấp nháy 2 lần (phóng to - thu nhỏ - đứng im, lặp đúng 2 lượt) rồi đứng im hẳn 3 giây, sau đó lặp
      lại từ đầu mãi mãi — dùng riêng cho dòng "bảo chứng" và số tiền X đ ở biên lai đã thanh toán. */
   @keyframes bigMoneyPulseTwice{ 0%,16%,32%,100%{ transform:scale(1); } 8%,24%{ transform:scale(1.1); } }
-  /* Popup chào mừng — 4 giai đoạn trên tổng 6.2 giây: đứng im giữa màn hình 2s (0%-32.258%) -> trượt
-     xuống đáy màn hình trong 1s (32.258%-48.387%) -> đứng im ở đáy thêm 2s (48.387%-80.645%) -> trượt
-     tiếp + mờ dần trong 1.2s rồi biến mất hẳn (80.645%-100%). Khoảng cách trượt (--wwp-dist-mid/-final)
-     được tính động bằng JS tuỳ theo kích thước thật của bảng và màn hình lúc đó. */
-  @keyframes wardWelcomeSequence{
-    0%,32.258%{ transform:translateY(0); opacity:1; }
-    48.387%,80.645%{ transform:translateY(var(--wwp-dist-mid,50vh)); opacity:1; }
-    100%{ transform:translateY(var(--wwp-dist-final,100vh)); opacity:0; }
+  /* Popup chào mừng (hiện Ở ĐÁY màn hình) — 3 giai đoạn trên tổng 4.9 giây: nảy vào bắt mắt người dùng
+     ngay lúc xuất hiện (0%-10.2% = 0.5s) -> đứng im tại chỗ 3.5 giây (10.2%-81.6%) -> trôi xuống dưới +
+     mờ dần biến mất hẳn trong 0.9s cuối (81.6%-100%). */
+  @keyframes wardWelcomeBottomSequence{
+    0%{ transform:translateY(60px) scale(.7); opacity:0; }
+    6%{ transform:translateY(-10px) scale(1.08); opacity:1; }
+    8.2%{ transform:translateY(4px) scale(.97); }
+    10.2%,81.6%{ transform:translateY(0) scale(1); opacity:1; }
+    100%{ transform:translateY(220px) scale(1); opacity:0; }
   }
+  .modal-bg.welcome-popup-bottom{ align-items:flex-end !important; padding-bottom:24px !important; }
   .big-money-row b{ display:inline-block; animation: bigMoneyPulseTwice 4.4s ease-in-out infinite; color:#0b4a17 !important; font-weight:800 !important; }
   /* Nút "Trả lại tiền đã đóng" — đổi màu chậm trắng <-> đỏ nhạt tuần hoàn. */
   @keyframes refundBtnPulse{ 0%,100%{ background:#fff; } 50%{ background:#ffcdd2; } }
@@ -1250,52 +1252,62 @@
   // bất kỳ đoạn code JS nào tạo modal, đây là cơ chế TOÀN CỤC áp dụng tự động). Mỗi modal-bg có cặp nút
   // RIÊNG của chính nó — 2 nút LUÔN thẳng hàng dọc, kéo-thả CÙNG NHAU (dùng lại đúng makeGroupDraggable
   // đã xây cho 3 nút Chat AI/Siêu ghi chú/Chat với Mọi người), độ mờ 55% giống hệt 3 nút đó.
+  // Modal thường có 2 khung cuộn riêng biệt: khung NGOÀI (chính modal-bg, để thấy được tiêu đề trên
+  // cùng/nút ở đáy modal khi nội dung quá dài không vừa màn hình) VÀ khung TRONG (.modal-body, nội dung
+  // bên trong). Phải cuộn CẢ 2 cùng lúc thì mới thực sự "lên tới đầu"/"xuống tới cuối" đúng nghĩa.
+  function ensureModalScrollButtons(bg){
+    // QUAN TRỌNG: kiểm tra THỰC TẾ 2 nút có còn tồn tại làm con trực tiếp của modal-bg này không — KHÔNG
+    // dựa vào cờ "đã từng thêm 1 lần" nữa (lỗi thật đã xảy ra trước đây: rất nhiều modal trong app tự vẽ
+    // lại nội dung bằng wrap.innerHTML=... — thao tác này XOÁ SẠCH mọi phần tử con hiện có, bao gồm cả 2
+    // nút đã chèn, nhưng KHÔNG tạo ra modal-bg MỚI nên cờ cũ vẫn còn, khiến code nghĩ "đã thêm rồi" và
+    // không chèn lại — 2 nút biến mất mỗi khi modal vẽ lại, VD bấm phóng to/thu nhỏ, chuyển xem/sửa...).
+    if(bg.querySelector(':scope > .modal-scroll-btn[data-scroll-dir="up"]')) return;
+    const getScrollTargets = ()=>{
+      const inner = bg.querySelector('.modal-body');
+      return inner ? [bg, inner] : [bg];
+    };
+    const upBtn = document.createElement('button');
+    upBtn.type = 'button';
+    upBtn.className = 'modal-scroll-btn preview-allow';
+    upBtn.dataset.scrollDir = 'up';
+    upBtn.title = 'Cuộn lên đầu';
+    upBtn.textContent = '▲';
+    upBtn.style.top = '35vh';
+    const downBtn = document.createElement('button');
+    downBtn.type = 'button';
+    downBtn.className = 'modal-scroll-btn preview-allow';
+    downBtn.dataset.scrollDir = 'down';
+    downBtn.title = 'Cuộn xuống cuối';
+    downBtn.textContent = '▼';
+    downBtn.style.top = 'calc(35vh + 46px)';
+    const scrollToTop = ()=> getScrollTargets().forEach(t=> t.scrollTo({ top:0, behavior:'smooth' }));
+    const scrollToBottom = ()=> getScrollTargets().forEach(t=> t.scrollTo({ top:t.scrollHeight, behavior:'smooth' }));
+    upBtn.addEventListener('click', scrollToTop);
+    upBtn.addEventListener('mouseenter', scrollToTop);
+    downBtn.addEventListener('click', scrollToBottom);
+    downBtn.addEventListener('mouseenter', scrollToBottom);
+    bg.appendChild(upBtn);
+    bg.appendChild(downBtn);
+    makeGroupDraggable([
+      { el: upBtn, verticalProp: 'top' },
+      { el: downBtn, verticalProp: 'top' },
+    ]);
+  }
   if(!window.__modalScrollBtnObserver){
     window.__modalScrollBtnObserver = new MutationObserver((mutList)=>{
       mutList.forEach(mut=>{
+        // Trường hợp 1: modal-bg MỚI vừa được thêm vào trang lần đầu tiên.
         mut.addedNodes.forEach(node=>{
           if(node.nodeType!==1) return;
-          const bgEls = [];
-          if(node.classList && node.classList.contains('modal-bg')) bgEls.push(node);
-          if(node.querySelectorAll) node.querySelectorAll('.modal-bg').forEach(el=> bgEls.push(el));
-          bgEls.forEach(bg=>{
-            if(bg.dataset.scrollBtnsAdded) return;
-            bg.dataset.scrollBtnsAdded = '1';
-            // Modal thường có 2 khung cuộn riêng biệt: khung NGOÀI (chính modal-bg, để thấy được tiêu
-            // đề trên cùng/nút ở đáy modal khi nội dung quá dài không vừa màn hình) VÀ khung TRONG
-            // (.modal-body, nội dung bên trong). Phải cuộn CẢ 2 cùng lúc thì mới thực sự "lên tới đầu"/
-            // "xuống tới cuối" đúng nghĩa — trước đây chỉ cuộn được đúng 1 trong 2, khiến bấm nút xong
-            // vẫn không thấy được tiêu đề/đáy modal (lỗi thật đã xảy ra, nay sửa dứt điểm).
-            const getScrollTargets = ()=>{
-              const inner = bg.querySelector('.modal-body');
-              return inner ? [bg, inner] : [bg];
-            };
-            const upBtn = document.createElement('button');
-            upBtn.type = 'button';
-            upBtn.className = 'modal-scroll-btn preview-allow';
-            upBtn.title = 'Cuộn lên đầu';
-            upBtn.textContent = '▲';
-            upBtn.style.top = '35vh';
-            const downBtn = document.createElement('button');
-            downBtn.type = 'button';
-            downBtn.className = 'modal-scroll-btn preview-allow';
-            downBtn.title = 'Cuộn xuống cuối';
-            downBtn.textContent = '▼';
-            downBtn.style.top = 'calc(35vh + 46px)';
-            const scrollToTop = ()=> getScrollTargets().forEach(t=> t.scrollTo({ top:0, behavior:'smooth' }));
-            const scrollToBottom = ()=> getScrollTargets().forEach(t=> t.scrollTo({ top:t.scrollHeight, behavior:'smooth' }));
-            upBtn.addEventListener('click', scrollToTop);
-            upBtn.addEventListener('mouseenter', scrollToTop);
-            downBtn.addEventListener('click', scrollToBottom);
-            downBtn.addEventListener('mouseenter', scrollToBottom);
-            bg.appendChild(upBtn);
-            bg.appendChild(downBtn);
-            makeGroupDraggable([
-              { el: upBtn, verticalProp: 'top' },
-              { el: downBtn, verticalProp: 'top' },
-            ]);
-          });
+          if(node.classList && node.classList.contains('modal-bg')) ensureModalScrollButtons(node);
+          if(node.querySelectorAll) node.querySelectorAll('.modal-bg').forEach(bg=> ensureModalScrollButtons(bg));
         });
+        // Trường hợp 2: nội dung BÊN TRONG 1 modal-bg đã có từ trước bị thay đổi/vẽ lại (VD bấm nút
+        // phóng to/thu nhỏ, chuyển xem/sửa...) — làm mất 2 nút đã chèn, cần chèn lại ngay.
+        const target = mut.target;
+        if(!target || target.nodeType!==1) return;
+        const bg = target.classList && target.classList.contains('modal-bg') ? target : target.closest && target.closest('.modal-bg');
+        if(bg) ensureModalScrollButtons(bg);
       });
     });
     window.__modalScrollBtnObserver.observe(document.body, { childList:true, subtree:true });
@@ -10820,7 +10832,7 @@ ${fileGenerationTrainingText()}`;
     const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType.toLowerCase() : 'tỉnh/thành phố';
     const provName = (cfg.provinceName||'').trim();
     const wrap = document.createElement('div');
-    wrap.className = 'modal-bg welcome-popup-bg';
+    wrap.className = 'modal-bg welcome-popup-bg welcome-popup-bottom';
     wrap.innerHTML = `
       <div class="modal" style="max-width:680px;">
         <div class="modal-body" style="text-align:center; padding:28px 24px;">
@@ -10833,23 +10845,11 @@ ${fileGenerationTrainingText()}`;
       </div>`;
     document.body.appendChild(wrap);
     wrap.style.pointerEvents = 'none'; // không chặn thao tác của người dùng trong lúc bảng đang tự hiện/tự ẩn
-    // Đợi 1 khung hình để trình duyệt kịp tính xong layout thật sự (kích thước bảng, khoảng cách tới
-    // đáy màn hình) — đo quá sớm (ngay lúc vừa chèn vào DOM) có thể chưa chính xác.
-    requestAnimationFrame(()=>{
-      const rect = wrap.getBoundingClientRect();
-      const distToBottom = Math.max(0, window.innerHeight - rect.bottom);
-      const distFinal = distToBottom + Math.max(200, rect.height);
-      // QUAN TRỌNG: dùng hẳn CSS @keyframes animation (do chính bộ máy trình duyệt điều khiển toàn bộ
-      // thời gian) THAY VÌ chuỗi setTimeout JS lồng nhau như trước — vì đã xác nhận trên thiết bị di
-      // động (Android), các trình duyệt di động có thể "dồn/trễ" các setTimeout lồng nhau MỘT CÁCH BẤT
-      // THƯỜNG trong lúc trang web mới tải xong (throttling), khiến các giai đoạn đứng im/trượt bị dồn
-      // lại sai lệch hoàn toàn so với thiết kế. CSS animation do trình duyệt tự chạy KHÔNG bị ảnh hưởng
-      // bởi việc JS timer bị trễ/dồn như vậy, đáng tin cậy hơn nhiều trên mọi loại thiết bị.
-      wrap.style.setProperty('--wwp-dist-mid', distToBottom+'px');
-      wrap.style.setProperty('--wwp-dist-final', distFinal+'px');
-      wrap.style.animation = 'wardWelcomeSequence 6.2s ease-in forwards';
-      wrap.addEventListener('animationend', ()=>{ state._showWardWelcome = false; wrap.remove(); });
-    });
+    // Hiện Ở ĐÁY màn hình ngay từ đầu (không phải giữa) — dùng CSS @keyframes animation duy nhất, do
+    // chính trình duyệt điều khiển toàn bộ thời gian (đáng tin cậy trên mọi thiết bị, kể cả di động):
+    // nảy vào mắt người dùng (0 -> 0.5s) -> đứng im 3.5 giây -> trôi xuống + mờ dần biến mất (0.9s cuối).
+    wrap.style.animation = 'wardWelcomeBottomSequence 4.9s ease-in forwards';
+    wrap.addEventListener('animationend', ()=>{ state._showWardWelcome = false; wrap.remove(); });
   }
 
   function renderBellPanel(){
