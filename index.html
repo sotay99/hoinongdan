@@ -551,12 +551,12 @@
      nhập, xám nếu đang bị khoá chỉ xem) làm điểm bắt đầu/kết thúc — chỉ cần định nghĩa đúng màu VÀNG ở
      giữa (50%) là đủ, hoạt động đúng cho MỌI trường hợp màu nền khác nhau mà không cần biết trước. Lặp
      đúng 5 lần rồi đứng yên hẳn (không dùng infinite). */
-  @keyframes newFieldBgFlash{ 50%{ background-color:#fff9c4; } }
-  .new-field-flash{ animation: newFieldBgFlash 0.35s ease-in-out 5; }
+  @keyframes newFieldBgFlash{ 50%{ background-color:#ef5350; } }
+  .new-field-flash{ animation: newFieldBgFlash 0.35s ease-in-out 10; }
   /* Nhảy múa (phóng to 1,1 lần rồi về lại) đúng 5 lần rồi đứng yên hẳn — dùng cho tiêu đề phương án vay
      khi có người vay bên trong phương án đó vừa bị xoá đi. */
   @keyframes projectTitleDanceOnDelete{ 50%{ transform:scale(1.1); } }
-  .project-title-dance{ display:inline-block; animation: projectTitleDanceOnDelete 0.3s ease-in-out 5; }
+  .project-title-dance{ display:inline-block; animation: projectTitleDanceOnDelete 0.3s ease-in-out 10; }
   @keyframes dragHintBlinkTwice{
     0%{ opacity:1; }
     9.375%{ opacity:0; }
@@ -761,6 +761,38 @@
   .ai-send-wrap:hover .ai-send-tooltip{ opacity:1; }
 
   .ai-overlay{ position:fixed; inset:0; z-index:500; background:var(--paper); display:flex; }
+  /* Khung "Lịch sử đoạn chat" bên trái — đóng/mở được, THEO ĐÚNG mẫu sidebar chính của toàn app (cùng
+     kiểu chuyển động transform + margin-left, cùng thời lượng .44s) — CHỈ áp dụng trong .ai-overlay
+     (module Chat AI toàn màn hình), KHÔNG áp dụng cho .pg-embed (module "Tạo bài Tuyên truyền" cũng
+     dùng chung class .ai-sidebar/.ai-main nhưng là khung nhúng trong trang, không phải overlay). */
+  .ai-overlay .ai-sidebar{
+    position:fixed; top:0; left:0; height:100vh; z-index:501;
+    transform:translateX(0); transition:transform .44s ease-out;
+  }
+  .ai-overlay .ai-sidebar.collapsed{ transform:translateX(-100%); }
+  .ai-overlay .ai-main{ margin-left:270px; transition:margin-left .44s ease-out; }
+  .ai-overlay .ai-main.ai-sidebar-collapsed{ margin-left:0; }
+  .ai-sidebar-toggle-btn{
+    position:fixed; top:50%; left:270px; z-index:502; width:32px; height:56px;
+    transform:translate(0,-50%); transition:left .44s ease-out;
+    border:none; border-radius:0 10px 10px 0; background:var(--gold); color:var(--rice-dark);
+    font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.25);
+  }
+  .ai-sidebar-toggle-btn.collapsed{ left:0; }
+  .ai-sidebar-toggle-btn:hover{ filter:brightness(1.08); }
+  /* Màn hình hẹp: khung lịch sử chat chiếm TOÀN BỘ chiều rộng khi mở (như 1 lớp phủ riêng), và có thêm
+     lớp phủ mờ phía sau (ai-sidebar-scrim) để bấm vào bất kỳ đâu bên phải cũng đóng lại được. */
+  @media (max-width:820px){
+    .ai-overlay .ai-sidebar{ width:82vw; max-width:320px; }
+    .ai-sidebar-toggle-btn{ left:82vw; max-width:calc(320px + 32px); }
+    @supports (width: min(82vw, 320px)){ .ai-sidebar-toggle-btn{ left:min(82vw, 320px); } }
+    .ai-sidebar-toggle-btn.collapsed{ left:0; }
+    .ai-overlay .ai-main{ margin-left:0; }
+    .ai-sidebar-scrim{ display:none; position:fixed; inset:0; z-index:499; background:rgba(0,0,0,.35); }
+    .ai-sidebar-scrim.show{ display:block; }
+  }
+  @media (min-width:821px){ .ai-sidebar-scrim{ display:none !important; } }
   /* Khung nhúng cho module "Tạo bài Tuyên truyền" — tái sử dụng toàn bộ style Chat AI nhưng nằm
      NGAY TRONG nội dung tab (không phải overlay toàn màn hình cố định). */
   .pg-embed{ display:flex; height:76vh; min-height:540px; border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:var(--shadow); }
@@ -9605,7 +9637,7 @@ ${fileGenerationTrainingText()}`;
     const wasNearBottom = prevMsgBox ? (prevMsgBox.scrollHeight - prevMsgBox.scrollTop - prevMsgBox.clientHeight < 80) : true;
     const prevScrollTop = prevMsgBox ? prevMsgBox.scrollTop : 0;
     overlay.innerHTML = `
-      <div class="ai-sidebar">
+      <div class="ai-sidebar ${state._aiSidebarCollapsed?'collapsed':''}" id="ai-sidebar">
         <button class="ai-exit-btn" id="ai-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="ai-newchat-btn">➕ Đoạn chat mới</button>
         <button class="ai-newchat-btn" id="ai-goto-notes-btn">🗒️ Mở Siêu ghi chú</button>
@@ -9620,7 +9652,9 @@ ${fileGenerationTrainingText()}`;
         </div>
         ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Bạn đang dùng khách/tham quan — lịch sử chat chỉ lưu tạm trong phiên này.</div>' : ''}
       </div>
-      <div class="ai-main">
+      <button class="ai-sidebar-toggle-btn preview-allow ${state._aiSidebarCollapsed?'collapsed':''}" id="ai-sidebar-toggle-btn" title="${state._aiSidebarCollapsed?'Mở khung lịch sử chat':'Đóng khung lịch sử chat'}">${state._aiSidebarCollapsed?'▶':'◀'}</button>
+      <div class="ai-sidebar-scrim ${!state._aiSidebarCollapsed?'show':''}" id="ai-sidebar-scrim"></div>
+      <div class="ai-main ${state._aiSidebarCollapsed?'ai-sidebar-collapsed':''}" id="ai-main-panel">
         <div class="ai-header">🤖 Chàng Nông dân Thông minh</div>
         <div class="ai-messages" id="ai-messages">
           ${!chat || !chat.messages.length? `
@@ -9701,6 +9735,27 @@ ${fileGenerationTrainingText()}`;
     wireMarkdownExtras(overlay);
     document.getElementById('ai-exit-btn').onclick = closeAiChat;
     document.getElementById('ai-newchat-btn').onclick = newAiChat;
+    // Đóng/mở khung "Lịch sử đoạn chat" — hiệu ứng y hệt sidebar menu chính của toàn app.
+    const aiSidebarToggleBtn = document.getElementById('ai-sidebar-toggle-btn');
+    if(aiSidebarToggleBtn) aiSidebarToggleBtn.onclick = (e)=>{
+      e.stopPropagation();
+      state._aiSidebarCollapsed = !state._aiSidebarCollapsed;
+      renderAiChatOverlay();
+    };
+    // Màn hình hẹp: mặc định LUÔN mở sẵn khung lịch sử chat, khoá thao tác ở màn hình bên phải — bấm
+    // vào lớp phủ mờ HOẶC bấm vào bất kỳ đâu trong khung thao tác bên phải đều chỉ có đúng 1 kết quả là
+    // ĐÓNG khung lịch sử chat lại (không thực hiện thêm hành động nào khác ở lần bấm đó).
+    const aiSidebarScrim = document.getElementById('ai-sidebar-scrim');
+    if(aiSidebarScrim) aiSidebarScrim.onclick = ()=>{ state._aiSidebarCollapsed = true; renderAiChatOverlay(); };
+    const aiMainPanel = document.getElementById('ai-main-panel');
+    if(aiMainPanel) aiMainPanel.addEventListener('click', (e)=>{
+      if(!isNarrowScreenForSidebar()) return;
+      if(state._aiSidebarCollapsed) return; // đã đóng sẵn rồi thì thao tác bình thường, không chặn gì cả
+      e.preventDefault();
+      e.stopPropagation();
+      state._aiSidebarCollapsed = true;
+      renderAiChatOverlay();
+    }, true); // bắt ở giai đoạn CAPTURE — chặn TRƯỚC khi bất kỳ nút/thao tác nào khác bên trong kịp xử lý, đúng yêu cầu "chỉ có đúng 1 kết quả duy nhất là đóng khung"
     const gotoNotesBtn = document.getElementById('ai-goto-notes-btn');
     if(gotoNotesBtn) gotoNotesBtn.onclick = ()=>{ closeAiChat(); openSuperNotes(); };
     overlay.querySelectorAll('[data-ai-hist]').forEach(elx=>{
@@ -12897,7 +12952,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             const displayVal = isDateField ? (rawVal? fmtDate(rawVal) : '') : rawVal;
             const stickyPart = ci===0? stickyCellStyle : '';
             if(isExisting || !editMode){
-              return `<td style="${stickyPart} border:1px solid var(--line); padding:5px 8px; ${ci===0?'':`background:${isExisting?'#f5f5f5':'#fff'};`} color:${isExisting?'#888':'#000'}; white-space:nowrap; font-size:12px;">${escapeHtml(displayVal)}</td>`;
+              return `<td data-proj-existing-name="${escapeHtml(name)}" style="${stickyPart} border:1px solid var(--line); padding:5px 8px; ${ci===0?'':`background:${isExisting?'#f5f5f5':'#fff'};`} color:${isExisting?'#888':'#000'}; white-space:nowrap; font-size:12px;">${escapeHtml(displayVal)}</td>`;
             }
             const cellStyle = `${stickyPart} border:1px solid var(--line); padding:2px; ${ci===0?'':'background:#fff3e0;'}`;
             const inputBaseStyle = 'width:100%; min-width:80px; border:1px solid #ff8f00; border-radius:4px; padding:4px 6px; font-size:12px;';
@@ -13407,6 +13462,9 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             if(el) el.scrollIntoView({ block:'center', behavior:'smooth' });
             // Nhấp nháy màu nền cho TẤT CẢ ô nhập liệu của đúng dòng phương án vay vừa được thêm mới.
             wrap.querySelectorAll(`[data-proj-edit-idx="${newProjIdx}"]`).forEach(fieldEl=> fieldEl.classList.add('new-field-flash'));
+            // Nhảy múa (phóng to/thu nhỏ 10 lần) cho tiêu đề phương án vay vừa được thêm mới.
+            const titles = wrap.querySelectorAll('p[style*="font-weight:800"]');
+            for(const t of titles){ if(t.textContent.includes(tempName)){ t.classList.add('project-title-dance'); break; } }
           });
         };
         pw.querySelectorAll('.apk-pick').forEach(btn=> btn.onclick = ()=>{
@@ -13426,7 +13484,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           // Cuộn tới đúng vị trí phương án vay đã có sẵn vừa được hiện ra trong file đang sửa.
           requestAnimationFrame(()=>{
             const titles = wrap.querySelectorAll('p[style*="font-weight:800"]');
-            for(const t of titles){ if(t.textContent.includes(name)){ t.scrollIntoView({ block:'center', behavior:'auto' }); break; } }
+            for(const t of titles){ if(t.textContent.includes(name)){ t.scrollIntoView({ block:'center', behavior:'auto' }); t.classList.add('project-title-dance'); break; } }
+            // Nhấp nháy màu nền cho TẤT CẢ ô (xám, chỉ xem) của đúng dòng phương án vay đã có sẵn vừa
+            // được ghim vào hồ sơ.
+            wrap.querySelectorAll(`[data-proj-existing-name="${CSS.escape(name)}"]`).forEach(fieldEl=> fieldEl.classList.add('new-field-flash'));
           });
           showBigToast(`Đã thêm Phương án vay "${name}" vào file đang sửa.`);
         });
