@@ -546,6 +546,12 @@
     50%{ border-color: #b71c1c; box-shadow:0 0 0 2px rgba(183,28,28,.35); }
   }
   .m-project-picker-flash{ animation: projectPickerBorderFlash 0.5s ease-in-out 6; }
+  /* Viền chuyển màu đỏ dùng CHUNG cho MỌI trường lựa chọn (nguồn vay/địa bàn/người quản lý/địa chỉ
+     trước sáp nhập/phân loại biên lai...) ngay sau khi đóng modal quản lý con và cuộn về đúng vị trí —
+     KHÔNG khai báo màu viền ở 0%/100% nên tự động dùng ĐÚNG màu viền GỐC hiện có của từng ô (hoạt động
+     đúng cho mọi kiểu viền khác nhau mà không cần biết trước). Lặp đúng 7 lần rồi đứng yên hẳn. */
+  @keyframes fieldBorderFlash7x{ 50%{ border-color:#b71c1c; box-shadow:0 0 0 2px rgba(183,28,28,.35); } }
+  .field-border-flash{ animation: fieldBorderFlash7x 0.4s ease-in-out 7; }
   /* Nhấp nháy màu nền cho Ô NHẬP LIỆU vừa được thêm mới (phương án vay mới, người vay mới) — KHÔNG khai
      báo màu ở 0%/100% nên trình duyệt tự dùng ĐÚNG màu nền GỐC hiện có của từng ô (trắng nếu đang cho
      nhập, xám nếu đang bị khoá chỉ xem) làm điểm bắt đầu/kết thúc — chỉ cần định nghĩa đúng màu VÀNG ở
@@ -774,13 +780,14 @@
   .ai-overlay .ai-main.ai-sidebar-collapsed{ margin-left:0; }
   .ai-sidebar-toggle-btn{
     position:fixed; top:50%; left:270px; z-index:502; width:32px; height:56px;
-    transform:translate(0,-50%); transition:left .44s ease-out;
-    border:none; border-radius:0 10px 10px 0; background:var(--gold); color:var(--rice-dark);
-    font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transform:translate(0,-50%); transition:left .44s ease-out, opacity .2s ease;
+    border:none; border-radius:0 28px 28px 0; background:var(--rice-dark); color:var(--gold);
+    font-size:17px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center;
     box-shadow:0 4px 12px rgba(0,0,0,.25);
+    opacity:1; /* đang mở khung bên trái -> rõ 100% */
   }
-  .ai-sidebar-toggle-btn.collapsed{ left:0; }
-  .ai-sidebar-toggle-btn:hover{ filter:brightness(1.08); }
+  .ai-sidebar-toggle-btn.collapsed{ left:0; opacity:.55; /* đang đóng khung bên trái -> rõ 55% */ }
+  .ai-sidebar-toggle-btn:hover{ opacity:1; filter:brightness(1.15); }
   /* Màn hình hẹp: khung lịch sử chat chiếm TOÀN BỘ chiều rộng khi mở (như 1 lớp phủ riêng), và có thêm
      lớp phủ mờ phía sau (ai-sidebar-scrim) để bấm vào bất kỳ đâu bên phải cũng đóng lại được. */
   @media (max-width:820px){
@@ -6659,6 +6666,8 @@
           Object.keys(savedValues).forEach(id=>{ const el = wrap.querySelector('#'+CSS.escape(id)); if(el) el.value = savedValues[id]; });
           const newModalBody = wrap.querySelector('.modal-body');
           if(newModalBody && savedScroll!=null) newModalBody.scrollTop = savedScroll;
+          const newCatBtn = wrap.querySelector(`#${idPrefix}-cat-btn`);
+          if(newCatBtn) newCatBtn.classList.add('field-border-flash');
         });
       });
     };
@@ -9736,17 +9745,22 @@ ${fileGenerationTrainingText()}`;
     document.getElementById('ai-exit-btn').onclick = closeAiChat;
     document.getElementById('ai-newchat-btn').onclick = newAiChat;
     // Đóng/mở khung "Lịch sử đoạn chat" — hiệu ứng y hệt sidebar menu chính của toàn app.
+    // QUAN TRỌNG: sau khi vẽ lại do đóng/mở, CHỦ ĐỘNG bỏ focus khỏi khung nhập chat (nếu có) — đảm bảo
+    // KHÔNG BAO GIỜ tự động hiện con trỏ văn bản ở đó, chỉ khi người dùng TỰ bấm vào khung chat thì mới
+    // có con trỏ để nhập liệu, đúng yêu cầu.
+    const blurAiInputIfAny = ()=>{ const inp = document.getElementById('ai-input'); if(inp && document.activeElement===inp) inp.blur(); };
     const aiSidebarToggleBtn = document.getElementById('ai-sidebar-toggle-btn');
     if(aiSidebarToggleBtn) aiSidebarToggleBtn.onclick = (e)=>{
       e.stopPropagation();
       state._aiSidebarCollapsed = !state._aiSidebarCollapsed;
       renderAiChatOverlay();
+      requestAnimationFrame(blurAiInputIfAny);
     };
     // Màn hình hẹp: mặc định LUÔN mở sẵn khung lịch sử chat, khoá thao tác ở màn hình bên phải — bấm
     // vào lớp phủ mờ HOẶC bấm vào bất kỳ đâu trong khung thao tác bên phải đều chỉ có đúng 1 kết quả là
     // ĐÓNG khung lịch sử chat lại (không thực hiện thêm hành động nào khác ở lần bấm đó).
     const aiSidebarScrim = document.getElementById('ai-sidebar-scrim');
-    if(aiSidebarScrim) aiSidebarScrim.onclick = ()=>{ state._aiSidebarCollapsed = true; renderAiChatOverlay(); };
+    if(aiSidebarScrim) aiSidebarScrim.onclick = ()=>{ state._aiSidebarCollapsed = true; renderAiChatOverlay(); requestAnimationFrame(blurAiInputIfAny); };
     const aiMainPanel = document.getElementById('ai-main-panel');
     if(aiMainPanel) aiMainPanel.addEventListener('click', (e)=>{
       if(!isNarrowScreenForSidebar()) return;
@@ -9755,6 +9769,7 @@ ${fileGenerationTrainingText()}`;
       e.stopPropagation();
       state._aiSidebarCollapsed = true;
       renderAiChatOverlay();
+      requestAnimationFrame(blurAiInputIfAny);
     }, true); // bắt ở giai đoạn CAPTURE — chặn TRƯỚC khi bất kỳ nút/thao tác nào khác bên trong kịp xử lý, đúng yêu cầu "chỉ có đúng 1 kết quả duy nhất là đóng khung"
     const gotoNotesBtn = document.getElementById('ai-goto-notes-btn');
     if(gotoNotesBtn) gotoNotesBtn.onclick = ()=>{ closeAiChat(); openSuperNotes(); };
@@ -13163,6 +13178,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const newBody1 = wrap.querySelector('#qfp-modal-body');
         if(newBody1 && savedScroll1!=null) newBody1.scrollTop = savedScroll1;
         window.scrollTo({ top: savedWinScroll1, behavior:'auto' });
+        const newSel1 = wrap.querySelector(`[data-edit-b="${sel.dataset.editB}"][data-edit-k="hamletDisplay"]`);
+        if(newSel1) newSel1.classList.add('field-border-flash');
       });
       sel.value = prevVal;
     }));
@@ -13180,6 +13197,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const newBody2 = wrap.querySelector('#qfp-modal-body');
         if(newBody2 && savedScroll2!=null) newBody2.scrollTop = savedScroll2;
         window.scrollTo({ top: savedWinScroll2, behavior:'auto' });
+        const newSel2 = wrap.querySelector(`[data-edit-b="${sel.dataset.editB}"][data-edit-k="hamletOld"]`);
+        if(newSel2) newSel2.classList.add('field-border-flash');
       });
       sel.value = prevVal;
     }));
@@ -13225,6 +13244,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             render();
             savedByKey.forEach(([b2,k2,v2])=>{ const el=wrap.querySelector(`[data-edit-b="${b2}"][data-edit-k="${k2}"]`); if(el) el.value=v2; });
             savedProjByKey.forEach(([p2,k2,v2])=>{ const el=wrap.querySelector(`[data-proj-edit-idx="${p2}"][data-proj-edit-k="${k2}"]`); if(el && !(p2===String(pi) && k2==='fundSourceType')) el.value=v2; });
+            const newFundSel = wrap.querySelector(`#qfp-proj-fundSourceType-${pi}`);
+            if(newFundSel) newFundSel.classList.add('field-border-flash');
           });
           fundTypeSelect.value = prevVal;
         });
@@ -13244,6 +13265,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const newBody3 = wrap.querySelector('#qfp-modal-body');
         if(newBody3 && savedScroll3!=null) newBody3.scrollTop = savedScroll3;
         window.scrollTo({ top: savedWinScroll3, behavior:'auto' });
+        const newSel3 = wrap.querySelector(`[data-edit-b="${sel.dataset.editB}"][data-edit-k="managerId"]`);
+        if(newSel3) newSel3.classList.add('field-border-flash');
       });
       sel.value = prevVal;
     }));
@@ -24196,6 +24219,8 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el && id!=='m-hamlet') el.value = savedValues[id]; });
           const newModalBody = document.querySelector('.modal-bg .modal-body');
           if(newModalBody && savedScroll!=null) newModalBody.scrollTop = savedScroll;
+          const newHamletSel = document.getElementById('m-hamlet');
+          if(newHamletSel) newHamletSel.classList.add('field-border-flash');
         });
         e.target.value = prev;
         return;
@@ -24266,6 +24291,8 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
             Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el && id!=='m-manager') el.value = savedValues[id]; });
             const newModalBody = document.querySelector('.modal-bg .modal-body');
             if(newModalBody && savedScroll!=null) newModalBody.scrollTop = savedScroll;
+            const newMgrSel = document.getElementById('m-manager');
+            if(newMgrSel) newMgrSel.classList.add('field-border-flash');
           });
           mgrSel.value = prev;
           return;
@@ -24316,6 +24343,8 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el && id!=='m-legacy-address') el.value = savedValues[id]; });
         const newModalBody = document.querySelector('.modal-bg .modal-body');
         if(newModalBody && savedScroll!=null) newModalBody.scrollTop = savedScroll;
+        const newLegacySel = document.getElementById('m-legacy-address');
+        if(newLegacySel) newLegacySel.classList.add('field-border-flash');
       });
       legacySelect.value = prev;
     });
@@ -24909,6 +24938,8 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           renderLoanProjectModal(p, onDone, forceReadOnly);
           requestAnimationFrame(()=>{
             Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el) el.value = savedValues[id]; });
+            const newFundSel = document.getElementById('lpm-fundsource-type');
+            if(newFundSel) newFundSel.classList.add('field-border-flash');
           });
         });
         e.target.value = prevVal;
