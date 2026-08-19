@@ -779,7 +779,7 @@
   .ai-overlay .ai-main{ margin-left:270px; transition:margin-left .44s ease-out; }
   .ai-overlay .ai-main.ai-sidebar-collapsed{ margin-left:0; }
   .ai-sidebar-toggle-btn{
-    position:fixed; top:50%; left:270px; z-index:502; width:32px; height:56px;
+    position:fixed; top:50%; left:270px; z-index:502; width:42px; height:56px;
     transform:translate(0,-50%); transition:left .44s ease-out, opacity .2s ease;
     border:none; border-radius:0 28px 28px 0; background:var(--rice-dark); color:var(--gold);
     font-size:17px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -788,11 +788,21 @@
   }
   .ai-sidebar-toggle-btn.collapsed{ left:0; opacity:.55; /* đang đóng khung bên trái -> rõ 55% */ }
   .ai-sidebar-toggle-btn:hover{ opacity:1; filter:brightness(1.15); }
+  /* Nút X đỏ ghim góc trên-phải màn hình — luôn cố định tại đó (position:fixed) dù có cuộn màn hình đi
+     đâu, bấm vào để đóng hẳn module Chat AI (y hệt nút "✕ THOÁT" trong khung lịch sử chat). Hình tròn
+     nhỏ nhắn, độ rõ 55% (rõ hẳn 100% khi rê chuột/chạm vào để dễ nhận biết + dễ bấm). */
+  .ai-close-fab{
+    position:fixed; top:14px; right:14px; z-index:503; width:30px; height:30px; border-radius:50%;
+    border:none; background:#d32f2f; color:#fff; font-size:15px; font-weight:800; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; opacity:.55; transition:opacity .2s ease;
+    box-shadow:0 3px 10px rgba(0,0,0,.3);
+  }
+  .ai-close-fab:hover{ opacity:1; filter:brightness(1.1); }
   /* Màn hình hẹp: khung lịch sử chat chiếm TOÀN BỘ chiều rộng khi mở (như 1 lớp phủ riêng), và có thêm
      lớp phủ mờ phía sau (ai-sidebar-scrim) để bấm vào bất kỳ đâu bên phải cũng đóng lại được. */
   @media (max-width:820px){
     .ai-overlay .ai-sidebar{ width:82vw; max-width:320px; }
-    .ai-sidebar-toggle-btn{ left:82vw; max-width:calc(320px + 32px); }
+    .ai-sidebar-toggle-btn{ left:82vw; max-width:calc(320px + 42px); }
     @supports (width: min(82vw, 320px)){ .ai-sidebar-toggle-btn{ left:min(82vw, 320px); } }
     .ai-sidebar-toggle-btn.collapsed{ left:0; }
     .ai-overlay .ai-main{ margin-left:0; }
@@ -6661,6 +6671,11 @@
       const savedModalBody = wrap.querySelector('.modal-body');
       const savedScroll = savedModalBody ? savedModalBody.scrollTop : null;
       renderReceiptCategoryManagerModal(kind, ()=>{
+        // Tự động chọn phân loại CUỐI CÙNG trong danh sách (thường chính là phân loại vừa được thêm
+        // mới) TRƯỚC khi vẽ lại — để màn hình phản ánh đúng lựa chọn mới ngay. Người dùng vẫn có thể tự
+        // chọn lại phân loại khác tuỳ ý ngay sau đó.
+        const list = kind==='payment' ? (state.receiptCategoriesPayment||[]) : (state.receiptCategoriesRefund||[]);
+        if(list.length && onPick) onPick(list[list.length-1].id);
         if(rerenderFn) rerenderFn();
         requestAnimationFrame(()=>{
           Object.keys(savedValues).forEach(id=>{ const el = wrap.querySelector('#'+CSS.escape(id)); if(el) el.value = savedValues[id]; });
@@ -8275,6 +8290,13 @@
       state.aiActiveProviderId = (cached && state.aiProviders.some(p=>p.id===cached)) ? cached : (state.aiProviders[0] ? state.aiProviders[0].id : null);
     }
     renderAiChatOverlay();
+    // Đảm bảo KHÔNG có con trỏ văn bản (và do đó KHÔNG có bàn phím ảo tự bật lên trên điện thoại) ngay
+    // lúc vừa mở module — chỉ khi người dùng TỰ bấm vào khung chat thì mới có con trỏ để nhập liệu.
+    requestAnimationFrame(()=>{
+      const inp = document.getElementById('ai-input');
+      if(inp && document.activeElement===inp) inp.blur();
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    });
   }
   function getActiveAiProvider(){
     if(!state.aiProviders || !state.aiProviders.length) return null;
@@ -9663,6 +9685,7 @@ ${fileGenerationTrainingText()}`;
       </div>
       <button class="ai-sidebar-toggle-btn preview-allow ${state._aiSidebarCollapsed?'collapsed':''}" id="ai-sidebar-toggle-btn" title="${state._aiSidebarCollapsed?'Mở khung lịch sử chat':'Đóng khung lịch sử chat'}">${state._aiSidebarCollapsed?'▶':'◀'}</button>
       <div class="ai-sidebar-scrim ${!state._aiSidebarCollapsed?'show':''}" id="ai-sidebar-scrim"></div>
+      <button class="ai-close-fab preview-allow" id="ai-close-fab" title="Đóng Chat AI">✕</button>
       <div class="ai-main ${state._aiSidebarCollapsed?'ai-sidebar-collapsed':''}" id="ai-main-panel">
         <div class="ai-header">🤖 Chàng Nông dân Thông minh</div>
         <div class="ai-messages" id="ai-messages">
@@ -9743,6 +9766,8 @@ ${fileGenerationTrainingText()}`;
     if(msgBox) msgBox.scrollTop = wasNearBottom ? msgBox.scrollHeight : prevScrollTop;
     wireMarkdownExtras(overlay);
     document.getElementById('ai-exit-btn').onclick = closeAiChat;
+    const aiCloseFab = document.getElementById('ai-close-fab');
+    if(aiCloseFab) aiCloseFab.onclick = closeAiChat;
     document.getElementById('ai-newchat-btn').onclick = newAiChat;
     // Đóng/mở khung "Lịch sử đoạn chat" — hiệu ứng y hệt sidebar menu chính của toàn app.
     // QUAN TRỌNG: sau khi vẽ lại do đóng/mở, CHỦ ĐỘNG bỏ focus khỏi khung nhập chat (nếu có) — đảm bảo
@@ -13179,7 +13204,13 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(newBody1 && savedScroll1!=null) newBody1.scrollTop = savedScroll1;
         window.scrollTo({ top: savedWinScroll1, behavior:'auto' });
         const newSel1 = wrap.querySelector(`[data-edit-b="${sel.dataset.editB}"][data-edit-k="hamletDisplay"]`);
-        if(newSel1) newSel1.classList.add('field-border-flash');
+        if(newSel1){
+          newSel1.classList.add('field-border-flash');
+          // Tự động chọn lựa chọn CUỐI CÙNG trong danh sách — LƯU Ý: option cuối cùng thật sự luôn là
+          // "+ Thêm..." (tuỳ chọn để mở lại modal quản lý), nên phải lấy đúng option ÁP CHÓT (index -2)
+          // mới đúng là lựa chọn THẬT cuối cùng trong danh sách.
+          if(newSel1.tagName==='SELECT' && newSel1.options.length>1) newSel1.value = newSel1.options[newSel1.options.length-2].value;
+        }
       });
       sel.value = prevVal;
     }));
@@ -13198,7 +13229,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(newBody2 && savedScroll2!=null) newBody2.scrollTop = savedScroll2;
         window.scrollTo({ top: savedWinScroll2, behavior:'auto' });
         const newSel2 = wrap.querySelector(`[data-edit-b="${sel.dataset.editB}"][data-edit-k="hamletOld"]`);
-        if(newSel2) newSel2.classList.add('field-border-flash');
+        if(newSel2){
+          newSel2.classList.add('field-border-flash');
+          if(newSel2.tagName==='SELECT' && newSel2.options.length>1) newSel2.value = newSel2.options[newSel2.options.length-2].value;
+        }
       });
       sel.value = prevVal;
     }));
@@ -13245,7 +13279,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             savedByKey.forEach(([b2,k2,v2])=>{ const el=wrap.querySelector(`[data-edit-b="${b2}"][data-edit-k="${k2}"]`); if(el) el.value=v2; });
             savedProjByKey.forEach(([p2,k2,v2])=>{ const el=wrap.querySelector(`[data-proj-edit-idx="${p2}"][data-proj-edit-k="${k2}"]`); if(el && !(p2===String(pi) && k2==='fundSourceType')) el.value=v2; });
             const newFundSel = wrap.querySelector(`#qfp-proj-fundSourceType-${pi}`);
-            if(newFundSel) newFundSel.classList.add('field-border-flash');
+            if(newFundSel){
+              newFundSel.classList.add('field-border-flash');
+              if(newFundSel.options.length>1) newFundSel.value = newFundSel.options[newFundSel.options.length-2].value;
+            }
           });
           fundTypeSelect.value = prevVal;
         });
@@ -13266,7 +13303,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(newBody3 && savedScroll3!=null) newBody3.scrollTop = savedScroll3;
         window.scrollTo({ top: savedWinScroll3, behavior:'auto' });
         const newSel3 = wrap.querySelector(`[data-edit-b="${sel.dataset.editB}"][data-edit-k="managerId"]`);
-        if(newSel3) newSel3.classList.add('field-border-flash');
+        if(newSel3){
+          newSel3.classList.add('field-border-flash');
+          if(newSel3.options.length>1) newSel3.value = newSel3.options[newSel3.options.length-2].value;
+        }
       });
       sel.value = prevVal;
     }));
@@ -24220,7 +24260,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           const newModalBody = document.querySelector('.modal-bg .modal-body');
           if(newModalBody && savedScroll!=null) newModalBody.scrollTop = savedScroll;
           const newHamletSel = document.getElementById('m-hamlet');
-          if(newHamletSel) newHamletSel.classList.add('field-border-flash');
+          if(newHamletSel){
+            newHamletSel.classList.add('field-border-flash');
+            if(newHamletSel.options.length>1) newHamletSel.value = newHamletSel.options[newHamletSel.options.length-2].value;
+          }
         });
         e.target.value = prev;
         return;
@@ -24292,7 +24335,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
             const newModalBody = document.querySelector('.modal-bg .modal-body');
             if(newModalBody && savedScroll!=null) newModalBody.scrollTop = savedScroll;
             const newMgrSel = document.getElementById('m-manager');
-            if(newMgrSel) newMgrSel.classList.add('field-border-flash');
+            if(newMgrSel){
+              newMgrSel.classList.add('field-border-flash');
+              if(newMgrSel.options.length>1) newMgrSel.value = newMgrSel.options[newMgrSel.options.length-2].value;
+            }
           });
           mgrSel.value = prev;
           return;
@@ -24344,7 +24390,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         const newModalBody = document.querySelector('.modal-bg .modal-body');
         if(newModalBody && savedScroll!=null) newModalBody.scrollTop = savedScroll;
         const newLegacySel = document.getElementById('m-legacy-address');
-        if(newLegacySel) newLegacySel.classList.add('field-border-flash');
+        if(newLegacySel){
+          newLegacySel.classList.add('field-border-flash');
+          if(newLegacySel.options.length>1) newLegacySel.value = newLegacySel.options[newLegacySel.options.length-2].value;
+        }
       });
       legacySelect.value = prev;
     });
@@ -24939,7 +24988,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           requestAnimationFrame(()=>{
             Object.keys(savedValues).forEach(id=>{ const el = document.getElementById(id); if(el) el.value = savedValues[id]; });
             const newFundSel = document.getElementById('lpm-fundsource-type');
-            if(newFundSel) newFundSel.classList.add('field-border-flash');
+            if(newFundSel){
+              newFundSel.classList.add('field-border-flash');
+              if(newFundSel.options.length>1) newFundSel.value = newFundSel.options[newFundSel.options.length-2].value;
+            }
           });
         });
         e.target.value = prevVal;
