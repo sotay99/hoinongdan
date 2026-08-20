@@ -1339,7 +1339,7 @@
   // 2 nút cuộn qua TRÁI/PHẢI — tự động chèn cho MỌI khung có thanh cuộn ngang trong toàn app (menu
   // module, bảng trong panel/modal...). Dùng WeakMap để ghi nhớ cặp nút ứng với từng khung cuộn cụ thể.
   // =====================================================================
-  window.__hScrollButtonsMap = window.__hScrollButtonsMap || new WeakMap();
+  window.__hScrollButtonsMap = window.__hScrollButtonsMap || new Map();
   function updateHScrollButtonPosition(el, leftBtn, rightBtn){
     const rect = el.getBoundingClientRect();
     const midY = rect.bottom - 25; // gần sát đáy khung (chỗ thanh cuộn ngang), trừ nửa chiều cao nút
@@ -1398,8 +1398,17 @@
   function scanForHorizontalScrollables(){
     const candidates = document.querySelectorAll('.sidebar, .modal-body, .table-wrap, .ai-sidebar, .ai-messages');
     candidates.forEach(el=> ensureHorizontalScrollButtons(el));
-    // Cập nhật lại vị trí cho các nút ĐANG CÓ (dù khung tương ứng không nằm trong danh sách quét lần
-    // này — VD đã bị gỡ khỏi DOM) — nếu khung không còn tồn tại/không còn overflow thì tự gỡ nút.
+    // Dọn dẹp THỰC SỰ mọi cặp nút MỒ CÔI — duyệt qua TẤT CẢ phần tử đã từng được gán nút (kể cả những
+    // phần tử KHÔNG nằm trong danh sách quét lần này, VD do đã bị gỡ khỏi trang/thay thế bằng phần tử
+    // mới sau khi 1 bảng được vẽ lại) — nếu phần tử gốc không còn nằm trong trang nữa (document.contains
+    // trả về false) thì gỡ hẳn cặp nút đó đi. Đây chính là bước còn thiếu trước đây, gây ra lỗi tích tụ
+    // hàng loạt nút mũi tên không bao giờ biến mất (lỗi thật đã xảy ra, nay sửa dứt điểm).
+    window.__hScrollButtonsMap.forEach((pair, el)=>{
+      if(!document.body.contains(el) || el.scrollWidth <= el.clientWidth + 2){
+        pair.leftBtn.remove(); pair.rightBtn.remove();
+        window.__hScrollButtonsMap.delete(el);
+      }
+    });
   }
   if(!window.__hScrollObserverWired){
     window.__hScrollObserverWired = true;
