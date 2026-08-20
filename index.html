@@ -1631,6 +1631,18 @@
       if(e.target.closest('.sidebar-toggle-btn')) return; // nút nổi tự xử lý riêng, tránh đóng/mở trùng
       if(e.target.closest('.sidebar')) return; // bấm bên trong khung menu (kể cả đổi module) -> giữ nguyên, không tự đóng
       if(e.target.closest('.modal-bg')) return; // bấm bên trong 1 bảng/popup (VD: bảng chào mừng tham quan) -> không tính là bấm vào module hiện hành
+      // Ngoại lệ: bấm vào 1 trong 3 nút nổi (Chat AI / Siêu ghi chú / Chat với Mọi người) — KHÔNG đóng
+      // khung menu bên trái (giữ nguyên trạng thái đang mở), chỉ mở module tương ứng lên — để khi thoát
+      // module đó ra thì quay lại vẫn thấy khung menu bên trái y như trước khi bấm, chưa từng bị đóng.
+      const fabHit = e.target.closest('.fab-chat, .fab-notes-btn, .fab-people-btn');
+      if(fabHit){
+        e.preventDefault();
+        e.stopPropagation();
+        if(fabHit.classList.contains('fab-chat')) openAiChat();
+        else if(fabHit.classList.contains('fab-notes-btn')) openSuperNotes();
+        else if(fabHit.classList.contains('fab-people-btn')) openPeopleChat();
+        return;
+      }
       // Đang bấm vào module hiện hành trong khi khung menu còn mở -> CHẶN HẲN hành động của nút/phần
       // tử đó lại, module chỉ hoạt động bình thường trở lại sau khi khung menu đã đóng.
       e.preventDefault();
@@ -8274,6 +8286,11 @@
     state.superNotesTrashOpen = false;
     attachSuperNotesRealtime();
     renderSuperNotesOverlay();
+    // Đảm bảo KHÔNG có con trỏ văn bản (và do đó KHÔNG có bàn phím ảo tự bật lên trên điện thoại) ngay
+    // lúc vừa mở module — chỉ khi người dùng TỰ bấm vào khung nhập thì mới có con trỏ để nhập liệu.
+    requestAnimationFrame(()=>{
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    });
   }
   function closeSuperNotes(){
     state._superNotesOpen = false;
@@ -8932,14 +8949,14 @@ ${fileGenerationTrainingText()}`;
   function newPropagandaChat(){
     state.propagandaActiveChatId = null;
     state._propagandaBubbleEditingIndex = null;
-    const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+    renderPropagandaOverlay();
   }
   async function deletePropagandaChatById(chatId){
     if(!confirm('Xoá đoạn hội thoại tuyên truyền này?')) return;
     state.propagandaChats = state.propagandaChats.filter(c=>c.id!==chatId);
     if(state.propagandaActiveChatId===chatId) state.propagandaActiveChatId = state.propagandaChats[0] ? state.propagandaChats[0].id : null;
     if(state.identity && state.identity.email){ try{ await rtdb.ref(`users/${emailToKey(state.identity.email)}/propagandaChats/${chatId}`).remove(); }catch(e){} }
-    const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+    renderPropagandaOverlay();
   }
   function renamePropagandaChat(chatId){
     const chat = state.propagandaChats.find(c=>c.id===chatId);
@@ -8947,7 +8964,7 @@ ${fileGenerationTrainingText()}`;
     const name = prompt('Đổi tên đoạn hội thoại:', chat.title||'');
     if(name===null || !name.trim()) return;
     chat.title = name.trim().slice(0,60);
-    const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+    renderPropagandaOverlay();
     savePropagandaChatToCloud(chat);
   }
   function getActivePropagandaProvider(){
@@ -8958,14 +8975,14 @@ ${fileGenerationTrainingText()}`;
     state.propagandaActiveProviderId = id;
     lset('hnd_propaganda_active_provider', id);
     state._propagandaModelMenuOpen = false;
-    const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+    renderPropagandaOverlay();
   }
   async function runPropagandaAssistantTurn(chat, attachmentsForApi){
     state.propagandaSending = true;
     state.propagandaAbortController = new AbortController();
     const assistantMsg = { role:'assistant', text:'', time:new Date().toISOString(), streaming:true };
     chat.messages.push(assistantMsg);
-    const mount0 = document.getElementById('content'); if(mount0) renderPropagandaTab(mount0);
+    renderPropagandaOverlay();
     const sysPrompt = await buildPropagandaSystemPrompt();
     try{
       const result = await callAIWithFallback(chat.messages.slice(0,-1), { attachments: attachmentsForApi||[], webSearch: state.propagandaWebSearchOn, systemPromptOverride: sysPrompt, signal: state.propagandaAbortController.signal }, (partial)=>{
@@ -8985,7 +9002,7 @@ ${fileGenerationTrainingText()}`;
     chat.updatedAt = new Date().toISOString();
     state.propagandaSending = false;
     state.propagandaAbortController = null;
-    const mount1 = document.getElementById('content'); if(mount1) renderPropagandaTab(mount1);
+    renderPropagandaOverlay();
     savePropagandaChatToCloud(chat);
   }
   async function sendPropagandaMessage(text, forceVideoFlag){
@@ -9015,11 +9032,11 @@ ${fileGenerationTrainingText()}`;
     if(!chat || !chat.messages[idx]) return;
     chat.messages.splice(idx,1);
     chat.updatedAt = new Date().toISOString();
-    const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+    renderPropagandaOverlay();
     savePropagandaChatToCloud(chat);
   }
-  function startEditPropagandaMessage(idx){ state._propagandaBubbleEditingIndex = idx; const c = document.getElementById('content'); if(c) renderPropagandaTab(c); }
-  function cancelEditPropagandaMessage(){ state._propagandaBubbleEditingIndex = null; const c = document.getElementById('content'); if(c) renderPropagandaTab(c); }
+  function startEditPropagandaMessage(idx){ state._propagandaBubbleEditingIndex = idx; renderPropagandaOverlay(); }
+  function cancelEditPropagandaMessage(){ state._propagandaBubbleEditingIndex = null; renderPropagandaOverlay(); }
   async function resendEditedPropagandaMessage(idx, newText){
     if(!newText || !newText.trim()) return;
     const chat = state.propagandaChats.find(c=>c.id===state.propagandaActiveChatId);
@@ -9030,7 +9047,7 @@ ${fileGenerationTrainingText()}`;
   }
   function triggerPropagandaFileInput(kind){
     state._propagandaAddMenuOpen = false;
-    const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+    renderPropagandaOverlay();
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
@@ -9048,7 +9065,7 @@ ${fileGenerationTrainingText()}`;
       reader.onload = ()=>{
         const base64 = String(reader.result).split(',')[1] || '';
         state.propagandaPendingAttachments.push({ name:file.name, mimeType: file.type || 'application/octet-stream', base64 });
-        const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+        renderPropagandaOverlay();
       };
       reader.onerror = ()=> alert(`Không đọc được tệp "${file.name}".`);
       reader.readAsDataURL(file);
@@ -9056,7 +9073,7 @@ ${fileGenerationTrainingText()}`;
   }
   function removePropagandaAttachment(idx){
     state.propagandaPendingAttachments.splice(idx,1);
-    const c = document.getElementById('content'); if(c) renderPropagandaTab(c);
+    renderPropagandaOverlay();
   }
   // Gọi Gemini API bằng ĐÚNG Cấu hình AI (model) mà người dùng đang chọn ở thanh model phía trên
   // ô nhập liệu. opts.attachments: tệp/ảnh đính kèm cho tin nhắn CUỐI CÙNG. opts.webSearch: bật
@@ -9940,7 +9957,7 @@ ${fileGenerationTrainingText()}`;
     const canView = isShared ? snCanView() : true;
 
     overlay.innerHTML = `
-      <div class="ai-sidebar" style="display:flex; flex-direction:column;">
+      <div class="ai-sidebar ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar" style="display:flex; flex-direction:column;">
         <button class="ai-exit-btn" id="sn-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="sn-goto-chat-btn">💬 Chat với AI Chàng Nông dân Thông minh</button>
         <div style="display:flex; gap:6px; margin-bottom:10px;">
@@ -9982,7 +9999,10 @@ ${fileGenerationTrainingText()}`;
         </div>
         <button class="ai-newchat-btn" id="sn-trash-btn" style="margin:8px 10px 0; margin-top:auto;">${state.superNotesTrashOpen? '◀ Quay lại kho ghi chú' : '🗑️ Thùng rác'}</button>
       </div>
-      <div class="ai-main">
+      <button class="ai-sidebar-toggle-btn preview-allow ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar-toggle-btn" title="${state._snSidebarCollapsed?'Mở khung danh sách ghi chú':'Đóng khung danh sách ghi chú'}">${state._snSidebarCollapsed?'▶':'◀'}</button>
+      <div class="ai-sidebar-scrim ${!state._snSidebarCollapsed?'show':''}" id="sn-sidebar-scrim"></div>
+      <button class="ai-close-fab preview-allow" id="sn-close-fab" title="Đóng Siêu ghi chú">✕</button>
+      <div class="ai-main ${state._snSidebarCollapsed?'ai-sidebar-collapsed':''}" id="sn-main-panel">
         <div class="ai-header">🗒️ Siêu ghi chú${editingNode? ' — ' + escapeHtml(editingNode.name) : ''}</div>
         ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
         <div class="ai-messages" id="sn-content-area" style="align-items:stretch;">
@@ -10058,6 +10078,29 @@ ${fileGenerationTrainingText()}`;
     if(contentArea) contentArea.scrollTop = contentArea.scrollHeight;
 
     document.getElementById('sn-exit-btn').onclick = closeSuperNotes;
+    const snCloseFab = document.getElementById('sn-close-fab');
+    if(snCloseFab) snCloseFab.onclick = closeSuperNotes;
+    // Đóng/mở khung danh sách ghi chú bên trái — hiệu ứng, cách hoạt động y hệt module Chat AI.
+    const blurSnInputIfAny = ()=>{ const inp = document.getElementById('sn-input'); if(inp && document.activeElement===inp) inp.blur(); };
+    const snSidebarToggleBtn = document.getElementById('sn-sidebar-toggle-btn');
+    if(snSidebarToggleBtn) snSidebarToggleBtn.onclick = (e)=>{
+      e.stopPropagation();
+      state._snSidebarCollapsed = !state._snSidebarCollapsed;
+      renderSuperNotesOverlay();
+      requestAnimationFrame(blurSnInputIfAny);
+    };
+    const snSidebarScrim = document.getElementById('sn-sidebar-scrim');
+    if(snSidebarScrim) snSidebarScrim.onclick = ()=>{ state._snSidebarCollapsed = true; renderSuperNotesOverlay(); requestAnimationFrame(blurSnInputIfAny); };
+    const snMainPanel = document.getElementById('sn-main-panel');
+    if(snMainPanel) snMainPanel.addEventListener('click', (e)=>{
+      if(!isNarrowScreenForSidebar()) return;
+      if(state._snSidebarCollapsed) return;
+      e.preventDefault();
+      e.stopPropagation();
+      state._snSidebarCollapsed = true;
+      renderSuperNotesOverlay();
+      requestAnimationFrame(blurSnInputIfAny);
+    }, true);
     document.getElementById('sn-goto-chat-btn').onclick = ()=>{ closeSuperNotes(); openAiChat(); };
     document.getElementById('sn-space-shared').onclick = ()=> switchNotesSpace('shared');
     document.getElementById('sn-space-personal').onclick = ()=> switchNotesSpace('personal');
@@ -10814,6 +10857,9 @@ ${fileGenerationTrainingText()}`;
     document.querySelectorAll('.nav-item').forEach(el=>{
       el.onclick = ()=>{
         const clickedTab = el.dataset.tab;
+        // "Tạo bài Tuyên truyền" giờ là overlay toàn màn hình (y hệt Chat AI/Siêu ghi chú) — KHÔNG đổi
+        // state.activeTab, chỉ mở overlay lên; khi thoát ra vẫn ở đúng module trước đó, không bị chuyển tab.
+        if(clickedTab==='propaganda'){ openPropagandaModule(); state.bellOpen=false; render(); return; }
         state.activeTab = clickedTab;
         state.bellOpen=false;
         render();
@@ -10859,7 +10905,6 @@ ${fileGenerationTrainingText()}`;
     else if(state.activeTab==='expenses') renderExpensesTab(content);
     else if(state.activeTab==='reports') renderReportsTab(content);
     else if(state.activeTab==='internal') renderInternalTab(content);
-    else if(state.activeTab==='propaganda') renderPropagandaTab(content);
     else if(state.activeTab==='members') renderMembersTab(content);
     else if(state.activeTab==='strength') renderStrengthTab(content);
     else if(state.activeTab==='survey') renderSurveyTab(content);
@@ -21532,39 +21577,35 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         ${state.propagandaPendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button data-pg-attach-remove="${i}">✕</button></span>`).join('')}
       </div>` : '';
     return `
-      <div class="panel">
-        <div class="panel-head"><h3>📣 Tạo bài Tuyên truyền</h3></div>
-        <div class="panel-body">
-          <p class="sub" style="margin-top:0;">Nhờ "Chàng Nông dân Thông minh" biên soạn bài viết, tin nhắn, hình ảnh/poster, video, banner, kịch bản loa truyền thanh... để tuyên truyền chính sách, pháp luật, quy định, phong trào tới hội viên nông dân và mọi tầng lớp nhân dân.</p>
-          <div class="pg-embed">
-            <div class="ai-sidebar">
-              <button class="ai-newchat-btn" id="pg-newchat-btn">➕ Đoạn hội thoại mới</button>
-              <div class="ai-hist-label">Lịch sử tuyên truyền</div>
-              <div class="ai-hist-list">${historyHtml}</div>
-              ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Bạn đang dùng khách/tham quan — lịch sử chỉ lưu tạm trong phiên này.</div>' : ''}
-            </div>
-            <div class="ai-main">
-              <div class="ai-header">📣 Chàng Nông dân Thông minh — Biên tập viên Tuyên truyền</div>
-              ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
-              <div class="ai-messages" id="pg-messages">${messagesHtml}</div>
-              ${chat && chat.hasVideoRole? `<div style="background:#7a1414; color:#fff; text-align:center; font-weight:800; font-size:13px; padding:10px 14px; margin:0 10% 8px; border-radius:10px; letter-spacing:.2px;">⚠️ CHỨC NĂNG TẠO VIDEO AI LÀ MỘT CHỨC NĂNG CAO CẤP. CHỨC NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP TRONG TƯƠNG LAI. NÊN HIỆN TẠI CÓ THỂ SẼ CÓ LỖI KHI TẠO VIDEO AI.</div>` : ''}
-              <div class="pg-roles" style="padding:8px 10% 0;">${rolesHtml}</div>
-              <div class="ai-model-bar">
-                <div class="ai-model-select" id="pg-model-select">
-                  <span>${provider? `🧠 ${escapeHtml(provider.label||provider.model)}` : '⚠️ Chưa cấu hình AI'}</span><span class="ai-model-caret">▾</span>
-                  ${modelDropdownHtml}
-                </div>
-              </div>
-              ${attachRowHtml}
-              <div class="ai-inputbar">
-                <div class="ai-add-btn" id="pg-add-btn" role="button" tabindex="0">➕<span class="ai-add-label"> Thêm tài liệu/ảnh</span>${addMenuHtml}</div>
-                <textarea id="pg-input" rows="1" placeholder="Gõ nội dung cần tuyên truyền, hoặc bấm 1 nút gợi ý ở trên... (Enter xuống dòng, Ctrl+Enter gửi)"></textarea>
-                <div class="ai-send-wrap">
-                  <span class="ai-send-tooltip">${state.propagandaSending? 'Chỉ bấm nút để dừng — Enter sẽ không có tác dụng' : 'Bấm Ctrl+Enter để gửi nhanh'}</span>
-                  ${state.propagandaSending? `<button id="pg-stop-btn" class="ai-stop-btn" title="Dừng câu trả lời">⏹</button>` : `<button id="pg-send-btn">➤</button>`}
-                </div>
-              </div>
-            </div>
+      <div class="ai-sidebar ${state._pgSidebarCollapsed?'collapsed':''}" id="pg-sidebar">
+        <button class="ai-exit-btn" id="pg-exit-btn">✕ THOÁT</button>
+        <button class="ai-newchat-btn" id="pg-newchat-btn">➕ Đoạn hội thoại mới</button>
+        <div class="ai-hist-label">Lịch sử tuyên truyền</div>
+        <div class="ai-hist-list">${historyHtml}</div>
+        ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Bạn đang dùng khách/tham quan — lịch sử chỉ lưu tạm trong phiên này.</div>' : ''}
+      </div>
+      <button class="ai-sidebar-toggle-btn preview-allow ${state._pgSidebarCollapsed?'collapsed':''}" id="pg-sidebar-toggle-btn" title="${state._pgSidebarCollapsed?'Mở khung lịch sử tuyên truyền':'Đóng khung lịch sử tuyên truyền'}">${state._pgSidebarCollapsed?'▶':'◀'}</button>
+      <div class="ai-sidebar-scrim ${!state._pgSidebarCollapsed?'show':''}" id="pg-sidebar-scrim"></div>
+      <button class="ai-close-fab preview-allow" id="pg-close-fab" title="Đóng Tạo bài Tuyên truyền">✕</button>
+      <div class="ai-main ${state._pgSidebarCollapsed?'ai-sidebar-collapsed':''}" id="pg-main-panel">
+        <div class="ai-header">📣 Chàng Nông dân Thông minh — Biên tập viên Tuyên truyền</div>
+        ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
+        <div class="ai-messages" id="pg-messages">${messagesHtml}</div>
+        ${chat && chat.hasVideoRole? `<div style="background:#7a1414; color:#fff; text-align:center; font-weight:800; font-size:13px; padding:10px 14px; margin:0 10% 8px; border-radius:10px; letter-spacing:.2px;">⚠️ CHỨC NĂNG TẠO VIDEO AI LÀ MỘT CHỨC NĂNG CAO CẤP. CHỨC NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP TRONG TƯƠNG LAI. NÊN HIỆN TẠI CÓ THỂ SẼ CÓ LỖI KHI TẠO VIDEO AI.</div>` : ''}
+        <div class="pg-roles" style="padding:8px 10% 0;">${rolesHtml}</div>
+        <div class="ai-model-bar">
+          <div class="ai-model-select" id="pg-model-select">
+            <span>${provider? `🧠 ${escapeHtml(provider.label||provider.model)}` : '⚠️ Chưa cấu hình AI'}</span><span class="ai-model-caret">▾</span>
+            ${modelDropdownHtml}
+          </div>
+        </div>
+        ${attachRowHtml}
+        <div class="ai-inputbar">
+          <div class="ai-add-btn" id="pg-add-btn" role="button" tabindex="0">➕<span class="ai-add-label"> Thêm tài liệu/ảnh</span>${addMenuHtml}</div>
+          <textarea id="pg-input" rows="1" placeholder="Gõ nội dung cần tuyên truyền, hoặc bấm 1 nút gợi ý ở trên... (Enter xuống dòng, Ctrl+Enter gửi)"></textarea>
+          <div class="ai-send-wrap">
+            <span class="ai-send-tooltip">${state.propagandaSending? 'Chỉ bấm nút để dừng — Enter sẽ không có tác dụng' : 'Bấm Ctrl+Enter để gửi nhanh'}</span>
+            ${state.propagandaSending? `<button id="pg-stop-btn" class="ai-stop-btn" title="Dừng câu trả lời">⏹</button>` : `<button id="pg-send-btn">➤</button>`}
           </div>
         </div>
       </div>`;
@@ -21600,12 +21641,37 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   function wirePropagandaTab(el, chat){
     wireMarkdownExtras(el);
     document.getElementById('pg-newchat-btn').onclick = newPropagandaChat;
+    const pgExitBtn = document.getElementById('pg-exit-btn');
+    if(pgExitBtn) pgExitBtn.onclick = closePropagandaModule;
+    const pgCloseFab = document.getElementById('pg-close-fab');
+    if(pgCloseFab) pgCloseFab.onclick = closePropagandaModule;
+    // Đóng/mở khung lịch sử tuyên truyền bên trái — hiệu ứng, cách hoạt động y hệt module Chat AI.
+    const blurPgInputIfAny = ()=>{ const inp = document.getElementById('pg-input'); if(inp && document.activeElement===inp) inp.blur(); };
+    const pgSidebarToggleBtn = document.getElementById('pg-sidebar-toggle-btn');
+    if(pgSidebarToggleBtn) pgSidebarToggleBtn.onclick = (e)=>{
+      e.stopPropagation();
+      state._pgSidebarCollapsed = !state._pgSidebarCollapsed;
+      renderPropagandaOverlay();
+      requestAnimationFrame(blurPgInputIfAny);
+    };
+    const pgSidebarScrim = document.getElementById('pg-sidebar-scrim');
+    if(pgSidebarScrim) pgSidebarScrim.onclick = ()=>{ state._pgSidebarCollapsed = true; renderPropagandaOverlay(); requestAnimationFrame(blurPgInputIfAny); };
+    const pgMainPanel = document.getElementById('pg-main-panel');
+    if(pgMainPanel) pgMainPanel.addEventListener('click', (e)=>{
+      if(!isNarrowScreenForSidebar()) return;
+      if(state._pgSidebarCollapsed) return;
+      e.preventDefault();
+      e.stopPropagation();
+      state._pgSidebarCollapsed = true;
+      renderPropagandaOverlay();
+      requestAnimationFrame(blurPgInputIfAny);
+    }, true);
     el.querySelectorAll('[data-pg-hist]').forEach(item=>{
       item.addEventListener('click', (e)=>{
         if(e.target.closest('[data-pg-hist-rename],[data-pg-hist-del]')) return;
         state.propagandaActiveChatId = item.dataset.pgHist;
         state._propagandaBubbleEditingIndex = null;
-        renderPropagandaTab(el);
+        renderPropagandaOverlay();
       });
     });
     el.querySelectorAll('[data-pg-hist-rename]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); renamePropagandaChat(btn.dataset.pgHistRename); });
@@ -21639,17 +21705,17 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     });
 
     const modelSelectEl = document.getElementById('pg-model-select');
-    if(modelSelectEl) modelSelectEl.addEventListener('click', (e)=>{ e.stopPropagation(); state._propagandaModelMenuOpen = !state._propagandaModelMenuOpen; renderPropagandaTab(el); });
+    if(modelSelectEl) modelSelectEl.addEventListener('click', (e)=>{ e.stopPropagation(); state._propagandaModelMenuOpen = !state._propagandaModelMenuOpen; renderPropagandaOverlay(); });
     el.querySelectorAll('[data-pg-select-provider]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{ e.stopPropagation(); selectPropagandaProvider(elx.dataset.pgSelectProvider); });
     });
 
     const addBtn = document.getElementById('pg-add-btn');
-    if(addBtn) addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); state._propagandaAddMenuOpen = !state._propagandaAddMenuOpen; renderPropagandaTab(el); });
+    if(addBtn) addBtn.addEventListener('click', (e)=>{ e.stopPropagation(); state._propagandaAddMenuOpen = !state._propagandaAddMenuOpen; renderPropagandaOverlay(); });
     el.querySelectorAll('[data-pg-add]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
         e.stopPropagation();
-        if(elx.dataset.pgAdd==='mic'){ state._propagandaAddMenuOpen = false; toggleMicGeneric('pg-input', ()=> renderPropagandaTab(el)); return; }
+        if(elx.dataset.pgAdd==='mic'){ state._propagandaAddMenuOpen = false; toggleMicGeneric('pg-input', ()=> renderPropagandaOverlay()); return; }
         triggerPropagandaFileInput(elx.dataset.pgAdd);
       });
     });
@@ -21677,23 +21743,45 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(state.activeTab!=='propaganda') return;
         if(state._propagandaModelMenuOpen || state._propagandaAddMenuOpen){
           state._propagandaModelMenuOpen = false; state._propagandaAddMenuOpen = false;
-          const c = document.getElementById('content'); if(c && state.activeTab==='propaganda') renderPropagandaTab(c);
+          if(state._propagandaOpen) renderPropagandaOverlay();
         }
       });
     }
   }
 
-  function renderPropagandaTab(el){
-    if(!state._propagandaChatsLoaded){ state._propagandaChatsLoaded = true; loadPropagandaChats().then(()=>{ const c=document.getElementById('content'); if(c && state.activeTab==='propaganda') renderPropagandaTab(c); }); }
+  function renderPropagandaOverlay(){
+    let overlay = document.getElementById('propaganda-overlay');
+    if(!overlay){
+      overlay = document.createElement('div'); overlay.id = 'propaganda-overlay'; overlay.className = 'ai-overlay';
+      document.body.appendChild(overlay);
+    }
+    if(!state._propagandaChatsLoaded){ state._propagandaChatsLoaded = true; loadPropagandaChats().then(()=>{ if(state._propagandaOpen) renderPropagandaOverlay(); }); }
     const chat = state.propagandaChats.find(c=>c.id===state.propagandaActiveChatId);
     const provider = getActivePropagandaProvider();
     const prevMsgBox = document.getElementById('pg-messages');
     const wasNearBottom = prevMsgBox ? (prevMsgBox.scrollHeight - prevMsgBox.scrollTop - prevMsgBox.clientHeight < 80) : true;
     const prevScrollTop = prevMsgBox ? prevMsgBox.scrollTop : 0;
-    el.innerHTML = buildPropagandaHtml(chat, provider);
-    wirePropagandaTab(el, chat);
+    overlay.innerHTML = buildPropagandaHtml(chat, provider);
+    wirePropagandaTab(overlay, chat);
     const msgBox = document.getElementById('pg-messages');
     if(msgBox) msgBox.scrollTop = wasNearBottom ? msgBox.scrollHeight : prevScrollTop;
+  }
+  // Mở/đóng module "Tạo bài Tuyên truyền" — dạng overlay toàn màn hình, y hệt module Chat AI/Siêu ghi
+  // chú (không còn là 1 tab thông thường trong #content nữa).
+  async function openPropagandaModule(){
+    closeAiChat(); closeSuperNotes();
+    state._propagandaOpen = true;
+    renderPropagandaOverlay();
+    // Đảm bảo KHÔNG có con trỏ văn bản (và do đó KHÔNG có bàn phím ảo tự bật lên trên điện thoại) ngay
+    // lúc vừa mở module — chỉ khi người dùng TỰ bấm vào khung nhập thì mới có con trỏ để nhập liệu.
+    requestAnimationFrame(()=>{
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    });
+  }
+  function closePropagandaModule(){
+    state._propagandaOpen = false;
+    const overlay = document.getElementById('propaganda-overlay');
+    if(overlay) overlay.remove();
   }
 
   function renderMembersTab(el){
