@@ -695,13 +695,13 @@
     box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; z-index:400; font-size:26px;
     display:flex; align-items:center; justify-content:center;
     animation: fabBob 4.5s ease-in-out infinite;
-    opacity:.55; transition: opacity .2s ease, top .4s ease, bottom .4s ease;
+    opacity:.55; transition: opacity .2s ease;
   }
   .fab-chat:hover{ filter:brightness(1.08); opacity:1; }
   @media (max-width:640px){ .fab-chat{ right:14px !important; bottom:14px; width:54px; height:54px; font-size:22px; } }
 
   /* "Siêu ghi chú" — icon bồng bềnh nằm ngay trên đầu icon Chat AI, y hệt kiểu dáng/hiệu ứng */
-  .fab-notes-wrap{ position:fixed !important; right:22px !important; left:auto !important; bottom:96px; top:auto !important; z-index:400; display:flex; flex-direction:column; align-items:center; gap:6px; transition: top .4s ease, bottom .4s ease; }
+  .fab-notes-wrap{ position:fixed !important; right:22px !important; left:auto !important; bottom:96px; top:auto !important; z-index:400; display:flex; flex-direction:column; align-items:center; gap:6px; }
   .fab-notes-label{ background:var(--rice-dark); color:#fff; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,.18); }
   .fab-notes-btn{ width:60px; height:60px; border-radius:50%; background:linear-gradient(145deg, var(--gold), var(--rice-dark)); color:#fff; border:none;
     box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; font-size:26px; display:flex; align-items:center; justify-content:center;
@@ -718,11 +718,23 @@
     box-shadow:0 6px 18px rgba(47,74,60,.35); cursor:pointer; z-index:400; font-size:26px;
     display:flex; align-items:center; justify-content:center;
     animation: fabBob 4.5s ease-in-out infinite;
-    opacity:.55; transition: opacity .2s ease, top .4s ease, bottom .4s ease;
+    opacity:.55; transition: opacity .2s ease;
   }
   .fab-people-btn:hover{ filter:brightness(1.08); opacity:1; }
   .fab-people-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
   @media (max-width:640px){ .fab-people-btn{ right:14px !important; bottom:150px; width:54px; height:54px; font-size:22px; } }
+
+  /* Class RIÊNG chỉ cung cấp transition mượt cho vị trí — CHỈ được JS chủ động gắn vào đúng lúc popup
+     chào mừng hiện/ẩn (xem hàm renderWardWelcomePopup), rồi tự gỡ ra ngay sau khi chuyển động xong. Mặc
+     định KHÔNG có transition này trên 3 nút — để giữ nguyên độ mượt tức thì khi kéo thả (lỗi thật đã
+     xảy ra trước đây: gắn transition thẳng vào CSS gốc khiến MỌI thay đổi vị trí, kể cả lúc đang kéo
+     thả bằng tay, cũng bị "mượt hoá" theo transition 0.4s, gây cảm giác trễ khó chịu khi kéo). */
+  /* Class tắt hẳn animation nhảy (fabBob) — dùng khi popup chào mừng đang chờ hiện/đang hiện, để 3 nút
+     đứng yên bình thường, không nhảy động gì cả — chỉ khi popup biến mất hẳn thì mới bắt đầu nhảy để
+     thu hút sự chú ý (xem renderWardWelcomePopup). */
+  .fab-pre-popup{ animation:none !important; }
+
+  .fab-position-transition{ transition: top .4s ease, bottom .4s ease !important; }
 
   /* Khi popup chào mừng đang hiện (ở đáy màn hình) — tạm thời đẩy 3 nút nổi lên giữa/trên màn hình một
      chút để tránh bị popup che mất. Ngay khi popup biến mất (class này bị gỡ), 3 nút LẬP TỨC trở về
@@ -8217,13 +8229,16 @@
     if(!btn){
       btn = document.createElement('button');
       btn.id = 'fab-chat-btn';
-      btn.className = 'fab-chat fab-intro'; // Yêu cầu 6: nhún nhảy 5 giây đầu để thu hút sự chú ý
+      // Nếu popup chào mừng SẮP hiện (hoặc đang hiện) thì tạo nút ở trạng thái ĐỨNG YÊN (không nhảy
+      // ngay) — chỉ khi popup biến mất hẳn, renderWardWelcomePopup mới kích hoạt nhảy để thu hút chú ý.
+      const willShowPopup = !!state._showWardWelcome;
+      btn.className = willShowPopup ? 'fab-chat fab-pre-popup' : 'fab-chat fab-intro'; // Yêu cầu 6: nhún nhảy 5 giây đầu để thu hút sự chú ý
       btn.title = 'Chàng Nông dân Thông minh — Trợ lý AI';
       btn.dataset.tooltip = 'Chat với AI';
       btn.textContent = '🤖';
       btn.onclick = openAiChat;
       document.body.appendChild(btn);
-      setTimeout(()=>{ const b = document.getElementById('fab-chat-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
+      if(!willShowPopup) setTimeout(()=>{ const b = document.getElementById('fab-chat-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
     }
     if(state._aiChatOpen && !document.getElementById('ai-chat-overlay')){
       renderAiChatOverlay();
@@ -8241,10 +8256,11 @@
         notesWrap = document.createElement('div');
         notesWrap.id = 'fab-notes-wrap';
         notesWrap.className = 'fab-notes-wrap';
-        notesWrap.innerHTML = `<button id="fab-notes-btn" class="fab-notes-btn fab-intro" title="Siêu ghi chú" data-tooltip="Siêu ghi chú">🗒️</button>`;
+        const willShowPopup = !!state._showWardWelcome;
+        notesWrap.innerHTML = `<button id="fab-notes-btn" class="fab-notes-btn ${willShowPopup?'fab-pre-popup':'fab-intro'}" title="Siêu ghi chú" data-tooltip="Siêu ghi chú">🗒️</button>`;
         document.body.appendChild(notesWrap);
         notesWrap.querySelector('#fab-notes-btn').onclick = openSuperNotes;
-        setTimeout(()=>{ const b = document.getElementById('fab-notes-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
+        if(!willShowPopup) setTimeout(()=>{ const b = document.getElementById('fab-notes-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
       }
       if(state._superNotesOpen && !document.getElementById('super-notes-overlay')){
         renderSuperNotesOverlay();
@@ -8260,13 +8276,14 @@
     if(!peopleBtn){
       peopleBtn = document.createElement('button');
       peopleBtn.id = 'fab-people-btn';
-      peopleBtn.className = 'fab-people-btn fab-intro';
+      const willShowPopup = !!state._showWardWelcome;
+      peopleBtn.className = willShowPopup ? 'fab-people-btn fab-pre-popup' : 'fab-people-btn fab-intro';
       peopleBtn.title = 'Chat với Mọi người';
       peopleBtn.dataset.tooltip = 'Chat với Mọi người';
       peopleBtn.textContent = '💬';
       peopleBtn.onclick = openPeopleChat;
       document.body.appendChild(peopleBtn);
-      setTimeout(()=>{ const b = document.getElementById('fab-people-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
+      if(!willShowPopup) setTimeout(()=>{ const b = document.getElementById('fab-people-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
     }
     // Kéo-thả THEO NHÓM — kéo bất kỳ 1 trong 3 nút này thì cả 3 luôn di chuyển cùng nhau, dính liền.
     makeGroupDraggable([
@@ -11051,7 +11068,25 @@ ${fileGenerationTrainingText()}`;
       if(e.target!==wrap || e.animationName!=='wardWelcomeBottomSequence') return;
       state._showWardWelcome = false;
       wrap.remove();
+      // Gắn TẠM class transition mượt cho lần "chạy về" này — chỉ tồn tại đúng khoảng thời gian chuyển
+      // động (450ms) rồi tự gỡ ra ngay, để không ảnh hưởng tới độ mượt tức thì khi kéo thả về sau.
+      const fabEls = [document.getElementById('fab-chat-btn'), document.getElementById('fab-notes-wrap'), document.getElementById('fab-people-btn')].filter(Boolean);
+      fabEls.forEach(el=> el.classList.add('fab-position-transition'));
       document.body.classList.remove('welcome-popup-active'); // popup mất hẳn -> 3 nút nổi lập tức chạy về vị trí mặc định
+      setTimeout(()=>{
+        fabEls.forEach(el=> el.classList.remove('fab-position-transition'));
+        // Đúng lúc này 3 nút đã về hẳn vị trí mặc định — bắt đầu nhảy động 5 giây để thu hút sự chú ý.
+        const chatBtn = document.getElementById('fab-chat-btn');
+        const notesBtn = document.getElementById('fab-notes-btn');
+        const peopleBtnEl = document.getElementById('fab-people-btn');
+        [chatBtn, notesBtn, peopleBtnEl].filter(Boolean).forEach(el=>{
+          el.classList.remove('fab-pre-popup');
+          el.classList.add('fab-intro');
+        });
+        setTimeout(()=>{
+          [chatBtn, notesBtn, peopleBtnEl].filter(Boolean).forEach(el=> el.classList.remove('fab-intro'));
+        }, 5000);
+      }, 450);
     });
   }
 
