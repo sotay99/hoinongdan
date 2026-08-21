@@ -748,11 +748,29 @@
   .modal-scroll-btn{
     position:fixed; right:6px; width:38px; height:38px; border-radius:50%; border:none;
     background:linear-gradient(145deg, #616161, #212121); color:#fff; font-size:16px; font-weight:800;
-    cursor:pointer; z-index:9990; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:500; display:flex; align-items:center; justify-content:center;
     box-shadow:0 4px 12px rgba(0,0,0,.35); opacity:.55; transition: opacity .2s ease;
   }
   .modal-scroll-btn:hover{ opacity:1; }
+  /* Khoá chọn văn bản + menu ngữ cảnh (sao chép/dán) — trình duyệt di động hiểu icon mũi tên bên trong
+     nút như 1 ký tự văn bản thông thường, bấm giữ lâu sẽ tự hiện menu "Sao chép" nếu không khoá lại. */
+  .modal-scroll-btn, .hscroll-btn{
+    -webkit-user-select:none; -moz-user-select:none; user-select:none;
+    -webkit-touch-callout:none; /* Safari/iOS: tắt menu bật lên khi chạm giữ (copy/lookup...) */
+  }
   @media (max-width:640px){ .modal-scroll-btn{ width:32px; height:32px; font-size:14px; right:4px; } }
+
+  /* 2 nút cuộn qua trái/phải — tự động chèn cho MỌI khung có thanh cuộn ngang trong toàn app (menu
+     module, bảng trong panel/modal...), nằm giữa khu vực thanh cuộn ngang, đè lên thanh cuộn để dễ bấm.
+     Cùng kích thước/độ mờ/khoảng cách/logic như 2 nút cuộn dọc ở trên. */
+  .hscroll-btn{
+    position:fixed; bottom:6px; width:38px; height:38px; border-radius:50%; border:none;
+    background:linear-gradient(145deg, #616161, #212121); color:#fff; font-size:16px; font-weight:800;
+    cursor:pointer; z-index:60; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.35); opacity:.55; transition: opacity .2s ease;
+  }
+  .hscroll-btn:hover{ opacity:1; }
+  @media (max-width:640px){ .hscroll-btn{ width:32px; height:32px; font-size:14px; } }
 
   /* Cây thư mục/tệp trong sidebar Siêu ghi chú */
   .sn-crumbs{ font-size:11px; color:rgba(255,255,255,.75); padding:0 10px 8px; word-break:break-word; }
@@ -1337,6 +1355,128 @@
   // Modal thường có 2 khung cuộn riêng biệt: khung NGOÀI (chính modal-bg, để thấy được tiêu đề trên
   // cùng/nút ở đáy modal khi nội dung quá dài không vừa màn hình) VÀ khung TRONG (.modal-body, nội dung
   // bên trong). Phải cuộn CẢ 2 cùng lúc thì mới thực sự "lên tới đầu"/"xuống tới cuối" đúng nghĩa.
+  // =====================================================================
+  // 2 nút cuộn qua TRÁI/PHẢI — tự động chèn cho MỌI khung có thanh cuộn ngang trong toàn app (menu
+  // module, bảng trong panel/modal...). Dùng Map THƯỜNG (không phải WeakMap) để có thể DUYỆT QUA toàn
+  // bộ danh sách và dọn dẹp đúng mọi cặp mồ côi mỗi lần quét — đây là điểm mấu chốt để tránh lỗi tích
+  // tụ nút không bao giờ biến mất (đã từng xảy ra ở phiên bản trước, nay thiết kế lại cẩn thận hơn).
+  // =====================================================================
+  window.__hScrollButtonsMap = window.__hScrollButtonsMap || new Map();
+  function removeHScrollPair(pair){
+    if(pair.leftBtn && pair.leftBtn.parentNode) pair.leftBtn.remove();
+    if(pair.rightBtn && pair.rightBtn.parentNode) pair.rightBtn.remove();
+  }
+  function updateHScrollButtonPosition(el, leftBtn, rightBtn){
+    const rect = el.getBoundingClientRect();
+    const y = rect.bottom - 25; // gần sát đáy khung (chỗ thanh cuộn ngang), trừ nửa chiều cao nút
+    const margin = 8; // cách mép phải khung 1 khoảng nhỏ
+    let rightBtnLeft = rect.right - margin - 38;
+    let leftBtnLeft = rightBtnLeft - 6 - 38;
+    // Đảm bảo cặp nút LUÔN nằm TRỌN VẸN bên trong khung chứa mà nó thuộc về — không tràn ra ngoài mép
+    // trái nếu khung quá hẹp.
+    if(leftBtnLeft < rect.left) leftBtnLeft = rect.left;
+    leftBtn.style.top = y + 'px';
+    leftBtn.style.left = leftBtnLeft + 'px';
+    rightBtn.style.top = y + 'px';
+    rightBtn.style.left = rightBtnLeft + 'px';
+  }
+  function wireHScrollBtnDir(btn, el, dir){
+    let scrollTimer = null;
+    let downAt = 0;
+    const startContinuous = ()=>{
+      if(scrollTimer) return;
+      scrollTimer = setInterval(()=>{ el.scrollLeft += dir*6; }, 16); // 4px * 1.5 = 6px mỗi 16ms — tăng tốc độ cuộn lên 1,5 lần theo yêu cầu
+    };
+    const stopContinuous = ()=>{ if(scrollTimer){ clearInterval(scrollTimer); scrollTimer=null; } };
+    btn.addEventListener('mouseenter', startContinuous);
+    btn.addEventListener('mouseleave', stopContinuous);
+    btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); downAt = Date.now(); startContinuous(); });
+    btn.addEventListener('touchstart', ()=>{ downAt = Date.now(); startContinuous(); }, {passive:true});
+    document.addEventListener('mouseup', stopContinuous);
+    document.addEventListener('touchend', stopContinuous);
+    btn.addEventListener('click', ()=>{
+      // Chỉ cuộn thêm 1 đoạn ngắn khi đây là 1 cú BẤM NHANH (không phải vừa bấm-giữ xong, lúc đó cuộn
+      // liên tục đã tự làm việc rồi, cộng thêm sẽ bị dư thừa/giật).
+      if(Date.now() - downAt < 260){
+        const chunk = Math.min(260, Math.max(80, el.clientWidth*0.6));
+        el.scrollBy({ left: dir*chunk, behavior:'smooth' });
+      }
+    });
+  }
+  function createHScrollPair(el){
+    const leftBtn = document.createElement('button');
+    leftBtn.type = 'button'; leftBtn.className = 'hscroll-btn preview-allow'; leftBtn.title = 'Cuộn sang trái'; leftBtn.textContent = '◀';
+    const rightBtn = document.createElement('button');
+    rightBtn.type = 'button'; rightBtn.className = 'hscroll-btn preview-allow'; rightBtn.title = 'Cuộn sang phải'; rightBtn.textContent = '▶';
+    // QUAN TRỌNG: lớp hiển thị (z-index) phải LINH HOẠT tuỳ theo khung cuộn này đang nằm ở đâu — nếu
+    // đang nằm BÊN TRONG 1 modal (VD bảng rộng trong modal-body), phải đặt cặp nút NGAY SAU modal đó
+    // trong DOM (cùng z-index với modal) — nhờ vậy nó luôn hiện ĐÚNG TRÊN modal chứa nó, nhưng khi có
+    // modal MỚI mở ra sau (luôn được thêm vào SAU trong DOM), modal mới đó tự động đè lên trên, không
+    // còn bị cặp nút "mắc kẹt" từ trước che khuất nữa. Nếu khung cuộn KHÔNG nằm trong modal nào (VD menu
+    // module chính, bảng trong panel) thì gắn ở cuối body với lớp THẤP hơn hẳn modal, đảm bảo mọi modal
+    // mở sau đều tự động nằm trên.
+    const containingModal = el.closest('.modal-bg');
+    if(containingModal){
+      leftBtn.style.zIndex = '450'; rightBtn.style.zIndex = '450';
+      containingModal.insertAdjacentElement('afterend', rightBtn);
+      containingModal.insertAdjacentElement('afterend', leftBtn);
+    } else {
+      document.body.appendChild(leftBtn);
+      document.body.appendChild(rightBtn);
+    }
+    updateHScrollButtonPosition(el, leftBtn, rightBtn);
+    wireHScrollBtnDir(leftBtn, el, -1);
+    wireHScrollBtnDir(rightBtn, el, 1);
+    return { leftBtn, rightBtn };
+  }
+  function hasHOverflow(el){ return el.isConnected && el.scrollWidth > el.clientWidth + 2; }
+  // Quét lại TOÀN BỘ các khung ứng viên (menu module, bảng trong panel/modal...) — chỉ những khung THỰC
+  // SỰ có thanh cuộn ngang mới được chèn nút. QUAN TRỌNG: mỗi lần quét đều DUYỆT QUA HẾT mọi cặp nút
+  // ĐANG CÓ (kể cả những cặp không nằm trong danh sách ứng viên lần này — VD phần tử gốc đã bị gỡ khỏi
+  // trang do vẽ lại) để dọn dẹp đúng, tránh tuyệt đối khả năng tích tụ.
+  function scanForHorizontalScrollables(){
+    // Lớp AN TOÀN DỰ PHÒNG: nếu vì bất kỳ lý do gì mà số cặp nút vượt quá ngưỡng hợp lý (bình thường
+    // không bao giờ có quá vài khung cuộn ngang cùng lúc trên 1 màn hình) — xoá sạch toàn bộ và bắt đầu
+    // lại từ đầu ngay lập tức, đảm bảo TUYỆT ĐỐI không thể xảy ra lại tình trạng "một đống mũi tên".
+    if(window.__hScrollButtonsMap.size > 15){
+      window.__hScrollButtonsMap.forEach(pair=> removeHScrollPair(pair));
+      window.__hScrollButtonsMap.clear();
+      document.querySelectorAll('.hscroll-btn').forEach(el=> el.remove()); // quét dọn luôn phần dư thừa ngoài Map (nếu có)
+    }
+    const candidates = document.querySelectorAll('.sidebar, .modal-body, .table-wrap, .ai-sidebar, .ai-messages');
+    candidates.forEach(el=>{
+      const overflow = hasHOverflow(el);
+      const pair = window.__hScrollButtonsMap.get(el);
+      if(overflow){
+        if(pair) updateHScrollButtonPosition(el, pair.leftBtn, pair.rightBtn);
+        else window.__hScrollButtonsMap.set(el, createHScrollPair(el));
+      } else if(pair){
+        removeHScrollPair(pair);
+        window.__hScrollButtonsMap.delete(el);
+      }
+    });
+    // Dọn dẹp mọi cặp MỒ CÔI — phần tử gốc không còn nằm trong danh sách ứng viên quét được lần này
+    // (đã bị gỡ khỏi trang/thay bằng phần tử mới do vẽ lại) hoặc không còn overflow nữa.
+    window.__hScrollButtonsMap.forEach((pair, el)=>{
+      if(!hasHOverflow(el)){
+        removeHScrollPair(pair);
+        window.__hScrollButtonsMap.delete(el);
+      }
+    });
+  }
+  if(!window.__hScrollObserverWired){
+    window.__hScrollObserverWired = true;
+    let hScrollScanTimer = null;
+    const scheduleScan = ()=>{ if(hScrollScanTimer) return; hScrollScanTimer = setTimeout(()=>{ hScrollScanTimer=null; scanForHorizontalScrollables(); }, 150); };
+    new MutationObserver(scheduleScan).observe(document.body, { childList:true, subtree:true });
+    window.addEventListener('resize', scheduleScan);
+    // Bắt sự kiện cuộn Ở GIAI ĐOẠN CAPTURE trên toàn document — vì sự kiện "scroll" của các khung con
+    // KHÔNG lan (bubble) lên cha theo mặc định, chỉ có cách bắt ở capture mới nhận được MỌI lần cuộn
+    // xảy ra bất kỳ đâu trong trang (kể cả cuộn dọc của modal cha làm khung con bên trong dịch chuyển
+    // vị trí trên màn hình, cần định vị lại nút ngay).
+    document.addEventListener('scroll', scheduleScan, true);
+    setInterval(scanForHorizontalScrollables, 900); // quét định kỳ dự phòng — bắt các trường hợp thay đổi kích thước không qua DOM mutation/scroll/resize, ĐỒNG THỜI cũng là lớp an toàn dọn dẹp định kỳ dù có bỏ sót sự kiện nào
+  }
   function ensureModalScrollButtons(bg){
     // Loại trừ popup chào mừng (welcome-popup-bg) — nội dung quá ngắn gọn, không cần cuộn, 2 nút này
     // hoàn toàn thừa thãi ở đây.
