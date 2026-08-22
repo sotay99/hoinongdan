@@ -261,7 +261,7 @@
      background-color TRẮNG ĐỤC làm lớp nền tối thiểu (không !important — vẫn cho phép màu trạng thái
      dòng, VD quá hạn/gia hạn, ghi đè lên khi ô đó CÓ set màu riêng) — phòng trường hợp 1 ô nào đó lỡ
      thiếu nền riêng thì vẫn có lớp nền trắng chặn phía sau, tuyệt đối không lộ nội dung cuộn bên dưới. */
-  td.frz-col1, td.frz-col2, td.frz-col3, td.sv-sticky-1, td.sv-sticky-2{ background-color:var(--white); box-shadow:inset 0 0 0 1000px rgba(0,0,0,.055) !important; }
+  td.frz-col1, td.frz-col2, td.frz-col3, td.frz-stat1, td.sv-sticky-1, td.sv-sticky-2, td.ia-sticky-1, td.ia-sticky-2{ background-color:#f0f0ef !important; }
   .frz-col2{ position:sticky; left:110px; z-index:3; }
   .frz-col3{ position:sticky; left:220px; z-index:3; }
   .frz-stat1{ position:sticky; left:0; z-index:3; }
@@ -851,6 +851,16 @@
      NGAY TRONG nội dung tab (không phải overlay toàn màn hình cố định). */
   .pg-embed{ display:flex; height:76vh; min-height:540px; border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:var(--shadow); }
   .pg-roles{ display:flex; flex-wrap:wrap; gap:8px; padding:10px 0 4px; }
+  /* Nút "Gợi ý tạo bài" — khung bọc để định vị menu thả xuống chính xác so với nút. */
+  .pg-suggest-wrap{ position:relative; display:inline-block; }
+  /* Menu thả xuống chứa toàn bộ lựa chọn — hiện NGAY PHÍA TRÊN nút, đè lên MỌI THỨ trong module (z-index
+     cao hơn hẳn nội dung chat/khung nhập liệu bên dưới). */
+  .pg-suggest-menu{
+    position:absolute; bottom:calc(100% + 8px); left:0; z-index:600;
+    display:flex; flex-direction:column; gap:6px; padding:10px; min-width:240px;
+    background:var(--white); border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.25);
+  }
+  .pg-suggest-menu .pg-role-btn{ width:100%; text-align:left; }
   .pg-role-btn{ background:var(--white); border:1px solid var(--line); border-radius:20px; padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--rice-dark); cursor:pointer; transition:all .15s; }
   .pg-role-btn:hover{ background:var(--gold); color:#fff; border-color:var(--gold); }
   .pg-role-btn.pg-confirm-btn{ background:var(--gold); color:#fff; border-color:var(--gold); font-weight:800; }
@@ -1381,11 +1391,13 @@
     rightBtn.style.left = rightBtnLeft + 'px';
   }
   function wireHScrollBtnDir(btn, el, dir){
+    if(btn.dataset.hscrollWired) return; // chống nối dây trùng lặp — nếu lỡ bị gọi 2 lần cho cùng 1 nút thì cũng không tạo ra nhiều interval chạy song song gây xung đột/giật
+    btn.dataset.hscrollWired = '1';
     let scrollTimer = null;
     let downAt = 0;
     const startContinuous = ()=>{
       if(scrollTimer) return;
-      scrollTimer = setInterval(()=>{ el.scrollLeft += dir*6; }, 16); // 4px * 1.5 = 6px mỗi 16ms — tăng tốc độ cuộn lên 1,5 lần theo yêu cầu
+      scrollTimer = setInterval(()=>{ el.scrollLeft += dir*14; }, 16); // tăng mạnh tốc độ cuộn — đảm bảo rõ rệt, dễ cảm nhận
     };
     const stopContinuous = ()=>{ if(scrollTimer){ clearInterval(scrollTimer); scrollTimer=null; } };
     btn.addEventListener('mouseenter', startContinuous);
@@ -2033,6 +2045,11 @@
           { label:'Lãi suất %', width:96, get:p=> (p.interestRate||0)+'%/năm' },
           { key:'loanDate', label:'Ngày vay', get:p=> fmtDate(p.disburseDate) },
           { key:'dueDate', label:'Đến hạn', get:p=> fmtDate(p.dueDate) },
+          { label:'Nguồn vay', width:140, get:p=> escapeHtml(p.fundSourceType||'') },
+          { align:'right', label:'Phân bổ Cấp Trung ương (%)', width:110, get:p=> String(parseFloat(p.splitCentral)||0).replace('.',',')+'%' },
+          { align:'right', label:'Phân bổ Cấp Tỉnh (%)', width:100, get:p=> String(parseFloat(p.splitProvince)||0).replace('.',',')+'%' },
+          { align:'right', label:'Phân bổ Cấp Xã (%)', width:100, get:p=> String(parseFloat(p.splitWard)||0).replace('.',',')+'%' },
+          { align:'right', label:`% Xã phân bổ về ${subAdminLabelLower()}`, width:120, get:p=> String(parseFloat(p.hamletAllocPercent)||0).replace('.',',')+'%' },
           { key:'daysRemaining', label:'Thời gian còn lại', get:p=> daysRemainingLabel(p.dueDate) },
           { align:'right', label:'Số tiền còn lại không hoạt động (đ)', width:140, get:p=> moneySpaced(projectInactiveAmountRaw(p)) },
         ];
@@ -3376,6 +3393,11 @@
     { label:'Lãi suất (%/năm)', get: p=> String(parseFloat(p.interestRate)||0).replace('.',','), getPlain: p=> parseFloat(p.interestRate)||0 },
     { label:'Ngày vay', get: p=> fmtDate(p.disburseDate), getPlain: p=> p.disburseDate||'' },
     { label:'Ngày đến hạn', get: p=> fmtDate(p.dueDate), getPlain: p=> p.dueDate||'' },
+    { label:'Nguồn vay', get: p=> escapeHtml(p.fundSourceType||''), getPlain: p=> p.fundSourceType||'' },
+    { label:'Phân bổ Cấp Trung ương (%)', get: p=> String(parseFloat(p.splitCentral)||0).replace('.',','), getPlain: p=> parseFloat(p.splitCentral)||0 },
+    { label:'Phân bổ Cấp Tỉnh (%)', get: p=> String(parseFloat(p.splitProvince)||0).replace('.',','), getPlain: p=> parseFloat(p.splitProvince)||0 },
+    { label:'Phân bổ Cấp Xã (%)', get: p=> String(parseFloat(p.splitWard)||0).replace('.',','), getPlain: p=> parseFloat(p.splitWard)||0 },
+    { label:'% Xã phân bổ về cấp dưới', get: p=> String(parseFloat(p.hamletAllocPercent)||0).replace('.',','), getPlain: p=> parseFloat(p.hamletAllocPercent)||0 },
     { label:'Thời gian còn lại', get: p=> daysRemainingLabel(p.dueDate), getPlain: p=> daysRemainingLabel(p.dueDate) },
     { label:'Số tiền còn lại không hoạt động (đ)', get: p=> moneySpaced(projectInactiveAmountRaw(p)), getPlain: p=> projectInactiveAmountRaw(p) },
   ];
@@ -4065,7 +4087,7 @@
     // ---- Module [Tạo bài Tuyên truyền] — bản sao kiến trúc Chat AI, vai biên tập viên tuyên truyền ----
     propagandaChats:[], propagandaActiveChatId:null, propagandaSending:false,
     propagandaPendingAttachments:[], propagandaWebSearchOn:false, _propagandaMicListening:false,
-    _propagandaModelMenuOpen:false, _propagandaAddMenuOpen:false, propagandaActiveProviderId:null,
+    _propagandaModelMenuOpen:false, _propagandaAddMenuOpen:false, _propagandaSuggestMenuOpen:false, propagandaActiveProviderId:null,
     _propagandaBubbleEditingIndex:null,
     _propagandaChatsLoaded:false, _pgOutsideClickBound:false,
     aiAbortController:null, propagandaAbortController:null,
@@ -8660,7 +8682,8 @@
     const panel = document.getElementById('ai-mic-status-panel');
     if(panel) panel.remove();
   }
-  function toggleMicGeneric(targetInputId, rerenderFn){
+  function toggleMicGeneric(prefix, rerenderFn){
+    const targetInputId = prefix+'-input';
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SR){ alert('Trình duyệt này chưa hỗ trợ nhận dạng giọng nói. Vui lòng dùng Google Chrome trên máy tính hoặc Android.'); return; }
     // Cập nhật RIÊNG các phần tử liên quan (nhãn nút micro trong menu "Thêm thành phần", nút Gửi/Dừng
@@ -8669,19 +8692,19 @@
     // chỉ là DOM thao tác tay — bị xoá sạch về rỗng mỗi lần gọi). Đây chính là nguyên nhân gốc của lỗi
     // "chữ đã nói tự nhiên biến mất" trước đây.
     function updateMicUiOnly(listening){
-      const micLabelEl = document.querySelector(`[data-ai-add="mic"]`) || document.querySelector(`[data-sn-add="mic"]`) || document.querySelector(`[data-pg-add="mic"]`);
+      const micLabelEl = document.querySelector(`[data-${prefix}-add="mic"]`);
       if(micLabelEl) micLabelEl.innerHTML = `🎤 ${listening? '✅ Đang nghe — bấm để dừng' : 'Vừa nói vừa ra chữ'}`;
       // Đồng bộ trạng thái khoá/xám của nút micro CÒN LẠI (mic2) — vì hàm này cập nhật DOM trực tiếp,
       // không vẽ lại cả menu, nên phải tự tay đồng bộ class xám cho đúng.
-      const mic2LabelEl = document.querySelector('[data-ai-add="mic2"]');
+      const mic2LabelEl = document.querySelector(`[data-${prefix}-add="mic2"]`);
       if(mic2LabelEl) mic2LabelEl.classList.toggle('ai-add-opt-disabled', listening);
-      const sendBtn = document.getElementById('ai-send-btn');
-      const stopMicBtn = document.getElementById('ai-mic-stop-btn');
+      const sendBtn = document.getElementById(prefix+'-send-btn');
+      const stopMicBtn = document.getElementById(prefix+'-mic-stop-btn');
       if(listening){
         if(sendBtn) sendBtn.style.display = 'none';
         if(!stopMicBtn && sendBtn && sendBtn.parentElement){
           const btn = document.createElement('button');
-          btn.id = 'ai-mic-stop-btn';
+          btn.id = prefix+'-mic-stop-btn';
           btn.className = 'ai-stop-btn';
           btn.title = 'Dừng nghe';
           btn.textContent = '⏸';
@@ -8699,7 +8722,7 @@
         hideMicStatusPanel();
       }
     }
-    if(state._aiMicListening){ if(aiRecognition) aiRecognition.stop(); return; }
+    if(state['_'+prefix+'MicListening']){ if(aiRecognition) aiRecognition.stop(); return; }
     // QUAN TRỌNG: lấy giá trị ô nhập liệu NGAY TẠI ĐÂY (đồng bộ, ngay lúc vừa bấm nút) — KHÔNG đợi tới
     // sự kiện onstart (bất đồng bộ) mới lấy, vì giữa lúc bấm nút và lúc onstart thực sự chạy có thể bị
     // trễ (trình duyệt xin quyền micro lần đầu...), nếu có bất kỳ điều gì khác xảy ra trong lúc chờ đó
@@ -8724,7 +8747,7 @@
       silenceTimer = setTimeout(()=>{ if(aiRecognition) aiRecognition.stop(); }, 10000);
     }
     aiRecognition.onstart = ()=>{
-      state._aiMicListening = true;
+      state['_'+prefix+'MicListening'] = true;
       const inputEl = document.getElementById(targetInputId);
       // Khôi phục lại ĐÚNG nội dung đã lưu từ lúc bấm nút (phòng trường hợp ô nhập đã lỡ bị mất nội
       // dung trong lúc chờ xin quyền micro) — rồi mới bắt đầu nối thêm chữ mới vào từ đây.
@@ -8735,7 +8758,7 @@
       resetSilenceTimer();
     };
     aiRecognition.onerror = (e)=>{
-      state._aiMicListening = false;
+      state['_'+prefix+'MicListening'] = false;
       if(silenceTimer) clearTimeout(silenceTimer);
       updateMicUiOnly(false);
       // Báo lỗi RÕ RÀNG thay vì im lặng — các lỗi thường gặp: "not-allowed" (chưa cấp quyền micro),
@@ -8751,7 +8774,7 @@
       if(e.error!=='no-speech') alert(msg);
     };
     aiRecognition.onend = ()=>{
-      state._aiMicListening = false;
+      state['_'+prefix+'MicListening'] = false;
       if(silenceTimer) clearTimeout(silenceTimer);
       updateMicUiOnly(false);
       // KHÔNG xoá/động gì tới nội dung <textarea> ở đây — chữ đã nói ra (bao gồm cả đợt trước lẫn đợt
@@ -8772,7 +8795,7 @@
     };
     try{ aiRecognition.start(); }catch(e){ console.error('[Nhận dạng giọng nói] Không khởi động được:', e); }
   }
-  function toggleAiMic(){ toggleMicGeneric('ai-input', renderAiChatOverlay); }
+  function toggleAiMic(){ toggleMicGeneric('ai', renderAiChatOverlay); }
   // ---------------------------------------------------------------------------------------------
   // Nút micro THỨ 2: "Nói xong mới ra chữ" — khác hẳn nút thứ nhất (nhận dạng trực tiếp trên trình
   // duyệt, ra chữ ngay trong lúc nói). Cách này: ghi âm TOÀN BỘ bằng MediaRecorder, khi dừng (tự động
@@ -8780,12 +8803,12 @@
   // trực tiếp — Claude/GPT chưa hỗ trợ) để trích xuất ra văn bản, rồi chèn 1 lần vào ô nhập.
   // ---------------------------------------------------------------------------------------------
   let aiRecorder2 = null;
-  async function toggleAiRecordThenTranscribe(){
-    if(state._aiMic2Listening){ if(aiRecorder2 && aiRecorder2.state!=='inactive') aiRecorder2.stop(); return; }
+  async function toggleMic2Generic(prefix, rerenderFn){
+    if(state['_'+prefix+'Mic2Listening']){ if(aiRecorder2 && aiRecorder2.state!=='inactive') aiRecorder2.stop(); return; }
     // QUAN TRỌNG: lấy giá trị ô nhập liệu NGAY TẠI ĐÂY (đồng bộ, ngay lúc vừa bấm nút) — trước khi xin
     // quyền micro (có thể trễ, nhất là lần đầu) — để chèn văn bản AI trả về sau này luôn nối đúng vào
     // đúng nội dung tại THỜI ĐIỂM BẤM NÚT, không bị ảnh hưởng bởi bất kỳ điều gì xảy ra trong lúc chờ.
-    const inputElAtClick2 = document.getElementById('ai-input');
+    const inputElAtClick2 = document.getElementById(prefix+'-input');
     const baseValueCaptured2 = inputElAtClick2 ? inputElAtClick2.value : '';
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
       alert('Trình duyệt này không hỗ trợ ghi âm. Vui lòng dùng Google Chrome trên máy tính hoặc Android.'); return;
@@ -8797,25 +8820,25 @@
       return;
     }
     function updateMic2UiOnly(listening, processing){
-      state._aiMic2Processing = !!processing;
-      const micLabelEl = document.querySelector('[data-ai-add="mic2"]');
+      state['_'+prefix+'Mic2Processing'] = !!processing;
+      const micLabelEl = document.querySelector(`[data-${prefix}-add="mic2"]`);
       if(micLabelEl) micLabelEl.innerHTML = `🎙️ ${processing? '⏳ Đang xử lý...' : (listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ')}`;
       // Đồng bộ trạng thái khoá/xám của nút micro CÒN LẠI (mic1) — khoá cả lúc đang nghe LẪN lúc đang
       // chờ AI xử lý xong (chưa thực sự "xong hẳn"), chỉ mở lại khi cả 2 đều false.
-      const micLabelEl1 = document.querySelector('[data-ai-add="mic"]');
+      const micLabelEl1 = document.querySelector(`[data-${prefix}-add="mic"]`);
       if(micLabelEl1) micLabelEl1.classList.toggle('ai-add-opt-disabled', !!(listening || processing));
-      const sendBtn = document.getElementById('ai-send-btn');
-      const stopBtn = document.getElementById('ai-mic2-stop-btn');
+      const sendBtn = document.getElementById(prefix+'-send-btn');
+      const stopBtn = document.getElementById(prefix+'-mic2-stop-btn');
       // Khoá hẳn ô nhập liệu trong lúc đang chờ AI xử lý xong (đang gửi âm thanh lên, chưa có kết quả
       // trả về) — tránh trường hợp người dùng gõ tay vào đúng lúc văn bản AI trả về đang được chèn vào,
       // gây nhảy/lẫn lộn ký tự giữa 2 nguồn (gõ tay + AI chèn) cùng lúc.
-      const inputEl = document.getElementById('ai-input');
+      const inputEl = document.getElementById(prefix+'-input');
       if(inputEl) inputEl.disabled = !!processing;
       if(listening){
         if(sendBtn) sendBtn.style.display = 'none';
         if(!stopBtn && sendBtn && sendBtn.parentElement){
           const btn = document.createElement('button');
-          btn.id = 'ai-mic2-stop-btn'; btn.className = 'ai-stop-btn'; btn.title = 'Dừng ghi âm'; btn.textContent = '⏸';
+          btn.id = prefix+'-mic2-stop-btn'; btn.className = 'ai-stop-btn'; btn.title = 'Dừng ghi âm'; btn.textContent = '⏸';
           btn.onclick = ()=>{ if(aiRecorder2 && aiRecorder2.state!=='inactive') aiRecorder2.stop(); };
           sendBtn.parentElement.insertBefore(btn, sendBtn);
         }
@@ -8847,7 +8870,7 @@
       mic2Cancelled = true;
       if(mic2AbortController) mic2AbortController.abort();
       if(aiRecorder2 && aiRecorder2.state!=='inactive') aiRecorder2.stop();
-      state._aiMic2Listening = false;
+      state['_'+prefix+'Mic2Listening'] = false;
       updateMic2UiOnly(false, false);
     }
     let mic2Cancelled = false;
@@ -8875,7 +8898,7 @@
     const MAX_RECORD_DURATION_MS = 5*60*1000; // giới hạn tối đa 5 phút/lượt ghi âm — tránh file quá nặng, khó tải lên và AI xử lý quá lâu
     function resetSilenceTimer(){ if(silenceTimer) clearTimeout(silenceTimer); silenceTimer = setTimeout(()=>{ if(aiRecorder2 && aiRecorder2.state!=='inactive') aiRecorder2.stop(); }, 10000); }
     aiRecorder2.onstart = ()=>{
-      state._aiMic2Listening = true;
+      state['_'+prefix+'Mic2Listening'] = true;
       mic2StartTime = Date.now();
       updateMic2UiOnly(true, false);
       resetSilenceTimer();
@@ -8889,7 +8912,7 @@
       maxDurationTimer = setTimeout(()=>{ if(aiRecorder2 && aiRecorder2.state!=='inactive') aiRecorder2.stop(); }, MAX_RECORD_DURATION_MS);
     };
     aiRecorder2.onstop = async ()=>{
-      state._aiMic2Listening = false;
+      state['_'+prefix+'Mic2Listening'] = false;
       if(silenceTimer) clearTimeout(silenceTimer);
       if(maxDurationTimer) clearTimeout(maxDurationTimer);
       if(volumeCheckInterval) clearInterval(volumeCheckInterval);
@@ -8923,7 +8946,7 @@
         const data = await res.json();
         if(mic2Cancelled) return; // vừa bị huỷ đúng lúc AI trả lời về xong
         const text = (((data.candidates||[])[0]||{}).content?.parts||[]).map(p=>p.text||'').join('').trim();
-        const inputEl = document.getElementById('ai-input');
+        const inputEl = document.getElementById(prefix+'-input');
         if(inputEl && text){ inputEl.value = [baseValueCaptured2, text].filter(Boolean).join(' '); }
         else if(!text){ alert('Không nhận dạng được nội dung nào từ đoạn ghi âm — vui lòng thử lại.'); }
       }catch(err){
@@ -8939,7 +8962,13 @@
     };
     aiRecorder2.start();
   }
-  function toggleNotesMic(){ toggleMicGeneric('sn-input', renderSuperNotesOverlay); }
+  function toggleAiRecordThenTranscribe(){ toggleMic2Generic('ai', renderAiChatOverlay); }
+  function toggleNotesMic(){ toggleMicGeneric('sn', renderSuperNotesOverlay); }
+  function toggleNotesMic2(){ toggleMic2Generic('sn', renderSuperNotesOverlay); }
+  function togglePgMic(){ toggleMicGeneric('pg', renderPropagandaOverlay); }
+  function togglePgMic2(){ toggleMic2Generic('pg', renderPropagandaOverlay); }
+  function toggleQaiMic(rerenderFn){ toggleMicGeneric('qai', rerenderFn); }
+  function toggleQaiMic2(rerenderFn){ toggleMic2Generic('qai', rerenderFn); }
   // Xây dựng System Instruction cho "Chàng Nông dân Thông minh" — gộp cả 4 vai trò yêu cầu,
   // kèm tóm tắt nhanh dữ liệu hộ vay của xã đang mở (phục vụ Vai trò 3: phân tích số liệu).
   // ---------------------------------------------------------------------
@@ -9127,6 +9156,9 @@ ${fileGenerationTrainingText()}`;
     { key:'slide', icon:'🖥️', label:'Slide trình chiếu', prompt:'Tôi muốn tạo nội dung slide trình chiếu tuyên truyền cho buổi họp/hội nghị.' },
     { key:'slogan', icon:'💡', label:'Khẩu hiệu / Slogan', prompt:'Tôi muốn nghĩ ra khẩu hiệu/slogan tuyên truyền ngắn gọn, dễ nhớ.' },
     { key:'qa', icon:'❓', label:'Hỏi - Đáp tuyên truyền', prompt:'Tôi muốn tạo bộ câu hỏi - đáp để tuyên truyền, giải đáp thắc mắc cho bà con.' },
+    { key:'proverb', icon:'🌾', label:'Ca dao tuyên truyền', prompt:'Tôi muốn sáng tác ca dao tuyên truyền, dễ nhớ dễ thuộc theo phong cách dân gian.' },
+    { key:'poem', icon:'📜', label:'Bài thơ tuyên truyền', prompt:'Tôi muốn sáng tác một bài thơ tuyên truyền.' },
+    { key:'music', icon:'🎵', label:'Âm nhạc tuyên truyền', prompt:'Tôi muốn sáng tác lời bài hát/âm nhạc tuyên truyền.' },
   ];
 
   async function loadPropagandaChats(){
@@ -10261,7 +10293,8 @@ ${fileGenerationTrainingText()}`;
             ${state._aiAddMenuOpen? `<div class="ai-add-menu">
               <div class="ai-add-opt" data-sn-add="file">📄 Tải tài liệu lên (ảnh/PDF/Word/Excel...)</div>
               <div class="ai-add-opt" data-sn-add="folder">🗂️ Thêm thư mục (nhiều tệp cùng lúc)</div>
-              <div class="ai-add-opt" data-sn-add="mic">🎤 ${state._aiMicListening? '✅ Đang nghe — bấm để dừng' : 'Nói để nhập liệu'}</div>
+              <div class="ai-add-opt${state._snMic2Listening?' ai-add-opt-disabled':''}" data-sn-add="mic">🎤 ${state._snMicListening? '✅ Đang nghe — bấm để dừng' : 'Vừa nói vừa ra chữ'}</div>
+              <div class="ai-add-opt${state._snMicListening?' ai-add-opt-disabled':''}" data-sn-add="mic2">🎙️ ${state._snMic2Listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ'}</div>
             </div>` : ''}
           </div>
           <textarea id="sn-input" rows="1" placeholder="Gõ nội dung, hoặc tải ảnh/PDF/tài liệu để AI tự tạo ghi chú... (Enter xuống dòng, Ctrl+Enter gửi)" ${state.superNotesProcessing?'disabled':''}></textarea>
@@ -10366,6 +10399,7 @@ ${fileGenerationTrainingText()}`;
         e.stopPropagation();
         state._aiAddMenuOpen = false;
         if(elx.dataset.snAdd==='mic'){ toggleNotesMic(); return; }
+        if(elx.dataset.snAdd==='mic2'){ toggleNotesMic2(); return; }
         const input = document.createElement('input');
         input.type = 'file'; input.multiple = true;
         if(elx.dataset.snAdd==='folder') input.webkitdirectory = true;
@@ -12783,7 +12817,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
                 ${state._qaiAddMenuOpen? `<div class="ai-add-menu">
                   <div class="ai-add-opt" data-qai-add="image">🖼️ Tải ảnh lên</div>
                   <div class="ai-add-opt" data-qai-add="doc">📄 Tải tài liệu lên</div>
-                  <div class="ai-add-opt" data-qai-add="mic">🎤 Nói để nhập liệu</div>
+                  <div class="ai-add-opt${state._qaiMic2Listening?' ai-add-opt-disabled':''}" data-qai-add="mic">🎤 ${state._qaiMicListening? '✅ Đang nghe — bấm để dừng' : 'Vừa nói vừa ra chữ'}</div>
+                  <div class="ai-add-opt${state._qaiMicListening?' ai-add-opt-disabled':''}" data-qai-add="mic2">🎙️ ${state._qaiMic2Listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ'}</div>
                 </div>` : ''}
               </div>
               <textarea id="qai-input" rows="1" placeholder="Nhắn tin cho AI... (Enter để xuống dòng, Ctrl+Enter để gửi)"></textarea>
@@ -12843,7 +12878,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wrap.querySelectorAll('[data-qai-add]').forEach(elx=> elx.addEventListener('click', (e)=>{
         e.stopPropagation();
         state._qaiAddMenuOpen = false;
-        if(elx.dataset.qaiAdd==='mic'){ alert('Tính năng nhập bằng giọng nói sẽ được thiết kế ở bước sau.'); render(); return; }
+        if(elx.dataset.qaiAdd==='mic'){ toggleQaiMic(render); return; }
+        if(elx.dataset.qaiAdd==='mic2'){ toggleQaiMic2(render); return; }
         wrap.querySelector('#qai-file-input').click();
       }));
       wrap.querySelector('#qai-file-input').onchange = async (e)=>{
@@ -21020,7 +21056,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             <p class="sub drag-hint-cycle" style="margin:6px 0 0;">Bấm vào các tên phía dưới và kéo thả để thay đổi vị trí trong danh sách.</p>
           </div>` : ''}
           ${activeProjectsOnly.length? `<div class="table-wrap"><table>
-            <thead><tr><th class="sv-sticky-1"></th><th class="sv-sticky-2" style="${svColStyleHeader({key:'project',label:'Tên phương án', userInput:true})}"><span class="dancing-header preview-allow" data-header-scope="projects">Tên phương án</span></th><th style="${svColStyleHeader({align:'right',label:'Tổng vốn (đ)'})}">Tổng vốn</th><th style="${svColStyleHeader({align:'center',label:'Hộ tham gia'})}">Hộ tham gia</th><th style="${svColStyleHeader({align:'right',label:'Đã cho vay (đ)'})}">Đã cho vay</th><th style="${svColStyleHeader({label:'Lãi suất %', width:96})}">Lãi suất</th><th style="${svColStyleHeader({key:'loanDate',label:'Ngày vay'})}">Ngày vay</th><th style="${svColStyleHeader({key:'dueDate',label:'Đến hạn'})}">Đến hạn</th><th style="${svColStyleHeader({label:'Thời gian còn lại'})}">Thời gian còn lại</th><th style="${svColStyleHeader({align:'right',label:'Số tiền còn lại không hoạt động (đ)', width:140})}">Số tiền còn lại<br>không hoạt động</th></tr></thead>
+            <thead><tr><th class="sv-sticky-1"></th><th class="sv-sticky-2" style="${svColStyleHeader({key:'project',label:'Tên phương án', userInput:true})}"><span class="dancing-header preview-allow" data-header-scope="projects">Tên phương án</span></th><th style="${svColStyleHeader({align:'right',label:'Tổng vốn (đ)'})}">Tổng vốn</th><th style="${svColStyleHeader({align:'center',label:'Hộ tham gia'})}">Hộ tham gia</th><th style="${svColStyleHeader({align:'right',label:'Đã cho vay (đ)'})}">Đã cho vay</th><th style="${svColStyleHeader({label:'Lãi suất %', width:96})}">Lãi suất</th><th style="${svColStyleHeader({key:'loanDate',label:'Ngày vay'})}">Ngày vay</th><th style="${svColStyleHeader({key:'dueDate',label:'Đến hạn'})}">Đến hạn</th><th style="${svColStyleHeader({label:'Nguồn vay', width:140})}">Nguồn vay</th><th style="${svColStyleHeader({align:'right',label:'Phân bổ Cấp Trung ương (%)', width:110})}">Phân bổ<br>Cấp TW</th><th style="${svColStyleHeader({align:'right',label:'Phân bổ Cấp Tỉnh (%)', width:100})}">Phân bổ<br>Cấp Tỉnh</th><th style="${svColStyleHeader({align:'right',label:'Phân bổ Cấp Xã (%)', width:100})}">Phân bổ<br>Cấp Xã</th><th style="${svColStyleHeader({align:'right',label:`% Xã phân bổ về ${subAdminLabelLower()}`, width:120})}">% Xã phân bổ<br>về ${subAdminLabelLower()}</th><th style="${svColStyleHeader({label:'Thời gian còn lại'})}">Thời gian còn lại</th><th style="${svColStyleHeader({align:'right',label:'Số tiền còn lại không hoạt động (đ)', width:140})}">Số tiền còn lại<br>không hoạt động</th></tr></thead>
             <tbody>${activeProjectsOnly.map(p=>{
               const disbursed = projectDisbursedTotal(p.id);
               const rowColor = daysRemainingRowColor(p.dueDate);
@@ -21033,6 +21069,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
                 <td style="${svColStyle({label:'Lãi suất %', width:96})}">${p.interestRate||0}%/năm</td>
                 <td style="${svColStyle({key:'loanDate',label:'Ngày vay'})}">${fmtDate(p.disburseDate)}</td>
                 <td style="${svColStyle({key:'dueDate',label:'Đến hạn'})}">${fmtDate(p.dueDate)}</td>
+                <td class="sv-col-wrap-check" style="${svColStyle({label:'Nguồn vay', width:140})}">${escapeHtml(p.fundSourceType||'')}</td>
+                <td style="${svColStyle({align:'right',label:'Phân bổ Cấp Trung ương (%)', width:110})}">${String(parseFloat(p.splitCentral)||0).replace('.',',')}%</td>
+                <td style="${svColStyle({align:'right',label:'Phân bổ Cấp Tỉnh (%)', width:100})}">${String(parseFloat(p.splitProvince)||0).replace('.',',')}%</td>
+                <td style="${svColStyle({align:'right',label:'Phân bổ Cấp Xã (%)', width:100})}">${String(parseFloat(p.splitWard)||0).replace('.',',')}%</td>
+                <td style="${svColStyle({align:'right',label:`% Xã phân bổ về ${subAdminLabelLower()}`, width:120})}">${String(parseFloat(p.hamletAllocPercent)||0).replace('.',',')}%</td>
                 <td class="sv-col-wrap-check" style="${svColStyle({label:'Thời gian còn lại'})}">${daysRemainingLabel(p.dueDate)}</td>
                 <td class="money" style="${svColStyle({align:'right',label:'Số tiền còn lại không hoạt động (đ)', width:140})}">${moneySpaced(projectInactiveAmountRaw(p))}</td>
               </tr>`;
@@ -21778,8 +21819,14 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           <button class="ai-hist-del" data-pg-hist-rename="${c.id}" title="Đổi tên">✏️</button>
           <button class="ai-hist-del" data-pg-hist-del="${c.id}" title="Xoá">🗑️</button>
         </div>`).join('') : '<div class="sub" style="color:rgba(255,255,255,.6); padding:6px 10px;">Chưa có đoạn hội thoại nào.</div>';
-    const rolesHtml = PROPAGANDA_ROLES.map(r=>`<button class="pg-role-btn" data-pg-role="${r.key}">${r.icon} ${escapeHtml(r.label)}</button>`).join('')
-      + `<button class="pg-role-btn pg-confirm-btn" id="pg-confirm-create-btn">🚀 Tạo bài Tuyên truyền ngay!</button>`;
+    const suggestMenuHtml = state._propagandaSuggestMenuOpen ? `<div class="pg-suggest-menu" id="pg-suggest-menu">
+        ${PROPAGANDA_ROLES.map(r=>`<button type="button" class="pg-role-btn" data-pg-role="${r.key}">${r.icon} ${escapeHtml(r.label)}</button>`).join('')}
+      </div>` : '';
+    const rolesHtml = `<div class="pg-suggest-wrap" id="pg-suggest-wrap">
+        <button type="button" class="pg-role-btn" id="pg-suggest-toggle-btn">💡 Gợi ý tạo bài</button>
+        ${suggestMenuHtml}
+      </div>
+      <button class="pg-role-btn pg-confirm-btn" id="pg-confirm-create-btn">🚀 Tạo bài Tuyên truyền ngay!</button>`;
     const modelDropdownHtml = state._propagandaModelMenuOpen ? `<div class="ai-model-dropdown">
         ${state.aiProviders.length ? state.aiProviders.map(p=>`
           <div class="ai-model-opt ${provider&&p.id===provider.id?'active':''}" data-pg-select-provider="${p.id}">
@@ -21789,7 +21836,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const addMenuHtml = state._propagandaAddMenuOpen ? `<div class="ai-add-menu">
         <div class="ai-add-opt" data-pg-add="image">🖼️ Tải ảnh lên</div>
         <div class="ai-add-opt" data-pg-add="file">📄 Tải tài liệu lên</div>
-        <div class="ai-add-opt" data-pg-add="mic">🎤 ${state._propagandaMicListening? '✅ Đang nghe — bấm để dừng' : 'Nói để nhập liệu'}</div>
+        <div class="ai-add-opt${state._pgMic2Listening?' ai-add-opt-disabled':''}" data-pg-add="mic">🎤 ${state._pgMicListening? '✅ Đang nghe — bấm để dừng' : 'Vừa nói vừa ra chữ'}</div>
+        <div class="ai-add-opt${state._pgMicListening?' ai-add-opt-disabled':''}" data-pg-add="mic2">🎙️ ${state._pgMic2Listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ'}</div>
       </div>` : '';
     const attachRowHtml = state.propagandaPendingAttachments.length ? `<div class="ai-attach-row">
         ${state.propagandaPendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button data-pg-attach-remove="${i}">✕</button></span>`).join('')}
@@ -21899,9 +21947,23 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       btn.onclick = ()=>{
         if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
         const role = PROPAGANDA_ROLES.find(r=>r.key===btn.dataset.pgRole);
+        state._propagandaSuggestMenuOpen = false; // đóng menu gợi ý ngay sau khi đã chọn xong 1 lựa chọn
         if(role) sendPropagandaMessage(role.prompt, role.key==='video');
       };
     });
+    // Nút "💡 Gợi ý tạo bài" — rê chuột vào MỞ, rê chuột ra ĐÓNG (dành cho thiết bị có chuột); bấm 1 lần
+    // MỞ, bấm thêm lần nữa ĐÓNG (áp dụng cho mọi thiết bị, kể cả cảm ứng không có chuột).
+    const suggestWrap = document.getElementById('pg-suggest-wrap');
+    const suggestToggleBtn = document.getElementById('pg-suggest-toggle-btn');
+    if(suggestWrap && suggestToggleBtn){
+      suggestWrap.addEventListener('mouseenter', ()=>{ if(!state._propagandaSuggestMenuOpen){ state._propagandaSuggestMenuOpen = true; renderPropagandaOverlay(); } });
+      suggestWrap.addEventListener('mouseleave', ()=>{ if(state._propagandaSuggestMenuOpen){ state._propagandaSuggestMenuOpen = false; renderPropagandaOverlay(); } });
+      suggestToggleBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        state._propagandaSuggestMenuOpen = !state._propagandaSuggestMenuOpen;
+        renderPropagandaOverlay();
+      });
+    }
     const confirmCreateBtn = document.getElementById('pg-confirm-create-btn');
     if(confirmCreateBtn) confirmCreateBtn.onclick = ()=>{
       if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
@@ -21933,7 +21995,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     el.querySelectorAll('[data-pg-add]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
         e.stopPropagation();
-        if(elx.dataset.pgAdd==='mic'){ state._propagandaAddMenuOpen = false; toggleMicGeneric('pg-input', ()=> renderPropagandaOverlay()); return; }
+        if(elx.dataset.pgAdd==='mic'){ state._propagandaAddMenuOpen = false; togglePgMic(); return; }
+        if(elx.dataset.pgAdd==='mic2'){ state._propagandaAddMenuOpen = false; togglePgMic2(); return; }
         triggerPropagandaFileInput(elx.dataset.pgAdd);
       });
     });
@@ -21958,9 +22021,9 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     if(!state._pgOutsideClickBound){
       state._pgOutsideClickBound = true;
       document.addEventListener('click', ()=>{
-        if(state.activeTab!=='propaganda') return;
-        if(state._propagandaModelMenuOpen || state._propagandaAddMenuOpen){
-          state._propagandaModelMenuOpen = false; state._propagandaAddMenuOpen = false;
+        if(!state._propagandaOpen) return;
+        if(state._propagandaModelMenuOpen || state._propagandaAddMenuOpen || state._propagandaSuggestMenuOpen){
+          state._propagandaModelMenuOpen = false; state._propagandaAddMenuOpen = false; state._propagandaSuggestMenuOpen = false;
           if(state._propagandaOpen) renderPropagandaOverlay();
         }
       });
