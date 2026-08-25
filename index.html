@@ -343,7 +343,13 @@
   ::-webkit-scrollbar-thumb{background:var(--line); border-radius:6px;}
 
   html{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
-  body{margin:0; overflow-x:hidden;}
+  /* Cỡ chữ CƠ SỞ cho TOÀN BỘ app — căn cứ theo cỡ chữ bong bóng chat AI (đã xác nhận ổn, dễ đọc): 16px ở
+     màn hình rộng (máy tính), 15px ở màn hình hẹp (điện thoại). Đặt tại body để MỌI phần tử trong app —
+     kể cả những gì được xây dựng trong TƯƠNG LAI — tự động kế thừa đúng cỡ chữ này theo cơ chế kế thừa
+     CSS tiêu chuẩn, TRỪ những nơi đã tự khai báo cỡ chữ riêng (badge nhỏ, tiêu đề lớn, nhãn phụ...) —
+     các khai báo cụ thể luôn được ưu tiên hơn, không hề bị ảnh hưởng bởi thay đổi này. */
+  body{margin:0; overflow-x:hidden; font-size:16px;}
+  @media (max-width:768px){ body{ font-size:15px; } }
   #root{overflow-x:hidden;}
   .preview-banner{
     position:sticky; top:0; z-index:60; background:#fff3cd; color:#7a5b00;
@@ -986,7 +992,7 @@
   .welcome-float-title{ display:inline-block; animation: welcomeFloat 3.2s ease-in-out infinite; }
   .ai-inputbar{ display:flex; gap:10px; padding:16px 10%; border-top:1px solid var(--line); background:var(--white); align-items:flex-end; }
   @media (max-width:900px){ .ai-inputbar{ padding:12px 4%; } }
-  .ai-inputbar textarea{ flex:1; resize:none; border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-size:14px; font-family:inherit; max-height:120px; }
+  .ai-inputbar textarea{ flex:1; resize:none; border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-size:16px; font-family:inherit; max-height:65vh; overflow-y:auto; line-height:1.4; }
   .ai-inputbar button{ background:var(--gold); color:#3A2C05; border:none; border-radius:50%; width:46px; height:46px; font-size:18px; cursor:pointer; flex-shrink:0; }
   .ai-inputbar button:disabled{ opacity:.5; cursor:not-allowed; }
   .ai-inputbar button.ai-stop-btn{ background:#b3261e; color:#fff; animation: fabBob 1.4s ease-in-out infinite; }
@@ -1019,8 +1025,14 @@
   .ai-model-opt .sub{ display:block; font-size:11px; margin-top:2px; }
 
   /* Nút "THÊM THÀNH PHẦN" (tài liệu/ảnh/tìm web) */
-  .ai-add-btn{ position:relative; background:var(--paper-2) !important; color:var(--rice-dark) !important; border:1px solid var(--line) !important; border-radius:20px !important; width:auto !important; height:46px; padding:0 16px; font-size:12.5px !important; font-weight:800; display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; }
+  .ai-add-btn{ position:relative; background:var(--paper-2) !important; color:var(--rice-dark) !important; border:1px solid var(--line) !important; border-radius:20px !important; width:auto !important; height:46px; padding:0 16px; font-size:12.5px !important; font-weight:800; display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; transition: width .2s ease, padding .2s ease, border-radius .2s ease; }
   .ai-add-btn:hover{ background:var(--paper) !important; }
+  /* Thu gọn nút "Thêm thành phần" thành hình tròn chỉ còn icon "+" — kích hoạt bằng JS khi khung chat đã
+     giãn cao tới khoảng 3-4 dòng văn bản (chỉ áp dụng ở màn hình RỘNG; màn hình hẹp đã luôn thu gọn sẵn
+     qua media query riêng, không liên quan tới class này) — CÙNG kiểu dáng/hiệu ứng với bản thu gọn ở
+     màn hình hẹp, để khung chat được kéo dài thêm sang bên trái, có thêm không gian hiển thị văn bản. */
+  .ai-add-btn.ai-add-btn-collapsed{ width:46px !important; padding:0 !important; justify-content:center; border-radius:50% !important; }
+  .ai-add-btn.ai-add-btn-collapsed .ai-add-label{ display:none; }
   .ai-add-menu{ position:absolute; bottom:calc(100% + 8px); left:0; background:var(--white); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); min-width:200px; z-index:20; overflow:hidden; }
   .ai-add-opt{ padding:11px 16px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line); text-align:left; color:var(--ink); font-weight:600; }
   .ai-add-opt-disabled{ color:#999 !important; cursor:not-allowed !important; opacity:.55; }
@@ -1036,9 +1048,9 @@
   /* Chip tệp đính kèm đang chờ gửi + trong bong bóng lịch sử */
   .ai-attach-row{ display:flex; flex-wrap:wrap; gap:8px; padding:0 10% 8px; }
   @media (max-width:900px){ .ai-attach-row{ padding:0 4% 8px; } }
-  .ai-attach-chip{ display:inline-flex; align-items:center; gap:6px; background:var(--paper-2); border:1px solid var(--line); border-radius:16px; padding:5px 10px; font-size:12px; color:var(--rice-dark); }
-  .ai-attach-chip button{ background:none; border:none; cursor:pointer; font-size:11px; color:var(--red); padding:0; }
-  .ai-bubble-attach{ margin-top:6px; font-size:11.5px; opacity:.75; }
+  .ai-attach-chip{ display:inline-flex; align-items:center; gap:8px; background:#fff3cd; border:2px solid #ffc107; border-radius:20px; padding:9px 16px; font-size:15px; font-weight:800; color:#7a5b00; }
+  .ai-attach-chip button{ background:none; border:none; cursor:pointer; font-size:15px; font-weight:800; color:var(--red); padding:0; }
+  .ai-bubble-attach{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -8590,6 +8602,7 @@
     renderAiChatOverlay();
     const inputElAfter = document.getElementById('ai-input');
     if(inputElAfter && savedValue) inputElAfter.value = savedValue;
+    if(inputElAfter) autoResizeTextarea(inputElAfter);
   }
   function toggleAiModelMenu(){
     state._aiModelMenuOpen = !state._aiModelMenuOpen;
@@ -8599,6 +8612,7 @@
     renderAiChatOverlay();
     const inputElAfter = document.getElementById('ai-input');
     if(inputElAfter && savedValue) inputElAfter.value = savedValue;
+    if(inputElAfter) autoResizeTextarea(inputElAfter);
   }
   function triggerAiFileInput(kind){
     state._aiAddMenuOpen = false;
@@ -8606,7 +8620,7 @@
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = kind==='image' ? 'image/*' : '.pdf,.doc,.docx,.txt,.csv,.xlsx,.rtf';
+    input.accept = kind==='image' ? 'image/*' : '*/*';
     input.onchange = ()=> handleAiFiles(input.files);
     input.click();
   }
@@ -8682,6 +8696,36 @@
     if(micStatusTimerInterval){ clearInterval(micStatusTimerInterval); micStatusTimerInterval = null; }
     const panel = document.getElementById('ai-mic-status-panel');
     if(panel) panel.remove();
+  }
+  // Tự động giãn chiều cao khung nhập liệu văn bản theo đúng số dòng đang gõ — y như tính năng chiều
+  // cao linh hoạt của khung chat Claude: gõ càng nhiều dòng thì khung càng cao lên, tới khi chạm giới
+  // hạn tối đa (gần bằng chiều cao màn hình) thì dừng lại, lúc đó khung tự hiện thanh cuộn dọc bên
+  // trong để vuốt xem hết nội dung, không giãn cao thêm nữa.
+  function autoResizeTextarea(el){
+    if(!el) return;
+    el.style.height = 'auto'; // đặt lại 'auto' TRƯỚC để trình duyệt tính lại đúng scrollHeight theo nội dung THỰC TẾ hiện có (không bị ảnh hưởng bởi chiều cao cũ đang áp dụng)
+    const contentH = el.scrollHeight; // đo NGAY sau khi đặt lại 'auto' — phản ánh đúng chiều cao THỰC TẾ theo nội dung, trước khi bị kẹp giới hạn tối đa bên dưới
+    const maxH = window.innerHeight * 0.65; // khớp với max-height:65vh ở CSS
+    el.style.height = Math.min(contentH, maxH) + 'px';
+    // Thu gọn nút "Thêm thành phần" thành nút tròn chỉ còn icon "+" khi khung chat đã giãn cao tới
+    // khoảng 3,5 dòng văn bản trở lên — CHỈ áp dụng ở màn hình RỘNG (màn hình hẹp đã luôn thu gọn sẵn
+    // qua media query CSS riêng từ trước, không liên quan gì tới đoạn này). Nhờ nút thu gọn lại mà khung
+    // chat có thêm không gian, được kéo dài thêm sang bên trái.
+    if(!isNarrowScreenForSidebar()){
+      const prefix = el.id.replace(/-input$/, '');
+      const addBtn = document.getElementById(prefix+'-add-btn');
+      if(addBtn){
+        const lineHeightPx = parseFloat(getComputedStyle(el).lineHeight) || 22;
+        const threshold = lineHeightPx*3.5 + 24; // ~3,5 dòng + phần đệm trên dưới của khung (khớp CSS padding:12px 14px)
+        addBtn.classList.toggle('ai-add-btn-collapsed', contentH > threshold);
+      }
+    }
+  }
+  function wireAutoResizeTextarea(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    autoResizeTextarea(el); // tính đúng ngay khi vừa gắn (phòng trường hợp đã có sẵn nội dung, VD vừa khôi phục lại chữ đang gõ dở sau khi mở menu "Thêm thành phần")
+    el.addEventListener('input', ()=> autoResizeTextarea(el));
   }
   function toggleMicGeneric(prefix, rerenderFn){
     const targetInputId = prefix+'-input';
@@ -9278,7 +9322,7 @@ ${fileGenerationTrainingText()}`;
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = kind==='image' ? 'image/*' : '.pdf,.doc,.docx,.txt,.csv,.xlsx,.rtf';
+    input.accept = kind==='image' ? 'image/*' : '*/*';
     input.onchange = ()=> handlePropagandaFiles(input.files);
     input.click();
   }
@@ -9950,7 +9994,7 @@ ${fileGenerationTrainingText()}`;
                     </div>
                   </div>`;
                 }
-                const attachHtml = m.attachments && m.attachments.length? `<div class="ai-bubble-attach">${m.attachments.map(a=>`📎 ${escapeHtml(a.name)}`).join('&nbsp;&nbsp;')}</div>` : '';
+                const attachHtml = m.attachments && m.attachments.length? `<div class="ai-bubble-attach">${m.attachments.map(a=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)}</span>`).join('')}</div>` : '';
                 const bodyHtml = m.role==='assistant' ? renderMarkdownLite(m.text) : escapeHtml(m.text);
                 const isLastUserMsg = m.role==='user' && idx===lastUserIdx;
                 return `<div class="ai-bubble-wrap ${m.role}">
@@ -10134,6 +10178,7 @@ ${fileGenerationTrainingText()}`;
             renderAiChatOverlay();
             const inputElAfter = document.getElementById('ai-input');
             if(inputElAfter && savedValue) inputElAfter.value = savedValue;
+            if(inputElAfter) autoResizeTextarea(inputElAfter);
           }
         }
       };
@@ -10150,6 +10195,7 @@ ${fileGenerationTrainingText()}`;
       sendAiMessage(v);
     };
     if(sendBtn) sendBtn.onclick = doSend;
+    wireAutoResizeTextarea('ai-input');
     if(inputEl){
       inputEl.focus();
       // Yêu cầu 5: Enter thường = xuống dòng (mặc định của textarea, không preventDefault);
@@ -10249,7 +10295,7 @@ ${fileGenerationTrainingText()}`;
           ${state.superNotesReviewMode? `
             ${(state.superNotesReviewTurns||[]).map(t=>`
               <div class="ai-bubble-wrap user">
-                <div class="ai-bubble user">${t.text? escapeHtml(t.text) : ''}${t.files&&t.files.length? `<div class="ai-bubble-attach">${t.files.map(f=>`📎 ${escapeHtml(f.name)}`).join('&nbsp;&nbsp;')}</div>` : ''}</div>
+                <div class="ai-bubble user">${t.text? escapeHtml(t.text) : ''}${t.files&&t.files.length? `<div class="ai-bubble-attach">${t.files.map(f=>`<span class="ai-attach-chip">📎 ${escapeHtml(f.name)}</span>`).join('')}</div>` : ''}</div>
               </div>`).join('')}
             <div class="ai-bubble assistant">Tôi đã xem tài liệu và ghi chú của bạn, bây giờ bạn hãy tiếp tục bổ sung thêm những thành phần tiếp theo ở khung chat bên dưới để hoàn thiện tệp ghi chú này. Nếu bạn không muốn bổ sung gì nữa, hãy chọn các phương án dưới đây:
               <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
@@ -10405,6 +10451,7 @@ ${fileGenerationTrainingText()}`;
       renderSuperNotesOverlay();
       const inputElAfter = document.getElementById('sn-input');
       if(inputElAfter && savedValue) inputElAfter.value = savedValue;
+      if(inputElAfter) autoResizeTextarea(inputElAfter);
     });
     overlay.querySelectorAll('[data-sn-add]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
@@ -10468,6 +10515,7 @@ ${fileGenerationTrainingText()}`;
       renderSuperNotesOverlay();
     };
     if(sendBtn) sendBtn.onclick = doSend;
+    wireAutoResizeTextarea('sn-input');
     if(inputEl){
       inputEl.addEventListener('keydown', (e)=>{
         if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); doSend(); }
@@ -12772,7 +12820,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     let busy = false;
     let editingIndex = null;
 
-    function fmtAttachChip(a){ return `<span style="display:inline-flex; align-items:center; gap:4px; background:#eee; border-radius:20px; padding:3px 10px; font-size:12px;">📎 ${escapeHtml(a.name)}</span>`; }
+    function fmtAttachChip(a){ return `<span class="ai-attach-chip">📎 ${escapeHtml(a.name)}</span>`; }
 
     function bubbleHtml(m, idx){
       const isUser = m.role==='user';
@@ -12822,8 +12870,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
               <button type="button" class="btn btn-sm preview-allow" id="qai-view-file" style="background:#fff9c4; border:1px solid #fbc02d; color:#5a4300; font-weight:700;">📋 Hồ sơ đang soạn — ${(latestResult.borrowers||[]).length + (latestResult.projects||[]).length} mục (bấm để xem/sửa)</button>
             </div>
             <p class="sub" style="margin:0 0 8px;">${hasDigestedOnce? 'Hệ thống đã đọc được nội dung bên trên. Nếu muốn bổ sung/sửa gì thì nhắn tiếp, AI sẽ tự cập nhật lại Hồ sơ đang soạn.' : 'Chưa tiêu hoá tài liệu nào — nhắn/đính kèm xong thì bấm nút bên dưới.'}</p>
-            ${pendingAttachments.length? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">${pendingAttachments.map((a,i)=>`<span style="display:inline-flex; align-items:center; gap:4px; background:#eee; border-radius:20px; padding:3px 10px; font-size:12px;">📎 ${escapeHtml(a.name)} <button type="button" class="preview-allow" data-remove-att="${i}" style="border:none; background:none; cursor:pointer; color:#b71c1c; font-weight:700;">✕</button></span>`).join('')}</div>` : ''}
-            <input type="file" id="qai-file-input" multiple accept="image/*,.pdf,.docx,.txt,.csv" style="display:none;">
+            ${pendingAttachments.length? `<div class="ai-attach-row" style="padding:0 0 8px;">${pendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button type="button" class="preview-allow" data-remove-att="${i}">✕</button></span>`).join('')}</div>` : ''}
+            <input type="file" id="qai-file-input" multiple accept="*/*" style="display:none;">
             <div class="ai-inputbar">
               <div class="ai-add-btn" id="qai-add-btn" role="button" tabindex="0">➕<span class="ai-add-label"> THÊM THÀNH PHẦN</span>
                 ${state._qaiAddMenuOpen? `<div class="ai-add-menu">
@@ -12897,6 +12945,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         render();
         const inputElAfter = wrap.querySelector('#qai-input');
         if(inputElAfter && savedValue) inputElAfter.value = savedValue;
+        if(inputElAfter) autoResizeTextarea(inputElAfter);
       });
       wrap.querySelectorAll('[data-qai-add]').forEach(elx=> elx.addEventListener('click', (e)=>{
         e.stopPropagation();
@@ -12914,7 +12963,9 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         render();
       };
       wrap.querySelector('#qai-send-btn').onclick = doSend;
-      if(!isNarrowScreenForSidebar()) wrap.querySelector('#qai-input').focus(); // chỉ tự động focus ở màn hình RỘNG — màn hình hẹp thì để người dùng tự bấm vào mới focus, tránh tự bật bàn phím ảo ngay khi vừa mở modal
+      wireAutoResizeTextarea('qai-input');
+      // Không tự động focus — đồng bộ với các module AI khác (Chat AI/Siêu ghi chú/Tuyên truyền): mặc
+      // định KHÔNG có con trỏ văn bản, chỉ khi người dùng TỰ bấm vào khung chat mới có con trỏ để nhập.
       wrap.querySelector('#qai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
       wrap.querySelector('#qai-digest').onclick = ()=> runAiTurn();
       const addBtn = wrap.querySelector('#qai-add');
@@ -21915,7 +21966,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         </div>
       </div>`;
     }
-    const attachHtml = m.attachments && m.attachments.length? `<div class="ai-bubble-attach">${m.attachments.map(a=>`📎 ${escapeHtml(a.name)}`).join('&nbsp;&nbsp;')}</div>` : '';
+    const attachHtml = m.attachments && m.attachments.length? `<div class="ai-bubble-attach">${m.attachments.map(a=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)}</span>`).join('')}</div>` : '';
     const bodyHtml = m.role==='assistant' ? renderMarkdownLite(m.text) : escapeHtml(m.text);
     return `<div class="ai-bubble-wrap ${m.role}">
       <div class="ai-bubble ${m.role}">${bodyHtml}${attachHtml}</div>
@@ -22065,6 +22116,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       renderPropagandaOverlay();
       const inputElAfter = document.getElementById('pg-input');
       if(inputElAfter && savedValue) inputElAfter.value = savedValue;
+      if(inputElAfter) autoResizeTextarea(inputElAfter);
     });
     el.querySelectorAll('[data-pg-add]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
@@ -22087,6 +22139,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       sendPropagandaMessage(v);
     };
     if(sendBtn) sendBtn.onclick = doSend;
+    wireAutoResizeTextarea('pg-input');
     if(inputEl){
       inputEl.addEventListener('keydown', (e)=>{
         if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); doSend(); }
