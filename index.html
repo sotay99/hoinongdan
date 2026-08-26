@@ -2037,7 +2037,7 @@
           });
         }
         renderColumnHeaderExcelModal('👥 Danh sách Khoản vay đang hoạt động', sections, cols.map(c=>({...c, get:c.get})));
-      } else if(scope.startsWith('riskdebt:') || scope.startsWith('settled:') || scope==='trash:individual' || scope==='projects'){
+      } else if(scope.startsWith('riskdebt:') || scope.startsWith('settled:') || scope==='trash:individual' || scope==='projects' || scope==='explist' || scope==='expcompare'){
         // Các nhánh xử lý riêng bên dưới sẽ chặn lại bằng if-else tiếp theo — nhánh này chỉ để BỎ QUA nhánh mặc định (nhóm khoản vay đang hoạt động) phía dưới.
       } else {
         // Bấm "Họ và tên" ở 1 nhóm cụ thể -> chỉ hiện đúng nhóm đó
@@ -2106,6 +2106,29 @@
           { align:'right', label:'Số tiền còn lại không hoạt động (đ)', width:140, get:p=> moneySpaced(projectInactiveAmountRaw(p)) },
         ];
         renderColumnHeaderExcelModal('📋 Danh sách Phương án vay đang hoạt động', [{ title:'Danh sách Phương án vay', list: cache.activeProjectsOnly }], cols);
+      } else if(scope==='explist'){
+        const list = state.expenses.filter(e=>!e.deleted).sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+        const cols = [
+          { key:'date', label:'Ngày chi', userInput:true, get:e=> fmtDate(e.date) },
+          { label:'Nội dung / Mục đích', get:e=> escapeHtml(e.purpose===CAT_OTHER? `${categoryLabel(CAT_OTHER)}: ${e.purposeOther||''}` : categoryLabel(e.purpose)) },
+          { label:`Địa bàn (${subAdminLabel()})`, get:e=> escapeHtml(isCatHamlet(e.purpose)? (e.hamlet||'—') : '—') },
+          { label:'Quý áp dụng', get:e=> (Array.isArray(e.quarters) && e.quarters.length)? e.quarters.map(q=>`${q.qk.toUpperCase()}/${q.year}`).join(', ') : '—' },
+          { label:'Cách tính', get:e=> isCatHamlet(e.purpose)? (e.amountMode==='auto'?'Tự động theo công thức':'Nhập cụ thể') : '—' },
+          { align:'right', label:'Số tiền (đ)', get:e=> moneySpaced(e.amount) },
+          { label:'Ghi chú', get:e=> escapeHtml(e.note||'—') },
+        ];
+        renderColumnHeaderExcelModal('💰 Danh sách khoản chi', [{ title:'Danh sách khoản chi', list, cols }], cols);
+      } else if(scope==='expcompare'){
+        const {from,to} = acctPeriodRange();
+        const acct = computeAcctTotals(from,to);
+        const allHamletNames = Array.from(new Set([...Object.keys(acct.hamletByName||{}), ...Object.keys(acct.chiByHamlet||{})])).sort((a,b)=>a.localeCompare(b,'vi'));
+        const cols = [
+          { key:'hamlet', label:'Địa bàn', userInput:true, get:r=> escapeHtml(r.h) },
+          { align:'right', label:'Đã chi thực tế (đ)', get:r=> moneySpaced(Math.round((acct.chiByHamlet||{})[r.h]||0)) },
+          { align:'right', label:'Số tự động (Sổ vay vốn) (đ)', get:r=> moneySpaced(Math.round((acct.hamletByName||{})[r.h]||0)) },
+          { align:'right', label:'Chênh lệch (đ)', get:r=>{ const d = Math.round((acct.chiByHamlet||{})[r.h]||0) - Math.round((acct.hamletByName||{})[r.h]||0); return (d>=0?'+':'')+moneySpaced(d); } },
+        ];
+        renderColumnHeaderExcelModal(`⚖️ Đối chiếu "Trích về ${subAdminLabelLower()}": Thực tế vs. Tự động`, [{ title:'Đối chiếu theo địa bàn', list: allHamletNames.map(h=>({h})), cols }], cols);
       }
     });
   }
@@ -8216,18 +8239,84 @@
   // ---------- accounting engine (Thu - Chi cấp Xã) ----------
   function acctPeriodRange(mode, quarterKey){
     mode = mode || state.acctMode; quarterKey = quarterKey || state.acctQuarter;
-    const q = state.config.quarters;
     if(mode==='all') return { from:'2000-01-01', to: todayStr() };
-    if(mode==='quarter') return { from:q[quarterKey].start, to:q[quarterKey].end };
-    // year: từ đầu Quý 1 đến cuối Quý 4
-    return { from:q.q1.start, to:q.q4.end };
+    if(mode==='quarter') return resolveQuarterDates(quarterKey);
+    // year: từ đầu Quý 1 đến cuối Quý 4 — LẤY ĐÚNG năm của Quý 4 hiện hành làm mốc, để Quý 1 (vắt năm
+    // trước) và Quý 4 cùng thuộc về đúng 1 chu kỳ năm liền mạch.
+    const q4r = resolveQuarterDates('q4');
+    const q1r = resolveQuarterDates('q1');
+    return { from:q1r.from, to:q4r.to };
+  }
+  // =====================================================================
+  // Tính "Thu" của Sổ Thu Chi Lãi Quỹ — dùng ĐÚNG CÙNG 1 logic với "Thống kê phân bổ tiền lãi các cấp"
+  // (theo tỷ lệ % phân bổ RIÊNG của TỪNG khoản vay, chỉ tính các Quý ĐÃ THỰC SỰ đóng lãi/đã phê duyệt)
+  // — thay thế hoàn toàn công thức retainPercent chung chung cũ (vốn không khớp với Sổ vay vốn).
+  // hamletFilter: null = không lọc (tính tất cả địa bàn); mảng tên địa bàn = chỉ tính các địa bàn đó.
+  // quarterSet: mảng các {qk,year} cần tính — null = tính TẤT CẢ (luỹ kế từ trước đến nay).
+  // =====================================================================
+  function computeInterestIncomeStats(hamletFilter, quarterSet){
+    const list = state.borrowers.filter(b=> !b.deleted && (!hamletFilter || hamletFilter.includes(b.hamlet)));
+    const inScope = (qk, year)=>{
+      if(!quarterSet) return true; // không lọc theo Quý -> tính luỹ kế toàn bộ
+      return quarterSet.some(q=> q.qk===qk && q.year===year);
+    };
+    let central=0, province=0, ward=0, hamletTotal=0;
+    const hamletByName = {}; // {tên địa bàn: số tiền phân bổ về Khu dân cư/Ấp của riêng địa bàn đó}
+    list.forEach(b=>{
+      const disp = computeInterestPaymentBoxDisplay(b);
+      let bTotal = 0;
+      disp.allBoxes.forEach(bx=>{
+        if(!disp.paidKeys.has(bx.key)) return; // chỉ tính Quý ĐÃ đóng lãi (đã phê duyệt)
+        if(!inScope(bx.qk, bx.year)) return;
+        bTotal += bx.interestAmount;
+      });
+      if(bTotal<=0) return;
+      const rate = parseFloat(b.rate)||0;
+      if(rate<=0) return;
+      const c = bTotal*(parseFloat(b.splitCentral)||0)/rate;
+      const p = bTotal*(parseFloat(b.splitProvince)||0)/rate;
+      const w = bTotal*(parseFloat(b.splitWard)||0)/rate;
+      const h = w*(parseFloat(b.hamletAllocPercent)||0)/100;
+      central+=c; province+=p; ward+=w; hamletTotal+=h;
+      const hName = b.hamlet || '—';
+      hamletByName[hName] = (hamletByName[hName]||0) + h;
+    });
+    return { central, province, ward, hamletTotal, hamletByName };
+  }
+  // Chuyển đổi 1 khoảng ngày (from/to, kiểu chuỗi 'YYYY-MM-DD') thành danh sách các {qk,year} — dùng để
+  // tính "Thu" đúng phạm vi kỳ hạch toán đang chọn (Quý này/Năm này/Từ trước tới nay) của module.
+  function quarterSetFromDateRange(from, to){
+    if(!from || !to || from==='2000-01-01') return null; // chế độ "Từ trước đến nay" (hoặc dữ liệu chưa hợp lệ) -> không lọc, tính luỹ kế toàn bộ
+    const q = state.config.quarters || DEFAULT_QUARTERS;
+    const result = [];
+    const pad = n=> String(n).padStart(2,'0');
+    Object.keys(q).forEach(qk=>{
+      const item = q[qk] || DEFAULT_QUARTERS[qk];
+      if(!item || item.startMonth==null || item.endMonth==null) return;
+      // Xét TỪNG Quý đã cấu hình (q1..q4) của TỪNG năm xuất hiện trong khoảng from->to — vì cấu hình
+      // Quý chỉ lưu ngày/tháng (không có năm cụ thể), suy ra năm từ chính khoảng from/to đang xét.
+      const fromYear = parseInt(from.slice(0,4),10);
+      const toYear = parseInt(to.slice(0,4),10);
+      for(let y=fromYear; y<=toYear; y++){
+        // Ước lượng khoảng ngày thực tế của Quý qk trong năm y (dùng đúng tháng-ngày đã cấu hình, ghép với năm y).
+        const startMD = `${pad(item.startMonth)}-${pad(item.startDay)}`;
+        const endMD = `${pad(item.endMonth)}-${pad(item.endDay)}`;
+        const qStart = `${y}-${startMD}`;
+        const qEnd = `${y}-${endMD}`;
+        if(qStart<=to && qEnd>=from) result.push({ qk, year:y });
+      }
+    });
+    return result;
   }
   function computeAcctTotals(from, to){
-    const retain = state.config.retainPercent||0;
-    const activeBorrowers = state.borrowers.filter(b=>!b.deleted && !b.settled);
-    const thu = activeBorrowers.reduce((s,b)=> s + calcInterest(b, from, to).due, 0);
-    const giuLaiAp = Math.round(thu*retain/100);
-    const xaNhan = Math.round(thu - giuLaiAp);
+    // "Thu" giờ dùng ĐÚNG công thức tính theo tỷ lệ % phân bổ riêng của từng khoản vay (khớp hoàn toàn
+    // với "Thống kê phân bổ tiền lãi các cấp" ở Sổ vay vốn) — thay thế hẳn công thức retainPercent
+    // chung chung cũ (2 nơi từng cho ra số liệu lệch nhau, nay đã đồng bộ tuyệt đối).
+    const quarterSet = quarterSetFromDateRange(from, to);
+    const stats = computeInterestIncomeStats(null, quarterSet);
+    const thu = stats.central + stats.province + stats.ward; // tổng lãi ĐÃ đóng trong kỳ, cả 3 cấp cộng lại — chỉ để xem tổng quan
+    const xaNhan = Math.round(stats.ward); // đây mới là "Thu" THẬT SỰ được quản lý trong module này
+    const giuLaiAp = Math.round(thu - xaNhan); // phần thuộc về Trung ương + Tỉnh (không phải của Xã/phường)
     const activeExpenses = state.expenses.filter(e=>!e.deleted && e.date && e.date>=from && e.date<=to);
     const chiTotal = activeExpenses.reduce((s,e)=> s + (parseFloat(e.amount)||0), 0);
     const chiByCategory = {};
@@ -8240,8 +8329,13 @@
         chiByHamlet[h] = (chiByHamlet[h]||0) + (parseFloat(e.amount)||0);
       }
     });
-    return { thu, xaNhan, giuLaiAp, chiTotal, chiByCategory, chiByHamlet, tonQuy: Math.round(xaNhan - chiTotal), expenses: activeExpenses };
+    return {
+      thu, xaNhan, giuLaiAp, chiTotal, chiByCategory, chiByHamlet, tonQuy: Math.round(xaNhan - chiTotal), expenses: activeExpenses,
+      // Số liệu bổ sung mới — phục vụ các bước sau (đối chiếu Chi Khu dân cư/Ấp tự động vs thực tế...).
+      central: stats.central, province: stats.province, hamletTotal: stats.hamletTotal, hamletByName: stats.hamletByName,
+    };
   }
+
 
   // ---------- báo cáo tổng quan toàn xã (theo phương án vay) ----------
   function computeProjectOverview(){
@@ -9133,7 +9227,7 @@ ${projectLines? projectLines+'\n' : ''}- Tổng số hộ đang vay: ${list.leng
     }catch(e){ console.error('Nạp Bối cảnh tri thức lỗi:', e); }
     return `Bạn tên là "Chàng Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Chàng" gọi người dùng là "bạn/đồng chí". Bạn đảm nhiệm 4 vai trò:
 1) Trợ lý nghiệp vụ Hội Nông dân: giải đáp nhanh nghiệp vụ công tác hội, công tác hội viên, chính sách, quy chế cho vay, thủ tục gia hạn nợ, lãi suất, quỹ hỗ trợ nông dân.
-2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Chi tiêu & Hạch toán, Báo cáo lãi, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
+2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Sổ Thu Chi Lãi Quỹ, Báo cáo lãi, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
 3) Trợ lý phân tích số liệu: khi được hỏi về dư nợ/hộ vay/thống kê, hãy dựa vào phần "DỮ LIỆU TÓM TẮT HIỆN TẠI" bên dưới (nếu có); nếu không có hoặc không đủ, hãy nói rõ là chưa có dữ liệu và hướng dẫn xem trong Module tương ứng, không được bịa số liệu.
 4) Trợ lý AI toàn năng: trả lời mọi câu hỏi kiến thức chung, viết/sửa văn bản, gợi ý code, dịch thuật, tư vấn... như một AI thông thường. Bạn còn tạo được file PowerPoint/Word/Excel/PDF thật cho người dùng tải về (xem hướng dẫn cú pháp bên dưới) — lưu ý: chỉ chưa hỗ trợ tạo/hiển thị hình ảnh, âm thanh, video.
 Nếu có mục "TÀI LIỆU TRI THỨC NỀN DO ADMIN CUNG CẤP" và/hoặc "SIÊU GHI CHÚ CÁ NHÂN" bên dưới, hãy ưu tiên dựa vào đó để trả lời chính xác, cá nhân hoá theo đúng quy chế/hướng dẫn/ghi chú riêng của người dùng này, thay vì chỉ dùng kiến thức chung.
@@ -11117,7 +11211,7 @@ ${fileGenerationTrainingText()}`;
     if(canViewModule('data')){
       items.push({id:'dashboard', ico:'📊', label:'Tổng quan'});
       items.push({id:'data', ico:'📋', label:'Sổ vay vốn'});
-      items.push({id:'expenses', ico:'💰', label:`Chi tiêu & Hạch toán ${adminLevelLabel()}`});
+      items.push({id:'expenses', ico:'💰', label:`Sổ Thu Chi Lãi Quỹ`});
       items.push({id:'reports', ico:'🧾', label:'Báo cáo lãi'});
     }
     if(canViewModule('internal')) items.push({id:'internal', ico:'🔒', label:'Thu – Chi nội bộ'});
@@ -11265,7 +11359,7 @@ ${fileGenerationTrainingText()}`;
 
     // Chỉ dựng modal khi chưa có modal nào đang mở trên màn hình — tránh bị
     // dựng chồng nhiều lớp modal mỗi khi có dữ liệu mới đẩy về qua realtime.
-    if(state.modal && !document.querySelector('.modal-bg') && !state.previewMode){
+    if(state.modal && !document.querySelector('.modal-bg') && (!state.previewMode || state.modal.type==='expense')){
       if(state.modal.type==='expense') renderExpenseModal();
       else renderModal();
     }
@@ -21580,14 +21674,14 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   function acctPeriodSelectorHtml(prefix){
     const q = state.config.quarters;
     return `
-      <select id="${prefix}-mode">
+      <select id="${prefix}-mode" class="preview-allow">
         <option value="year" ${state.acctMode==='year'?'selected':''}>Cả năm (Quý 1 → Quý 4)</option>
         <option value="quarter" ${state.acctMode==='quarter'?'selected':''}>Theo Quý</option>
         <option value="all" ${state.acctMode==='all'?'selected':''}>Toàn bộ từ trước đến nay</option>
       </select>
       ${state.acctMode==='quarter' ? `
-        <select id="${prefix}-quarter">
-          ${['q1','q2','q3','q4'].map(k=>`<option value="${k}" ${state.acctQuarter===k?'selected':''}>${q[k].label} (${fmtDate(q[k].start)} → ${fmtDate(q[k].end)})</option>`).join('')}
+        <select id="${prefix}-quarter" class="preview-allow">
+          ${['q1','q2','q3','q4'].map(k=>{ const r = resolveQuarterDates(k); return `<option value="${k}" ${state.acctQuarter===k?'selected':''}>${q[k].label} (${fmtDate(r.from)} → ${fmtDate(r.to)})</option>`; }).join('')}
         </select>` : ''}
     `;
   }
@@ -21598,7 +21692,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   }
 
   function emptyExpense(){
-    return { id: uid(), date: todayStr(), purpose: CAT_MEETING, purposeOther:'', hamlet:(state.config.hamlets||[])[0]||'', amount:0, note:'' };
+    return { id: uid(), date: todayStr(), purpose: CAT_MEETING, purposeOther:'', hamlet:(state.config.hamlets||[])[0]||'', amount:0, note:'', quarters:[], amountMode:'manual' };
   }
 
   function renderExpensesTab(el){
@@ -21611,7 +21705,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
 
     el.innerHTML = `
       <div class="panel"><div class="panel-head"><h3>Kỳ hạch toán đang xem</h3></div>
-        <div class="panel-body"><div class="toolbar" style="margin:0;">${acctPeriodSelectorHtml('exp')}</div>
+        <div class="panel-body"><div class="toolbar" style="margin:0;">${acctPeriodSelectorHtml('exp')}
+            <div class="spacer"></div>
+            <button class="btn btn-sm preview-allow" id="exp-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#000; border-color:#00acc1; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
+            <button class="btn btn-sm preview-allow" id="exp-stats-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ba68c8 45%, #6a1b9a 100%); color:#000; border-color:#6a1b9a; font-weight:700;">📈 Thống kê Thu Chi chi tiết</button>
+          </div>
           <div class="sub" style="margin-top:8px;">Khoảng áp dụng: <b>${fmtDate(from)} → ${fmtDate(to)}</b></div>
         </div>
       </div>
@@ -21620,7 +21718,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         <div class="stat-card" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));">
           <div class="num mono">${money(acct.xaNhan)}</div>
           <div class="lbl">Tổng lãi trích về cho ${adminLevelLabel()}</div>
-          <div class="sub">= Tổng lãi thu được × (100% − ${state.config.retainPercent||0}% ${subAdminLabelLower()} giữ lại)</div>
+          <div class="sub">Tính theo đúng tỷ lệ % phân bổ riêng của từng khoản vay (khớp Sổ vay vốn), chỉ tính lãi ĐÃ đóng</div>
         </div>
         <div class="stat-card" style="background:linear-gradient(135deg,var(--clay),#7d3813);">
           <div class="num mono">${money(acct.chiTotal)}</div>
@@ -21634,16 +21732,51 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         </div>
       </div>
 
+      <div class="panel">
+        <div class="panel-head"><h3>⚖️ Đối chiếu "Trích về ${subAdminLabelLower()}": Thực tế vs. Tự động (theo Sổ vay vốn)</h3></div>
+        <div class="panel-body">
+          <p class="sub" style="margin:0 0 10px;">So sánh số tiền ĐÃ THỰC SỰ chi "Trích về ${subAdminLabelLower()}" với số tự động tính theo đúng công thức phân bổ của Sổ vay vốn (cùng phạm vi kỳ hạch toán đang xem ở trên) — giúp phát hiện chênh lệch dư/thiếu cho từng địa bàn.</p>
+          ${(()=>{
+            const allHamletNames = Array.from(new Set([...Object.keys(acct.hamletByName||{}), ...Object.keys(acct.chiByHamlet||{})])).sort((a,b)=>a.localeCompare(b,'vi'));
+            if(!allHamletNames.length) return `<div class="empty-state"><div class="e-ico">⚖️</div>Chưa có số liệu để đối chiếu trong kỳ này</div>`;
+            let totalAuto=0, totalActual=0;
+            const rowsHtml = allHamletNames.map(h=>{
+              const auto = Math.round((acct.hamletByName||{})[h]||0);
+              const actual = Math.round((acct.chiByHamlet||{})[h]||0);
+              totalAuto+=auto; totalActual+=actual;
+              const diff = actual - auto;
+              const diffColor = diff===0? 'var(--rice-dark)' : (diff>0? 'var(--green)' : 'var(--red)');
+              const diffLabel = diff===0? 'Khớp' : (diff>0? `Dư ${money(diff)}` : `Thiếu ${money(-diff)}`);
+              return `<tr>
+                <td>${escapeHtml(h)}</td>
+                <td class="money">${money(actual)}</td>
+                <td class="money">${money(auto)}</td>
+                <td style="color:${diffColor}; font-weight:700;">${diffLabel}</td>
+              </tr>`;
+            }).join('');
+            const totalDiff = totalActual - totalAuto;
+            const totalDiffColor = totalDiff===0? 'var(--rice-dark)' : (totalDiff>0? 'var(--green)' : 'var(--red)');
+            const totalDiffLabel = totalDiff===0? 'Khớp' : (totalDiff>0? `Dư ${money(totalDiff)}` : `Thiếu ${money(-totalDiff)}`);
+            return `<div class="table-wrap"><table>
+              <thead><tr><th><span class="dancing-header preview-allow" data-header-scope="expcompare">Địa bàn</span></th><th>Đã chi thực tế</th><th>Số tự động (Sổ vay vốn)</th><th>Chênh lệch</th></tr></thead>
+              <tbody>${rowsHtml}
+                <tr style="font-weight:800; background:var(--paper-2);"><td>Tổng cộng</td><td class="money">${money(totalActual)}</td><td class="money">${money(totalAuto)}</td><td style="color:${totalDiffColor};">${totalDiffLabel}</td></tr>
+              </tbody>
+            </table></div>`;
+          })()}
+        </div>
+      </div>
+
       <div class="toolbar">
-        <input id="e-search" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px;">
-        <select id="e-cat"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
+        <input id="e-search" class="preview-allow" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px;">
+        <select id="e-cat" class="preview-allow"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
         <div class="spacer"></div>
-        ${canEditModule('data')? `<button class="btn btn-primary" id="add-exp-btn">+ Thêm khoản chi mới</button>` : ''}
+        ${canEditModule('data')? `<button class="btn btn-primary preview-allow" id="add-exp-btn">+ Thêm khoản chi mới</button>` : ''}
       </div>
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Ngày chi</th><th>Nội dung / Mục đích</th><th>Địa bàn (${subAdminLabel()})</th><th>Số tiền</th><th>Ghi chú</th><th></th></tr></thead>
+          <thead><tr><th><span class="dancing-header preview-allow" data-header-scope="explist">Ngày chi</span></th><th>Nội dung / Mục đích</th><th>Địa bàn (${subAdminLabel()})</th><th>Số tiền</th><th>Ghi chú</th><th></th></tr></thead>
           <tbody>
             ${list.length? list.map(e=>`
               <tr>
@@ -21652,7 +21785,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
                 <td>${isCatHamlet(e.purpose)? (e.hamlet||'—') : '—'}</td>
                 <td class="money">${money(e.amount)}</td>
                 <td>${e.note||'—'}</td>
-                <td><button class="btn btn-ghost btn-sm" data-view-exp="${e.id}">Xem/Sửa</button></td>
+                <td><button class="btn btn-ghost btn-sm preview-allow" data-view-exp="${e.id}">Xem/Sửa</button></td>
               </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state"><div class="e-ico">💰</div>Chưa có khoản chi nào trong kỳ này</div></td></tr>`}
           </tbody>
         </table>
@@ -21668,6 +21801,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     if(state.showExpenseTrash) wireTrashPanel(el, ()=> renderExpensesTab(el));
 
     bindAcctPeriodSelector('exp', ()=>renderExpensesTab(el));
+    const expLevelAllocationBtn = document.getElementById('exp-level-allocation-btn');
+    if(expLevelAllocationBtn) expLevelAllocationBtn.onclick = ()=> renderLevelAllocationModal();
+    const expStatsBtn = document.getElementById('exp-stats-btn');
+    if(expStatsBtn) expStatsBtn.onclick = ()=> renderExpenseStatsModal();
     document.getElementById('e-search').oninput = e=>{ state.expSearch=e.target.value; renderExpensesTab(el); };
     document.getElementById('e-cat').onchange = e=>{ state.expFilterCat=e.target.value; renderExpensesTab(el); };
     const addBtn = document.getElementById('add-exp-btn');
@@ -21677,28 +21814,86 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     });
   }
 
+  // Danh sách các Quý có thể chọn cho khoản chi "Trích về Khu dân cư/Ấp" — Năm hiện tại + Năm trước,
+  // đủ dùng cho tình huống thực tế phổ biến nhất (chi cho Quý vừa đóng lãi xong, hoặc còn nợ từ năm trước).
+  function expenseQuarterChoices(){
+    const curYear = new Date().getFullYear();
+    const out = [];
+    [curYear, curYear-1].forEach(y=>{
+      ['q1','q2','q3','q4'].forEach(qk=> out.push({ qk, year:y, label: `${qk.toUpperCase()}/${y}` }));
+    });
+    return out;
+  }
   function renderExpenseModal(){
     const isNew = !state.modal.payload;
     const e0 = state.modal.payload ? {...state.modal.payload} : emptyExpense();
     if(isCatHamlet(e0.purpose)) e0.purpose = CAT_HAMLET; // chuẩn hoá dữ liệu cũ (chữ Việt) về khoá nội bộ mới
     const hamlets = state.config.hamlets||[];
     const readonly = !canEditModule('data');
+    const quarterChoices = expenseQuarterChoices();
+    // Trạng thái đang chọn (chỉ có ý nghĩa với hạng mục CAT_HAMLET) — khi SỬA 1 khoản chi đã có sẵn thì
+    // chỉ đúng 1 địa bàn của bản ghi đó được chọn sẵn (không cho đổi sang nhiều địa bàn khi đang sửa,
+    // tránh nhầm lẫn với các bản ghi khác đã tồn tại) — khi TẠO MỚI thì mặc định chưa chọn địa bàn nào.
+    let selHamlets = isNew ? [] : [e0.hamlet].filter(Boolean);
+    let selQuarters = Array.isArray(e0.quarters) ? e0.quarters.slice() : [];
+    let amountMode = e0.amountMode==='auto' ? 'auto' : 'manual';
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
+    function hamletChecksHtml(){
+      return hamlets.map(h=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow em-hamlet-cb" data-h="${escapeHtml(h)}" ${selHamlets.includes(h)?'checked':''} ${(!isNew||readonly)?'disabled':''}><span>${escapeHtml(h)}</span></label>`).join('');
+    }
+    function quarterChecksHtml(){
+      return quarterChoices.map(q=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow em-quarter-cb" data-qk="${q.qk}" data-year="${q.year}" ${selQuarters.some(x=>x.qk===q.qk && x.year===q.year)?'checked':''} ${readonly?'disabled':''}><span>${q.label}</span></label>`).join('');
+    }
+    function computeAutoAmountFor(hamletName){
+      if(!selQuarters.length) return 0;
+      return computeInterestIncomeStats([hamletName], selQuarters).hamletTotal;
+    }
+    function autoPreviewHtml(){
+      if(!selHamlets.length || !selQuarters.length) return `<p class="sub" style="color:var(--red);">Vui lòng chọn ít nhất 1 ${subAdminLabelLower()} và ít nhất 1 Quý để hệ thống tính số tiền tự động.</p>`;
+      const rows = selHamlets.map(h=> `<div class="kv-row"><span>${escapeHtml(h)}</span><b>${money(computeAutoAmountFor(h))}</b></div>`).join('');
+      const total = selHamlets.reduce((s,h)=> s+computeAutoAmountFor(h), 0);
+      return `<div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px; background:var(--paper-2);">${rows}${selHamlets.length>1? `<div class="kv-row" style="border-top:1px solid var(--line); margin-top:4px; padding-top:6px;"><span><b>Tổng cộng</b></span><b>${money(total)}</b></div>`:''}</div>`;
+    }
+    function manualTableHtml(){
+      if(selHamlets.length<=1) return ''; // 1 địa bàn (hoặc 0) thì dùng thẳng ô "Số tiền chi" chung, không cần bảng riêng
+      return `<div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">
+        <p class="sub" style="margin:0 0 6px;">Nhập riêng số tiền cho từng ${subAdminLabelLower()} (không tự chia đều, tránh sai lệch):</p>
+        ${selHamlets.map(h=>`<div class="field" style="margin-bottom:6px;"><label>${escapeHtml(h)}</label><input type="number" class="em-hamlet-manual-amt" data-h="${escapeHtml(h)}" value="0" ${readonly?'disabled':''}></div>`).join('')}
+      </div>`;
+    }
+    function renderHamletSection(){
+      return `
+        <div class="field full" id="em-hamlet-wrap" style="${e0.purpose===CAT_HAMLET?'':'display:none;'}">
+          <label>Trích về cho ${subAdminLabelLower()} nào * ${isNew? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="em-hamlet-all-btn" style="margin-left:8px;">Chọn tất cả</button>` : ''}</label>
+          <div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px; max-height:180px; overflow:auto;">${hamletChecksHtml()}</div>
+          ${!isNew? `<p class="sub" style="margin:4px 0 0;">Đang sửa 1 khoản chi đã có sẵn — chỉ áp dụng cho đúng 1 ${subAdminLabelLower()} này. Muốn chi cho nhiều ${subAdminLabelLower()} khác, hãy tạo khoản chi mới.</p>` : ''}
+        </div>
+        <div class="field full" id="em-quarter-wrap" style="${e0.purpose===CAT_HAMLET?'':'display:none;'}">
+          <label>Áp dụng cho Quý nào * (có thể chọn nhiều Quý cùng lúc)</label>
+          <div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px; display:flex; flex-wrap:wrap; gap:4px 16px;">${quarterChecksHtml()}</div>
+        </div>
+        <div class="field full" id="em-amountmode-wrap" style="${e0.purpose===CAT_HAMLET?'':'display:none;'}">
+          <label>Cách tính số tiền *</label>
+          <div style="display:flex; gap:16px; margin-bottom:8px;">
+            <label><input type="radio" name="em-amountmode" value="auto" ${amountMode==='auto'?'checked':''} ${readonly?'disabled':''}> Dùng đúng số tự động theo công thức (khớp Sổ vay vốn)</label>
+            <label><input type="radio" name="em-amountmode" value="manual" ${amountMode==='manual'?'checked':''} ${readonly?'disabled':''}> Nhập số cụ thể khác</label>
+          </div>
+          <div id="em-auto-preview">${amountMode==='auto'? autoPreviewHtml() : ''}</div>
+          <div id="em-manual-table">${amountMode==='manual'? manualTableHtml() : ''}</div>
+        </div>`;
+    }
     wrap.innerHTML = `
       <div class="modal">
         <div class="modal-head"><h3>${isNew?'Thêm khoản chi mới':'Chi tiết khoản chi'}</h3><button class="modal-close" id="em-close">✕</button></div>
         <div class="modal-body">
           <div class="form-grid">
             <div class="field"><label>Ngày chi *</label><input type="date" id="em-date" value="${e0.date}" ${readonly?'disabled':''}></div>
-            <div class="field"><label>Số tiền chi (đ) *</label><input type="number" id="em-amount" value="${e0.amount}" ${readonly?'disabled':''}></div>
+            <div class="field" id="em-amount-wrap" style="${e0.purpose===CAT_HAMLET?'display:none;':''}"><label>Số tiền chi (đ) *</label><input type="number" id="em-amount" value="${e0.amount}" ${readonly?'disabled':''}></div>
             <div class="field full"><label>Nội dung công việc / Mục đích chi *</label>
               <select id="em-purpose" ${readonly?'disabled':''}>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${e0.purpose===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
             </div>
-            <div class="field full" id="em-hamlet-wrap" style="${isCatHamlet(e0.purpose)?'':'display:none;'}">
-              <label>Trích về cho ${subAdminLabelLower()} nào *</label>
-              <select id="em-hamlet" ${readonly?'disabled':''}>${hamlets.map(h=>`<option ${e0.hamlet===h?'selected':''}>${h}</option>`).join('')}</select>
-            </div>
+            <div id="em-hamlet-section">${renderHamletSection()}</div>
             <div class="field full" id="em-other-wrap" style="${e0.purpose===CAT_OTHER?'':'display:none;'}">
               <label>Nội dung mục chi khác (ghi rõ) *</label>
               <input id="em-other" value="${e0.purposeOther||''}" placeholder="Ví dụ: Sửa chữa trụ sở..." ${readonly?'disabled':''}>
@@ -21718,14 +21913,44 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     wrap.querySelector('#em-cancel').onclick = close;
     wrap.onclick = (ev)=>{ if(ev.target===wrap) close(); };
 
+    function refreshHamletSection(){
+      wrap.querySelector('#em-hamlet-section').innerHTML = renderHamletSection();
+      wireHamletSection();
+    }
+    function wireHamletSection(){
+      const allBtn = wrap.querySelector('#em-hamlet-all-btn');
+      if(allBtn) allBtn.onclick = ()=>{ selHamlets = hamlets.slice(); refreshHamletSection(); };
+      wrap.querySelectorAll('.em-hamlet-cb').forEach(cb=> cb.onchange = ()=>{
+        const h = cb.dataset.h;
+        selHamlets = cb.checked ? selHamlets.concat([h]) : selHamlets.filter(x=>x!==h);
+        refreshHamletSection();
+      });
+      wrap.querySelectorAll('.em-quarter-cb').forEach(cb=> cb.onchange = ()=>{
+        const qk = cb.dataset.qk, year = parseInt(cb.dataset.year,10);
+        selQuarters = cb.checked ? selQuarters.concat([{qk,year}]) : selQuarters.filter(x=> !(x.qk===qk && x.year===year));
+        refreshHamletSection();
+      });
+      wrap.querySelectorAll('input[name="em-amountmode"]').forEach(r=> r.onchange = ()=>{
+        amountMode = r.value;
+        wrap.querySelector('#em-auto-preview').innerHTML = amountMode==='auto'? autoPreviewHtml() : '';
+        wrap.querySelector('#em-manual-table').innerHTML = amountMode==='manual'? manualTableHtml() : '';
+      });
+    }
+    wireHamletSection();
+
     const purposeSel = wrap.querySelector('#em-purpose');
     purposeSel.onchange = ()=>{
-      wrap.querySelector('#em-hamlet-wrap').style.display = isCatHamlet(purposeSel.value) ? '' : 'none';
+      const isHam = isCatHamlet(purposeSel.value);
+      wrap.querySelector('#em-hamlet-wrap').style.display = isHam ? '' : 'none';
+      wrap.querySelector('#em-quarter-wrap').style.display = isHam ? '' : 'none';
+      wrap.querySelector('#em-amountmode-wrap').style.display = isHam ? '' : 'none';
+      wrap.querySelector('#em-amount-wrap').style.display = isHam ? 'none' : '';
       wrap.querySelector('#em-other-wrap').style.display = purposeSel.value===CAT_OTHER ? '' : 'none';
     };
 
     const delBtn = wrap.querySelector('#em-delete');
     if(delBtn) delBtn.onclick = async ()=>{
+      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
       if(!confirm('Chuyển khoản chi này vào thùng rác?')) return;
       state.expenses = state.expenses.filter(x=>x.id!==e0.id);
       const trashed = {...e0, _kind:'expense', deleted:true, deletedAt:new Date().toISOString(), deletedBy: state.identity.email, deletedByName: state.identity.name};
@@ -21738,23 +21963,177 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
 
     const saveBtn = wrap.querySelector('#em-save');
     if(saveBtn) saveBtn.onclick = async ()=>{
+      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
       const date = wrap.querySelector('#em-date').value;
-      const amount = parseFloat(wrap.querySelector('#em-amount').value)||0;
       const purpose = wrap.querySelector('#em-purpose').value;
-      const hamlet = wrap.querySelector('#em-hamlet').value;
       const purposeOther = wrap.querySelector('#em-other').value.trim();
       const note = wrap.querySelector('#em-note').value.trim();
       if(!date){ alert('Vui lòng chọn ngày chi.'); return; }
-      if(!amount || amount<=0){ alert('Vui lòng nhập số tiền chi hợp lệ.'); return; }
-      if(isCatHamlet(purpose) && !hamlet){ alert(`Vui lòng chọn ${subAdminLabelLower()} nhận tiền.`); return; }
       if(purpose===CAT_OTHER && !purposeOther){ alert('Vui lòng ghi rõ nội dung mục chi khác.'); return; }
-      const updated = { ...e0, date, amount, purpose, hamlet: isCatHamlet(purpose)?hamlet:'', purposeOther: purpose===CAT_OTHER?purposeOther:'', note };
+
+      if(isCatHamlet(purpose)){
+        // ---- Hạng mục "Trích về Khu dân cư/Ấp" — có thể tạo ra NHIỀU khoản chi cùng lúc (1 dòng riêng
+        // cho mỗi địa bàn đã chọn), để sau này đối chiếu rõ ràng từng địa bàn một. ----
+        if(!selHamlets.length){ alert(`Vui lòng chọn ít nhất 1 ${subAdminLabelLower()} nhận tiền.`); return; }
+        if(!selQuarters.length){ alert('Vui lòng chọn ít nhất 1 Quý áp dụng.'); return; }
+        const perHamletAmount = {};
+        if(amountMode==='auto'){
+          selHamlets.forEach(h=> perHamletAmount[h] = Math.round(computeAutoAmountFor(h)));
+        } else {
+          let ok = true;
+          selHamlets.forEach(h=>{
+            const inp = wrap.querySelector(`.em-hamlet-manual-amt[data-h="${CSS.escape(h)}"]`);
+            const v = inp? parseFloat(inp.value)||0 : parseFloat(wrap.querySelector('#em-amount')?.value)||0;
+            if(v<=0) ok = false;
+            perHamletAmount[h] = v;
+          });
+          if(!ok){ alert('Vui lòng nhập số tiền hợp lệ (lớn hơn 0) cho tất cả các địa bàn đã chọn.'); return; }
+        }
+        if(isNew){
+          for(const h of selHamlets){
+            const rec = { id: uid(), date, purpose: CAT_HAMLET, purposeOther:'', hamlet:h, quarters: selQuarters.slice(), amountMode, amount: perHamletAmount[h], note };
+            state.expenses.push(rec);
+            await cSetRecord('expenses', rec.id, rec);
+          }
+          await pushLog('thêm khoản chi', `Trích về ${subAdminLabelLower()} — ${selHamlets.length} địa bàn`);
+        } else {
+          const h = selHamlets[0];
+          const updated = { ...e0, date, purpose: CAT_HAMLET, purposeOther:'', hamlet:h, quarters: selQuarters.slice(), amountMode, amount: perHamletAmount[h], note };
+          state.expenses = state.expenses.map(x=>x.id===updated.id? updated : x);
+          await cSetRecord('expenses', updated.id, updated);
+          await pushLog('chỉnh sửa khoản chi', `${money(updated.amount)} — Trích về ${h}`);
+        }
+        close(); render();
+        return;
+      }
+
+      // ---- Các hạng mục chi khác — giữ nguyên logic cũ ----
+      const amount = parseFloat(wrap.querySelector('#em-amount').value)||0;
+      if(!amount || amount<=0){ alert('Vui lòng nhập số tiền chi hợp lệ.'); return; }
+      const updated = { ...e0, date, amount, purpose, hamlet:'', quarters:[], amountMode:'manual', purposeOther: purpose===CAT_OTHER?purposeOther:'', note };
       if(isNew){ state.expenses.push(updated); }
       else { state.expenses = state.expenses.map(x=>x.id===updated.id? updated : x); }
       await cSetRecord('expenses', updated.id, updated);
       await pushLog(isNew?'thêm khoản chi':'chỉnh sửa khoản chi', `${money(updated.amount)} — ${categoryLabel(updated.purpose)}`);
       close(); render();
     };
+  }
+
+  // =====================================================================
+  // Modal "📈 Thống kê Thu Chi chi tiết" — cho phép chọn NHIỀU kỳ (Quý/Năm) để so sánh CẠNH NHAU, có
+  // bộ lọc Địa phương riêng cho hạng mục "Trích về Khu dân cư/Ấp" (ảnh hưởng cả cột Thu lẫn cột Chi
+  // tương ứng, để xem đúng phạm vi 1 hoặc vài địa phương cụ thể nếu cần).
+  // =====================================================================
+  function expenseStatsPeriodChoices(){
+    const curYear = new Date().getFullYear();
+    const out = [
+      { key:'all', label:'Từ trước đến nay', from:'2000-01-01', to: todayStr() },
+    ];
+    [curYear, curYear-1].forEach(y=>{
+      const q4r = resolveQuarterDates('q4'), q1r = resolveQuarterDates('q1');
+      out.push({ key:'y'+y, label:`Cả năm ${y}`, from: `${y}-01-01`, to: `${y}-12-31` });
+      ['q1','q2','q3','q4'].forEach(qk=>{
+        // Ước lượng khoảng ngày của Quý qk năm y — dùng đúng công thức đã sửa ở acctPeriodRange.
+        const item = (state.config.quarters && state.config.quarters[qk]) || DEFAULT_QUARTERS[qk];
+        const pad = n=> String(n).padStart(2,'0');
+        const startYear = (item.startMonth > item.endMonth) ? y-1 : y;
+        out.push({ key:qk+'_'+y, label:`${qk.toUpperCase()}/${y}`, from:`${startYear}-${pad(item.startMonth)}-${pad(item.startDay)}`, to:`${y}-${pad(item.endMonth)}-${pad(item.endDay)}` });
+      });
+    });
+    return out;
+  }
+  function renderExpenseStatsModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const periodChoices = expenseStatsPeriodChoices();
+    if(!state.expStatsSelectedPeriods || !state.expStatsSelectedPeriods.length) state.expStatsSelectedPeriods = ['y'+new Date().getFullYear()];
+    const hamlets = state.config.hamlets||[];
+    if(!state.expStatsFilterHamlets) state.expStatsFilterHamlets = hamlets.slice();
+    const hamletAllSel = state.expStatsFilterHamlets.length===hamlets.length;
+    function render(){
+      const selPeriods = periodChoices.filter(p=> state.expStatsSelectedPeriods.includes(p.key));
+      const hamletFilter = hamletAllSel? null : state.expStatsFilterHamlets;
+      const periodStats = selPeriods.map(p=>{
+        const acct = computeAcctTotals(p.from, p.to);
+        // Nếu có lọc địa phương -> tính lại riêng "Thu" theo đúng phạm vi địa phương đã chọn (Chi các
+        // hạng mục KHÔNG phải "Trích về Khu dân cư/Ấp" thì giữ nguyên, vì các hạng mục đó vốn không
+        // gắn với 1 địa phương cụ thể nào).
+        let xaNhan = acct.xaNhan, chiTotal = acct.chiTotal, chiByCategory = acct.chiByCategory;
+        if(hamletFilter){
+          const quarterSet = quarterSetFromDateRange(p.from, p.to);
+          const stats = computeInterestIncomeStats(hamletFilter, quarterSet);
+          xaNhan = Math.round(stats.ward);
+          const filteredHamletChi = Object.entries(acct.chiByHamlet||{}).filter(([h])=>hamletFilter.includes(h)).reduce((s,[,v])=>s+v,0);
+          chiByCategory = {...acct.chiByCategory, [CAT_HAMLET]: filteredHamletChi};
+          chiTotal = Object.entries(acct.chiByCategory).reduce((s,[k,v])=> s + (k===CAT_HAMLET? filteredHamletChi : v), 0);
+        }
+        return { p, xaNhan, chiTotal, chiByCategory, tonQuy: xaNhan - chiTotal };
+      });
+      const catList = EXPENSE_CATEGORIES.filter(c=>c!==CAT_OTHER);
+      const otherKeysAcrossPeriods = Array.from(new Set(periodStats.flatMap(ps=> Object.keys(ps.chiByCategory).filter(k=>k.startsWith(CAT_OTHER+':')))));
+      const rowsHtml = [
+        `<tr style="background:var(--paper-2); font-weight:800;"><td>💰 Thu (${adminLevelLabel()} nhận)</td>${periodStats.map(ps=>`<td class="money">${money(ps.xaNhan)}</td>`).join('')}</tr>`,
+        ...catList.map(c=> `<tr><td>↳ Chi: ${categoryLabel(c)}</td>${periodStats.map(ps=>{ const v=ps.chiByCategory[c]||0; const pct = ps.chiTotal>0? (v/ps.chiTotal*100).toFixed(1) : '0'; return `<td class="money">${money(v)} <span class="sub">(${pct}%)</span></td>`; }).join('')}</tr>`),
+        ...otherKeysAcrossPeriods.map(k=> `<tr><td>↳ Chi: ${escapeHtml(k.replace(CAT_OTHER+':',categoryLabel(CAT_OTHER)+': '))}</td>${periodStats.map(ps=>{ const v=ps.chiByCategory[k]||0; const pct = ps.chiTotal>0? (v/ps.chiTotal*100).toFixed(1) : '0'; return `<td class="money">${money(v)} <span class="sub">(${pct}%)</span></td>`; }).join('')}</tr>`),
+        `<tr style="background:var(--paper-2); font-weight:800;"><td>📤 Tổng Chi</td>${periodStats.map(ps=>`<td class="money">${money(ps.chiTotal)}</td>`).join('')}</tr>`,
+        `<tr style="font-weight:800;"><td>⚖️ Tồn quỹ (Thu − Chi)</td>${periodStats.map(ps=>`<td class="money" style="color:${ps.tonQuy>=0?'var(--green)':'var(--red)'};">${money(ps.tonQuy)}</td>`).join('')}</tr>`,
+      ].join('');
+      const bodyHtml = `
+        <p class="sub" style="margin:0 0 10px;">Chọn 1 hoặc nhiều kỳ (Quý/Năm) để xem và so sánh cạnh nhau — mỗi kỳ hiển thị đúng số liệu Thu/Chi/Tồn quỹ riêng của kỳ đó.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:4px 16px; border:1px solid var(--line); border-radius:8px; padding:10px 14px; margin-bottom:10px;">
+          ${periodChoices.map(p=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow exps-period-cb" data-key="${p.key}" ${state.expStatsSelectedPeriods.includes(p.key)?'checked':''}><span>${p.label}</span></label>`).join('')}
+        </div>
+        <div class="sv-filter-dropdown" style="margin-bottom:10px;">
+          <button type="button" class="btn btn-ghost btn-sm preview-allow" id="exps-hamlet-btn" style="${!hamletAllSel?'border:2px solid #b71c1c;':''}">📍 Địa phương (${state.expStatsFilterHamlets.length}) — chỉ ảnh hưởng "Trích về ${subAdminLabelLower()}"</button>
+          ${state.openFilterDropdown==='exps-hamlet'? `<div class="sv-filter-panel">
+            <label class="sv-filter-item"><input type="checkbox" id="exps-hamlet-all" class="preview-allow" ${hamletAllSel?'checked':''}><span><b>Tất cả địa phương</b></span></label>
+            ${hamlets.map(h=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow exps-hamlet-item" data-h="${escapeHtml(h)}" ${state.expStatsFilterHamlets.includes(h)?'checked':''}><span>${escapeHtml(h)}</span></label>`).join('')}
+          </div>` : ''}
+        </div>
+        ${!selPeriods.length? `<div class="empty-state"><div class="e-ico">📈</div>Vui lòng chọn ít nhất 1 kỳ để xem thống kê</div>` : `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Hạng mục</th>${periodStats.map(ps=>`<th>${escapeHtml(ps.p.label)}</th>`).join('')}</tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table></div>`}
+      `;
+      const bodyEl = wrap.querySelector('#exps-body-inner');
+      if(bodyEl){ bodyEl.innerHTML = bodyHtml; wire(); return; }
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:98vw; width:900px; border:6px solid #6a1b9a;">
+          <div class="modal-head" style="background:linear-gradient(180deg, #ba68c8 0%, #6a1b9a 50%, #4a148c 100%);"><h3 style="color:#fff;">${waveTextHtmlSlow('📈 Thống kê Thu Chi chi tiết')}</h3><button class="modal-close preview-allow" id="exps-close">✕</button></div>
+          <div class="modal-body" style="max-height:78vh; overflow:auto;" id="exps-body-inner">${bodyHtml}</div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost preview-allow" id="exps-close2">Đóng bảng</button>
+            ${exportPrintButtonsHtml('exps-ep')}
+          </div>
+        </div>`;
+      wrap.querySelector('#exps-close').onclick = close;
+      wrap.querySelector('#exps-close2').onclick = close;
+      wire();
+    }
+    function wire(){
+      wrap.querySelectorAll('.exps-period-cb').forEach(cb=> cb.onchange = ()=>{
+        const k = cb.dataset.key;
+        state.expStatsSelectedPeriods = cb.checked? state.expStatsSelectedPeriods.concat([k]) : state.expStatsSelectedPeriods.filter(x=>x!==k);
+        render();
+      });
+      const hb = wrap.querySelector('#exps-hamlet-btn'); if(hb) hb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='exps-hamlet'?null:'exps-hamlet'; render(); };
+      const hAll = wrap.querySelector('#exps-hamlet-all'); if(hAll) hAll.onclick=(e)=>{ e.stopPropagation(); state.expStatsFilterHamlets = hAll.checked? hamlets.slice() : []; render(); };
+      wrap.querySelectorAll('.exps-hamlet-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const h=cb.dataset.h; state.expStatsFilterHamlets = cb.checked? state.expStatsFilterHamlets.concat([h]) : state.expStatsFilterHamlets.filter(x=>x!==h); render(); });
+      wireExportPrintButtons(wrap, 'exps-ep', '#exps-body-inner', 'Thống kê Thu Chi chi tiết');
+      if(!wrap._expsOutsideClickBound){
+        wrap._expsOutsideClickBound = true;
+        document.addEventListener('click', (e)=>{
+          if(!document.body.contains(wrap) || !state.openFilterDropdown) return;
+          if(e.target.closest('.sv-filter-dropdown')) return;
+          state.openFilterDropdown = null;
+          if(document.body.contains(wrap)) render();
+        });
+      }
+    }
+    render();
   }
 
   function renderReportsTab(el){
@@ -21810,7 +22189,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
             </select>
             ${state.reportMode==='quarter' ? `
               <select id="rp-quarter">
-                ${['q1','q2','q3','q4'].map(k=>`<option value="${k}" ${state.reportQuarter===k?'selected':''}>${q[k].label} (${fmtDate(q[k].start)} → ${fmtDate(q[k].end)})</option>`).join('')}
+                ${['q1','q2','q3','q4'].map(k=>{ const r = resolveQuarterDates(k); return `<option value="${k}" ${state.reportQuarter===k?'selected':''}>${q[k].label} (${fmtDate(r.from)} → ${fmtDate(r.to)})</option>`; }).join('')}
               </select>` : `
               <input type="date" id="rp-from" value="${state.reportFrom}"> <span style="align-self:center;">→</span> <input type="date" id="rp-to" value="${state.reportTo}">`}
           </div>
