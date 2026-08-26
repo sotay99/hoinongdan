@@ -863,13 +863,34 @@
      cao hơn hẳn nội dung chat/khung nhập liệu bên dưới). */
   .pg-suggest-menu{
     position:absolute; bottom:100%; left:0; z-index:600;
-    display:flex; flex-direction:column; gap:6px; padding:10px; min-width:240px;
+    display:flex; width:300px; max-width:88vw; height:280px; max-height:70vh;
     background:var(--white); border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.25);
-    max-height:70vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    overflow:hidden;
   }
-  .pg-suggest-menu .pg-role-btn{ width:100%; text-align:left; }
+  /* Khung danh sách lựa chọn — cuộn được (lăn chuột/vuốt/kéo) nhưng ẨN thanh cuộn mặc định đi (mục đích
+     là để cuộn thông qua 2 nút mũi tên riêng hoặc thao tác trực tiếp, không cần thanh cuộn hiển thị). */
+  .pg-suggest-list{
+    flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px;
+    scrollbar-width:none; -ms-overflow-style:none;
+  }
+  .pg-suggest-list::-webkit-scrollbar{ display:none; }
+  .pg-suggest-list .pg-role-btn{ width:100%; text-align:left; flex-shrink:0; }
+  /* 2 nút cuộn lên/xuống — nằm sát mép phải khung menu, cùng kiểu dáng với 2 nút cuộn dọc của modal. */
+  .pg-suggest-scrollbtns{ display:flex; flex-direction:column; justify-content:center; align-items:center; gap:8px; padding:8px 6px; border-left:1px solid var(--line); background:var(--paper-2); }
+  .pg-suggest-scroll-btn{
+    width:30px; height:30px; border-radius:50%; border:none;
+    background:linear-gradient(145deg, #616161, #212121); color:#fff; font-size:13px; font-weight:800;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 8px rgba(0,0,0,.3); opacity:.75; transition:opacity .15s ease;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  }
+  .pg-suggest-scroll-btn:hover{ opacity:1; }
   .pg-role-btn{ background:var(--white); border:1px solid var(--line); border-radius:20px; padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--rice-dark); cursor:pointer; transition:all .15s; }
   .pg-role-btn:hover{ background:var(--gold); color:#fff; border-color:var(--gold); }
+  /* Lựa chọn ĐẦU TIÊN của MỖI khối lặp — nền màu xanh nổi bật RIÊNG BIỆT (không trùng màu hover) để
+     người dùng dễ nhận biết đã cuộn qua bao nhiêu vòng lặp của danh sách. */
+  .pg-role-btn.pg-role-btn-first{ background:#e3f2fd; border-color:#64b5f6; color:#0d47a1; }
+  .pg-role-btn.pg-role-btn-first:hover{ background:var(--gold); border-color:var(--gold); color:#fff; }
   .pg-role-btn.pg-confirm-btn{ background:var(--gold); color:#fff; border-color:var(--gold); font-weight:800; }
   .pg-role-btn.pg-confirm-btn:hover{ filter:brightness(1.08); }
   @media (max-width:900px){ .pg-embed{ height:auto; min-height:0; flex-direction:column; } .pg-embed .ai-sidebar{ width:100%; max-height:280px; } }
@@ -1501,6 +1522,24 @@
     // vị trí trên màn hình, cần định vị lại nút ngay).
     document.addEventListener('scroll', scheduleScan, true);
     setInterval(scanForHorizontalScrollables, 900); // quét định kỳ dự phòng — bắt các trường hợp thay đổi kích thước không qua DOM mutation/scroll/resize, ĐỒNG THỜI cũng là lớp an toàn dọn dẹp định kỳ dù có bỏ sót sự kiện nào
+  }
+  // Cuộn lên đầu/xuống cuối modal/overlay chứa phần tử được truyền vào — dùng chung cho MỌI nơi cần kích
+  // hoạt cuộn TỪ XA (không phải bấm trực tiếp vào 2 nút mũi tên), VD: bấm vào khung chat, bấm gửi, rê
+  // chuột vào 1 nút khác... Hỗ trợ cả modal thường (.modal-bg + .modal-body) lẫn overlay AI toàn màn
+  // hình (.ai-overlay + .ai-messages).
+  function scrollNearestModalToBottom(fromEl){
+    const bg = fromEl && (fromEl.closest('.modal-bg') || fromEl.closest('.ai-overlay'));
+    if(!bg) return;
+    const inner = bg.querySelector('.modal-body') || bg.querySelector('.ai-messages');
+    const targets = inner ? [bg, inner] : [bg];
+    targets.forEach(t=> t.scrollTo({ top:t.scrollHeight, behavior:'smooth' }));
+  }
+  function scrollNearestModalToTop(fromEl){
+    const bg = fromEl && (fromEl.closest('.modal-bg') || fromEl.closest('.ai-overlay'));
+    if(!bg) return;
+    const inner = bg.querySelector('.modal-body') || bg.querySelector('.ai-messages');
+    const targets = inner ? [bg, inner] : [bg];
+    targets.forEach(t=> t.scrollTo({ top:0, behavior:'smooth' }));
   }
   function ensureModalScrollButtons(bg){
     // Loại trừ popup chào mừng (welcome-popup-bg) — nội dung quá ngắn gọn, không cần cuộn, 2 nút này
@@ -10157,8 +10196,15 @@ ${fileGenerationTrainingText()}`;
         if(kind==='mic' && (state._aiMic2Listening || state._aiMic2Processing)) return;
         if(kind==='mic2' && state._aiMicListening) return;
         if(kind==='websearch') toggleAiWebSearch();
-        else if(kind==='mic') toggleAiMic();
-        else if(kind==='mic2') toggleAiRecordThenTranscribe();
+        else if(kind==='mic' || kind==='mic2'){
+          // Đóng NGAY menu thả xuống bằng thao tác DOM trực tiếp — KHÔNG được gọi vẽ lại toàn bộ khung
+          // chat ở đây (2 hàm mic bên dưới không cho phép việc đó, sẽ làm mất chữ đang gõ dở trong ô
+          // nhập). Chỉ còn lại đúng bảng trạng thái nhỏ (do chính 2 hàm mic tự hiện lên) là hiển thị.
+          state._aiAddMenuOpen = false;
+          const menuEl = document.querySelector('#ai-add-btn .ai-add-menu');
+          if(menuEl) menuEl.remove();
+          if(kind==='mic') toggleAiMic(); else toggleAiRecordThenTranscribe();
+        }
         else triggerAiFileInput(kind);
       });
     });
@@ -10197,7 +10243,11 @@ ${fileGenerationTrainingText()}`;
     if(sendBtn) sendBtn.onclick = doSend;
     wireAutoResizeTextarea('ai-input');
     if(inputEl){
-      inputEl.focus();
+      // Không tự động focus — đồng bộ với các module AI khác (Siêu ghi chú/Tuyên truyền/Thêm nhanh
+      // bằng AI): mặc định KHÔNG có con trỏ văn bản, chỉ khi người dùng TỰ bấm vào khung chat mới có
+      // con trỏ để nhập. (Trước đây dòng focus() gắn cứng ở đây chạy lại MỖI LẦN vẽ lại toàn bộ khung
+      // chat — kể cả khi chỉ bấm nút "Thêm thành phần" cũng kích hoạt vẽ lại — khiến con trỏ tự xuất
+      // hiện ngoài ý muốn, đây là lỗi thật đã xảy ra, nay xoá hẳn dòng gây lỗi.)
       // Yêu cầu 5: Enter thường = xuống dòng (mặc định của textarea, không preventDefault);
       // Ctrl+Enter (hoặc Cmd+Enter trên Mac) = gửi tin nhắn ngay.
       inputEl.addEventListener('keydown', (e)=>{
@@ -10457,8 +10507,15 @@ ${fileGenerationTrainingText()}`;
       elx.addEventListener('click', (e)=>{
         e.stopPropagation();
         state._aiAddMenuOpen = false;
-        if(elx.dataset.snAdd==='mic'){ toggleNotesMic(); return; }
-        if(elx.dataset.snAdd==='mic2'){ toggleNotesMic2(); return; }
+        if(elx.dataset.snAdd==='mic' || elx.dataset.snAdd==='mic2'){
+          // Đóng NGAY menu bằng thao tác DOM trực tiếp — 2 hàm mic bên dưới không được phép vẽ lại toàn
+          // bộ khung (sẽ làm mất chữ đang gõ dở), nên chỉ đặt state không đủ để menu biến mất trên màn
+          // hình, phải tự tay gỡ khung menu khỏi trang ngay tại đây.
+          const menuEl = document.querySelector('#sn-add-btn .ai-add-menu');
+          if(menuEl) menuEl.remove();
+          if(elx.dataset.snAdd==='mic') toggleNotesMic(); else toggleNotesMic2();
+          return;
+        }
         const input = document.createElement('input');
         input.type = 'file'; input.multiple = true;
         if(elx.dataset.snAdd==='folder') input.webkitdirectory = true;
@@ -12950,8 +13007,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wrap.querySelectorAll('[data-qai-add]').forEach(elx=> elx.addEventListener('click', (e)=>{
         e.stopPropagation();
         state._qaiAddMenuOpen = false;
-        if(elx.dataset.qaiAdd==='mic'){ toggleQaiMic(render); return; }
-        if(elx.dataset.qaiAdd==='mic2'){ toggleQaiMic2(render); return; }
+        if(elx.dataset.qaiAdd==='mic'){ wrap.querySelector('#qai-add-btn .ai-add-menu')?.remove(); toggleQaiMic(render); return; }
+        if(elx.dataset.qaiAdd==='mic2'){ wrap.querySelector('#qai-add-btn .ai-add-menu')?.remove(); toggleQaiMic2(render); return; }
         wrap.querySelector('#qai-file-input').click();
       }));
       wrap.querySelector('#qai-file-input').onchange = async (e)=>{
@@ -12962,11 +13019,13 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         }
         render();
       };
-      wrap.querySelector('#qai-send-btn').onclick = doSend;
+      wrap.querySelector('#qai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };
       wireAutoResizeTextarea('qai-input');
       // Không tự động focus — đồng bộ với các module AI khác (Chat AI/Siêu ghi chú/Tuyên truyền): mặc
       // định KHÔNG có con trỏ văn bản, chỉ khi người dùng TỰ bấm vào khung chat mới có con trỏ để nhập.
       wrap.querySelector('#qai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
+      // Bấm vào khung chat (có con trỏ văn bản) -> cũng cuộn xuống cuối luôn, y hệt hiệu ứng nút mũi tên xuống.
+      wrap.querySelector('#qai-input').addEventListener('focus', ()=> scrollNearestModalToBottom(wrap));
       wrap.querySelector('#qai-digest').onclick = ()=> runAiTurn();
       const addBtn = wrap.querySelector('#qai-add');
       if(addBtn) addBtn.onclick = confirmAndAdd;
@@ -21893,14 +21952,24 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           <button class="ai-hist-del" data-pg-hist-rename="${c.id}" title="Đổi tên">✏️</button>
           <button class="ai-hist-del" data-pg-hist-del="${c.id}" title="Xoá">🗑️</button>
         </div>`).join('') : '<div class="sub" style="color:rgba(255,255,255,.6); padding:6px 10px;">Chưa có đoạn hội thoại nào.</div>';
+    // Lặp lại danh sách lựa chọn NHIỀU LẦN để tạo cảm giác cuộn VÔ HẠN (cuộn hết vòng thì lại vòng tiếp
+    // theo giống hệt, không có điểm dừng) — xem cơ chế "nhảy tức thì" ở phần wiring bên dưới. Lựa chọn
+    // ĐẦU TIÊN của MỖI khối lặp được đánh dấu riêng (nền khác biệt) để người dùng dễ nhận biết đã cuộn
+    // qua bao nhiêu vòng lặp.
+    const PG_SUGGEST_REPEAT = 8;
+    const oneRoleBlockHtml = PROPAGANDA_ROLES.map((r,i)=>`<button type="button" class="pg-role-btn${i===0?' pg-role-btn-first':''}" data-pg-role="${r.key}">${r.icon} ${escapeHtml(r.label)}</button>`).join('');
     const suggestMenuHtml = state._propagandaSuggestMenuOpen ? `<div class="pg-suggest-menu" id="pg-suggest-menu">
-        ${PROPAGANDA_ROLES.map(r=>`<button type="button" class="pg-role-btn" data-pg-role="${r.key}">${r.icon} ${escapeHtml(r.label)}</button>`).join('')}
+        <div class="pg-suggest-list" id="pg-suggest-list">${Array(PG_SUGGEST_REPEAT).fill(oneRoleBlockHtml).join('')}</div>
+        <div class="pg-suggest-scrollbtns">
+          <button type="button" class="pg-suggest-scroll-btn preview-allow" id="pg-suggest-up-btn" title="Cuộn lên">▲</button>
+          <button type="button" class="pg-suggest-scroll-btn preview-allow" id="pg-suggest-down-btn" title="Cuộn xuống">▼</button>
+        </div>
       </div>` : '';
     const rolesHtml = `<div class="pg-suggest-wrap" id="pg-suggest-wrap">
         <button type="button" class="pg-role-btn" id="pg-suggest-toggle-btn">💡 Gợi ý tạo bài</button>
         ${suggestMenuHtml}
       </div>
-      <button class="pg-role-btn pg-confirm-btn" id="pg-confirm-create-btn">🚀 Tạo bài Tuyên truyền ngay!</button>`;
+      <button class="pg-role-btn pg-confirm-btn" id="pg-confirm-create-btn" ${(!chat || !chat.messages || !chat.messages.length)?'disabled style="opacity:.45; cursor:not-allowed;"':''}>🚀 Tạo bài Tuyên truyền ngay!</button>`;
     const modelDropdownHtml = state._propagandaModelMenuOpen ? `<div class="ai-model-dropdown">
         ${state.aiProviders.length ? state.aiProviders.map(p=>`
           <div class="ai-model-opt ${provider&&p.id===provider.id?'active':''}" data-pg-select-provider="${p.id}">
@@ -22061,6 +22130,46 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         suggestMenuEl.addEventListener('mouseenter', cancelSuggestClose);
         suggestMenuEl.addEventListener('mouseleave', scheduleSuggestClose);
       }
+      // Cơ chế cuộn VÔ HẠN — danh sách đã được lặp lại nhiều lần (PG_SUGGEST_REPEAT khối) khi vẽ ra.
+      // Đặt vị trí cuộn ban đầu ở NGAY GIỮA (không phải đầu/cuối) để cuộn được cả 2 chiều ngay từ đầu.
+      // Mỗi khi cuộn gần chạm biên trên/dưới (còn cách chưa tới 1 khối) thì NHẢY TỨC THÌ (không hiệu
+      // ứng, không ai nhận ra) sang đúng vị trí tương đương ở 1 khối khác nằm giữa danh sách — vì nội
+      // dung các khối giống hệt nhau nên người dùng có cảm giác cuộn liên tục không bao giờ hết.
+      const suggestListEl = document.getElementById('pg-suggest-list');
+      if(suggestListEl){
+        const N_REPEAT = 8; // PHẢI khớp đúng với PG_SUGGEST_REPEAT lúc vẽ HTML ở trên
+        const midBlockIndex = Math.floor(N_REPEAT/2);
+        requestAnimationFrame(()=>{
+          const blockH = suggestListEl.scrollHeight / N_REPEAT;
+          if(suggestListEl.scrollTop < 1) suggestListEl.scrollTop = blockH * midBlockIndex; // chỉ đặt lại vị trí giữa nếu ĐANG ở vị trí gốc (mới mở menu lần đầu) — tránh giật vị trí đang cuộn dở nếu vẽ lại vì lý do khác
+        });
+        suggestListEl.addEventListener('scroll', ()=>{
+          const total = suggestListEl.scrollHeight;
+          const blockH = total / N_REPEAT;
+          if(suggestListEl.scrollTop < blockH) suggestListEl.scrollTop += blockH * midBlockIndex;
+          else if(suggestListEl.scrollTop > total - blockH*2) suggestListEl.scrollTop -= blockH * midBlockIndex;
+        });
+        // 2 nút cuộn lên/xuống — rê chuột vào HOẶC bấm giữ (cảm ứng) -> cuộn liên tục; bấm nhanh 1 cái ->
+        // cuộn 1 đoạn ngắn.
+        const wireSuggestScrollBtn = (btn, dir)=>{
+          if(!btn) return;
+          let timer = null, downAt = 0;
+          const start = ()=>{ if(timer) return; timer = setInterval(()=>{ suggestListEl.scrollTop += dir*3; }, 16); };
+          const stop = ()=>{ if(timer){ clearInterval(timer); timer=null; } };
+          btn.addEventListener('mouseenter', start);
+          btn.addEventListener('mouseleave', stop);
+          btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); e.stopPropagation(); downAt=Date.now(); start(); });
+          btn.addEventListener('touchstart', (e)=>{ e.stopPropagation(); downAt=Date.now(); start(); }, {passive:true});
+          document.addEventListener('mouseup', stop);
+          document.addEventListener('touchend', stop);
+          btn.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            if(Date.now() - downAt < 260) suggestListEl.scrollBy({ top: dir*140, behavior:'smooth' });
+          });
+        };
+        wireSuggestScrollBtn(document.getElementById('pg-suggest-up-btn'), -1);
+        wireSuggestScrollBtn(document.getElementById('pg-suggest-down-btn'), 1);
+      }
       suggestToggleBtn.addEventListener('click', (e)=>{
         e.stopPropagation();
         cancelSuggestClose();
@@ -22121,8 +22230,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     el.querySelectorAll('[data-pg-add]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
         e.stopPropagation();
-        if(elx.dataset.pgAdd==='mic'){ state._propagandaAddMenuOpen = false; togglePgMic(); return; }
-        if(elx.dataset.pgAdd==='mic2'){ state._propagandaAddMenuOpen = false; togglePgMic2(); return; }
+        if(elx.dataset.pgAdd==='mic'){ state._propagandaAddMenuOpen = false; document.querySelector('#pg-add-btn .ai-add-menu')?.remove(); togglePgMic(); return; }
+        if(elx.dataset.pgAdd==='mic2'){ state._propagandaAddMenuOpen = false; document.querySelector('#pg-add-btn .ai-add-menu')?.remove(); togglePgMic2(); return; }
         triggerPropagandaFileInput(elx.dataset.pgAdd);
       });
     });
