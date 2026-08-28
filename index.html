@@ -2119,8 +2119,8 @@
         ];
         renderColumnHeaderExcelModal('💰 Danh sách khoản chi', [{ title:'Danh sách khoản chi', list, cols }], cols);
       } else if(scope==='expcompare'){
-        const {from,to} = acctPeriodRange();
-        const acct = computeAcctTotals(from,to);
+        const {from,to,quarterSet} = acctPeriodRange();
+        const acct = computeAcctTotals(from,to,quarterSet);
         const allHamletNames = Array.from(new Set([...Object.keys(acct.hamletByName||{}), ...Object.keys(acct.chiByHamlet||{})])).sort((a,b)=>a.localeCompare(b,'vi'));
         const cols = [
           { key:'hamlet', label:'Địa bàn', userInput:true, get:r=> escapeHtml(r.h) },
@@ -3923,8 +3923,11 @@
   function reportPeriodTitle(){
     const {from,to} = acctPeriodRange();
     let periodLabel;
-    if(state.acctMode==='quarter') periodLabel = (state.config.quarters[state.acctQuarter].label||'').toUpperCase();
-    else if(state.acctMode==='year') periodLabel = 'CẢ NĂM';
+    if(state.acctMode==='quarter'){
+      const qLbl = {q1:'Q1',q2:'Q2',q3:'Q3',q4:'Q4'};
+      periodLabel = (state.expAcctFilterQuarters||[]).map(qk=>qLbl[qk]).join('+') + '/' + (state.expAcctFilterYears||[]).join('+');
+    }
+    else if(state.acctMode==='ycur' || state.acctMode==='yprev' || state.acctMode==='year') periodLabel = 'CẢ NĂM';
     else periodLabel = 'TOÀN BỘ THỜI GIAN';
     const year = (to || todayStr()).slice(0,4);
     return {periodLabel, year, from, to};
@@ -3933,8 +3936,8 @@
   function buildReportHtml(){
     const cfg = state.config;
     const ov = computeProjectOverview();
-    const {from,to} = acctPeriodRange();
-    const acct = computeAcctTotals(from,to);
+    const {from,to,quarterSet} = acctPeriodRange();
+    const acct = computeAcctTotals(from,to,quarterSet);
     const retain = cfg.retainPercent||0;
     const {periodLabel, year} = reportPeriodTitle();
     const now = new Date();
@@ -4136,8 +4139,10 @@
     surveyResponseViewIndex:0,  // đang xem phiếu trả lời số mấy (điều hướng Tới/Lui)
     surveyResponseDetailOpen:false, // đang mở xem chi tiết 1 phiếu hay đang xem tổng hợp
     surveyImportPickerOpen:false,
-    acctMode:'year',       // kỳ hạch toán xã: 'year' | 'quarter' | 'all'
+    acctMode:'year',       // kỳ hạch toán xã: 'ycur' | 'yprev' | 'quarter' | 'all'
     acctQuarter:'q1',
+    expAcctFilterQuarters:['q1'], // dùng riêng cho chế độ "Chọn Quý cụ thể" — có thể chọn nhiều Quý Q1-Q4
+    expAcctFilterYears:[new Date().getFullYear()], // dùng riêng cho chế độ "Chọn Quý cụ thể" — có thể chọn nhiều Năm
     expSearch:'', expFilterCat:'',
     modal:null,           // {type:'borrower'|'expense'|'onboarding'|'settings'|'trashConfirm', payload}
     bellOpen:false,
@@ -8240,9 +8245,31 @@
   function acctPeriodRange(mode, quarterKey){
     mode = mode || state.acctMode; quarterKey = quarterKey || state.acctQuarter;
     if(mode==='all') return { from:'2000-01-01', to: todayStr() };
-    if(mode==='quarter') return resolveQuarterDates(quarterKey);
-    // year: từ đầu Quý 1 đến cuối Quý 4 — LẤY ĐÚNG năm của Quý 4 hiện hành làm mốc, để Quý 1 (vắt năm
-    // trước) và Quý 4 cùng thuộc về đúng 1 chu kỳ năm liền mạch.
+    if(mode==='quarter'){
+      // "Chọn Quý cụ thể" — kết hợp TẤT CẢ (Quý đã chọn) × (Năm đã chọn) thành 1 tập hợp Quý+Năm cụ
+      // thể (tích Đề-các) — trả kèm quarterSet RÕ RÀNG để tính đúng, không gồm nhầm khoảng trống giữa
+      // các Quý không liền kề (VD chọn Quý 1/2026 + Quý 3/2025 thì KHÔNG được tính luôn cả Quý 2/2025 +
+      // Quý 4/2025 dù chúng nằm giữa khoảng from->to bao trọn).
+      const qs = (state.expAcctFilterQuarters&&state.expAcctFilterQuarters.length)? state.expAcctFilterQuarters : ['q1'];
+      const ys = (state.expAcctFilterYears&&state.expAcctFilterYears.length)? state.expAcctFilterYears : [new Date().getFullYear()];
+      const quarterSet = [];
+      ys.forEach(y=> qs.forEach(qk=> quarterSet.push({ qk, year:y })));
+      let from=null, to=null;
+      quarterSet.forEach(({qk,year})=>{
+        const r = resolveQuarterDatesForYear(qk, year);
+        if(!r.from || !r.to) return;
+        if(from===null || r.from<from) from = r.from;
+        if(to===null || r.to>to) to = r.to;
+      });
+      return { from: from||todayStr(), to: to||todayStr(), quarterSet };
+    }
+    if(mode==='yprev'){
+      const y = new Date().getFullYear()-1;
+      const q4r = resolveQuarterDatesForYear('q4', y);
+      const q1r = resolveQuarterDatesForYear('q1', y);
+      return { from:q1r.from, to:q4r.to };
+    }
+    // 'ycur' (mặc định, hoặc giá trị 'year' cũ trước đây) — Cả năm hiện tại: từ đầu Quý 1 đến cuối Quý 4.
     const q4r = resolveQuarterDates('q4');
     const q1r = resolveQuarterDates('q1');
     return { from:q1r.from, to:q4r.to };
@@ -8308,16 +8335,25 @@
     });
     return result;
   }
-  function computeAcctTotals(from, to){
+  // Kiểm tra 1 ngày có rơi vào ĐÚNG 1 trong các Quý thuộc quarterSet hay không — dùng khi lọc theo tập
+  // hợp Quý+Năm CỤ THỂ (có thể không liền kề nhau), tránh gồm nhầm khoảng trống giữa các Quý đã chọn.
+  function dateFallsInQuarterSet(dateStr, quarterSet){
+    if(!dateStr) return false;
+    return quarterSet.some(({qk,year})=>{
+      const r = resolveQuarterDatesForYear(qk, year);
+      return r.from && r.to && dateStr>=r.from && dateStr<=r.to;
+    });
+  }
+  function computeAcctTotals(from, to, explicitQuarterSet){
     // "Thu" giờ dùng ĐÚNG công thức tính theo tỷ lệ % phân bổ riêng của từng khoản vay (khớp hoàn toàn
     // với "Thống kê phân bổ tiền lãi các cấp" ở Sổ vay vốn) — thay thế hẳn công thức retainPercent
     // chung chung cũ (2 nơi từng cho ra số liệu lệch nhau, nay đã đồng bộ tuyệt đối).
-    const quarterSet = quarterSetFromDateRange(from, to);
+    const quarterSet = explicitQuarterSet || quarterSetFromDateRange(from, to);
     const stats = computeInterestIncomeStats(null, quarterSet);
     const thu = stats.central + stats.province + stats.ward; // tổng lãi ĐÃ đóng trong kỳ, cả 3 cấp cộng lại — chỉ để xem tổng quan
     const xaNhan = Math.round(stats.ward); // đây mới là "Thu" THẬT SỰ được quản lý trong module này
     const giuLaiAp = Math.round(thu - xaNhan); // phần thuộc về Trung ương + Tỉnh (không phải của Xã/phường)
-    const activeExpenses = state.expenses.filter(e=>!e.deleted && e.date && e.date>=from && e.date<=to);
+    const activeExpenses = state.expenses.filter(e=> !e.deleted && e.date && (explicitQuarterSet? dateFallsInQuarterSet(e.date, explicitQuarterSet) : (e.date>=from && e.date<=to)));
     const chiTotal = activeExpenses.reduce((s,e)=> s + (parseFloat(e.amount)||0), 0);
     const chiByCategory = {};
     const chiByHamlet = {};
@@ -11287,7 +11323,7 @@ ${fileGenerationTrainingText()}`;
         </div>
         <div class="main ${state.sidebarCollapsed?'sidebar-collapsed':''}">
           <div class="topbar">
-            <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : nav.find(n=>n.id===state.activeTab).label}</h2>${state.activeTab==='data'? '' : `<div class="sub">${wardTitle()||`Chưa chọn mã xã · chỉ dùng được Thu–Chi nội bộ`} ${wardId()?`· ${state.borrowers.filter(b=>!b.deleted && !b.settled).length} hộ vay đang theo dõi`:''}</div>`}</div>
+            <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : nav.find(n=>n.id===state.activeTab).label}</h2>${(state.activeTab==='data' || state.activeTab==='expenses')? '' : `<div class="sub">${wardTitle()||`Chưa chọn mã xã · chỉ dùng được Thu–Chi nội bộ`} ${wardId()?`· ${state.borrowers.filter(b=>!b.deleted && !b.settled).length} hộ vay đang theo dõi`:''}</div>`}</div>
             <div class="top-actions">
               <button class="bell-btn" id="bell-btn">🔔${alerts.length?`<span class="bell-dot"></span>`:''}</button>
               <div class="avatar" ${state.identity.photo?`style="background-image:url('${state.identity.photo}'); background-size:cover; background-position:center;"`:''}>${state.identity.photo?'':(state.identity.name||'?')[0].toUpperCase()}</div>
@@ -21671,33 +21707,199 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     );
   }
 
+  // =====================================================================
+  // Bộ lọc Quý (Q1-Q4)/Năm riêng cho "Chọn Quý cụ thể" ở Sổ Thu Chi Lãi Quỹ — mô phỏng CHÍNH XÁC cùng
+  // cơ chế với bộ lọc Quý/Năm ở panel "Danh sách khoản vay đang hoạt động": mặc định 1 Quý/1 Năm hiện
+  // tại, chỉ được chọn thêm các Quý/Năm LIỀN KỀ nhau, bỏ chọn ở giữa dãy thì cắt bỏ luôn phần sau đó,
+  // bấm 1 Quý/Năm không liền kề thì reset lại chỉ còn đúng 1 mục vừa bấm.
+  // =====================================================================
+  const EXP_ACCT_QUARTER_SEQ = ['q1','q2','q3','q4'];
+  function expAcctQuarterSeqIndex(key){ return EXP_ACCT_QUARTER_SEQ.indexOf(key); }
+  function ensureExpAcctFiltersInit(){
+    if(!state.expAcctFilterQuarters){ state.expAcctFilterQuarters = [todayBasedQuarterKey()]; state.expAcctFilterQuartersAdvanced = false; }
+    if(!state.expAcctFilterYears){ state.expAcctFilterYears = [new Date().getFullYear()]; state.expAcctFilterYearsAdvanced = false; }
+  }
+  function toggleExpAcctQuarterFilter(key, checked){
+    ensureExpAcctFiltersInit();
+    const sel = state.expAcctFilterQuarters;
+    if(!state.expAcctFilterQuartersAdvanced && sel.length===1){
+      if(checked){
+        if(key===sel[0]) return false;
+        state.expAcctFilterQuarters = [key];
+        state.expAcctFilterQuartersAdvanced = true;
+        return true;
+      }
+      return false; // không cho bỏ chọn mốc mặc định duy nhất
+    }
+    if(checked){
+      if(sel.includes(key)) return false;
+      const newSel = sel.concat([key]);
+      if(!isContiguousIdxList(newSel.map(expAcctQuarterSeqIndex))){
+        state.expAcctFilterQuarters = [key];
+        state.expAcctFilterQuartersAdvanced = true;
+        return true;
+      }
+      state.expAcctFilterQuarters = newSel.sort((a,b)=>expAcctQuarterSeqIndex(a)-expAcctQuarterSeqIndex(b));
+      return true;
+    } else {
+      if(sel.length<=1) return false;
+      const keyIdx = expAcctQuarterSeqIndex(key);
+      const idxs = sel.map(expAcctQuarterSeqIndex);
+      const minIdx = Math.min(...idxs), maxIdx = Math.max(...idxs);
+      let newSel;
+      if(keyIdx===minIdx || keyIdx===maxIdx) newSel = sel.filter(k=>k!==key);
+      else newSel = sel.filter(k=> expAcctQuarterSeqIndex(k) < keyIdx);
+      if(!newSel.length){
+        state.expAcctFilterQuarters = [todayBasedQuarterKey()];
+        state.expAcctFilterQuartersAdvanced = false;
+        return true;
+      }
+      state.expAcctFilterQuarters = newSel;
+      return true;
+    }
+  }
+  const EXP_ACCT_YEAR_MAX_SPAN = 25;
+  function toggleExpAcctYearFilter(year, checked){
+    ensureExpAcctFiltersInit();
+    const sel = state.expAcctFilterYears;
+    if(!state.expAcctFilterYearsAdvanced && sel.length===1){
+      if(checked){
+        if(year===sel[0]) return false;
+        state.expAcctFilterYears = [year];
+        state.expAcctFilterYearsAdvanced = true;
+        return true;
+      }
+      return false;
+    }
+    if(checked){
+      if(sel.includes(year)) return false;
+      const newSel = sel.concat([year]).sort((a,b)=>a-b);
+      const contiguousOk = newSel[newSel.length-1]-newSel[0]+1 === newSel.length;
+      const withinMax = newSel.length <= EXP_ACCT_YEAR_MAX_SPAN;
+      if(!contiguousOk || !withinMax){
+        state.expAcctFilterYears = [year];
+        state.expAcctFilterYearsAdvanced = true;
+        return true;
+      }
+      state.expAcctFilterYears = newSel;
+      return true;
+    } else {
+      if(sel.length<=1) return false;
+      const minY = Math.min(...sel), maxY = Math.max(...sel);
+      let newSel;
+      if(year===minY || year===maxY) newSel = sel.filter(y=>y!==year);
+      else newSel = sel.filter(y=> y < year);
+      if(!newSel.length){
+        state.expAcctFilterYears = [new Date().getFullYear()];
+        state.expAcctFilterYearsAdvanced = false;
+        return true;
+      }
+      state.expAcctFilterYears = newSel;
+      return true;
+    }
+  }
+  function expAcctQuarterFilterLabel(){
+    ensureExpAcctFiltersInit();
+    const sel = state.expAcctFilterQuarters;
+    if(sel.length===1) return {q1:'Quý 1',q2:'Quý 2',q3:'Quý 3',q4:'Quý 4'}[sel[0]];
+    return `${sel.length}-quý`;
+  }
+  function expAcctYearFilterLabel(){
+    ensureExpAcctFiltersInit();
+    const sel = state.expAcctFilterYears;
+    if(sel.length===1) return `Năm ${sel[0]}`;
+    return `${sel.length}-năm`;
+  }
+  function expAcctFilterIsDefault(){
+    ensureExpAcctFiltersInit();
+    return state.expAcctFilterQuarters.length===1 && state.expAcctFilterQuarters[0]===todayBasedQuarterKey()
+      && state.expAcctFilterYears.length===1 && state.expAcctFilterYears[0]===new Date().getFullYear();
+  }
   function acctPeriodSelectorHtml(prefix){
-    const q = state.config.quarters;
+    const cy = new Date().getFullYear();
+    const isQuarterMode = state.acctMode==='quarter';
+    if(isQuarterMode) ensureExpAcctFiltersInit();
+    const qSel = state.expAcctFilterQuarters||[];
+    const ySel = state.expAcctFilterYears||[];
+    const qOpen = state.openFilterDropdown==='expAcctQuarter';
+    const yOpen = state.openFilterDropdown==='expAcctYear';
     return `
       <select id="${prefix}-mode" class="preview-allow">
-        <option value="year" ${state.acctMode==='year'?'selected':''}>Cả năm (Quý 1 → Quý 4)</option>
-        <option value="quarter" ${state.acctMode==='quarter'?'selected':''}>Theo Quý</option>
+        <option value="ycur" ${state.acctMode==='ycur'||state.acctMode==='year'?'selected':''}>Cả năm ${cy} (Quý 1 → Quý 4)</option>
+        <option value="yprev" ${state.acctMode==='yprev'?'selected':''}>Cả năm ${cy-1} (Quý 1 → Quý 4)</option>
+        <option value="quarter" ${isQuarterMode?'selected':''}>Chọn Quý cụ thể</option>
         <option value="all" ${state.acctMode==='all'?'selected':''}>Toàn bộ từ trước đến nay</option>
       </select>
-      ${state.acctMode==='quarter' ? `
-        <select id="${prefix}-quarter" class="preview-allow">
-          ${['q1','q2','q3','q4'].map(k=>{ const r = resolveQuarterDates(k); return `<option value="${k}" ${state.acctQuarter===k?'selected':''}>${q[k].label} (${fmtDate(r.from)} → ${fmtDate(r.to)})</option>`; }).join('')}
-        </select>` : ''}
+      ${isQuarterMode ? `
+        <div class="sv-filter-dropdown">
+          <button type="button" class="btn btn-ghost btn-sm preview-allow" id="${prefix}-quarter-filter-btn" style="${qSel.length!==1||qSel[0]!==todayBasedQuarterKey()?'border:2px solid #b71c1c;':''}">${escapeHtml(expAcctQuarterFilterLabel())} ▾</button>
+          ${qOpen? `<div class="sv-filter-panel" id="${prefix}-quarter-filter-panel">
+            ${EXP_ACCT_QUARTER_SEQ.map(k=>{ const checked=qSel.includes(k); return `<label class="sv-filter-item" ${checked?'data-selected-quarter="1"':''}><input type="checkbox" class="${prefix}-quarter-item preview-allow" data-key="${k}" ${checked?'checked':''}><span>${({q1:'Quý 1',q2:'Quý 2',q3:'Quý 3',q4:'Quý 4'})[k]}</span></label>`; }).join('')}
+          </div>` : ''}
+        </div>
+        <div class="sv-filter-dropdown">
+          <button type="button" class="btn btn-ghost btn-sm preview-allow" id="${prefix}-year-filter-btn" style="${ySel.length!==1||ySel[0]!==cy?'border:2px solid #b71c1c;':''}">${escapeHtml(expAcctYearFilterLabel())} ▾</button>
+          ${yOpen? `<div class="sv-filter-panel" id="${prefix}-year-filter-panel">
+            ${(()=>{ let out=''; for(let y=cy-25;y<=cy+5;y++){ const checked=ySel.includes(y); out+=`<label class="sv-filter-item" ${checked?'data-selected-year="1"':''}><input type="checkbox" class="${prefix}-year-item preview-allow" data-year="${y}" ${checked?'checked':''}><span>${y}</span></label>`; } return out; })()}
+          </div>` : ''}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm preview-allow ${!expAcctFilterIsDefault()?'reset-filter-active':''}" id="${prefix}-acct-reset-btn" title="Đưa bộ lọc Quý/Năm về đúng mặc định ban đầu (Quý hiện tại/Năm hiện tại)">↺ Khôi phục bộ lọc gốc</button>
+      ` : ''}
     `;
   }
   function bindAcctPeriodSelector(prefix, onChange){
-    document.getElementById(`${prefix}-mode`).onchange = e=>{ state.acctMode = e.target.value; onChange(); };
-    const qsel = document.getElementById(`${prefix}-quarter`);
-    if(qsel) qsel.onchange = e=>{ state.acctQuarter = e.target.value; onChange(); };
+    document.getElementById(`${prefix}-mode`).onchange = e=>{
+      state.acctMode = e.target.value;
+      // Vào chế độ "Chọn Quý cụ thể" -> mặc định LUÔN là Quý hiện tại + Năm hiện tại (đúng yêu cầu).
+      if(e.target.value==='quarter'){ state.expAcctFilterQuarters = [todayBasedQuarterKey()]; state.expAcctFilterQuartersAdvanced = false; state.expAcctFilterYears = [new Date().getFullYear()]; state.expAcctFilterYearsAdvanced = false; }
+      onChange();
+    };
+    const qBtn = document.getElementById(`${prefix}-quarter-filter-btn`);
+    if(qBtn) qBtn.onclick = (e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='expAcctQuarter'?null:'expAcctQuarter'; onChange(); };
+    const yBtn = document.getElementById(`${prefix}-year-filter-btn`);
+    if(yBtn) yBtn.onclick = (e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='expAcctYear'?null:'expAcctYear'; onChange(); };
+    document.querySelectorAll(`.${prefix}-quarter-item`).forEach(cb=> cb.onclick = (e)=>{
+      e.stopPropagation();
+      toggleExpAcctQuarterFilter(cb.dataset.key, cb.checked);
+      onChange();
+    });
+    document.querySelectorAll(`.${prefix}-year-item`).forEach(cb=> cb.onclick = (e)=>{
+      e.stopPropagation();
+      toggleExpAcctYearFilter(parseInt(cb.dataset.year,10), cb.checked);
+      onChange();
+    });
+    const resetBtn = document.getElementById(`${prefix}-acct-reset-btn`);
+    if(resetBtn) resetBtn.onclick = (e)=>{
+      e.stopPropagation();
+      state.expAcctFilterQuarters = [todayBasedQuarterKey()]; state.expAcctFilterQuartersAdvanced = false;
+      state.expAcctFilterYears = [new Date().getFullYear()]; state.expAcctFilterYearsAdvanced = false;
+      state.openFilterDropdown = null;
+      onChange();
+    };
+    // Mở dropdown Năm/Quý -> tự cuộn tới mục đang chọn cho đỡ phải kéo tay (y hệt panel mẫu)
+    const yPanel = document.getElementById(`${prefix}-year-filter-panel`);
+    if(yPanel){ const sel = yPanel.querySelector('[data-selected-year]'); if(sel) sel.scrollIntoView({ block:'center' }); }
+    const qPanel = document.getElementById(`${prefix}-quarter-filter-panel`);
+    if(qPanel){ const sel = qPanel.querySelector('[data-selected-quarter]'); if(sel) sel.scrollIntoView({ block:'center' }); }
+    // Bấm ra ngoài thì tự đóng dropdown Quý/Năm đang mở (gắn 1 lần duy nhất, dùng chung mọi nơi có bộ chọn kỳ hạch toán)
+    if(!state._acctFilterOutsideClickBound){
+      state._acctFilterOutsideClickBound = true;
+      document.addEventListener('click', (e)=>{
+        if(!state.openFilterDropdown || (state.openFilterDropdown!=='expAcctQuarter' && state.openFilterDropdown!=='expAcctYear')) return;
+        if(e.target.closest('.sv-filter-dropdown')) return;
+        state.openFilterDropdown = null;
+        onChange();
+      });
+    }
   }
 
   function emptyExpense(){
-    return { id: uid(), date: todayStr(), purpose: CAT_MEETING, purposeOther:'', hamlet:(state.config.hamlets||[])[0]||'', amount:0, note:'', quarters:[], amountMode:'manual' };
+    return { id: uid(), date: todayStr(), purpose: CAT_MEETING, purposeOther:'', hamlet:(state.config.hamlets||[])[0]||'', amount:0, note:'', quarters:[], amountMode:'manual', attachments:[] };
   }
 
   function renderExpensesTab(el){
-    const {from,to} = acctPeriodRange();
-    const acct = computeAcctTotals(from,to);
+    const {from,to,quarterSet} = acctPeriodRange();
+    const acct = computeAcctTotals(from,to,quarterSet);
     let list = state.expenses.filter(e=>!e.deleted);
     if(state.expSearch) list = list.filter(e => (e.note+e.purposeOther+e.hamlet).toLowerCase().includes(state.expSearch.toLowerCase()));
     if(state.expFilterCat) list = list.filter(e=>e.purpose===state.expFilterCat);
@@ -21837,6 +22039,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     let selHamlets = isNew ? [] : [e0.hamlet].filter(Boolean);
     let selQuarters = Array.isArray(e0.quarters) ? e0.quarters.slice() : [];
     let amountMode = e0.amountMode==='auto' ? 'auto' : 'manual';
+    let currentPurpose = e0.purpose; // giá trị purpose ĐANG được chọn thật sự (khác e0.purpose cố định từ lúc mở modal) — cập nhật mỗi khi người dùng đổi lựa chọn ở dropdown "Nội dung công việc/Mục đích chi"
+    let attachments = Array.isArray(e0.attachments) ? e0.attachments.slice() : []; // {name, storagePath, storageUrl, mimeType, size} — ảnh/tệp tin đính kèm, áp dụng chung cho MỌI hạng mục chi
+    let attachUploading = false;
+    const MAX_ATTACH = 20;
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     function hamletChecksHtml(){
@@ -21859,21 +22065,37 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       if(selHamlets.length<=1) return ''; // 1 địa bàn (hoặc 0) thì dùng thẳng ô "Số tiền chi" chung, không cần bảng riêng
       return `<div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;">
         <p class="sub" style="margin:0 0 6px;">Nhập riêng số tiền cho từng ${subAdminLabelLower()} (không tự chia đều, tránh sai lệch):</p>
-        ${selHamlets.map(h=>`<div class="field" style="margin-bottom:6px;"><label>${escapeHtml(h)}</label><input type="number" class="em-hamlet-manual-amt" data-h="${escapeHtml(h)}" value="0" ${readonly?'disabled':''}></div>`).join('')}
+        ${selHamlets.map((h,hi)=>`<div class="field" style="margin-bottom:6px;"><label>${escapeHtml(h)} <span class="sub" id="em-hamlet-manual-disp-${hi}" style="font-weight:700; color:#b71c1c;"></span></label><input type="text" inputmode="numeric" class="em-hamlet-manual-amt" data-h="${escapeHtml(h)}" data-idx="${hi}" value="" placeholder="Chỉ nhập số" ${readonly?'disabled':''}></div>`).join('')}
       </div>`;
+    }
+    function attachmentSectionHtml(){
+      const chips = attachments.map((a,i)=> a.storageUrl
+        ? `<a href="${a.storageUrl}" target="_blank" rel="noopener" class="ai-attach-chip" style="text-decoration:none;">📎 ${escapeHtml(a.name)}${!readonly? ` <button type="button" class="preview-allow" data-em-attach-remove="${i}" style="background:none; border:none; cursor:pointer; color:var(--red); font-weight:800;" onclick="event.stopPropagation();">✕</button>` : ''}</a>`
+        : `<span class="ai-attach-chip">⏳ ${escapeHtml(a.name)} (đang tải lên...)</span>`
+      ).join('');
+      return `
+        <div class="field full">
+          <label>Ảnh/Tệp tin đính kèm <span class="sub">(tối đa ${MAX_ATTACH} tệp — bấm vào tên tệp để xem/tải về)</span></label>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;">${chips}</div>
+          ${!readonly? `
+            <input type="file" id="em-attach-input" multiple accept="*/*" style="display:none;">
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="em-attach-add-btn" ${attachments.length>=MAX_ATTACH?'disabled':''}>➕ Thêm ảnh/tệp tin</button>
+            ${attachments.length>=MAX_ATTACH? `<span class="sub" style="color:var(--red); margin-left:8px;">Đã đạt tối đa ${MAX_ATTACH} tệp.</span>` : ''}
+          ` : ''}
+        </div>`;
     }
     function renderHamletSection(){
       return `
-        <div class="field full" id="em-hamlet-wrap" style="${e0.purpose===CAT_HAMLET?'':'display:none;'}">
+        <div class="field full" id="em-hamlet-wrap" style="${currentPurpose===CAT_HAMLET?'':'display:none;'}">
           <label>Trích về cho ${subAdminLabelLower()} nào * ${isNew? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="em-hamlet-all-btn" style="margin-left:8px;">Chọn tất cả</button>` : ''}</label>
           <div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px; max-height:180px; overflow:auto;">${hamletChecksHtml()}</div>
           ${!isNew? `<p class="sub" style="margin:4px 0 0;">Đang sửa 1 khoản chi đã có sẵn — chỉ áp dụng cho đúng 1 ${subAdminLabelLower()} này. Muốn chi cho nhiều ${subAdminLabelLower()} khác, hãy tạo khoản chi mới.</p>` : ''}
         </div>
-        <div class="field full" id="em-quarter-wrap" style="${e0.purpose===CAT_HAMLET?'':'display:none;'}">
+        <div class="field full" id="em-quarter-wrap" style="${currentPurpose===CAT_HAMLET?'':'display:none;'}">
           <label>Áp dụng cho Quý nào * (có thể chọn nhiều Quý cùng lúc)</label>
           <div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px; display:flex; flex-wrap:wrap; gap:4px 16px;">${quarterChecksHtml()}</div>
         </div>
-        <div class="field full" id="em-amountmode-wrap" style="${e0.purpose===CAT_HAMLET?'':'display:none;'}">
+        <div class="field full" id="em-amountmode-wrap" style="${currentPurpose===CAT_HAMLET?'':'display:none;'}">
           <label>Cách tính số tiền *</label>
           <div style="display:flex; gap:16px; margin-bottom:8px;">
             <label><input type="radio" name="em-amountmode" value="auto" ${amountMode==='auto'?'checked':''} ${readonly?'disabled':''}> Dùng đúng số tự động theo công thức (khớp Sổ vay vốn)</label>
@@ -21889,7 +22111,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         <div class="modal-body">
           <div class="form-grid">
             <div class="field"><label>Ngày chi *</label><input type="date" id="em-date" value="${e0.date}" ${readonly?'disabled':''}></div>
-            <div class="field" id="em-amount-wrap" style="${e0.purpose===CAT_HAMLET?'display:none;':''}"><label>Số tiền chi (đ) *</label><input type="number" id="em-amount" value="${e0.amount}" ${readonly?'disabled':''}></div>
+            <div class="field" id="em-amount-wrap" style="${e0.purpose===CAT_HAMLET?'display:none;':''}"><label>Số tiền chi (đ) * <span class="sub">(tối đa 12 số)</span> <span class="sub" id="em-amount-disp" style="font-weight:700; color:#b71c1c;"></span></label><input type="text" inputmode="numeric" id="em-amount" value="${e0.amount||''}" placeholder="Chỉ nhập số, vd: 5000000" ${readonly?'disabled':''}></div>
             <div class="field full"><label>Nội dung công việc / Mục đích chi *</label>
               <select id="em-purpose" ${readonly?'disabled':''}>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${e0.purpose===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
             </div>
@@ -21899,6 +22121,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
               <input id="em-other" value="${e0.purposeOther||''}" placeholder="Ví dụ: Sửa chữa trụ sở..." ${readonly?'disabled':''}>
             </div>
             <div class="field full"><label>Ghi chú chi tiết (người nhận tiền, số hoá đơn/biên nhận...)</label><textarea id="em-note" rows="2" ${readonly?'disabled':''}>${e0.note||''}</textarea></div>
+            <div id="em-attach-section">${attachmentSectionHtml()}</div>
           </div>
         </div>
         <div class="modal-foot">
@@ -21917,6 +22140,67 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       wrap.querySelector('#em-hamlet-section').innerHTML = renderHamletSection();
       wireHamletSection();
     }
+    function wireManualTable(){
+      wrap.querySelectorAll('.em-hamlet-manual-amt').forEach(inp=>{
+        attachMoneyInputMask(inp, 12);
+        const idx = inp.dataset.idx;
+        const dispEl = wrap.querySelector(`#em-hamlet-manual-disp-${idx}`);
+        const update = ()=>{ const digits = inp.value.replace(/[^\d]/g,''); if(dispEl) dispEl.textContent = digits? `= ${groupDigitsRight(digits,3)} đ` : ''; };
+        inp.addEventListener('input', update);
+        update();
+      });
+    }
+    function refreshAttachSection(){
+      wrap.querySelector('#em-attach-section').innerHTML = attachmentSectionHtml();
+      wireAttachSection();
+    }
+    function wireAttachSection(){
+      const addBtn = wrap.querySelector('#em-attach-add-btn');
+      const fileInput = wrap.querySelector('#em-attach-input');
+      if(addBtn && fileInput) addBtn.onclick = ()=> fileInput.click();
+      if(fileInput) fileInput.onchange = async ()=>{
+        const files = Array.from(fileInput.files||[]);
+        fileInput.value = '';
+        if(!files.length) return;
+        const room = MAX_ATTACH - attachments.length;
+        if(room<=0){ alert(`Đã đạt tối đa ${MAX_ATTACH} tệp đính kèm.`); return; }
+        const toUpload = files.slice(0, room);
+        if(files.length>room) alert(`Chỉ còn chỗ cho ${room} tệp nữa (giới hạn ${MAX_ATTACH} tệp) — ${files.length-room} tệp cuối đã bị bỏ qua.`);
+        // Hiện NGAY các chip "đang tải lên..." (chưa có storageUrl) để người dùng thấy phản hồi tức thì,
+        // rồi tải LẦN LƯỢT từng tệp lên Storage chung của xã/phường — xong tệp nào thì cập nhật chip đó
+        // ngay, không cần chờ tất cả xong mới hiện.
+        const placeholders = toUpload.map(f=> ({ name:f.name, storagePath:'', storageUrl:'', mimeType:f.type||'', size:f.size }));
+        attachments = attachments.concat(placeholders);
+        refreshAttachSection();
+        for(let i=0;i<toUpload.length;i++){
+          const f = toUpload[i];
+          const placeholderIdx = attachments.length - toUpload.length + i;
+          try{
+            const fid = uid();
+            const storagePath = `expense_attachments/${wardId()}/${e0.id}/${fid}_${f.name}`;
+            const stRef = storage.ref(storagePath);
+            await stRef.put(f);
+            const storageUrl = await stRef.getDownloadURL();
+            attachments[placeholderIdx] = { name:f.name, storagePath, storageUrl, mimeType:f.type||'', size:f.size };
+          }catch(err){
+            console.error('Tải tệp đính kèm lỗi:', err);
+            alert(`Tải tệp "${f.name}" lên thất bại: ${err&&err.message||err}`);
+            attachments.splice(placeholderIdx, 1);
+          }
+          refreshAttachSection();
+        }
+      };
+      wrap.querySelectorAll('[data-em-attach-remove]').forEach(btn=> btn.onclick = async (ev)=>{
+        ev.preventDefault(); ev.stopPropagation();
+        const idx = parseInt(btn.dataset.emAttachRemove,10);
+        const a = attachments[idx];
+        if(!confirm(`Xoá tệp đính kèm "${a.name}"?`)) return;
+        if(a.storagePath){ try{ await storage.ref(a.storagePath).delete(); }catch(e){ console.warn('Xoá tệp trên Storage lỗi (bỏ qua):', e); } }
+        attachments = attachments.filter((x,i)=>i!==idx);
+        refreshAttachSection();
+      });
+    }
+    wireAttachSection();
     function wireHamletSection(){
       const allBtn = wrap.querySelector('#em-hamlet-all-btn');
       if(allBtn) allBtn.onclick = ()=>{ selHamlets = hamlets.slice(); refreshHamletSection(); };
@@ -21934,12 +22218,30 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         amountMode = r.value;
         wrap.querySelector('#em-auto-preview').innerHTML = amountMode==='auto'? autoPreviewHtml() : '';
         wrap.querySelector('#em-manual-table').innerHTML = amountMode==='manual'? manualTableHtml() : '';
+        if(amountMode==='manual') wireManualTable();
       });
+      wireManualTable();
     }
     wireHamletSection();
 
+    // "Số tiền chi (đ)" — y hệt trường "Tổng vốn" ở Sổ vay vốn: nhãn "= X đ" màu đỏ đậm đồng bộ thời
+    // gian thực ngay bên cạnh nhãn trường, ô nhập chỉ nhận chữ số, tối đa 12 số, tự tách cụm 3 số khi
+    // rời khỏi ô (blur), trả về dạng thô khi bấm vào lại (focus) để dễ sửa.
+    (function(){
+      const amtInput = wrap.querySelector('#em-amount');
+      const amtDisp = wrap.querySelector('#em-amount-disp');
+      attachMoneyInputMask(amtInput, 12);
+      const updateAmtDisp = ()=>{
+        const digits = amtInput.value.replace(/[^\d]/g,'');
+        if(amtDisp) amtDisp.textContent = digits ? `= ${groupDigitsRight(digits,3)} đ` : '';
+      };
+      amtInput.addEventListener('input', updateAmtDisp);
+      updateAmtDisp();
+    })();
+
     const purposeSel = wrap.querySelector('#em-purpose');
     purposeSel.onchange = ()=>{
+      currentPurpose = purposeSel.value; // đồng bộ giá trị ĐANG chọn thật sự — để renderHamletSection() sau này (khi tích chọn ấp/quý) đọc đúng, không bị "tự đóng lại" do đọc nhầm giá trị cũ e0.purpose
       const isHam = isCatHamlet(purposeSel.value);
       wrap.querySelector('#em-hamlet-wrap').style.display = isHam ? '' : 'none';
       wrap.querySelector('#em-quarter-wrap').style.display = isHam ? '' : 'none';
@@ -21983,38 +22285,43 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           let ok = true;
           selHamlets.forEach(h=>{
             const inp = wrap.querySelector(`.em-hamlet-manual-amt[data-h="${CSS.escape(h)}"]`);
-            const v = inp? parseFloat(inp.value)||0 : parseFloat(wrap.querySelector('#em-amount')?.value)||0;
+            const v = inp? parseVNMoney(inp.value) : parseVNMoney(wrap.querySelector('#em-amount')?.value);
             if(v<=0) ok = false;
             perHamletAmount[h] = v;
           });
           if(!ok){ alert('Vui lòng nhập số tiền hợp lệ (lớn hơn 0) cho tất cả các địa bàn đã chọn.'); return; }
         }
+        if(attachments.some(a=>!a.storageUrl)){ alert('Có ảnh hoặc tệp tin đang tải lên, vui lòng đợi quá trình tải lên hoàn tất, hoặc xoá ảnh/tệp tin đang tải lên đó, rồi mới bấm Lưu.'); return; }
         if(isNew){
           for(const h of selHamlets){
-            const rec = { id: uid(), date, purpose: CAT_HAMLET, purposeOther:'', hamlet:h, quarters: selQuarters.slice(), amountMode, amount: perHamletAmount[h], note };
+            const rec = { id: uid(), date, purpose: CAT_HAMLET, purposeOther:'', hamlet:h, quarters: selQuarters.slice(), amountMode, amount: perHamletAmount[h], note, attachments };
             state.expenses.push(rec);
             await cSetRecord('expenses', rec.id, rec);
           }
           await pushLog('thêm khoản chi', `Trích về ${subAdminLabelLower()} — ${selHamlets.length} địa bàn`);
+          showBigToast('✅ Đã thêm khoản chi mới thành công!');
         } else {
           const h = selHamlets[0];
-          const updated = { ...e0, date, purpose: CAT_HAMLET, purposeOther:'', hamlet:h, quarters: selQuarters.slice(), amountMode, amount: perHamletAmount[h], note };
+          const updated = { ...e0, date, purpose: CAT_HAMLET, purposeOther:'', hamlet:h, quarters: selQuarters.slice(), amountMode, amount: perHamletAmount[h], note, attachments };
           state.expenses = state.expenses.map(x=>x.id===updated.id? updated : x);
           await cSetRecord('expenses', updated.id, updated);
           await pushLog('chỉnh sửa khoản chi', `${money(updated.amount)} — Trích về ${h}`);
+          showBigToast('✅ Đã lưu thay đổi thành công!');
         }
         close(); render();
         return;
       }
 
       // ---- Các hạng mục chi khác — giữ nguyên logic cũ ----
-      const amount = parseFloat(wrap.querySelector('#em-amount').value)||0;
+      const amount = parseVNMoney(wrap.querySelector('#em-amount').value);
       if(!amount || amount<=0){ alert('Vui lòng nhập số tiền chi hợp lệ.'); return; }
-      const updated = { ...e0, date, amount, purpose, hamlet:'', quarters:[], amountMode:'manual', purposeOther: purpose===CAT_OTHER?purposeOther:'', note };
+      if(attachments.some(a=>!a.storageUrl)){ alert('Có ảnh hoặc tệp tin đang tải lên, vui lòng đợi quá trình tải lên hoàn tất, hoặc xoá ảnh/tệp tin đang tải lên đó, rồi mới bấm Lưu.'); return; }
+      const updated = { ...e0, date, amount, purpose, hamlet:'', quarters:[], amountMode:'manual', purposeOther: purpose===CAT_OTHER?purposeOther:'', note, attachments };
       if(isNew){ state.expenses.push(updated); }
       else { state.expenses = state.expenses.map(x=>x.id===updated.id? updated : x); }
       await cSetRecord('expenses', updated.id, updated);
       await pushLog(isNew?'thêm khoản chi':'chỉnh sửa khoản chi', `${money(updated.amount)} — ${categoryLabel(updated.purpose)}`);
+      showBigToast(isNew? '✅ Đã thêm khoản chi mới thành công!' : '✅ Đã lưu thay đổi thành công!');
       close(); render();
     };
   }
@@ -22253,8 +22560,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
   }
 
   function renderAcctReportPanel(){
-    const {from,to} = acctPeriodRange();
-    const acct = computeAcctTotals(from,to);
+    const {from,to,quarterSet} = acctPeriodRange();
+    const acct = computeAcctTotals(from,to,quarterSet);
     const retain = state.config.retainPercent||0;
     const catOrder = [CAT_MEETING, CAT_SUPPLIES, CAT_TRAINING, CAT_BONUS];
     const otherEntries = Object.entries(acct.chiByCategory).filter(([k])=>k.startsWith(CAT_OTHER+':'));
