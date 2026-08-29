@@ -1175,6 +1175,22 @@
   function escapeHtml(s){
     return String(s==null? '' : s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+  // Tự động ngắt 1 đoạn văn bản dài thành nhiều dòng — CHỈ ngắt tại dấu cách (không cắt giữa từ), mỗi
+  // dòng tối đa maxLen ký tự — dùng cho các cột bảng cần hiển thị văn bản dài (VD Ghi chú) mà không bị
+  // tràn ngang, tự xuống dòng gọn gàng bên trong ô. Trả về HTML đã escape sẵn, nối bằng "<br>".
+  function wrapTextAtSpacesHtml(text, maxLen){
+    if(!text) return '';
+    const words = String(text).split(' ');
+    const lines = [];
+    let cur = '';
+    words.forEach(w=>{
+      if(!cur){ cur = w; return; }
+      if((cur+' '+w).length <= maxLen){ cur += ' '+w; }
+      else { lines.push(cur); cur = w; }
+    });
+    if(cur) lines.push(cur);
+    return lines.map(escapeHtml).join('<br>');
+  }
   // Nhãn cột có thể chứa "<br>" (xuống dòng cho gọn) — 2 hàm dưới đây xử lý đúng cho 2 ngữ cảnh khác
   // nhau: hiển thị thật trên HTML (giữ nguyên <br> thành xuống dòng) và xuất Excel/in ấn dạng chữ
   // thô (đổi <br> thành khoảng trắng, KHÔNG được để lọt chữ "<br>" thô vào ô Excel).
@@ -2126,20 +2142,21 @@
           { label:'Quý áp dụng', get:e=> (Array.isArray(e.quarters) && e.quarters.length)? e.quarters.map(q=>`${q.qk.toUpperCase()}/${q.year}`).join(', ') : '—' },
           { label:'Cách tính', get:e=> isCatHamlet(e.purpose)? (e.amountMode==='auto'?'Tự động theo công thức':'Nhập cụ thể') : '—' },
           { align:'right', label:'Số tiền (đ)', get:e=> moneySpaced(e.amount) },
-          { label:'Ghi chú', get:e=> escapeHtml(e.note||'—') },
+          { label:'Ghi chú', get:e=> e.note? wrapTextAtSpacesHtml(e.note,28) : '—' },
         ];
         renderColumnHeaderExcelModal('💰 Danh sách khoản chi', [{ title:'Danh sách khoản chi', list, cols }], cols);
       } else if(scope==='expcompare'){
-        const {from,to,quarterSet} = acctPeriodRange();
-        const acct = computeAcctTotals(from,to,quarterSet);
-        const allHamletNames = Array.from(new Set([...Object.keys(acct.hamletByName||{}), ...Object.keys(acct.chiByHamlet||{})])).sort((a,b)=>a.localeCompare(b,'vi'));
+        const rows = computeHamletQuarterReconciliation();
         const cols = [
-          { key:'hamlet', label:'Địa bàn', userInput:true, get:r=> escapeHtml(r.h) },
-          { align:'right', label:'Đã chi thực tế (đ)', get:r=> moneySpaced(Math.round((acct.chiByHamlet||{})[r.h]||0)) },
-          { align:'right', label:'Số tự động (Sổ vay vốn) (đ)', get:r=> moneySpaced(Math.round((acct.hamletByName||{})[r.h]||0)) },
-          { align:'right', label:'Chênh lệch (đ)', get:r=>{ const d = Math.round((acct.chiByHamlet||{})[r.h]||0) - Math.round((acct.hamletByName||{})[r.h]||0); return (d>=0?'+':'')+moneySpaced(d); } },
+          { key:'hamlet', label:'Địa bàn', userInput:true, get:r=> escapeHtml(r.hamlet) },
+          { align:'right', label:'Tổng chênh lệch (đ)', get:r=> r.totalDiff===0? 'Khớp' : (r.totalDiff>0? `Dư ${moneySpaced(r.totalDiff)}` : `Thiếu ${moneySpaced(-r.totalDiff)}`) },
+          { label:'Ghi chú (chi tiết từng Quý)', get:r=>{
+            const lines = [...r.deficitLines, ...r.surplusLines];
+            return lines.length? lines.map(escapeHtml).join('<br>') : '—';
+          } },
+          { label:'Quý bị Trùng lặp (Chi nhiều lần)', get:r=> r.dupDetails.length? r.dupDetails.map(d=>`${d.label} (${d.times} lần)`).join(', ') : '—' },
         ];
-        renderColumnHeaderExcelModal(`⚖️ Đối chiếu "Trích về ${subAdminLabelLower()}": Thực tế vs. Tự động`, [{ title:'Đối chiếu theo địa bàn', list: allHamletNames.map(h=>({h})), cols }], cols);
+        renderColumnHeaderExcelModal(`⚖️ Đối chiếu "Trích về ${subAdminLabelLower()}": Thực tế vs. Tự động`, [{ title:'Đối chiếu theo địa bàn (toàn bộ thời gian)', list: rows, cols }], cols);
       }
     });
   }
@@ -8513,6 +8530,70 @@
       return r.from && r.to && dateStr>=r.from && dateStr<=r.to;
     });
   }
+  // =====================================================================
+  // Đối chiếu "Trích về Ấp" — theo TỪNG QUÝ, KHÔNG phụ thuộc bộ lọc kỳ hạch toán nào (luôn tính toàn bộ
+  // thời gian từ trước tới nay) — dùng 1 lượt duyệt duy nhất qua toàn bộ người vay để tính số tự động
+  // (nhanh hơn nhiều so với gọi lặp lại computeInterestIncomeStats cho từng cặp Ấp+Quý riêng lẻ).
+  // =====================================================================
+  function computeHamletQuarterReconciliation(){
+    const hamlets = state.config.hamlets||[];
+    // ---- Số tự động theo công thức (khớp Sổ vay vốn), gộp theo {Ấp: {Quý: số tiền}} ----
+    const autoByHamletQuarter = {};
+    state.borrowers.filter(b=>!b.deleted).forEach(b=>{
+      const rate = parseFloat(b.rate)||0;
+      if(rate<=0) return;
+      const disp = computeInterestPaymentBoxDisplay(b);
+      const hName = b.hamlet || '—';
+      disp.allBoxes.forEach(bx=>{
+        if(!disp.paidKeys.has(bx.key)) return;
+        const w = bx.interestAmount*(parseFloat(b.splitWard)||0)/rate;
+        const h = w*(parseFloat(b.hamletAllocPercent)||0)/100;
+        if(h<=0) return;
+        const qk2 = `${bx.qk}_${bx.year}`;
+        if(!autoByHamletQuarter[hName]) autoByHamletQuarter[hName] = {};
+        autoByHamletQuarter[hName][qk2] = (autoByHamletQuarter[hName][qk2]||0) + h;
+      });
+    });
+    // ---- Số tiền + số lượng bản ghi ĐÃ CHI thực tế, gộp theo {Ấp: {Quý: {amount, count}}} ----
+    const actualByHamletQuarter = {};
+    state.expenses.filter(e=>!e.deleted && isCatHamlet(e.purpose) && Array.isArray(e.quarters)).forEach(e=>{
+      const hName = e.hamlet || '—';
+      e.quarters.forEach(q=>{
+        const qk2 = `${q.qk}_${q.year}`;
+        if(!actualByHamletQuarter[hName]) actualByHamletQuarter[hName] = {};
+        if(!actualByHamletQuarter[hName][qk2]) actualByHamletQuarter[hName][qk2] = { amount:0, count:0 };
+        actualByHamletQuarter[hName][qk2].amount += (parseFloat(e.amount)||0);
+        actualByHamletQuarter[hName][qk2].count += 1;
+      });
+    });
+    // ---- Luôn liệt kê ĐỦ mọi Ấp đã cấu hình + mọi Ấp xuất hiện trong dữ liệu (phòng trường hợp Ấp cũ
+    // đã bị xoá khỏi cấu hình nhưng vẫn còn dữ liệu lịch sử) — không phụ thuộc bộ lọc nào. ----
+    const allHamletNames = Array.from(new Set([...hamlets, ...Object.keys(autoByHamletQuarter), ...Object.keys(actualByHamletQuarter)])).sort((a,b)=>a.localeCompare(b,'vi'));
+    const rows = allHamletNames.map(h=>{
+      const autoMap = autoByHamletQuarter[h]||{};
+      const actualMap = actualByHamletQuarter[h]||{};
+      const allQuarterKeys = Array.from(new Set([...Object.keys(autoMap), ...Object.keys(actualMap)]))
+        .filter(qk2=> timelineSeqIndex(qk2)!=null)
+        .sort((a,b)=> timelineSeqIndex(a)-timelineSeqIndex(b));
+      let totalDiff=0, dupQuarterCount=0, dupTotalOccurrences=0;
+      const deficitLines=[], surplusLines=[], dupDetails=[];
+      allQuarterKeys.forEach(qk2=>{
+        const auto = Math.round(autoMap[qk2]||0);
+        const act = actualMap[qk2] || { amount:0, count:0 };
+        const actual = Math.round(act.amount);
+        const label = TIMELINE_SEQ[timelineSeqIndex(qk2)].label;
+        if(act.count>1){ dupQuarterCount++; dupTotalOccurrences += (act.count-1); dupDetails.push({ label, times: act.count-1 }); }
+        const diff = actual - auto;
+        if(diff===0) return;
+        totalDiff += diff;
+        if(diff<0) deficitLines.push(`${label}: thiếu ${money(-diff)}`);
+        else surplusLines.push(`${label}: dư ${money(diff)}`);
+      });
+      return { hamlet:h, dupQuarterCount, dupTotalOccurrences, totalDiff, deficitLines, surplusLines, dupDetails };
+    });
+    return rows;
+  }
+
   function computeAcctTotals(from, to, explicitQuarterSet){
     // "Thu" giờ dùng ĐÚNG công thức tính theo tỷ lệ % phân bổ riêng của từng khoản vay (khớp hoàn toàn
     // với "Thống kê phân bổ tiền lãi các cấp" ở Sổ vay vốn) — thay thế hẳn công thức retainPercent
@@ -22044,7 +22125,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       <div class="grid3">
         <div class="stat-card" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));">
           <div class="num mono">${money(acct.xaNhan)}</div>
-          <div class="lbl">Tổng lãi trích về cho ${adminLevelLabel()}</div>
+          <div class="lbl">TỔNG THU: Tổng lãi trích về cho ${adminLevelLabel()}</div>
           <div class="sub">Tính theo đúng tỷ lệ % phân bổ riêng của từng khoản vay (khớp Sổ vay vốn), chỉ tính lãi ĐÃ đóng</div>
         </div>
         <div class="stat-card" style="background:linear-gradient(135deg,var(--clay),#7d3813);">
@@ -22060,62 +22141,69 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       </div>
 
       <div class="panel">
+        <div class="panel-head"><h3>📋 Danh sách khoản chi</h3></div>
+        <div class="panel-body">
+          <div class="toolbar" style="margin:0 0 12px;">
+            <input id="e-search" class="preview-allow" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px;">
+            <select id="e-cat" class="preview-allow"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
+            <div class="spacer"></div>
+            ${canEditModule('data')? `<button class="btn btn-primary preview-allow" id="add-exp-btn">+ Thêm khoản chi mới</button>` : ''}
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th><span class="dancing-header preview-allow" data-header-scope="explist">Ngày chi</span></th><th>Nội dung / Mục đích</th><th>Địa bàn (${subAdminLabel()})</th><th>Số tiền</th><th>Ghi chú</th><th></th></tr></thead>
+              <tbody>
+                ${list.length? list.map(e=>`
+                  <tr>
+                    <td>${fmtDate(e.date)}</td>
+                    <td>${e.purpose===CAT_OTHER? `${categoryLabel(CAT_OTHER)}: ${e.purposeOther||''}` : categoryLabel(e.purpose)}</td>
+                    <td>${isCatHamlet(e.purpose)? (e.hamlet||'—') : '—'}</td>
+                    <td class="money">${money(e.amount)}</td>
+                    <td>${e.note? wrapTextAtSpacesHtml(e.note,28) : '—'}</td>
+                    <td><button class="btn btn-ghost btn-sm preview-allow" data-view-exp="${e.id}">Xem/Sửa</button></td>
+                  </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state"><div class="e-ico">💰</div>Chưa có khoản chi nào trong kỳ này</div></td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
         <div class="panel-head"><h3>⚖️ Đối chiếu "Trích về ${subAdminLabelLower()}": Thực tế vs. Tự động (theo Sổ vay vốn)</h3></div>
         <div class="panel-body">
-          <p class="sub" style="margin:0 0 10px;">So sánh số tiền ĐÃ THỰC SỰ chi "Trích về ${subAdminLabelLower()}" với số tự động tính theo đúng công thức phân bổ của Sổ vay vốn (cùng phạm vi kỳ hạch toán đang xem ở trên) — giúp phát hiện chênh lệch dư/thiếu cho từng địa bàn.</p>
+          <p class="sub" style="margin:0 0 10px;">So sánh số tiền ĐÃ THỰC SỰ chi "Trích về ${subAdminLabelLower()}" với số tự động tính theo đúng công thức phân bổ của Sổ vay vốn — luôn tính TOÀN BỘ thời gian từ trước đến nay cho MỌI địa bàn, không phụ thuộc kỳ hạch toán đang xem ở panel phía trên. Phát hiện cả trường hợp bị ghi trùng lặp (nhiều bản ghi cùng 1 Quý của 1 địa bàn).</p>
           ${(()=>{
-            const allHamletNames = Array.from(new Set([...Object.keys(acct.hamletByName||{}), ...Object.keys(acct.chiByHamlet||{})])).sort((a,b)=>a.localeCompare(b,'vi'));
-            if(!allHamletNames.length) return `<div class="empty-state"><div class="e-ico">⚖️</div>Chưa có số liệu để đối chiếu trong kỳ này</div>`;
-            let totalAuto=0, totalActual=0;
-            const rowsHtml = allHamletNames.map(h=>{
-              const auto = Math.round((acct.hamletByName||{})[h]||0);
-              const actual = Math.round((acct.chiByHamlet||{})[h]||0);
-              totalAuto+=auto; totalActual+=actual;
-              const diff = actual - auto;
-              const diffColor = diff===0? 'var(--rice-dark)' : (diff>0? 'var(--green)' : 'var(--red)');
-              const diffLabel = diff===0? 'Khớp' : (diff>0? `Dư ${money(diff)}` : `Thiếu ${money(-diff)}`);
+            const rows = computeHamletQuarterReconciliation();
+            if(!rows.length) return `<div class="empty-state"><div class="e-ico">⚖️</div>Chưa có địa bàn nào để đối chiếu</div>`;
+            let totalDup=0, totalDupOcc=0, totalDiffAll=0;
+            const rowsHtml = rows.map(r=>{
+              totalDup += r.dupQuarterCount; totalDupOcc += r.dupTotalOccurrences; totalDiffAll += r.totalDiff;
+              const diffColor = r.totalDiff===0? 'var(--rice-dark)' : (r.totalDiff>0? '#b8860b' : 'var(--red)');
+              const diffLabel = r.totalDiff===0? 'Khớp' : (r.totalDiff>0? `Dư ${money(r.totalDiff)}` : `Thiếu ${money(-r.totalDiff)}`);
+              const noteLines = [...r.deficitLines, ...r.surplusLines];
+              const noteHtml = noteLines.length? noteLines.map(l=>{
+                const isDeficit = r.deficitLines.includes(l);
+                return `<span style="color:${isDeficit?'var(--red)':'#b8860b'};">${escapeHtml(l)}</span>`;
+              }).join('<br>') : '—';
+              const dupHtml = r.dupDetails.length? r.dupDetails.map(d=>`${d.label} (${d.times} lần)`).join(', ') : '—';
               return `<tr>
-                <td>${escapeHtml(h)}</td>
-                <td class="money">${money(actual)}</td>
-                <td class="money">${money(auto)}</td>
+                <td>${escapeHtml(r.hamlet)}</td>
                 <td style="color:${diffColor}; font-weight:700;">${diffLabel}</td>
+                <td style="font-size:12px;">${noteHtml}</td>
+                <td style="font-size:12px;">${dupHtml}</td>
               </tr>`;
             }).join('');
-            const totalDiff = totalActual - totalAuto;
-            const totalDiffColor = totalDiff===0? 'var(--rice-dark)' : (totalDiff>0? 'var(--green)' : 'var(--red)');
-            const totalDiffLabel = totalDiff===0? 'Khớp' : (totalDiff>0? `Dư ${money(totalDiff)}` : `Thiếu ${money(-totalDiff)}`);
+            const totalDiffColor = totalDiffAll===0? 'var(--rice-dark)' : (totalDiffAll>0? '#b8860b' : 'var(--red)');
+            const totalDiffLabel = totalDiffAll===0? 'Khớp' : (totalDiffAll>0? `Dư ${money(totalDiffAll)}` : `Thiếu ${money(-totalDiffAll)}`);
             return `<div class="table-wrap"><table>
-              <thead><tr><th><span class="dancing-header preview-allow" data-header-scope="expcompare">Địa bàn</span></th><th>Đã chi thực tế</th><th>Số tự động (Sổ vay vốn)</th><th>Chênh lệch</th></tr></thead>
+              <thead><tr><th><span class="dancing-header preview-allow" data-header-scope="expcompare">Địa bàn</span></th><th>Tổng chênh lệch</th><th>Ghi chú (chi tiết từng Quý)</th><th>Quý bị Trùng lặp (Chi nhiều lần)</th></tr></thead>
               <tbody>${rowsHtml}
-                <tr style="font-weight:800; background:var(--paper-2);"><td>Tổng cộng</td><td class="money">${money(totalActual)}</td><td class="money">${money(totalAuto)}</td><td style="color:${totalDiffColor};">${totalDiffLabel}</td></tr>
+                <tr style="font-weight:800; background:var(--paper-2);"><td>TỔNG</td><td style="color:${totalDiffColor};">${totalDiffLabel}</td><td>—</td><td style="text-align:center;">${totalDupOcc||'—'}</td></tr>
               </tbody>
             </table></div>`;
           })()}
         </div>
-      </div>
-
-      <div class="toolbar">
-        <input id="e-search" class="preview-allow" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px;">
-        <select id="e-cat" class="preview-allow"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
-        <div class="spacer"></div>
-        ${canEditModule('data')? `<button class="btn btn-primary preview-allow" id="add-exp-btn">+ Thêm khoản chi mới</button>` : ''}
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th><span class="dancing-header preview-allow" data-header-scope="explist">Ngày chi</span></th><th>Nội dung / Mục đích</th><th>Địa bàn (${subAdminLabel()})</th><th>Số tiền</th><th>Ghi chú</th><th></th></tr></thead>
-          <tbody>
-            ${list.length? list.map(e=>`
-              <tr>
-                <td>${fmtDate(e.date)}</td>
-                <td>${e.purpose===CAT_OTHER? `${categoryLabel(CAT_OTHER)}: ${e.purposeOther||''}` : categoryLabel(e.purpose)}</td>
-                <td>${isCatHamlet(e.purpose)? (e.hamlet||'—') : '—'}</td>
-                <td class="money">${money(e.amount)}</td>
-                <td>${e.note||'—'}</td>
-                <td><button class="btn btn-ghost btn-sm preview-allow" data-view-exp="${e.id}">Xem/Sửa</button></td>
-              </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state"><div class="e-ico">💰</div>Chưa có khoản chi nào trong kỳ này</div></td></tr>`}
-          </tbody>
-        </table>
       </div>
 
       <div class="panel">
@@ -22222,10 +22310,11 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const dup = detectDuplicates();
       const hamletNames = Object.keys(dup);
       if(!hamletNames.length) return '';
-      return hamletNames.map(h=>{
+      const detail = hamletNames.map(h=>{
         const items = dup[h].map(x=> `${x.qLabel} với số tiền là ${money(x.amount)}`).join(', ');
         return `Trong sổ đã chi "Trích về" cho ${subAdminLabel()} ${h} tại ${items}.`;
       }).join('\n');
+      return `PHÁT HIỆN TRÙNG LẶP TRONG SỔ CHI\n${detail}`;
     }
     function duplicateWarningHtml(){
       const text = duplicateWarningText();
@@ -22529,7 +22618,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         if(!selQuarters.length){ alert('Vui lòng chọn ít nhất 1 Quý áp dụng.'); return; }
         const dupText = duplicateWarningText();
         if(dupText){
-          const ok = confirm(`⚠️ PHÁT HIỆN TRÙNG LẶP TRONG SỔ:\n\n${dupText}\n\nBạn có chắc chắn vẫn muốn tiếp tục thêm khoản chi này không? Nếu tiếp tục, sổ sách sẽ ghi nhận trùng lặp cho ${selHamlets.length>1?'các':'1'} ${subAdminLabelLower()}/Quý nêu trên (bấm OK để vẫn lưu, bấm Huỷ để quay lại chỉnh sửa).`);
+          const ok = confirm(`⚠️ ${dupText}\n\nBạn có chắc chắn vẫn muốn tiếp tục thêm khoản chi này không? Nếu tiếp tục, sổ sách sẽ ghi nhận trùng lặp cho ${selHamlets.length>1?'các':'1'} ${subAdminLabelLower()}/Quý nêu trên (bấm OK để vẫn lưu, bấm Huỷ để quay lại chỉnh sửa).`);
           if(!ok) return;
         }
         const perHamletAmount = {};
