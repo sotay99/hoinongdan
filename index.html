@@ -9513,7 +9513,7 @@ ${projectLines? projectLines+'\n' : ''}- Tổng số hộ đang vay: ${list.leng
     }catch(e){ console.error('Nạp Bối cảnh tri thức lỗi:', e); }
     return `Bạn tên là "Chàng Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Chàng" gọi người dùng là "bạn/đồng chí". Bạn đảm nhiệm 4 vai trò:
 1) Trợ lý nghiệp vụ Hội Nông dân: giải đáp nhanh nghiệp vụ công tác hội, công tác hội viên, chính sách, quy chế cho vay, thủ tục gia hạn nợ, lãi suất, quỹ hỗ trợ nông dân.
-2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Sổ Thu Chi Lãi Quỹ, Báo cáo lãi, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
+2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Sổ Thu Chi Lãi Quỹ, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
 3) Trợ lý phân tích số liệu: khi được hỏi về dư nợ/hộ vay/thống kê, hãy dựa vào phần "DỮ LIỆU TÓM TẮT HIỆN TẠI" bên dưới (nếu có); nếu không có hoặc không đủ, hãy nói rõ là chưa có dữ liệu và hướng dẫn xem trong Module tương ứng, không được bịa số liệu.
 4) Trợ lý AI toàn năng: trả lời mọi câu hỏi kiến thức chung, viết/sửa văn bản, gợi ý code, dịch thuật, tư vấn... như một AI thông thường. Bạn còn tạo được file PowerPoint/Word/Excel/PDF thật cho người dùng tải về (xem hướng dẫn cú pháp bên dưới) — lưu ý: chỉ chưa hỗ trợ tạo/hiển thị hình ảnh, âm thanh, video.
 Nếu có mục "TÀI LIỆU TRI THỨC NỀN DO ADMIN CUNG CẤP" và/hoặc "SIÊU GHI CHÚ CÁ NHÂN" bên dưới, hãy ưu tiên dựa vào đó để trả lời chính xác, cá nhân hoá theo đúng quy chế/hướng dẫn/ghi chú riêng của người dùng này, thay vì chỉ dùng kiến thức chung.
@@ -11498,7 +11498,6 @@ ${fileGenerationTrainingText()}`;
       items.push({id:'dashboard', ico:'📊', label:'Tổng quan'});
       items.push({id:'data', ico:'📋', label:'Sổ vay vốn'});
       items.push({id:'expenses', ico:'💰', label:`Sổ Thu Chi Lãi Quỹ`});
-      items.push({id:'reports', ico:'🧾', label:'Báo cáo lãi'});
     }
     if(canViewModule('internal')) items.push({id:'internal', ico:'🔒', label:'Thu – Chi nội bộ'});
     items.push({id:'propaganda', ico:'📣', label:'Tạo bài Tuyên truyền'});
@@ -11573,7 +11572,7 @@ ${fileGenerationTrainingText()}`;
         </div>
         <div class="main ${state.sidebarCollapsed?'sidebar-collapsed':''}">
           <div class="topbar">
-            <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : nav.find(n=>n.id===state.activeTab).label}</h2>${(state.activeTab==='data' || state.activeTab==='expenses')? '' : `<div class="sub">${wardTitle()||`Chưa chọn mã xã · chỉ dùng được Thu–Chi nội bộ`} ${wardId()?`· ${state.borrowers.filter(b=>!b.deleted && !b.settled).length} hộ vay đang theo dõi`:''}</div>`}</div>
+            <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : nav.find(n=>n.id===state.activeTab).label}</h2></div>
             <div class="top-actions">
               <button class="bell-btn" id="bell-btn">🔔${alerts.length?`<span class="bell-dot"></span>`:''}</button>
               <div class="avatar" ${state.identity.photo?`style="background-image:url('${state.identity.photo}'); background-size:cover; background-position:center;"`:''}>${state.identity.photo?'':(state.identity.name||'?')[0].toUpperCase()}</div>
@@ -11632,7 +11631,6 @@ ${fileGenerationTrainingText()}`;
     if(state.activeTab==='dashboard') renderDashboard(content, alerts);
     else if(state.activeTab==='data') renderDataTab(content);
     else if(state.activeTab==='expenses') renderExpensesTab(content);
-    else if(state.activeTab==='reports') renderReportsTab(content);
     else if(state.activeTab==='internal') renderInternalTab(content);
     else if(state.activeTab==='members') renderMembersTab(content);
     else if(state.activeTab==='strength') renderStrengthTab(content);
@@ -22786,175 +22784,6 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     render();
   }
 
-  function renderReportsTab(el){
-    const q = state.config.quarters;
-    const {from,to} = periodRange();
-    const active = state.borrowers.filter(b=>!b.deleted && !b.settled);
-    const rows = active.map(b=>({ b, ...calcInterest(b, from, to) }));
-    const totalInterest = rows.reduce((s,r)=>s+r.due,0);
-    const retain = state.config.retainPercent||0;
-
-    const byProject = {};
-    const byHamlet = {};
-    rows.forEach(r=>{
-      const p = borrowerProjectName(r.b)||'—'; byProject[p]=(byProject[p]||0)+r.due;
-      const h = r.b.hamlet||'—'; byHamlet[h]=(byHamlet[h]||0)+r.due;
-    });
-
-    const ov = computeProjectOverview();
-
-    el.innerHTML = `
-      <div class="panel">
-        <div class="panel-head"><h3>📊 Báo cáo tình hình vay vốn toàn ${adminLevelLabelLower()}</h3></div>
-        <div class="panel-body">
-          <div class="grid3" style="margin-bottom:16px;">
-            <div class="stat-card stat-yellow"><div class="num mono">${ov.activeCount}</div><div class="lbl">Phương án vay đang hoạt động</div></div>
-            <div class="stat-card" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));"><div class="num mono">${ov.settledCount}</div><div class="lbl">Phương án vay đã tất toán</div></div>
-            <div class="stat-card stat-orange"><div class="num mono">${ov.totalBorrowers}</div><div class="lbl">Hộ đang dư nợ toàn ${adminLevelLabelLower()}</div></div>
-          </div>
-          <div class="kv-row"><span>Tổng số tiền dư nợ gốc toàn ${adminLevelLabelLower()}</span><b>${money(ov.totalOutstanding)}</b></div>
-          <div class="table-wrap" style="margin-top:12px;">
-            <table>
-              <thead><tr><th>Phương án vay</th><th>${subAdminLabel()}</th><th>Phát vay ban đầu</th><th>Đã thu hồi gốc</th><th>Dư nợ còn lại</th><th>Trạng thái</th></tr></thead>
-              <tbody>
-                ${ov.list.length? ov.list.map(p=>`<tr><td>${p.name}</td><td>${p.hamlets}</td><td class="money">${money(p.disbursed)}</td><td class="money">${money(p.recovered)}</td><td class="money">${money(p.outstanding)}</td><td><span class="pill ${p.status==='Đang hoạt động'?'pill-orange':'pill-green'}">${p.status}</span></td></tr>`).join('') : `<tr><td colspan="6"><div class="empty-state">Chưa có dữ liệu phương án vay</div></td></tr>`}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div class="toolbar no-print" style="margin-bottom:18px;">
-        <button class="btn btn-gold" id="btn-print-report">🖨️ In báo cáo / Xuất PDF</button>
-        <button class="btn btn-ghost" id="btn-word-report">⬇️ Xuất file Word báo cáo</button>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h3>Chọn kỳ tính lãi</h3></div>
-        <div class="panel-body">
-          <div class="toolbar" style="margin-bottom:6px;">
-            <select id="rp-mode">
-              <option value="quarter" ${state.reportMode==='quarter'?'selected':''}>Theo Quý (dùng mốc đã cấu hình)</option>
-              <option value="custom" ${state.reportMode==='custom'?'selected':''}>Theo khoảng ngày tuỳ chọn</option>
-            </select>
-            ${state.reportMode==='quarter' ? `
-              <select id="rp-quarter">
-                ${['q1','q2','q3','q4'].map(k=>{ const r = resolveQuarterDates(k); return `<option value="${k}" ${state.reportQuarter===k?'selected':''}>${q[k].label} (${fmtDate(r.from)} → ${fmtDate(r.to)})</option>`; }).join('')}
-              </select>` : `
-              <input type="date" id="rp-from" value="${state.reportFrom}"> <span style="align-self:center;">→</span> <input type="date" id="rp-to" value="${state.reportTo}">`}
-          </div>
-          <div class="sub">Khoảng thời gian áp dụng: <b>${fmtDate(from)} → ${fmtDate(to)}</b> (${daysBetween(from||todayStr(),to||todayStr())} ngày)</div>
-        </div>
-      </div>
-
-      <div class="grid3">
-        <div class="panel" style="grid-column:span 1;"><div class="panel-head"><h3>Tổng lãi toàn ${adminLevelLabelLower()}</h3></div><div class="panel-body">
-          <div class="kv-row"><span>Tổng lãi phải đóng</span><b>${money(totalInterest)}</b></div>
-          <div class="kv-row"><span>${adminLevelLabel()} được nhận (${100-retain}%)</span><b>${money(totalInterest*(100-retain)/100)}</b></div>
-          <div class="kv-row"><span>Các ${subAdminLabelLower()} giữ lại (${retain}%)</span><b>${money(totalInterest*retain/100)}</b></div>
-        </div></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h3>Theo phương án vay</h3></div>
-        <div class="panel-body">
-          ${Object.keys(byProject).length? Object.entries(byProject).map(([k,v])=>`<div class="kv-row"><span>${k}</span><b>${money(v)}</b></div>`).join('') : '<div class="empty-state">Chưa có dữ liệu</div>'}
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h3>Theo ${subAdminLabelLower()} — nộp ${adminLevelLabelLower()} / giữ lại</h3></div>
-        <div class="panel-body">
-          <div class="table-wrap"><table>
-            <thead><tr><th>${subAdminLabel()}</th><th>Tổng lãi</th><th>Giữ lại (${retain}%)</th><th>Nộp ${adminLevelLabelLower()} (${100-retain}%)</th></tr></thead>
-            <tbody>
-              ${Object.keys(byHamlet).length? Object.entries(byHamlet).map(([k,v])=>`
-                <tr><td>${k}</td><td class="money">${money(v)}</td><td class="money">${money(v*retain/100)}</td><td class="money">${money(v*(100-retain)/100)}</td></tr>
-              `).join('') : `<tr><td colspan="4"><div class="empty-state">Chưa có dữ liệu</div></td></tr>`}
-            </tbody>
-          </table></div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h3>Chi tiết lãi từng người</h3></div>
-        <div class="panel-body">
-          <div class="table-wrap"><table>
-            <thead><tr><th>Họ tên</th><th>${subAdminLabel()}</th><th>Phương án vay</th><th>Gốc</th><th>Số ngày</th><th>Lãi tính kỳ này</th><th>Dư kỳ trước</th><th>Tổng phải đóng</th><th>Trạng thái</th></tr></thead>
-            <tbody>
-              ${rows.length? rows.map(r=>{
-                const st = interestStatus(r.b, r.due);
-                return `<tr><td>${r.b.name}</td><td>${r.b.hamlet||'—'}</td><td>${borrowerProjectName(r.b)||'—'}</td><td class="money">${money(r.b.principal)}</td><td>${r.days}</td><td class="money">${money(r.interest)}</td><td class="money">${money(r.b.prevBalance||0)}</td><td class="money">${money(r.due)}</td><td><span class="pill ${st.cls}">${st.label}</span></td></tr>`;
-              }).join('') : `<tr><td colspan="9"><div class="empty-state">Chưa có dữ liệu</div></td></tr>`}
-            </tbody>
-          </table></div>
-        </div>
-      </div>
-
-      ${renderAcctReportPanel()}`;
-
-    document.getElementById('rp-mode').onchange = e=>{ state.reportMode=e.target.value; renderReportsTab(el); };
-    const rq = document.getElementById('rp-quarter'); if(rq) rq.onchange = e=>{ state.reportQuarter=e.target.value; renderReportsTab(el); };
-    const rf = document.getElementById('rp-from'); if(rf) rf.onchange = e=>{ state.reportFrom=e.target.value; renderReportsTab(el); };
-    const rt = document.getElementById('rp-to'); if(rt) rt.onchange = e=>{ state.reportTo=e.target.value; renderReportsTab(el); };
-    bindAcctPeriodSelector('acr', ()=>renderReportsTab(el), el);
-    document.getElementById('btn-print-report').onclick = printReport;
-    document.getElementById('btn-word-report').onclick = exportReportWord;
-  }
-
-  function renderAcctReportPanel(){
-    const {from,to,quarterSet} = acctPeriodRange(undefined, undefined, 'acr');
-    const acct = computeAcctTotals(from,to,quarterSet);
-    const retain = state.config.retainPercent||0;
-    const catOrder = [CAT_MEETING, CAT_SUPPLIES, CAT_TRAINING, CAT_BONUS];
-    const otherEntries = Object.entries(acct.chiByCategory).filter(([k])=>k.startsWith(CAT_OTHER+':'));
-    return `
-      <div class="panel" style="border:1.5px solid var(--gold);">
-        <div class="panel-head"><h3>🧾 Báo cáo Thu – Chi Hạch toán Tài chính ${adminLevelLabel()}</h3></div>
-        <div class="panel-body">
-          <div class="toolbar" style="margin-bottom:6px;">${acctPeriodSelectorHtml('acr')}</div>
-          <div class="sub" style="margin-bottom:14px;">Kỳ báo cáo: <b>${fmtDate(from)} → ${fmtDate(to)}</b></div>
-
-          <div class="divider-lbl">Phần Thu</div>
-          <div class="kv-row"><span>Tổng số tiền lãi đã thu (toàn ${adminLevelLabelLower()}, các phương án vay)</span><b>${money(acct.thu)}</b></div>
-          <div class="kv-row"><span>Số tiền nộp lên trên / các ${subAdminLabelLower()} giữ lại (${retain}%)</span><b>${money(acct.giuLaiAp)}</b></div>
-          <div class="kv-row"><span>Số tiền ${adminLevelLabel()} được giữ lại (${100-retain}%)</span><b>${money(acct.xaNhan)}</b></div>
-
-          <div class="divider-lbl">Phần Chi (gộp theo nội dung công việc)</div>
-          <div class="kv-row"><span>Tổng tiền đã đưa về cho các ${subAdminLabelLower()}</span><b>${money(acct.chiByCategory[CAT_HAMLET]||0)}</b></div>
-          ${Object.keys(acct.chiByHamlet).length? `
-            <div style="margin:4px 0 10px 14px; padding-left:10px; border-left:2px solid var(--line);">
-              ${Object.entries(acct.chiByHamlet).map(([h,v])=>`<div class="kv-row" style="border-bottom:none; padding:3px 0;"><span>↳ ${h}</span><b>${money(v)}</b></div>`).join('')}
-            </div>` : ''}
-          <div class="kv-row"><span>Tổng tiền chi Họp hành / Hội nghị</span><b>${money(acct.chiByCategory[CAT_MEETING]||0)}</b></div>
-          <div class="kv-row"><span>Tổng tiền chi Văn phòng phẩm</span><b>${money(acct.chiByCategory[CAT_SUPPLIES]||0)}</b></div>
-          <div class="kv-row"><span>Tổng tiền chi Tập huấn</span><b>${money(acct.chiByCategory[CAT_TRAINING]||0)}</b></div>
-          <div class="kv-row"><span>Tổng tiền chi Bồi dưỡng cán bộ hoạt động quỹ</span><b>${money(acct.chiByCategory[CAT_BONUS]||0)}</b></div>
-          <div class="kv-row"><span>Tổng tiền Chi khác</span><b>${money(otherEntries.reduce((s,[,v])=>s+v,0))}</b></div>
-          ${otherEntries.length? `
-            <div style="margin:4px 0 10px 14px; padding-left:10px; border-left:2px solid var(--line);">
-              ${otherEntries.map(([k,v])=>`<div class="kv-row" style="border-bottom:none; padding:3px 0;"><span>↳ ${k.replace(CAT_OTHER+': ','')}</span><b>${money(v)}</b></div>`).join('')}
-            </div>` : ''}
-          <div class="kv-row"><span><b>Tổng cộng đã chi</b></span><b>${money(acct.chiTotal)}</b></div>
-
-          <div class="divider-lbl">Kết luận</div>
-          <div class="kv-row" style="font-size:15px; border-bottom:none; padding-top:10px;">
-            <span><b>Số dư tồn quỹ ${adminLevelLabel()} còn lại</b></span>
-            <span class="pill ${acct.tonQuy>=0?'pill-green':'pill-red'}" style="font-size:14px; padding:5px 14px;">${money(acct.tonQuy)}</span>
-          </div>
-          <p class="sub" style="margin-top:10px;">Số liệu trên có thể dùng trực tiếp để báo cáo quyết toán quỹ ${hoiNongDanNatural()} trong kỳ đã chọn.</p>
-        </div>
-      </div>`;
-  }
-
-  // ---------------------------------------------------------------------
-  // Module "Thu – Chi nội bộ": CHỦ Ý không đi qua lớp Firebase (cGet*/cSet*)
-  // ở trên. Toàn bộ dữ liệu của module này chỉ đọc/ghi bằng lget()/lset()
-  // (localStorage thật của trình duyệt) nên KHÔNG rời khỏi máy tính đang
-  // sử dụng và KHÔNG đồng bộ giữa các thiết bị — đúng như nội dung giải
-  // thích bảo mật hiển thị cho người dùng bên dưới.
-  // Khoá lưu: hnd_local_{wardId}_internalTx (xem hàm localKey()).
-  // ---------------------------------------------------------------------
   function renderInternalTab(el){
     el.innerHTML = `
       <div class="panel">
