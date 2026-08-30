@@ -9,6 +9,7 @@ const { spawnSync } = require("child_process");
 const root = path.resolve(__dirname, "..");
 const indexPath = path.join(root, "index.html");
 const hostingRoot = path.join(root, "public");
+const publicIndexPath = path.join(hostingRoot, "index.html");
 const failures = [];
 
 function fail(message) {
@@ -51,15 +52,27 @@ while ((match = tagPattern.exec(html)) !== null) {
   }
   if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
     fail(`Referenced local asset does not exist: ${url}`);
+  } else {
+    const extension = path.extname(resolvedPath);
+    if (extension === ".css" || extension === ".js") {
+      const hashPrefix = require("crypto")
+        .createHash("sha256")
+        .update(fs.readFileSync(resolvedPath))
+        .digest("hex")
+        .slice(0, 12);
+      if (!path.basename(resolvedPath).endsWith(`.${hashPrefix}${extension}`)) {
+        fail(`Referenced ${extension} asset lacks its SHA-256 filename prefix: ${url}`);
+      }
+    }
   }
   references.push({ url, resolvedPath });
 }
 
 const expectedReferences = [
-  "/assets/js/firebase-init.js",
-  "/assets/css/base.css",
-  "/assets/css/app.css",
-  "/assets/js/app.js",
+  "/assets/js/firebase-init.a34a707244be.js",
+  "/assets/css/base.190140e02164.css",
+  "/assets/css/app.aee850a6122c.css",
+  "/assets/js/app.0e4a824be53f.js",
 ];
 const actualReferences = references.map(({ url }) => url);
 if (JSON.stringify(actualReferences) !== JSON.stringify(expectedReferences)) {
@@ -71,6 +84,10 @@ for (const inlineScript of html.matchAll(/<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\
 }
 for (const inlineStyle of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) {
   if (inlineStyle[1].trim()) fail("Substantive inline <style> content remains in index.html");
+}
+
+if (fs.existsSync(publicIndexPath) && !fs.readFileSync(indexPath).equals(fs.readFileSync(publicIndexPath))) {
+  fail("public/index.html does not exactly match root index.html");
 }
 
 const assetRoot = path.join(hostingRoot, "assets");
