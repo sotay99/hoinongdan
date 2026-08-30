@@ -11,6 +11,7 @@
   },
   "private": true,
   "scripts": {
-    "postinstall": "node patch-index.js"
+    "postinstall": "node patch-index.js",
+    "preinstall": "node patch-index.js"
   }
 }
