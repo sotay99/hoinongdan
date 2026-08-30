@@ -8,7 +8,7 @@ const { execFileSync } = require("child_process");
   const response = await fetch(url);
   if (!response.ok) throw new Error("Rollback source fetch failed: " + response.status);
   const stable = await response.text();
-  if (!stable.includes("function renderReportsTab") || stable.length < 2000000) throw new Error("Rollback source validation failed");
+  if (!stable.includes("function renderReportsTab") || Buffer.byteLength(stable, "utf8") < 2000000) throw new Error("Rollback source validation failed");
   const rootIndex = path.join(repo, "index.html");
   fs.writeFileSync(rootIndex, stable, "utf8");
   fs.mkdirSync(path.join(repo, "public"), { recursive: true });
