@@ -79,6 +79,15 @@ if (JSON.stringify(actualReferences) !== JSON.stringify(expectedReferences)) {
   fail(`Local asset order differs from the expected classic load order: ${actualReferences.join(", ")}`);
 }
 
+const pptxScriptUrl =
+  "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js";
+if (!html.includes(`<script src="${pptxScriptUrl}"></script>`)) {
+  fail("The pinned PptxGenJS browser bundle is missing or has changed");
+}
+if (html.includes("cdnjs.cloudflare.com/ajax/libs/pptxgenjs/")) {
+  fail("The obsolete PptxGenJS CDN URL is present");
+}
+
 for (const inlineScript of html.matchAll(/<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script\s*>/gi)) {
   if (inlineScript[1].trim()) fail("Substantive inline <script> content remains in index.html");
 }
