@@ -26,6 +26,16 @@ const publicDir = path.join(repo, "public");
 fs.mkdirSync(publicDir, { recursive: true });
 fs.copyFileSync(indexPath, path.join(publicDir, "index.html"));
 
+// Keep lifecycle hooks only in the repository checkout; do not send them to Firebase remote builds.
+const packagePath = path.join(__dirname, "package.json");
+const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+if (packageJson.scripts) {
+  delete packageJson.scripts.preinstall;
+  delete packageJson.scripts.postinstall;
+  if (Object.keys(packageJson.scripts).length === 0) delete packageJson.scripts;
+}
+fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + "\n", "utf8");
+
 if (source !== before) {
   execFileSync("git", ["config", "user.name", "github-actions[bot]"], { cwd: repo });
   execFileSync("git", ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], { cwd: repo });
