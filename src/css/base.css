@@ -1,0 +1,281 @@
+
+  :root{
+    --paper:#FBF7EE;
+    --paper-2:#F3EEE0;
+    --ink:#25321F;
+    --rice-dark:#2F4A3C;
+    --rice:#3E6350;
+    --moss:#6B8F71;
+    --gold:#C79A2B;
+    --gold-soft:#E9D9AC;
+    --clay:#B5551F;
+    --line:#DCD4BE;
+    --yellow:#E8B93B;
+    --orange:#DD7A34;
+    --red:#C1443C;
+    --green:#4C7A52;
+    --white:#FFFEFB;
+    --shadow: 0 1px 2px rgba(37,50,31,.06), 0 4px 14px rgba(37,50,31,.06);
+    --r: 10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;}
+  #root{
+    font-family:'Be Vietnam Pro',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    line-height:1.4;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,h3{font-family:'Be Vietnam Pro',sans-serif; margin:0; letter-spacing:-.01em;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  /* ---- layout shells ---- */
+  .center-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+  .auth-card{
+    background:var(--white); border:1px solid var(--line); border-radius:16px;
+    padding:40px 36px; max-width:420px; width:100%; box-shadow:var(--shadow);
+    text-align:center;
+  }
+  .rice-badge{
+    width:56px; height:56px; margin:0 auto 16px; border-radius:14px;
+    background:linear-gradient(145deg,var(--rice),var(--rice-dark));
+    display:flex; align-items:center; justify-content:center; font-size:26px;
+  }
+  .auth-card h1{font-size:20px; color:var(--rice-dark); margin-bottom:6px;}
+  .auth-card p.sub{color:#7A7A66; font-size:13.5px; margin:0 0 24px;}
+  .field{margin-bottom:14px; text-align:left;}
+  .field label{display:block; font-size:12.5px; font-weight:600; color:var(--rice-dark); margin-bottom:5px;}
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+    background:var(--paper); font-size:14px; color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--gold-soft); border-color:var(--gold);}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 18px; border-radius:8px; border:1px solid transparent;
+    font-size:13.5px; font-weight:600; transition:.15s; min-height:40px; line-height:1.2;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .btn-primary{background:var(--rice-dark); color:var(--white);}
+  .btn-primary:hover{background:var(--rice);}
+  .btn-gold{background:var(--gold); color:#3A2C05;}
+  .btn-gold:hover{filter:brightness(1.06);}
+  .btn-ghost{background:transparent; border-color:var(--line); color:var(--rice-dark);}
+  .btn-ghost:hover{background:var(--paper-2);}
+  .btn-danger{background:var(--red); color:var(--white);}
+  .btn-danger:hover{filter:brightness(1.08);}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .btn-sm{padding:6px 10px; font-size:12px; border-radius:6px;}
+
+  /* ---- app shell ---- */
+  .app-shell{display:flex; min-height:100vh;}
+  .sidebar{
+    width:220px; flex-shrink:0; background:var(--rice-dark); color:var(--paper);
+    display:flex; flex-direction:column; padding:22px 14px;
+    position:fixed; top:0; left:0; height:100vh; overflow-y:auto; z-index:90;
+    transform:translateX(0); transition:transform .44s ease-out;
+  }
+  .sidebar.collapsed{ transform:translateX(-100%); }
+  .sidebar-toggle-btn{
+    position:fixed; top:96px; left:0; z-index:400; width:40px; height:40px; border:3px solid #b71c1c;
+    background:var(--gold); color:var(--rice-dark); border-radius:0 10px 10px 0; font-size:17px;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.25);
+    animation: fabBob 4.5s ease-in-out infinite, toggleBtnFade 4s linear infinite;
+    transition: transform .44s ease-out; will-change:transform;
+    transform: translateX(180px);
+  }
+  @keyframes toggleBtnFade{
+    0%,25%{ opacity:1; }
+    50%,75%{ opacity:.3; }
+    100%{ opacity:1; }
+  }
+  .sidebar-toggle-btn.collapsed{ transform:translateX(0); border-radius:0 10px 10px 0; }
+  .sidebar-toggle-btn:hover{ filter:brightness(1.08); }
+  .sidebar .brand{display:flex; align-items:center; gap:10px; padding:0 6px 20px; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:16px;}
+  .sidebar .brand .ico{font-size:22px;}
+  .sidebar .brand .txt{font-size:13.5px; font-weight:700; line-height:1.25;}
+  .sidebar .brand .txt small{display:block; font-weight:400; opacity:.7; font-size:11px;}
+  .nav-item{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px;
+    color:rgba(255,255,255,.78); font-size:13.5px; font-weight:500; margin-bottom:2px; border:none; background:none; width:100%; text-align:left;
+  }
+  .nav-item .badge{margin-left:auto; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:20px;}
+  .nav-item:hover{background:rgba(255,255,255,.08); color:#fff;}
+  .nav-item.active{background:linear-gradient(180deg, rgba(255,255,255,.55) 0%, var(--gold) 65%); color:#3A2C05; font-weight:700;}
+  .sidebar .foot{margin-top:auto; padding-top:14px; border-top:1px solid rgba(255,255,255,.12); font-size:11.5px; color:rgba(255,255,255,.55);}
+
+  .main{flex:1; min-width:0; display:flex; flex-direction:column; margin-left:220px; transition:margin-left .44s ease-out;}
+  .main.sidebar-collapsed{ margin-left:0; }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 26px; border-bottom:1px solid var(--line); background:var(--white);
+  }
+  .topbar h2{font-size:18px; color:var(--rice-dark);}
+  .topbar .sub{font-size:12px; color:#8A8570; margin-top:2px;}
+  .top-actions{display:flex; align-items:center; gap:10px; position:relative; margin-left:auto;}
+  /* Khối "Chọn tất cả/Bỏ chọn tất cả" + dòng Tổng tiền quý đã chọn (modal Thông tin đóng lãi) — mặc
+     định (màn hình rộng) nằm CHUNG 1 hàng như nguyên trạng cũ; màn hình hẹp mới tách thành 2 hàng. */
+  .iahist-selectall-wrap{ display:flex; align-items:center; gap:12px; }
+  .content{padding:22px 26px; overflow:auto;}
+
+  .bell-btn{position:relative; background:var(--paper-2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:16px;}
+  .bell-dot{position:absolute; top:4px; right:5px; width:8px; height:8px; border-radius:50%; background:var(--red); border:2px solid var(--white);}
+  .bell-panel{
+    position:absolute; top:44px; right:0; width:340px; max-height:420px; overflow:auto;
+    background:var(--white); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); z-index:50;
+  }
+  .bell-panel .bp-head{padding:12px 14px; font-weight:700; font-size:13px; border-bottom:1px solid var(--line); color:var(--rice-dark);}
+  .bell-item{padding:11px 14px; border-bottom:1px solid var(--paper-2); font-size:12.5px; display:flex; gap:8px;}
+  .bell-item .dotc{width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0;}
+  .bell-empty{padding:26px 14px; text-align:center; color:#9A9580; font-size:12.5px;}
+
+  .avatar{width:32px; height:32px; border-radius:50%; background:var(--gold-soft); color:#5c4813; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;}
+
+  /* dashboard */
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:22px;}
+  .stat-card{border-radius:14px; padding:18px 20px; color:#fff; position:relative; overflow:hidden;}
+  .stat-card .num{font-family:'JetBrains Mono',monospace; font-size:34px; font-weight:700; line-height:1;}
+  .stat-card .lbl{font-size:12.5px; margin-top:6px; opacity:.92; font-weight:600;}
+  .stat-card .sub{font-size:11px; opacity:.75; margin-top:3px;}
+  .stat-yellow{background:linear-gradient(135deg,#E8B93B,#C99420);}
+  .stat-orange{background:linear-gradient(135deg,#DD7A34,#B8591C);}
+  .stat-red{background:linear-gradient(135deg,#C1443C,#96271F);}
+
+  .panel{background:var(--white); border:1px solid var(--line); border-radius:14px; margin-bottom:18px;}
+  .panel-head{padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(0deg, #FFFFFF 0%, #F3EEE0 30%, #F3EEE0 70%, #8b8680 100%); border-radius:14px 14px 0 0;}
+  .panel-head h3{font-size:14.5px; color:var(--rice-dark);}
+  .panel-body{padding:16px 18px;}
+  .panel-body.pb-animate{ animation: panelSlideIn 0.44s ease-out; will-change:transform, opacity; }
+  @keyframes panelSlideIn{
+    0%{ opacity:0; transform:translateY(-8px); }
+    100%{ opacity:1; transform:translateY(0); }
+  }
+
+  table{width:100%; border-collapse:collapse; font-size:12.8px;}
+  th{text-align:left; padding:9px 10px; background:var(--paper-2); color:var(--rice-dark); font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.02em; white-space:nowrap; position:sticky; top:0;}
+  td{padding:9px 10px; border-bottom:1px solid var(--paper-2); white-space:nowrap;}
+  tr:hover td{background:#FCFAF3;}
+  .table-wrap{overflow:auto; -webkit-overflow-scrolling:touch; max-width:100%; max-height:60vh; border:1px solid var(--line); border-radius:10px;}
+  /* Các bảng có độ rộng cột CỐ ĐỊNH (dùng svColStyle/svColStyleHeader) không được kéo giãn ép đủ 100%
+     chiều rộng khung chứa nữa — nếu không, ở màn hình rộng, khoảng trống thừa (khi tổng các cột nhỏ
+     hơn khung nhìn) sẽ bị chèn ép ngẫu nhiên vào giữa các cột, tạo ra khoảng cách xấu giữa nút bấm và
+     nội dung. Để bảng tự nhiên rộng đúng bằng tổng các cột, thừa ra bao nhiêu để trống bấy nhiêu. */
+  .table-wrap table{ width:auto; }
+  .money{font-family:'JetBrains Mono',monospace; font-weight:600; text-align:right !important;}
+  /* Cột "dính" bên trái khi cuộn ngang — dùng cho cột icon-sửa + cột tên (người vay/phương án vay) */
+  .sv-sticky-1{ position:sticky; left:0; z-index:2; width:40px; min-width:40px; }
+  /* Khung dropdown bộ lọc đa chọn (Ấp/Phương án vay/Quý/Năm) ở Sổ vay vốn */
+  .sv-filter-dropdown{ position:relative; display:inline-block; }
+  .sv-filter-panel{ position:absolute; top:calc(100% + 4px); left:0; z-index:50; background:var(--white); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.18); padding:8px; min-width:220px; max-height:280px; overflow-y:auto; }
+  .sv-filter-item{ display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:12.5px; cursor:pointer; white-space:nowrap; }
+  .sv-filter-item input[type="checkbox"]{ width:18px !important; height:18px !important; min-width:18px !important; max-width:18px !important; flex-shrink:0; margin:0 !important; accent-color:var(--gold); }
+  .sv-filter-item:hover{ background:var(--paper-2); }
+  .sv-filter-item input:disabled + span{ opacity:.35; }
+  .sv-filter-item.disabled{ opacity:.4; cursor:not-allowed; }
+  .sv-filter-divider{ height:1px; background:var(--line); margin:6px 0; }
+  .sv-sticky-2{ position:sticky; left:40px; z-index:2; }
+  thead .sv-sticky-1, thead .sv-sticky-2{ z-index:3; background:var(--paper-2); }
+  .sv-sticky-1, .sv-sticky-2{ box-shadow:2px 0 4px -2px rgba(0,0,0,.15); }
+  /* Cột dính riêng cho modal "Tính tiền lãi và phê duyệt đóng lãi" — cột đầu là checkbox "Đã đóng
+     lãi" nên cần rộng hơn cột icon-bút bình thường (40px) để chứa chữ. */
+  .ia-sticky-1{ position:sticky; left:0; z-index:2; min-width:110px; text-align:center; }
+  /* Cố định 3 cột đầu tiên ở bảng Danh sách người vay trong 3 modal Gia hạn nợ/Tất toán-Trả nợ
+     trước hạn/Tính tiền lãi — kéo ngang không làm 3 cột này trôi theo. Cố định 1 cột đầu ở bảng
+     {thống kê chung}. */
+  .frz-col1{ position:sticky; left:0; z-index:3; }
+  /* Tô lớp phủ xám nhẹ cho các cột CỐ ĐỊNH (đóng băng khi cuộn ngang) — CHỈ ở ô dữ liệu (td), KHÔNG tô
+     tiêu đề cột (th). Dùng background-image (không phải background-color) để lớp phủ này CHỒNG THÊM
+     lên trên màu nền trạng thái dòng đã có sẵn theo từng dòng (quá hạn/gia hạn/...) qua inline style,
+     thay vì thay thế mất màu đó — !important để thắng được inline style. */
+  /* Dùng box-shadow đổ bóng bên TRONG (inset) rộng lớn để phủ xám — đảm bảo ĐỤC HOÀN TOÀN 100%, không
+     còn khả năng nhìn xuyên thấu qua được (khác với cách cũ dùng background-image + blend-mode, có thể
+     không đủ đục ở 1 số trình duyệt/thiết bị khi có nội dung cuộn ngang bên dưới cột cố định). Thêm cả
+     background-color TRẮNG ĐỤC làm lớp nền tối thiểu (không !important — vẫn cho phép màu trạng thái
+     dòng, VD quá hạn/gia hạn, ghi đè lên khi ô đó CÓ set màu riêng) — phòng trường hợp 1 ô nào đó lỡ
+     thiếu nền riêng thì vẫn có lớp nền trắng chặn phía sau, tuyệt đối không lộ nội dung cuộn bên dưới. */
+  td.frz-col1, td.frz-col2, td.frz-col3, td.frz-stat1, td.sv-sticky-1, td.sv-sticky-2, td.ia-sticky-1, td.ia-sticky-2{ background-color:#f0f0ef !important; }
+  .frz-col2{ position:sticky; left:110px; z-index:3; }
+  .frz-col3{ position:sticky; left:220px; z-index:3; }
+  .frz-stat1{ position:sticky; left:0; z-index:3; }
+  .ia-sticky-2{ position:sticky; left:92px; z-index:2; }
+  thead .ia-sticky-1, thead .ia-sticky-2{ z-index:3; background:var(--paper-2); }
+  .ia-sticky-1, .ia-sticky-2{ box-shadow:2px 0 4px -2px rgba(0,0,0,.15); }
+  /* Tiêu đề nhóm dùng CHUNG cho mọi bảng ở Sổ vay vốn (Danh sách người vay, {Thống kê chung}, Thùng
+     rác, modal Tính tiền lãi và phê duyệt đóng lãi, và mọi bảng tương lai) — nền xanh lá nhạt mờ
+     ảo, chữ đen in đậm, viền đen mảnh. */
+  .sv-group-header{ background:rgba(76,175,80,.10); color:#000; font-weight:800; padding:10px 14px; border-radius:8px; font-size:13.5px; margin-bottom:8px; border:1px solid #000; }
+  .sv-group-header-th{ background:rgba(76,175,80,.10) !important; color:#000 !important; font-weight:800; }
+  .pill{display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:700;}
+  .pill-green{background:#E3EFE2; color:var(--green);}
+  .pill-red{background:#F7E1DF; color:var(--red);}
+  .pill-orange{background:#FBE7D6; color:var(--orange);}
+  .pill-gray{background:var(--paper-2); color:#8A8570;}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px;}
+  .toolbar input, .toolbar select{padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:12.8px; background:var(--white);}
+  .spacer{flex:1;}
+
+  @keyframes modalBgFadeIn{ 0%{ opacity:0; } 100%{ opacity:1; } }
+  @keyframes modalBgFadeOut{ 0%{ opacity:1; } 100%{ opacity:0; } }
+  @keyframes modalCardPopIn{ 0%{ opacity:1; transform:translateY(18px) scale(.85); } 100%{ opacity:1; transform:translateY(0) scale(1); } }
+  @keyframes modalCardPopOut{ 0%{ opacity:1; transform:translateY(0) scale(1); } 100%{ opacity:0; transform:translateY(10px) scale(.9); } }
+  /* Hiệu ứng xuất hiện/biến mất THỐNG NHẤT cho MỌI modal trong toàn app — áp dụng tự động ngay khi bất
+     kỳ phần tử nào mang class .modal-bg/.modal được thêm vào trang (đây là hành vi mặc định của trình
+     duyệt với CSS animation, không cần sửa bất kỳ đoạn code JS tạo modal nào, kể cả modal xây dựng
+     trong tương lai, kể cả modal nằm lồng sâu bên trong modal khác).
+     LƯU Ý: phần tử .modal-bg (nền) chỉ được TẠO ĐÚNG 1 LẦN cho mỗi lần mở modal (không bị vẽ lại), nên
+     animation trên nó tự nhiên chỉ chạy đúng 1 lần, không cần xử lý gì thêm. Riêng khung .modal (nội
+     dung) thì NHIỀU modal trong app có vẽ lại nhiều lần (tải dữ liệu xong vẽ lại, hoặc bấm 1 nút bên
+     trong) — mỗi lần vẽ lại tạo ra phần tử .modal MỚI, nếu để CSS này tự động áp dụng thì animation sẽ
+     bị kích hoạt lại mỗi lần, gây giật cục. Vì vậy CSS này CHỈ định nghĩa animation mặc định (áp dụng
+     cho MỌI lần xuất hiện), còn đoạn script phía dưới sẽ chủ động TẮT NGAY animation (qua inline style,
+     luôn được ưu tiên hơn CSS) cho các lần vẽ lại TỪ LẦN THỨ 2 trở đi của CÙNG 1 modal-bg — chỉ có ĐÚNG
+     LẦN ĐẦU TIÊN mới được giữ nguyên animation. */
+  .modal-bg{ animation: modalBgFadeIn .54s ease-out; }
+  .modal-bg .modal{ animation: modalCardPopIn .66s cubic-bezier(.22,1,.36,1); }
+  /* Lớp "đang đóng" — được gắn tự động bởi đoạn JS chặn .remove() (xem phần script phía dưới) ngay
+     trước khi phần tử thực sự bị gỡ khỏi DOM, để có đủ thời gian phát hiệu ứng biến mất trước đó. */
+  .modal-bg.modal-bg-closing{ animation: modalBgFadeOut .45s ease-in forwards; }
+  .modal-bg.modal-bg-closing .modal{ animation: modalCardPopOut .45s ease-in forwards; }
+  .modal-bg{position:fixed; inset:0; background:rgba(37,50,31,.45); display:flex; align-items:flex-start; justify-content:center; padding:40px 20px; overflow:auto; z-index:450;}
+  .modal{background:var(--white); border-radius:16px; width:100%; max-width:720px; box-shadow:var(--shadow);}
+  .modal-head{padding:18px 22px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(0deg, #FFFFFF 0%, #F3EEE0 30%, #F3EEE0 70%, #8b8680 100%); border-radius:16px 16px 0 0;}
+  .modal-head h3{font-size:16px; color:var(--rice-dark); flex:1; min-width:0; overflow-wrap:normal; word-break:normal; white-space:normal;}
+  .modal-close{background:none; border:none; font-size:20px; color:#9A9580;}
+  .modal-body{padding:20px 22px; max-height:70vh; overflow:auto;}
+  .modal-foot{padding:16px 22px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:10px;}
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px;}
+  .form-grid .full{grid-column:1/-1;}
+  .divider-lbl{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin:16px 0 8px; display:flex; align-items:center; gap:8px;}
+  .divider-lbl::after{content:''; flex:1; height:1px; background:var(--line);}
+  /* Phần CHỮ THẬT SỰ (được JS tự động bọc riêng bằng <span class="divider-lbl-text">) — nền tối bao
+     sát đúng theo từng ký tự (không lan ra khoảng trống), chữ trắng đậm, có đổ bóng đen phía sau từng
+     ký tự — thay cho cách viền cũ (đã bỏ vì nhìn xấu hơn). */
+  .divider-lbl-text{
+    display:inline-block; color:#fff; background:#4a4a4a; padding:3px 8px; border-radius:6px;
+    text-shadow:1px 1px 2px rgba(0,0,0,.55);
+  }
+
+  .quarter-bar{display:flex; gap:4px; margin-bottom:6px;}
+  .quarter-bar .qseg{flex:1; height:8px; border-radius:4px; background:var(--paper-2); position:relative;}
+  .quarter-bar .qseg.active{background:var(--gold);}
+  .checkbox-row{display:flex; align-items:center; gap:8px;}
+
+  .empty-state{text-align:center; padding:50px 20px; color:#9A9580;}
+  .empty-state .e-ico{font-size:34px; margin-bottom:10px;}
+
+  .kv-row{display:flex; justify-content:space-between; padding:6px 0; font-size:13px; border-bottom:1px dashed var(--line);}
+  .kv-row b{font-family:'JetBrains Mono',monospace;}
+
+  .tag-role{font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; background:var(--gold-soft); color:#5c4813;}
+  .tag-role.owner{background:var(--rice-dark); color:#fff;}
+  .tag-role.viewer{background:var(--paper-2); color:#8A8570;}
+
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:6px;}
+

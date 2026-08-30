@@ -1,0 +1,16 @@
+[
+  "01-foundation.js",
+  "02-shared-ui.js",
+  "03-cloud-storage.js",
+  "04-local-storage-receipts.js",
+  "05-state-permissions.js",
+  "06-filters-data.js",
+  "07-core-modules.js",
+  "08-ai-services.js",
+  "09-ai-chat-notes.js",
+  "10-interest-approval.js",
+  "11-loans-accounting.js",
+  "12-settlements.js",
+  "13-loans-ui.js",
+  "14-accounting-settings-bootstrap.js"
+]

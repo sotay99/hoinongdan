@@ -4,12 +4,15 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
 const root = path.resolve(__dirname, "..");
 const indexPath = path.join(root, "index.html");
 const hostingRoot = path.join(root, "public");
 const publicIndexPath = path.join(hostingRoot, "index.html");
+const functionsIndexPath = path.join(root, "functions/index.html");
+const manifestPath = path.join(root, "src/js/app/manifest.json");
 const failures = [];
 
 function fail(message) {
@@ -21,6 +24,37 @@ function walk(directory) {
     const fullPath = path.join(directory, entry.name);
     return entry.isDirectory() ? walk(fullPath) : [fullPath];
   });
+}
+
+function hash(buffer) {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+function readManifest() {
+  if (!fs.existsSync(manifestPath)) {
+    fail("src/js/app/manifest.json is missing");
+    return [];
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    fail(`App manifest is malformed JSON: ${error.message}`);
+    return [];
+  }
+  if (!Array.isArray(manifest) || manifest.length === 0) {
+    fail("App manifest must be a non-empty array");
+    return [];
+  }
+  if (manifest.some((entry) => typeof entry !== "string" || !entry || path.basename(entry) !== entry)) {
+    fail("Every app manifest entry must be a plain filename");
+    return [];
+  }
+  if (new Set(manifest).size !== manifest.length) {
+    fail("App manifest contains duplicate entries");
+    return [];
+  }
+  return manifest;
 }
 
 if (!fs.existsSync(indexPath)) {
@@ -55,11 +89,7 @@ while ((match = tagPattern.exec(html)) !== null) {
   } else {
     const extension = path.extname(resolvedPath);
     if (extension === ".css" || extension === ".js") {
-      const hashPrefix = require("crypto")
-        .createHash("sha256")
-        .update(fs.readFileSync(resolvedPath))
-        .digest("hex")
-        .slice(0, 12);
+      const hashPrefix = hash(fs.readFileSync(resolvedPath)).slice(0, 12);
       if (!path.basename(resolvedPath).endsWith(`.${hashPrefix}${extension}`)) {
         fail(`Referenced ${extension} asset lacks its SHA-256 filename prefix: ${url}`);
       }
@@ -68,14 +98,17 @@ while ((match = tagPattern.exec(html)) !== null) {
   references.push({ url, resolvedPath });
 }
 
-const expectedReferences = [
-  "/assets/js/firebase-init.a34a707244be.js",
-  "/assets/css/base.190140e02164.css",
-  "/assets/css/app.aee850a6122c.css",
-  "/assets/js/app.0e4a824be53f.js",
+const expectedReferencePatterns = [
+  /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
+  /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/,
+  /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/,
+  /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/,
 ];
 const actualReferences = references.map(({ url }) => url);
-if (JSON.stringify(actualReferences) !== JSON.stringify(expectedReferences)) {
+if (
+  actualReferences.length !== expectedReferencePatterns.length ||
+  expectedReferencePatterns.some((pattern, index) => !pattern.test(actualReferences[index] || ""))
+) {
   fail(`Local asset order differs from the expected classic load order: ${actualReferences.join(", ")}`);
 }
 
@@ -98,6 +131,42 @@ for (const inlineStyle of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi
 if (fs.existsSync(publicIndexPath) && !fs.readFileSync(indexPath).equals(fs.readFileSync(publicIndexPath))) {
   fail("public/index.html does not exactly match root index.html");
 }
+if (fs.existsSync(functionsIndexPath) && !fs.readFileSync(indexPath).equals(fs.readFileSync(functionsIndexPath))) {
+  fail("functions/index.html does not exactly match root index.html");
+}
+
+const canonicalByPattern = [
+  { pattern: expectedReferencePatterns[0], source: path.join(root, "src/js/firebase-init.js"), label: "Firebase" },
+  { pattern: expectedReferencePatterns[1], source: path.join(root, "src/css/base.css"), label: "base CSS" },
+  { pattern: expectedReferencePatterns[2], source: path.join(root, "src/css/app.css"), label: "app CSS" },
+];
+for (const { pattern, source, label } of canonicalByPattern) {
+  const reference = references.find(({ url }) => pattern.test(url));
+  if (!fs.existsSync(source)) {
+    fail(`Canonical ${label} source is missing: ${path.relative(root, source)}`);
+  } else if (reference && fs.existsSync(reference.resolvedPath)) {
+    if (!fs.readFileSync(source).equals(fs.readFileSync(reference.resolvedPath))) {
+      fail(`Generated ${label} does not exactly match its canonical source`);
+    }
+  }
+}
+
+const manifest = readManifest();
+const chunkBuffers = [];
+for (const entry of manifest) {
+  const chunkPath = path.join(root, "src/js/app", entry);
+  if (!fs.existsSync(chunkPath) || !fs.statSync(chunkPath).isFile()) {
+    fail(`Manifest app chunk is missing: ${entry}`);
+  } else {
+    chunkBuffers.push(fs.readFileSync(chunkPath));
+  }
+}
+const appReference = references.find(({ url }) => expectedReferencePatterns[3].test(url));
+if (appReference && fs.existsSync(appReference.resolvedPath) && chunkBuffers.length === manifest.length) {
+  if (!Buffer.concat(chunkBuffers).equals(fs.readFileSync(appReference.resolvedPath))) {
+    fail("Generated app does not equal zero-separator manifest concatenation");
+  }
+}
 
 const assetRoot = path.join(hostingRoot, "assets");
 const assetFiles = fs.existsSync(assetRoot) ? walk(assetRoot) : [];
@@ -109,7 +178,12 @@ for (const jsFile of jsFiles) {
   }
 }
 
-const builtSource = [html, ...assetFiles.map((file) => fs.readFileSync(file, "utf8"))].join("\n");
+const builtSource = [
+  html,
+  ...references
+    .filter(({ resolvedPath }) => fs.existsSync(resolvedPath))
+    .map(({ resolvedPath }) => fs.readFileSync(resolvedPath, "utf8")),
+].join("\n");
 if (!builtSource.includes("Tổng số hộ vay đang theo dõi")) {
   fail('Required text "Tổng số hộ vay đang theo dõi" is absent from the built source');
 }
@@ -123,12 +197,6 @@ const removedReportsMarkers = [
 ];
 for (const marker of removedReportsMarkers) {
   if (marker.test(builtSource)) fail(`Removed reports module marker is present: ${marker}`);
-}
-
-const referencedPaths = new Set(references.map(({ resolvedPath }) => resolvedPath));
-for (const expected of expectedReferences) {
-  const expectedPath = path.resolve(hostingRoot, expected.replace(/^\/+/, ""));
-  if (!referencedPaths.has(expectedPath)) fail(`Expected asset is not referenced by index.html: ${expected}`);
 }
 
 if (failures.length) {
