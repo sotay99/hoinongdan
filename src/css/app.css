@@ -316,6 +316,9 @@
      xanh lá thật đậm, tự phóng to nhanh 1.1x rồi đứng im 1 giây, tuần hoàn mãi mãi. */
   @keyframes bigMoneyPulse{ 0%,28%,100%{ transform:scale(1); } 14%{ transform:scale(1.1); } }
   .overflow-money-pulse{ display:inline-block; animation: bigMoneyPulse 1.4s ease-in-out infinite; color:#b71c1c !important; font-weight:800 !important; }
+  /* Ba số tổng hợp đầu Sổ Thu Chi Lãi Quỹ dùng chung hiệu ứng nhảy múa số tiền đã có sẵn:
+     phóng to 1.1x, thu về nhanh, rồi đứng im trước khi lặp lại. */
+  .accounting-money-pulse{ display:inline-block; animation:bigMoneyPulse 1.4s ease-in-out infinite; transform-origin:center center; }
   @keyframes archiveTabPulse{ 0%,17%,100%{ transform:scale(1); } 8%{ transform:scale(1.1); } }
   @keyframes sortBtnPopIn{ 0%,20%,40%,60%,100%{ transform:scale(1); } 10%,30%,50%{ transform:scale(3); } }
   .sort-btn-popin{ display:inline-block; animation: sortBtnPopIn 1.2s ease-in-out 1; }

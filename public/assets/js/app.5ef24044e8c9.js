@@ -21080,17 +21080,17 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
 
       <div class="grid3">
         <div class="stat-card" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));">
-          <div class="num mono">${money(acct.xaNhan)}</div>
+           <div class="num mono accounting-money-pulse">${money(acct.xaNhan)}</div>
           <div class="lbl">TỔNG THU: Tổng lãi trích về cho ${adminLevelLabel()}</div>
           <div class="sub">Tính theo đúng tỷ lệ % phân bổ riêng của từng khoản vay (khớp Sổ vay vốn), chỉ tính lãi ĐÃ đóng</div>
         </div>
         <div class="stat-card" style="background:linear-gradient(135deg,var(--clay),#7d3813);">
-          <div class="num mono">${money(acct.chiTotal)}</div>
+           <div class="num mono accounting-money-pulse">${money(acct.chiTotal)}</div>
           <div class="lbl">Tổng số tiền ${adminLevelLabel()} đã chi</div>
           <div class="sub">Cộng dồn từ các khoản chi trong kỳ</div>
         </div>
         <div class="stat-card" style="background:linear-gradient(135deg,${acct.tonQuy>=0?'var(--green)':'var(--red)'},${acct.tonQuy>=0?'#2f4f34':'#7a231d'});">
-          <div class="num mono">${money(acct.tonQuy)}</div>
+           <div class="num mono accounting-money-pulse">${money(acct.tonQuy)}</div>
           <div class="lbl">Tồn quỹ ${adminLevelLabel()}</div>
           <div class="sub">= Tổng nhận về − Tổng đã chi</div>
         </div>
