@@ -91,9 +91,9 @@ const localReferences = Array.from(
   (match) => match[2].trim(),
 ).filter((url) => url.startsWith("/"));
 const expectedReferencePatterns = [
-  /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
   /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/,
   /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/,
+  /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
   /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/,
 ];
 if (

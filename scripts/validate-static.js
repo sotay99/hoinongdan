@@ -99,9 +99,9 @@ while ((match = tagPattern.exec(html)) !== null) {
 }
 
 const expectedReferencePatterns = [
-  /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
   /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/,
   /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/,
+  /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
   /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/,
 ];
 const actualReferences = references.map(({ url }) => url);
@@ -126,6 +126,27 @@ if (html.includes("cdnjs.cloudflare.com/ajax/libs/pptxgenjs/")) {
   fail("The obsolete PptxGenJS CDN URL is present");
 }
 
+const requiredDeferredScripts = [
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js",
+  actualReferences[2],
+  actualReferences[3],
+];
+for (const url of requiredDeferredScripts) {
+  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const scriptTag = html.match(new RegExp(`<script\\b[^>]*\\bsrc\\s*=\\s*["']${escapedUrl}["'][^>]*>`, "i"));
+  if (!scriptTag || !/\bdefer(?:\s*=\s*(?:["']?defer["']?|["']?true["']?))?/i.test(scriptTag[0])) {
+    fail(`Firebase/application script is not deferred: ${url}`);
+  }
+}
+const firstScriptPosition = html.search(/<script\b/i);
+const firstStylesheetPosition = html.search(/<link\b[^>]*\brel\s*=\s*["']stylesheet["']/i);
+if (firstScriptPosition < 0 || firstStylesheetPosition < 0 || firstStylesheetPosition > firstScriptPosition) {
+  fail("Stylesheets must be discoverable before deferred scripts");
+}
+
 for (const inlineScript of html.matchAll(/<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script\s*>/gi)) {
   if (inlineScript[1].trim()) fail("Substantive inline <script> content remains in index.html");
 }
@@ -141,9 +162,9 @@ if (fs.existsSync(functionsIndexPath) && !fs.readFileSync(indexPath).equals(fs.r
 }
 
 const canonicalByPattern = [
-  { pattern: expectedReferencePatterns[0], source: path.join(root, "src/js/firebase-init.js"), label: "Firebase" },
-  { pattern: expectedReferencePatterns[1], source: path.join(root, "src/css/base.css"), label: "base CSS" },
-  { pattern: expectedReferencePatterns[2], source: path.join(root, "src/css/app.css"), label: "app CSS" },
+  { pattern: expectedReferencePatterns[2], source: path.join(root, "src/js/firebase-init.js"), label: "Firebase" },
+  { pattern: expectedReferencePatterns[0], source: path.join(root, "src/css/base.css"), label: "base CSS" },
+  { pattern: expectedReferencePatterns[1], source: path.join(root, "src/css/app.css"), label: "app CSS" },
 ];
 for (const { pattern, source, label } of canonicalByPattern) {
   const reference = references.find(({ url }) => pattern.test(url));
