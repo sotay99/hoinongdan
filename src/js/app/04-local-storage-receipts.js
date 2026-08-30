@@ -672,8 +672,8 @@
       if(cell){ cell.s = cell.s || {}; cell.s.font = Object.assign({}, cell.s.font, {name:'Times New Roman'}, {bold:true}); }
     }
   }
-  function exportBorrowersExcel(list, visibleCols){
-    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+  async function exportBorrowersExcel(list, visibleCols){
+    await loadOptionalLibrary('xlsx');
     const projLabel = projectFilterLabel(activeLoanProjects());
     const hamletLabel = hamletFilterLabel(state.config.hamlets||[]);
     const headerLines = [
@@ -700,8 +700,8 @@
 
   // Xem trước bảng trước khi thực sự xuất Excel — phóng to/thu nhỏ, cuộn tự do mọi hướng. Chỉ khi
   // bấm "Xuất file Excel" trong khung xem trước này mới thực sự tải file về máy.
-  function exportBorrowersExcelMultiSection(sections, visibleCols){
-    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+  async function exportBorrowersExcelMultiSection(sections, visibleCols){
+    await loadOptionalLibrary('xlsx');
     const projLabel = projectFilterLabel(activeLoanProjects());
     const hamletLabel = hamletFilterLabel(state.config.hamlets||[]);
     const maxCols = Math.max(visibleCols.length, ...sections.map(s=> (s.cols||visibleCols).length), 1);
@@ -784,9 +784,10 @@
     const applyZoom = ()=>{ zoomWrap.style.transform = `scale(${zoom})`; zoomLabel.textContent = Math.round(zoom*100)+'%'; };
     wrap.querySelector('#bvx-zoom-in').onclick = ()=>{ zoom = Math.min(2, Math.round((zoom+0.1)*10)/10); applyZoom(); };
     wrap.querySelector('#bvx-zoom-out').onclick = ()=>{ zoom = Math.max(0.4, Math.round((zoom-0.1)*10)/10); applyZoom(); };
-    wrap.querySelector('#bvx-confirm').onclick = ()=>{
+    wrap.querySelector('#bvx-confirm').onclick = async ()=>{
       if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
-      exportBorrowersExcel(list, visibleCols); close();
+      try{ await exportBorrowersExcel(list, visibleCols); close(); }
+      catch(e){ console.error('[Xuất Excel Sổ vay vốn] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
     };
   }
 
@@ -819,9 +820,10 @@
     wrap.querySelector('#bvx-close').onclick = close;
     wrap.querySelector('#bvx-cancel').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
-    wrap.querySelector('#bvx-confirm').onclick = ()=>{
+    wrap.querySelector('#bvx-confirm').onclick = async ()=>{
       if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
-      exportBorrowersExcelMultiSection(sections, visibleCols); close();
+      try{ await exportBorrowersExcelMultiSection(sections, visibleCols); close(); }
+      catch(e){ console.error('[Xuất Excel Sổ vay vốn] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
     };
   }
 

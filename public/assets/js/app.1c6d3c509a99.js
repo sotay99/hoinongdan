@@ -5,6 +5,53 @@
   const fmtDate = d => { if(!d) return '—'; const x=new Date(d); return x.toLocaleDateString('vi-VN'); };
   const todayStr = () => new Date().toISOString().slice(0,10);
   const uid = () => Math.random().toString(36).slice(2,10);
+  // Các thư viện lớn chỉ nạp khi người dùng thật sự dùng tính năng xuất/đọc tệp.
+  // Promise được dùng chung để các thao tác đồng thời không tạo nhiều thẻ script.
+  const optionalLibraryPromises = {};
+  const optionalLibraries = {
+    xlsx: {
+      url:'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      ready:()=>!!window.XLSX,
+      label:'SheetJS (Excel)',
+    },
+    mammoth: {
+      url:'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
+      ready:()=>!!window.mammoth,
+      label:'Mammoth (Word)',
+    },
+    pptxgenjs: {
+      url:'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js',
+      ready:()=>!!window.PptxGenJS,
+      label:'PptxGenJS (PowerPoint)',
+    },
+  };
+  function loadOptionalLibrary(name){
+    const library = optionalLibraries[name];
+    if(!library) return Promise.reject(new Error(`Không xác định được thư viện tùy chọn: ${name}`));
+    if(library.ready()) return Promise.resolve();
+    if(optionalLibraryPromises[name]) return optionalLibraryPromises[name];
+    optionalLibraryPromises[name] = new Promise((resolve, reject)=>{
+      const script = document.createElement('script');
+      let timer;
+      const fail = (reason)=>{
+        clearTimeout(timer);
+        script.remove();
+        delete optionalLibraryPromises[name];
+        reject(new Error(`Không thể tải ${library.label}: ${reason}`));
+      };
+      script.src = library.url;
+      script.async = true;
+      script.onload = ()=>{
+        clearTimeout(timer);
+        if(library.ready()) resolve();
+        else fail('tệp đã tải nhưng không khởi tạo được thư viện');
+      };
+      script.onerror = ()=> fail('lỗi mạng hoặc máy chủ CDN');
+      timer = setTimeout(()=> fail('quá thời gian chờ tải tệp'), 20000);
+      document.head.appendChild(script);
+    });
+    return optionalLibraryPromises[name];
+  }
   // Thoát ký tự HTML đặc biệt — dùng khi chèn văn bản người dùng/AI tự do (chat) vào innerHTML.
   // SỬA TẬN GỐC lỗi các ô nhập liệu (đặc biệt là ô tìm kiếm) bị mất focus/con trỏ sau mỗi ký tự — vì
   // renderFn() dựng lại toàn bộ innerHTML, tạo ra phần tử <input> HOÀN TOÀN MỚI, trình duyệt tự động
@@ -1520,7 +1567,7 @@
         btn.disabled = true; btn.textContent = '⏳ Đang tạo tệp...';
         try{
           if(type==='pptx') await generatePptxFromAiOutline(raw);
-          else if(type==='xlsx') generateXlsxFromAiCsv(raw);
+          else if(type==='xlsx') await generateXlsxFromAiCsv(raw);
           else if(type==='docx') generateDocxFromAiOutline(raw);
           else if(type==='pdf') generatePdfFromAiOutline(raw);
         }catch(e){
@@ -1537,7 +1584,7 @@
   // Tạo bài Tuyên truyền. Cú pháp AI cần tuân theo được huấn luyện trong system prompt tương ứng.
   // ---------------------------------------------------------------------
   async function generatePptxFromAiOutline(text){
-    if(!window.PptxGenJS){ alert('Thư viện tạo PowerPoint chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+    await loadOptionalLibrary('pptxgenjs');
     const pptx = new window.PptxGenJS();
     const slidesRaw = text.split(/\n\s*---\s*\n/);
     slidesRaw.forEach(block=>{
@@ -1553,8 +1600,8 @@
     });
     await pptx.writeFile({ fileName:`Trinh-chieu_${todayStr()}.pptx` });
   }
-  function generateXlsxFromAiCsv(text){
-    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+  async function generateXlsxFromAiCsv(text){
+    await loadOptionalLibrary('xlsx');
     const rows = text.trim().split('\n').filter(l=>l.trim()).map(line=> line.split(',').map(c=>c.trim()));
     if(rows.length) rows[0] = rows[0].map(h=> h.toUpperCase()); // chuyển chữ hoa dòng tiêu đề — thay thế cho việc tô màu nền không khả thi ở Excel
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -2590,8 +2637,8 @@
       if(cell){ cell.s = cell.s || {}; cell.s.font = Object.assign({}, cell.s.font, {name:'Times New Roman'}, {bold:true}); }
     }
   }
-  function exportBorrowersExcel(list, visibleCols){
-    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+  async function exportBorrowersExcel(list, visibleCols){
+    await loadOptionalLibrary('xlsx');
     const projLabel = projectFilterLabel(activeLoanProjects());
     const hamletLabel = hamletFilterLabel(state.config.hamlets||[]);
     const headerLines = [
@@ -2618,8 +2665,8 @@
 
   // Xem trước bảng trước khi thực sự xuất Excel — phóng to/thu nhỏ, cuộn tự do mọi hướng. Chỉ khi
   // bấm "Xuất file Excel" trong khung xem trước này mới thực sự tải file về máy.
-  function exportBorrowersExcelMultiSection(sections, visibleCols){
-    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+  async function exportBorrowersExcelMultiSection(sections, visibleCols){
+    await loadOptionalLibrary('xlsx');
     const projLabel = projectFilterLabel(activeLoanProjects());
     const hamletLabel = hamletFilterLabel(state.config.hamlets||[]);
     const maxCols = Math.max(visibleCols.length, ...sections.map(s=> (s.cols||visibleCols).length), 1);
@@ -2702,9 +2749,10 @@
     const applyZoom = ()=>{ zoomWrap.style.transform = `scale(${zoom})`; zoomLabel.textContent = Math.round(zoom*100)+'%'; };
     wrap.querySelector('#bvx-zoom-in').onclick = ()=>{ zoom = Math.min(2, Math.round((zoom+0.1)*10)/10); applyZoom(); };
     wrap.querySelector('#bvx-zoom-out').onclick = ()=>{ zoom = Math.max(0.4, Math.round((zoom-0.1)*10)/10); applyZoom(); };
-    wrap.querySelector('#bvx-confirm').onclick = ()=>{
+    wrap.querySelector('#bvx-confirm').onclick = async ()=>{
       if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
-      exportBorrowersExcel(list, visibleCols); close();
+      try{ await exportBorrowersExcel(list, visibleCols); close(); }
+      catch(e){ console.error('[Xuất Excel Sổ vay vốn] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
     };
   }
 
@@ -2737,9 +2785,10 @@
     wrap.querySelector('#bvx-close').onclick = close;
     wrap.querySelector('#bvx-cancel').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
-    wrap.querySelector('#bvx-confirm').onclick = ()=>{
+    wrap.querySelector('#bvx-confirm').onclick = async ()=>{
       if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
-      exportBorrowersExcelMultiSection(sections, visibleCols); close();
+      try{ await exportBorrowersExcelMultiSection(sections, visibleCols); close(); }
+      catch(e){ console.error('[Xuất Excel Sổ vay vốn] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
     };
   }
 
@@ -22704,10 +22753,13 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     wrap.querySelector('#svx-close').onclick = close;
     wrap.querySelector('#svx-cancel').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
-    wrap.querySelector('#svx-confirm').onclick = ()=>{ exportSurveyExcel(draft, headers, rows); close(); };
+    wrap.querySelector('#svx-confirm').onclick = async ()=>{
+      try{ await exportSurveyExcel(draft, headers, rows); close(); }
+      catch(e){ console.error('[Xuất kết quả khảo sát] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
+    };
   }
-  function exportSurveyExcel(draft, headers, rows){
-    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+  async function exportSurveyExcel(draft, headers, rows){
+    await loadOptionalLibrary('xlsx');
     const headerLines = [ ['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [`KẾT QUẢ KHẢO SÁT: ${draft.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], [] ];
     const aoa = [...headerLines, headers.map(h=>String(h).toUpperCase()), ...rows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -22975,26 +23027,41 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       await stRef.put(file);
       const storageUrl = await stRef.getDownloadURL();
       let content = '';
+      let extractionFailure = '';
       if(kind==='docx'){
         try{
+          await loadOptionalLibrary('mammoth');
           const buf = await file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer: buf });
           content = (result && result.value) || '';
-        }catch(e){ console.error('Trích xuất nội dung Word lỗi:', e); }
-      } else if(kind==='xlsx'){
+        }catch(e){
+          console.error('Trích xuất nội dung Word lỗi:', e);
+          extractionFailure = `Không thể trích xuất nội dung Word: ${e && e.message ? e.message : e}`;
+        }
+      } else if(kind==='xlsx' || kind==='xls'){
         try{
+          await loadOptionalLibrary('xlsx');
           const buf = await file.arrayBuffer();
           const wb = XLSX.read(buf, { type:'array' });
           content = wb.SheetNames.map(sn=> `--- Trang tính: ${sn} ---\n` + XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join('\n\n');
-        }catch(e){ console.error('Trích xuất nội dung Excel lỗi:', e); }
+        }catch(e){
+          console.error('Trích xuất nội dung Excel lỗi:', e);
+          extractionFailure = `Không thể trích xuất nội dung Excel: ${e && e.message ? e.message : e}`;
+        }
       } else if(kind==='image'){
         content = prompt(`Mô tả ngắn gọn nội dung ảnh "${file.name}" (để AI hiểu ý nghĩa của ảnh, vd: "Sơ đồ quy trình xét duyệt hồ sơ vay vốn gồm 5 bước: ...")`, '') || '';
+      }
+      if(extractionFailure){
+        content = `[TỆP GỐC ĐÃ ĐƯỢC LƯU NHƯNG KHÔNG TRÍCH XUẤT ĐƯỢC NỘI DUNG]\n${extractionFailure}\n\nVui lòng thử lại hoặc tải lại tệp khi kết nối mạng ổn định.`;
       }
       await rtdb.ref(`system_knowledge/tree/${id}`).set({
         id, type:'file', fileKind:kind, parentId: parentId||null, name:file.name,
         content, storagePath, storageUrl, mimeType:file.type||'', sizeBytes:file.size,
         createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
       });
+      if(extractionFailure){
+        alert(`Tệp "${file.name}" đã được lưu trên Firebase Storage nhưng không thể trích xuất nội dung. Vui lòng thử lại hoặc tải lại tệp khi kết nối mạng ổn định.`);
+      }
     }catch(e){
       console.error('Tải tệp lên Firebase Storage lỗi:', e);
       alert(`Không thể tải tệp "${file.name}" lên. Vui lòng kiểm tra kết nối mạng hoặc cấu hình Firebase Storage (bucket/CORS/luật bảo mật).`);
@@ -23596,10 +23663,12 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     if(rawFile){
       try{
         if(ext==='docx'){
+          await loadOptionalLibrary('mammoth');
           const buf = await rawFile.arrayBuffer();
           const r = await mammoth.extractRawText({ arrayBuffer: buf });
           nativeExtractedText = r.value || '';
         } else if(ext==='xlsx' || ext==='xls'){
+          await loadOptionalLibrary('xlsx');
           const buf = await rawFile.arrayBuffer();
           const wb = XLSX.read(buf, { type:'array' });
           nativeExtractedText = wb.SheetNames.map(sn=> `--- Trang tính: ${sn} ---\n` + XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join('\n\n');
@@ -23612,6 +23681,9 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         }
         if(nativeExtractedText!=null) digestInput.text = (digestInput.text? digestInput.text+'\n\n' : '') + nativeExtractedText;
       }catch(e){
+        if(ext==='docx' || ext==='xlsx' || ext==='xls'){
+          throw new Error(`Không thể đọc tệp Office "${rawFile.name}". Vui lòng kiểm tra kết nối mạng rồi thử lại.`);
+        }
         console.error('[Siêu ghi chú] Trích xuất nội dung tệp lỗi, sẽ thử gửi thẳng cho AI OCR:', e);
         if(!skipAI){ try{ digestInput.attachment = { mimeType: rawFile.type || 'application/octet-stream', base64: await fileToBase64(rawFile) }; }catch(e2){} }
       }

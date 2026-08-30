@@ -17,3 +17,6 @@ SHA-256, cập nhật bốn tham chiếu local trong `index.html`, rồi sao ch�
 `public/index.html` và `functions/index.html`. Firebase Hosting tự chạy build và
 validation trong hook `predeploy`. Các asset fingerprint trong `public/assets/`
 vẫn được theo dõi để checkout sạch có thể triển khai trước khi build.
+
+Các thư viện xuất Excel/PowerPoint và đọc tài liệu Word được nạp theo yêu cầu khi
+người dùng thực hiện chức năng tương ứng.

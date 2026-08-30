@@ -5,6 +5,53 @@
   const fmtDate = d => { if(!d) return '—'; const x=new Date(d); return x.toLocaleDateString('vi-VN'); };
   const todayStr = () => new Date().toISOString().slice(0,10);
   const uid = () => Math.random().toString(36).slice(2,10);
+  // Các thư viện lớn chỉ nạp khi người dùng thật sự dùng tính năng xuất/đọc tệp.
+  // Promise được dùng chung để các thao tác đồng thời không tạo nhiều thẻ script.
+  const optionalLibraryPromises = {};
+  const optionalLibraries = {
+    xlsx: {
+      url:'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      ready:()=>!!window.XLSX,
+      label:'SheetJS (Excel)',
+    },
+    mammoth: {
+      url:'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
+      ready:()=>!!window.mammoth,
+      label:'Mammoth (Word)',
+    },
+    pptxgenjs: {
+      url:'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js',
+      ready:()=>!!window.PptxGenJS,
+      label:'PptxGenJS (PowerPoint)',
+    },
+  };
+  function loadOptionalLibrary(name){
+    const library = optionalLibraries[name];
+    if(!library) return Promise.reject(new Error(`Không xác định được thư viện tùy chọn: ${name}`));
+    if(library.ready()) return Promise.resolve();
+    if(optionalLibraryPromises[name]) return optionalLibraryPromises[name];
+    optionalLibraryPromises[name] = new Promise((resolve, reject)=>{
+      const script = document.createElement('script');
+      let timer;
+      const fail = (reason)=>{
+        clearTimeout(timer);
+        script.remove();
+        delete optionalLibraryPromises[name];
+        reject(new Error(`Không thể tải ${library.label}: ${reason}`));
+      };
+      script.src = library.url;
+      script.async = true;
+      script.onload = ()=>{
+        clearTimeout(timer);
+        if(library.ready()) resolve();
+        else fail('tệp đã tải nhưng không khởi tạo được thư viện');
+      };
+      script.onerror = ()=> fail('lỗi mạng hoặc máy chủ CDN');
+      timer = setTimeout(()=> fail('quá thời gian chờ tải tệp'), 20000);
+      document.head.appendChild(script);
+    });
+    return optionalLibraryPromises[name];
+  }
   // Thoát ký tự HTML đặc biệt — dùng khi chèn văn bản người dùng/AI tự do (chat) vào innerHTML.
   // SỬA TẬN GỐC lỗi các ô nhập liệu (đặc biệt là ô tìm kiếm) bị mất focus/con trỏ sau mỗi ký tự — vì
   // renderFn() dựng lại toàn bộ innerHTML, tạo ra phần tử <input> HOÀN TOÀN MỚI, trình duyệt tự động

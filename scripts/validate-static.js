@@ -112,10 +112,15 @@ if (
   fail(`Local asset order differs from the expected classic load order: ${actualReferences.join(", ")}`);
 }
 
-const pptxScriptUrl =
-  "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js";
-if (!html.includes(`<script src="${pptxScriptUrl}"></script>`)) {
-  fail("The pinned PptxGenJS browser bundle is missing or has changed");
+const optionalLibraryUrls = [
+  "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js",
+  "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js",
+];
+for (const url of optionalLibraryUrls) {
+  if (new RegExp(`<script\\b[^>]*\\bsrc\\s*=\\s*["']${url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`, "i").test(html)) {
+    fail(`Optional library must not be loaded by initial HTML: ${url}`);
+  }
 }
 if (html.includes("cdnjs.cloudflare.com/ajax/libs/pptxgenjs/")) {
   fail("The obsolete PptxGenJS CDN URL is present");
@@ -166,6 +171,31 @@ if (appReference && fs.existsSync(appReference.resolvedPath) && chunkBuffers.len
   if (!Buffer.concat(chunkBuffers).equals(fs.readFileSync(appReference.resolvedPath))) {
     fail("Generated app does not equal zero-separator manifest concatenation");
   }
+}
+const canonicalApp = Buffer.concat(chunkBuffers).toString("utf8");
+const generatedApp =
+  appReference && fs.existsSync(appReference.resolvedPath) ? fs.readFileSync(appReference.resolvedPath, "utf8") : "";
+for (const url of optionalLibraryUrls) {
+  if (!canonicalApp.includes(url)) fail(`Canonical app is missing pinned optional-library URL: ${url}`);
+  if (!generatedApp.includes(url)) fail(`Generated app is missing pinned optional-library URL: ${url}`);
+}
+for (const guard of [
+  /function\s+loadOptionalLibrary\s*\(/,
+  /optionalLibraryPromises/,
+  /ready:\(\)=>!!window\.XLSX/,
+  /ready:\(\)=>!!window\.mammoth/,
+  /ready:\(\)=>!!window\.PptxGenJS/,
+]) {
+  if (!guard.test(canonicalApp)) fail(`Canonical app is missing an optional-library loader guard: ${guard}`);
+  if (!guard.test(generatedApp)) fail(`Generated app is missing an optional-library loader guard: ${guard}`);
+}
+for (const safeguard of [
+  "Không thể đọc tệp Office",
+  "TỆP GỐC ĐÃ ĐƯỢC LƯU NHƯNG KHÔNG TRÍCH XUẤT ĐƯỢC NỘI DUNG",
+  "tệp khi kết nối mạng ổn định",
+]) {
+  if (!canonicalApp.includes(safeguard)) fail(`Canonical app is missing non-lossy Office safeguard: ${safeguard}`);
+  if (!generatedApp.includes(safeguard)) fail(`Generated app is missing non-lossy Office safeguard: ${safeguard}`);
 }
 
 const assetRoot = path.join(hostingRoot, "assets");

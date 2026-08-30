@@ -1183,7 +1183,7 @@
         btn.disabled = true; btn.textContent = '⏳ Đang tạo tệp...';
         try{
           if(type==='pptx') await generatePptxFromAiOutline(raw);
-          else if(type==='xlsx') generateXlsxFromAiCsv(raw);
+          else if(type==='xlsx') await generateXlsxFromAiCsv(raw);
           else if(type==='docx') generateDocxFromAiOutline(raw);
           else if(type==='pdf') generatePdfFromAiOutline(raw);
         }catch(e){
@@ -1200,7 +1200,7 @@
   // Tạo bài Tuyên truyền. Cú pháp AI cần tuân theo được huấn luyện trong system prompt tương ứng.
   // ---------------------------------------------------------------------
   async function generatePptxFromAiOutline(text){
-    if(!window.PptxGenJS){ alert('Thư viện tạo PowerPoint chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+    await loadOptionalLibrary('pptxgenjs');
     const pptx = new window.PptxGenJS();
     const slidesRaw = text.split(/\n\s*---\s*\n/);
     slidesRaw.forEach(block=>{
@@ -1216,8 +1216,8 @@
     });
     await pptx.writeFile({ fileName:`Trinh-chieu_${todayStr()}.pptx` });
   }
-  function generateXlsxFromAiCsv(text){
-    if(!window.XLSX){ alert('Thư viện xuất Excel chưa tải xong, vui lòng thử lại sau ít giây.'); return; }
+  async function generateXlsxFromAiCsv(text){
+    await loadOptionalLibrary('xlsx');
     const rows = text.trim().split('\n').filter(l=>l.trim()).map(line=> line.split(',').map(c=>c.trim()));
     if(rows.length) rows[0] = rows[0].map(h=> h.toUpperCase()); // chuyển chữ hoa dòng tiêu đề — thay thế cho việc tô màu nền không khả thi ở Excel
     const ws = XLSX.utils.aoa_to_sheet(rows);
