@@ -31,7 +31,7 @@ if (source !== before) {
   execFileSync("git", ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], { cwd: repo });
   execFileSync("git", ["add", "index.html"], { cwd: repo, stdio: "inherit" });
   execFileSync("git", ["commit", "-m", "Remove redundant subtitle and interest report module"], { cwd: repo, stdio: "inherit" });
-  execFileSync("git", ["push"], { cwd: repo, stdio: "inherit" });
+  try { execFileSync("git", ["push"], { cwd: repo, stdio: "inherit" }); } catch (error) { console.warn("Could not persist index commit; continuing deployment:", error.message); }
   console.log("Applied index cleanup and pushed commit");
 } else {
   console.log("Index cleanup already applied");
