@@ -1,3 +1,4 @@
+// Trigger source persistence with temporary write permission.
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
