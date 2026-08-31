@@ -1,0 +1,130 @@
+/*
+ * Canonical token snapshot for the GitHub/Firebase build.
+ * Keep this file aligned with the Hội Nông dân Web design-system tokens.
+ * The static build extracts only the :root and .dark token blocks.
+ */
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
+
+  --background: 42 61.9% 95.9%;
+  --foreground: 101 23.5% 15.9%;
+  --border: 44 30% 80.4%;
+  --card: 45 100% 99.2%;
+  --card-foreground: 101 23.5% 15.9%;
+  --sidebar: 149 22.3% 23.7%;
+  --sidebar-foreground: 42 61.9% 95.9%;
+  --sidebar-border: 149 23% 31.6%;
+  --sidebar-primary: 43 64.5% 47.5%;
+  --sidebar-primary-foreground: 101 23.5% 15.9%;
+  --sidebar-accent: 149 23% 31.6%;
+  --sidebar-accent-foreground: 45 100% 99.2%;
+  --sidebar-ring: 44 58.1% 79.4%;
+  --popover: 45 100% 99.2%;
+  --popover-foreground: 101 23.5% 15.9%;
+  --primary: 149 22.3% 23.7%;
+  --primary-foreground: 45 100% 99.2%;
+  --secondary: 44 58.1% 79.4%;
+  --secondary-foreground: 44 65.8% 21.8%;
+  --muted: 44 44.2% 91.6%;
+  --muted-foreground: 46 11% 39.2%;
+  --accent: 43 64.5% 47.5%;
+  --accent-foreground: 101 23.5% 15.9%;
+  --destructive: 4 52.6% 49.6%;
+  --destructive-foreground: 45 100% 99.2%;
+  --input: 44 30% 80.4%;
+  --ring: 43 64.5% 47.5%;
+  --chart-1: 149 22.3% 23.7%;
+  --chart-2: 43 64.5% 47.5%;
+  --chart-3: 22 70.8% 41.6%;
+  --chart-4: 128 23.2% 38.8%;
+  --chart-5: 4 52.6% 49.6%;
+
+  --app-font-sans: Be Vietnam Pro, sans-serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: JetBrains Mono, monospace;
+  --radius: 0.625rem;
+  --spacing: 0.25rem;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --card-border: hsl(var(--card));
+  --popover-border: hsl(var(--popover));
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+
+  --background: 143 18.8% 13.5%;
+  --foreground: 44 44.2% 91.6%;
+  --border: 134 10.3% 32.4%;
+  --card: 143 19.1% 18.4%;
+  --card-foreground: 42 61.9% 95.9%;
+  --sidebar: 140 22.2% 10.6%;
+  --sidebar-foreground: 42 61.9% 95.9%;
+  --sidebar-border: 139 15.2% 24.5%;
+  --sidebar-primary: 43 64.5% 47.5%;
+  --sidebar-primary-foreground: 101 23.5% 15.9%;
+  --sidebar-accent: 149 22.3% 23.7%;
+  --sidebar-accent-foreground: 42 61.9% 95.9%;
+  --sidebar-ring: 44 58.1% 79.4%;
+  --popover: 143 19.1% 18.4%;
+  --popover-foreground: 101 23.5% 15.9%;
+  --primary: 130 14.4% 49%;
+  --primary-foreground: 146 28% 9.8%;
+  --secondary: 44 65.8% 21.8%;
+  --secondary-foreground: 42 61.9% 95.9%;
+  --muted: 141 16.4% 23.9%;
+  --muted-foreground: 41 23.2% 75.5%;
+  --accent: 43 64.5% 47.5%;
+  --accent-foreground: 143 18.8% 13.5%;
+  --destructive: 4 52.6% 49.6%;
+  --destructive-foreground: 45 100% 99.2%;
+  --input: 134 10.3% 32.4%;
+  --ring: 44 58.1% 79.4%;
+  --chart-1: 130 14.4% 49%;
+  --chart-2: 44 79% 57.1%;
+  --chart-3: 25 71.3% 53.5%;
+  --chart-4: 129 18.9% 58.4%;
+  --chart-5: 5 69.9% 63.5%;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --card-border: hsl(var(--card));
+  --popover-border: hsl(var(--popover));
+}
