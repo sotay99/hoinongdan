@@ -343,7 +343,7 @@
     return `${TIMELINE_SEQ[idxs[0]].label} → ${TIMELINE_SEQ[idxs[idxs.length-1]].label}`;
   }
   // Chuyển bộ lọc đã chọn thành tập hợp {qk,year} cụ thể — dùng cho các nơi cần tính theo tỷ lệ phân
-  // bổ riêng từng khoản vay (VD Sổ Thu Chi Lãi Quỹ, Báo cáo lãi).
+  // bổ riêng từng khoản vay (VD Sổ Thu Chi Lãi Quỹ, báo cáo theo kỳ).
   function timelineFilterToQuarterSet(prefix){
     ensureTimelineFilterInit(prefix);
     return state[prefix+'Timeline'].map(k=>{ const t = TIMELINE_SEQ[timelineSeqIndex(k)]; return { qk:t.qk, year:t.year }; });
