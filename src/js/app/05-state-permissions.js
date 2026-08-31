@@ -109,6 +109,8 @@
     bellOpen:false,
     walletTrashOpen:false,
     previewMode:false,   // môi trường tham quan (không đăng nhập, dùng dữ liệu mẫu, mọi nút bấm bị vô hiệu hoá)
+    accessMode:'signed_out', // 'signed_out' | 'google' | 'ward_guest' | 'tour'
+    guestSessionId:null,     // phiên khách theo tab; không phải danh tính người dùng
     admins:{},            // {emailKey: {email, addedBy, addedAt}} — danh sách Admin (ngoài 2 Admin tối cao cố định)
     aiProviders:[],       // [{id, label, model, apiKey}] — cấu hình AI do Admin thiết lập (system_config/ai_providers)
     systemWardsIndex:[],  // [{wardId, wardName, ownerEmail, deleted, secretId, updatedAt}] — mục lục toàn hệ thống (Admin)
@@ -161,7 +163,38 @@
     superNotesStoppedConfirm:false, // đang hỏi "có muốn đưa thẳng vào ghi chú không" sau khi Dừng
     _snInFlightText:'', _snInFlightFiles:[], _snInFlightParentId:null,
     _superNotesCache:null, _superNotesCacheAt:0,
+    // ---- Drive Hub (metadata của app; file Google Drive chỉ là liên kết) ----
+    driveSpace:'personal',       // 'personal' | 'shared'
+    driveResources:{},
+    driveCurrentFolder:null,
+    driveSearch:'',
+    driveTrashOpen:false,
+    driveListMode:'grid',
   };
+
+  // Trạng thái truy cập tường minh cho các module mới. `previewMode` vẫn được giữ để tương thích
+  // với các guard cũ trong toàn bộ ứng dụng.
+  const ACCESS_MODES = Object.freeze({
+    SIGNED_OUT:'signed_out',
+    GOOGLE:'google',
+    WARD_GUEST:'ward_guest',
+    TOUR:'tour',
+  });
+  function isTourMode(){ return state.accessMode===ACCESS_MODES.TOUR || !!state.previewMode; }
+  function isGoogleAccess(){ return state.accessMode===ACCESS_MODES.GOOGLE || !!(state.identity && state.identity.email); }
+  function isWardGuestAccess(){ return state.accessMode===ACCESS_MODES.WARD_GUEST || (!!state.identity && !state.identity.email && !!wardId() && !state.previewMode); }
+  function hasAuthenticatedIdentity(){ return !!(state.identity && state.identity.email); }
+  function accessModeLabel(){
+    if(isTourMode()) return 'Môi trường tham quan';
+    if(isWardGuestAccess()) return 'Khách qua mã xã/phường';
+    if(isGoogleAccess()) return isOwner() ? 'Chủ mã' : 'Tài khoản Google';
+    return 'Chưa đăng nhập';
+  }
+  function blockTourMutation(message){
+    if(!isTourMode()) return false;
+    alert(message || 'Bạn đang ở môi trường tham quan. Thao tác này không tạo dữ liệu thật.');
+    return true;
+  }
 
   // =====================================================================
   // ---------- HỆ PHÂN QUYỀN MỚI (module-based, thay cho collaborators cũ) ----
@@ -704,7 +737,7 @@
   }
   // Quyền hiệu lực của TÔI với 1 trong 4 module dữ liệu ('data'|'members'|'strength'|'internal')
   function modulePerm(m){
-    if(state.previewMode) return 'edit'; // môi trường tham quan: thấy đầy đủ giao diện, nút bấm sẽ bị vô hiệu hoá riêng
+    if(isTourMode()) return 'edit'; // tour thấy đủ giao diện; mutation vẫn bị chặn ở handler/lớp lưu trữ
     if(isOwner()) return 'edit';
     if(state._adminViewingWard && isAdmin()) return 'view'; // Admin "Xem cơ sở dữ liệu": full quyền XEM, không được Sửa
     if(!state.config) return 'none';
@@ -716,14 +749,14 @@
   function canEditModule(m){ return modulePerm(m)==='edit'; }
   // Quyền vào/sửa "Cài đặt của mã định danh" — CHỈ cấp được qua Loại 2 (đích danh email), không có ở Loại 1 (công khai)
   function settingsPerm(){
-    if(state.previewMode) return 'edit';
+    if(isTourMode()) return 'edit';
     if(isOwner()) return 'edit';
     const g = myGrant();
     return (g && g.settings) || 'none';
   }
   function canEditSettings(){ return isOwner() || settingsPerm()==='edit'; }
   function hasAnyWardAccess(){
-    if(state.previewMode) return true;
+    if(isTourMode()) return true;
     if(isOwner()) return true;
     if(settingsPerm()!=='none') return true;
     return SHARE_MODULES.some(m=>modulePerm(m.key)!=='none');
@@ -731,7 +764,7 @@
   // "Đang chờ duyệt" CHỈ áp dụng cho khách đã đăng nhập Google & tham gia bằng mã (Loại 2 chưa được cấp gì).
   // Khách qua mã không đăng nhập (codeGuest) hoặc môi trường tham quan dùng riêng hệ publicPerms/preview, không có khái niệm này.
   function isPending(){
-    if(state.previewMode) return false;
+    if(isTourMode()) return false;
     if(!state.identity || !state.identity.email) return false;
     if(!wardId() || !state.config) return false;
     return !hasAnyWardAccess();
@@ -765,7 +798,7 @@
     return `<p class="sub" style="margin-top:14px;">Đang áp dụng Các mốc thời gian hàng quý: ${parts.join(' ; ')}</p>`;
   }
   // "Resolve" 1 Quý (theo mẫu ngày/tháng lặp lại) ra khoảng ngày CỤ THỂ (có năm) gần với "hôm nay"
-  // nhất — dùng tạm cho các tính năng đang có (kỳ Báo cáo lãi, nhắc hạn quý) trong lúc chờ logic
+    // nhất — dùng tạm cho các tính năng đang có (kỳ báo cáo, nhắc hạn quý) trong lúc chờ logic
   // tính lãi suất chính thức (sẽ được bổ sung sau) sử dụng đúng bộ mốc này theo cách khác nếu cần.
   function resolveQuarterDates(qKey){
     const q = (state.config && state.config.quarters && state.config.quarters[qKey]) || DEFAULT_QUARTERS[qKey];
