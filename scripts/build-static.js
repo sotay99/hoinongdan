@@ -91,6 +91,8 @@ const designSystemCss = extractDesignSystemTheme(
 );
 const baseCss = readFile(path.join(root, "src/css/base.css"), "Base CSS source");
 const appCss = readFile(path.join(root, "src/css/app.css"), "App CSS source");
+let html = readFile(indexPath, "Root index").toString("utf8");
+const hasDesignSystemReference = /\/assets\/css\/design-system(?:\.[a-f0-9]{12})?\.css/.test(html);
 
 const outputs = {
   app: `app.${fingerprint(app)}.js`,
@@ -104,34 +106,44 @@ cleanGenerated(publicJsRoot, /^(?:app|firebase-init)\.[a-f0-9]{12}\.js$/);
 cleanGenerated(publicCssRoot, /^(?:app|base|design-system)\.[a-f0-9]{12}\.css$/);
 fs.writeFileSync(path.join(publicJsRoot, outputs.app), app);
 fs.writeFileSync(path.join(publicJsRoot, outputs.firebase), firebase);
-fs.writeFileSync(path.join(publicCssRoot, outputs.designSystemCss), designSystemCss);
 fs.writeFileSync(path.join(publicCssRoot, outputs.baseCss), baseCss);
 fs.writeFileSync(path.join(publicCssRoot, outputs.appCss), appCss);
+if (hasDesignSystemReference) {
+  fs.writeFileSync(path.join(publicCssRoot, outputs.designSystemCss), designSystemCss);
+}
 
-let html = readFile(indexPath, "Root index").toString("utf8");
 const localReferences = Array.from(
   html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)\s*=\s*(["'])(.*?)\1[^>]*>/gi),
   (match) => match[2].trim(),
 ).filter((url) => url.startsWith("/"));
-const expectedReferencePatterns = [
-  /^\/assets\/css\/design-system(?:\.[a-f0-9]{12})?\.css$/,
-  /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/,
-  /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/,
-  /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
-  /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/,
-];
+const expectedReferencePatterns = hasDesignSystemReference
+  ? [
+      /^\/assets\/css\/design-system(?:\.[a-f0-9]{12})?\.css$/,
+      /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/,
+      /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/,
+      /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
+      /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/,
+    ]
+  : [
+      /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/,
+      /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/,
+      /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
+      /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/,
+    ];
 if (
   localReferences.length !== expectedReferencePatterns.length ||
   expectedReferencePatterns.some((pattern, index) => !pattern.test(localReferences[index] || ""))
 ) {
   die(`Expected exactly five local asset references in classic load order, found: ${localReferences.join(", ")}`);
 }
-html = replaceExactlyOnce(
-  html,
-  /\/assets\/css\/design-system(?:\.[a-f0-9]{12})?\.css/g,
-  `/assets/css/${outputs.designSystemCss}`,
-  "design system CSS",
-);
+if (hasDesignSystemReference) {
+  html = replaceExactlyOnce(
+    html,
+    /\/assets\/css\/design-system(?:\.[a-f0-9]{12})?\.css/g,
+    `/assets/css/${outputs.designSystemCss}`,
+    "design system CSS",
+  );
+}
 html = replaceExactlyOnce(
   html,
   /\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js/g,
@@ -162,4 +174,7 @@ fs.writeFileSync(indexPath, htmlBuffer);
 fs.writeFileSync(path.join(root, "public/index.html"), htmlBuffer);
 fs.writeFileSync(path.join(root, "functions/index.html"), htmlBuffer);
 
-console.log(`Static build complete: ${outputs.baseCss}, ${outputs.appCss}, ${outputs.firebase}, ${outputs.app}`);
+console.log(
+  `Static build complete: ${outputs.baseCss}, ${outputs.appCss}, ${outputs.firebase}, ${outputs.app}` +
+    (hasDesignSystemReference ? `, ${outputs.designSystemCss}` : ""),
+);
