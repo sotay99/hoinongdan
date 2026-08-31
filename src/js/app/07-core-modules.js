@@ -2165,6 +2165,7 @@
        state.identity = { uid:user.uid || '', name: user.displayName || email, email, photo: user.photoURL || '', wardId:'' };
        state.accessMode = ACCESS_MODES.GOOGLE;
       lset(IDENTITY_KEY, state.identity);
+      migrateLegacyPersonalDataToUid().catch(e=>console.warn('Migration kho cá nhân UID bị bỏ qua:',e));
       ensureAccountSecretId(); // không cần chờ — chạy nền, không ảnh hưởng luồng hiển thị
       await loadWallet();
       const cachedActive = lget(activeWardCacheKey(email), '');
