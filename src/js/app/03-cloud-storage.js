@@ -32,7 +32,7 @@
   function srefFor(sid, sub){ return rtdb.ref(`secretdata/${sid}/${sub}`); }
 
   // =====================================================================
-  // BỘ NHỚ DỮ LIỆU CÁ NHÂN — xuyên suốt mọi mã xã, gắn theo đúng tài khoản Google (email) của người
+  // BỘ NHỚ DỮ LIỆU CÁ NHÂN — xuyên suốt mọi mã xã, gắn theo Firebase UID của người
   // dùng, HOÀN TOÀN TÁCH BIỆT khỏi dữ liệu "data/{wardId}" hay "secretdata/{secretId}" của bất kỳ mã
   // xã nào. Dù người dùng đăng nhập vào mã xã nào, dữ liệu cá nhân này luôn đi theo họ.
   // Dùng chung cho nhiều tính năng cá nhân sau này (Bộ xem cột, ghi chú riêng, cài đặt riêng...).
@@ -43,11 +43,18 @@
   function personalEmailKey(){
     return (state.identity && state.identity.email) ? state.identity.email.toLowerCase().trim().replace(/[.#$\[\]\/]/g,'_') : null;
   }
-  function isPersonalStorageLinkedToGoogle(){ return !!personalEmailKey(); }
+  function personalUidKey(){ return (state.identity && state.identity.uid) ? String(state.identity.uid) : null; }
+  function personalUserKey(){ return personalUidKey() || personalEmailKey(); }
+  function personalLegacyEmailRef(sub){
+    const legacyKey=personalEmailKey();
+    const currentKey=personalUserKey();
+    return legacyKey && legacyKey!==currentKey ? rtdb.ref(`userPersonalData/${legacyKey}/${sub}`) : null;
+  }
+  function isPersonalStorageLinkedToGoogle(){ return !!personalUserKey(); }
   // uref(sub) — con trỏ Firebase tới đúng kho dữ liệu cá nhân của người dùng đang đăng nhập, không
-  // phụ thuộc mã xã nào cả. CHỈ dùng được khi đã đăng nhập bằng Google (personalEmailKey() khác null).
+  // phụ thuộc mã xã nào cả. CHỈ dùng được khi đã đăng nhập bằng Google.
   function uref(sub){
-    const key = personalEmailKey();
+    const key = personalUserKey();
     if(!key) throw new Error('uref() chỉ dùng được khi đã đăng nhập bằng tài khoản Google.');
     return rtdb.ref(`userPersonalData/${key}/${sub}`);
   }
@@ -74,20 +81,41 @@
   // Xoá 1 bản ghi cá nhân theo id — xoá ở CẢ 2 nguồn phòng khi tồn tại ở cả 2 (vd: vừa mới đăng nhập).
   async function personalRemove(sub, id){
     if(isPersonalStorageLinkedToGoogle()){ try{ await uref(sub).child(id).remove(); }catch(e){} }
+    const legacyRef=personalLegacyEmailRef(sub);
+    if(legacyRef){ try{ await legacyRef.child(id).remove(); }catch(e){} }
     const obj = personalGetLocal(sub); delete obj[id]; personalSetLocal(sub, obj);
   }
-  // Lấy TOÀN BỘ bản ghi cá nhân — GỘP cả 2 nguồn (Firebase theo email + localStorage của trình
-  // duyệt) thành 1 mảng duy nhất. Nếu 1 bản ghi có mặt ở CẢ 2 nguồn (cùng id), ưu tiên bản Firebase
-  // (mới hơn/đáng tin hơn vì gắn với tài khoản).
+  // Lấy TOÀN BỘ bản ghi cá nhân — gộp UID mới, nhánh email legacy và localStorage. Nếu trùng ID,
+  // ưu tiên UID mới, sau đó tới email legacy, cuối cùng mới tới bản local.
   async function personalFetchAll(sub){
     const localObj = personalGetLocal(sub);
     const localArr = Object.keys(localObj).map(id=>({...localObj[id], id}));
-    let fbArr = [];
+    let fbArr = [], legacyArr = [];
     if(isPersonalStorageLinkedToGoogle()){
       try{ const snap = await uref(sub).once('value'); fbArr = snapToArray(snap.val()); }catch(e){ fbArr = []; }
+      const legacyRef=personalLegacyEmailRef(sub);
+      if(legacyRef){ try{ const snap=await legacyRef.once('value'); legacyArr=snapToArray(snap.val()); }catch(e){ legacyArr=[]; } }
     }
-    const fbIds = new Set(fbArr.map(x=>x.id));
-    return fbArr.concat(localArr.filter(x=>!fbIds.has(x.id)));
+    const seen = new Set();
+    return fbArr.concat(legacyArr,localArr).filter(item=>{
+      if(seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }
+  // Hợp nhất nhánh email cũ vào UID mới khi Firebase cho phép. Không xoá nhánh cũ để có thể
+  // khôi phục an toàn nếu Rules hoặc mạng gặp lỗi trong quá trình rollout.
+  async function migrateLegacyPersonalDataToUid(){
+    const uid=personalUidKey(), legacyKey=personalEmailKey();
+    if(!uid || !legacyKey || uid===legacyKey) return;
+    const legacyRoot=rtdb.ref(`userPersonalData/${legacyKey}`);
+    const uidRoot=rtdb.ref(`userPersonalData/${uid}`);
+    try{
+      const [legacySnap,uidSnap]=await Promise.all([legacyRoot.once('value'),uidRoot.once('value')]);
+      if(!legacySnap.exists()) return;
+      const legacy=legacySnap.val()||{}, current=uidSnap.exists() ? (uidSnap.val()||{}) : {};
+      await uidRoot.set({...legacy,...current,migratedFromEmailKey:legacyKey,migratedAt:new Date().toISOString()});
+    }catch(e){ console.warn('Không thể hợp nhất kho cá nhân email cũ sang UID, vẫn dùng fallback đọc legacy:',e); }
   }
 
 
