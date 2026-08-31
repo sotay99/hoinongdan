@@ -12,6 +12,5 @@
   "11-loans-accounting.js",
   "12-settlements.js",
   "13-loans-ui.js",
-  "14-accounting-settings-bootstrap.js",
-  "15-drive-hub.js"
+  "14-accounting-settings-bootstrap.js"
 ]

@@ -20,79 +20,6 @@
     background:none; border:none; padding:0; margin:0; color:#1a4d8f;
     text-decoration:underline; font-weight:700; font-size:inherit; cursor:pointer;
   }
-  .access-mode-banner{
-    position:sticky; top:0; z-index:59; display:flex; align-items:center; justify-content:center;
-    gap:10px; flex-wrap:wrap; padding:9px 16px; text-align:center; font-size:13px; font-weight:600;
-    border-bottom:1px solid rgba(47,74,60,.18);
-  }
-  .access-mode-banner-guest{ background:#eef5ee; color:#2f4a3c; }
-  .access-mode-banner .link-btn{ color:#2f4a3c; }
-  .drive-hub{display:flex; flex-direction:column; gap:14px;}
-  .drive-hub-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:18px; background:var(--paper); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);}
-  .drive-hub-head h3{margin:4px 0 2px; font-size:20px; color:var(--ink);}
-  .drive-hub-actions,.drive-space-tabs,.drive-toolbar-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-  .eyebrow{font:700 11px var(--app-font-mono); letter-spacing:.12em; color:var(--gold);}
-  .drive-space-tabs{padding:0 2px;}
-  .drive-notice{padding:10px 13px; border-radius:10px; background:#f4f0e5; color:var(--ink); border:1px solid var(--line); font-size:13px;}
-  .drive-notice-local{background:#eef5ee; color:var(--green);}
-  .drive-notice-tour{background:#fff3cd; color:#7a5b00; border-color:#f0c14b;}
-  .drive-toolbar{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
-  .drive-breadcrumb{display:flex; align-items:center; gap:7px; flex-wrap:wrap; color:#756f60;}
-  .drive-breadcrumb button{border:0; background:none; color:var(--rice-dark); font-weight:700; cursor:pointer; padding:4px;}
-  .drive-toolbar-right input{min-width:210px; border:1px solid var(--line); border-radius:8px; padding:9px 11px; background:#fffdf7;}
-  .drive-items{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px;}
-  .drive-item{min-height:132px; display:flex; flex-direction:column; gap:10px; padding:15px; border:1px solid var(--line); border-radius:12px; background:#fffdf7; box-shadow:0 2px 8px rgba(47,74,60,.06); cursor:pointer; transition:transform .15s, box-shadow .15s;}
-  .drive-item:hover{transform:translateY(-2px); box-shadow:0 6px 16px rgba(47,74,60,.12);}
-  .drive-item-icon{font-size:30px;}
-  .drive-item-main{display:flex; flex-direction:column; gap:4px; min-width:0;}
-  .drive-item-main b{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink);}
-  .drive-item-main span{font-size:12px; color:#756f60; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .drive-item-actions{display:flex; gap:6px; margin-top:auto; justify-content:flex-end;}
-  .drive-item-actions button{border:0; background:transparent; cursor:pointer; padding:4px; border-radius:6px;}
-  .drive-item-actions button:hover{background:#f0eadb;}
-  .drive-items.is-list{display:flex; flex-direction:column; gap:7px;}
-  .drive-items.is-list .drive-item{min-height:0; flex-direction:row; align-items:center; padding:10px 13px;}
-  .drive-items.is-list .drive-item-icon{font-size:21px;}
-  .drive-items.is-list .drive-item-main{flex:1;}
-  .drive-empty{grid-column:1/-1; min-height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; color:#756f60; border:1px dashed var(--line); border-radius:14px; background:rgba(255,253,247,.65); text-align:center;}
-  .drive-empty div{font-size:36px;}
-  .drive-route-card{display:flex; flex-direction:column; gap:18px; padding:22px; background:var(--paper); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);}
-  .drive-route-actions{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
-  .drive-route-action-group{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-  .drive-route-scope{font-size:12px; font-weight:700; color:var(--rice-dark); background:var(--paper-2); border-radius:999px; padding:6px 10px;}
-  .drive-route-title{display:flex; align-items:flex-start; gap:14px; padding-bottom:4px; border-bottom:1px solid var(--line);}
-  .drive-route-title h3{margin:3px 0; color:var(--ink); font-size:23px;}
-  .drive-route-icon{font-size:38px; line-height:1;}
-  .drive-route-section{display:flex; flex-direction:column; gap:10px;}
-  .drive-route-children{display:flex; flex-direction:column; gap:6px;}
-  .drive-route-child{display:grid; grid-template-columns:28px 1fr 20px; align-items:center; gap:8px; width:100%; padding:10px 12px; text-align:left; border:1px solid var(--line); border-radius:9px; background:var(--white); color:var(--ink); cursor:pointer;}
-  .drive-route-child:hover{background:var(--paper-2);}
-  .drive-route-empty,.drive-route-denied{padding:24px; text-align:center; color:#756f60; border:1px dashed var(--line); border-radius:10px;}
-  .drive-route-denied div{font-size:42px; margin-bottom:8px;}
-  .drive-route-denied h3{margin:0 0 6px; color:var(--ink);}
-  .drive-route-loading{text-align:center; color:#756f60; padding:30px;}
-  .drive-route-footer{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding-top:6px; border-top:1px solid var(--line);}
-  .drive-share-add{display:grid; grid-template-columns:minmax(0,1fr) 1fr auto; gap:8px; align-items:center; margin:14px 0;}
-  .drive-share-add input,.drive-share-add select{min-width:0; width:100%; min-height:38px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--white); color:var(--ink);}
-  .drive-share-list{display:flex; flex-direction:column; gap:7px; max-height:260px; overflow:auto;}
-  .drive-share-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:9px; background:var(--white);}
-  .drive-share-row div{display:flex; flex-direction:column; gap:3px; min-width:0;}
-  .drive-share-row b{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .drive-share-row span{font-size:12px; color:#756f60;}
-  .drive-share-empty{padding:18px; text-align:center; color:#756f60; border:1px dashed var(--line); border-radius:9px;}
-  .drive-comments{border-top:1px solid var(--line); padding-top:18px;}
-  .drive-comments-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
-  .drive-comment-list{display:flex; flex-direction:column; gap:8px; margin-top:10px;}
-  .drive-comment{position:relative; padding:11px 12px 10px; border:1px solid var(--line); border-radius:9px; background:var(--white);}
-  .drive-comment-head{display:flex; align-items:center; gap:10px; padding-right:42px;}
-  .drive-comment-head time{font-size:11px; color:#8a846f;}
-  .drive-comment p{margin:7px 0 4px; white-space:pre-wrap; overflow-wrap:anywhere;}
-  .drive-comment > button{padding:3px 8px; font-size:11px;}
-  .drive-comment-compose{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
-  .drive-comment-compose textarea{width:100%; min-height:74px; padding:10px 12px; resize:vertical; border:1px solid var(--line); border-radius:9px; background:var(--white); color:var(--ink); font:inherit;}
-  .drive-comment-compose > div{text-align:right;}
-  .drive-comment-note{padding:10px 12px; color:#756f60; background:var(--paper-2); border-radius:8px; font-size:12px;}
-  @media (max-width:600px){.drive-share-add{grid-template-columns:1fr;}.drive-route-card{padding:16px;}.drive-route-title h3{font-size:20px;}}
 
   @media (max-width:820px){
     .app-shell{flex-direction:column;}
@@ -100,9 +27,6 @@
     .form-grid{grid-template-columns:1fr;}
     .topbar{flex-wrap:wrap; padding:14px 16px; gap:10px;}
     .content{padding:16px;}
-    .drive-hub-head{flex-direction:column;}
-    .drive-toolbar-right{width:100%;}
-    .drive-toolbar-right input{flex:1; min-width:0;}
     /* Nút tab lặp lại ở dưới cùng modal (Kho lưu trữ / Tuỳ chỉnh màu / Chế độ xem cột) — màn hình hẹp
        chỉ giữ lại nút tab ở khung tiêu đề, ẩn hẳn bộ lặp lại ở chân bảng cho gọn. */
     .modal-foot-tabs{ display:none !important; }
@@ -212,7 +136,7 @@
   @media print{
     body *{ visibility:hidden; }
     #print-area, #print-area *{ visibility:visible; }
-    #print-area{ display:block; position:absolute; left:0; top:0; width:100%; padding:0 8mm; color:#000; font-family:var(--app-font-serif); }
+    #print-area{ display:block; position:absolute; left:0; top:0; width:100%; padding:0 8mm; color:#000; font-family:'Times New Roman', serif; }
     .no-print{ display:none !important; }
     @page{ size:A4 portrait; margin:15mm 12mm; }
     /* Khổ A4 NẰM NGANG riêng cho bảng Sổ vay vốn (nhiều cột) — kích hoạt bằng class .landscape */
@@ -395,50 +319,6 @@
   /* Ba số tổng hợp đầu Sổ Thu Chi Lãi Quỹ dùng chung hiệu ứng nhảy múa số tiền đã có sẵn:
      phóng to 1.1x, thu về nhanh, rồi đứng im trước khi lặp lại. */
   .accounting-money-pulse{ display:inline-block; animation:bigMoneyPulse 1.4s ease-in-out infinite; transform-origin:center center; }
-  /* Ba khung tổng hợp có cùng kiểu phóng to khi rê chuột như các nút tương tác khác trong app.
-     Giữ z-index để khung đang xem nổi lên trên hai khung bên cạnh mà không đổi bố cục. */
-  .accounting-stat-card{ cursor:pointer; transition:transform .15s ease, box-shadow .15s ease; }
-  .accounting-stat-card:hover, .accounting-stat-card:focus-visible{
-    transform:scale(1.06); position:relative; z-index:5; box-shadow:0 12px 24px rgba(37,50,31,.22);
-    outline:2px solid rgba(255,255,255,.8); outline-offset:2px;
-  }
-  .accounting-stat-card:focus-visible{ outline-color:#fff; }
-  @media (max-width:820px){
-    .accounting-stat-card:hover, .accounting-stat-card:focus-visible{ transform:scale(1.035); }
-  }
-  .accounting-info-modal .modal-head h3{ color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.35); }
-  .accounting-info-modal .modal-body{ line-height:1.7; }
-  .acct-info-amount{
-    display:block; margin:0 auto 12px; text-align:center; font-family:var(--app-font-mono);
-    font-size:clamp(28px, 5vw, 46px); font-weight:800; line-height:1.15;
-  }
-  .acct-info-lead{
-    margin:0 0 12px; padding:12px 14px; border:1px solid var(--line); border-radius:10px;
-    background:var(--paper-2); font-size:14px;
-  }
-  .acct-info-period{
-    margin:0 0 16px; padding:9px 12px; border-left:4px solid var(--rice-dark);
-    background:#faf8ef; color:var(--rice-dark); font-size:12.5px;
-  }
-  .acct-info-copy p{ margin:0 0 13px; }
-  .acct-info-box{
-    margin:14px 0; padding:12px 14px; border:1px solid var(--line); border-radius:10px;
-    background:rgba(232,185,59,.12);
-  }
-  .acct-info-table{ margin:8px 0 16px; max-height:280px; }
-  .acct-info-table td:last-child, .acct-info-table th:last-child{ text-align:right; }
-  .acct-info-equation{
-    display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px 12px;
-    margin:14px 0 16px; padding:14px; border:1px solid var(--line); border-radius:10px;
-     background:var(--paper-2); font-family:var(--app-font-mono); font-weight:700;
-  }
-  .acct-info-equation strong{ color:var(--green); font-size:1.15em; }
-  @media (max-width:560px){
-    .accounting-info-modal .modal-head{ padding:14px 16px; }
-    .accounting-info-modal .modal-body{ padding:16px; }
-    .acct-info-lead{ font-size:13px; }
-    .acct-info-equation{ gap:5px 7px; font-size:12px; }
-  }
   @keyframes archiveTabPulse{ 0%,17%,100%{ transform:scale(1); } 8%{ transform:scale(1.1); } }
   @keyframes sortBtnPopIn{ 0%,20%,40%,60%,100%{ transform:scale(1); } 10%,30%,50%{ transform:scale(3); } }
   .sort-btn-popin{ display:inline-block; animation: sortBtnPopIn 1.2s ease-in-out 1; }

@@ -1,34 +1,34 @@
 
   :root{
-    --paper:hsl(var(--background));
-    --paper-2:hsl(var(--muted));
-    --ink:hsl(var(--foreground));
-    --rice-dark:hsl(var(--primary));
-    --rice:hsl(var(--sidebar-accent));
-    --moss:hsl(var(--chart-4));
-    --gold:hsl(var(--accent));
-    --gold-soft:hsl(var(--secondary));
-    --clay:hsl(var(--chart-3));
-    --line:hsl(var(--border));
-    --yellow:hsl(var(--accent));
-    --orange:hsl(var(--chart-3));
-    --red:hsl(var(--destructive));
-    --green:hsl(var(--chart-4));
-    --white:hsl(var(--card));
+    --paper:#FBF7EE;
+    --paper-2:#F3EEE0;
+    --ink:#25321F;
+    --rice-dark:#2F4A3C;
+    --rice:#3E6350;
+    --moss:#6B8F71;
+    --gold:#C79A2B;
+    --gold-soft:#E9D9AC;
+    --clay:#B5551F;
+    --line:#DCD4BE;
+    --yellow:#E8B93B;
+    --orange:#DD7A34;
+    --red:#C1443C;
+    --green:#4C7A52;
+    --white:#FFFEFB;
     --shadow: 0 1px 2px rgba(37,50,31,.06), 0 4px 14px rgba(37,50,31,.06);
-    --r:var(--radius);
+    --r: 10px;
   }
   *{box-sizing:border-box;}
   body{margin:0;}
   #root{
-     font-family:var(--app-font-sans);
+    font-family:'Be Vietnam Pro',sans-serif;
     background:var(--paper);
     color:var(--ink);
     min-height:100vh;
     line-height:1.4;
   }
-  .mono{font-family:var(--app-font-mono);}
-  h1,h2,h3{font-family:var(--app-font-sans); margin:0; letter-spacing:-.01em;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,h3{font-family:'Be Vietnam Pro',sans-serif; margin:0; letter-spacing:-.01em;}
   button{font-family:inherit; cursor:pointer;}
   input,select,textarea{font-family:inherit;}
 

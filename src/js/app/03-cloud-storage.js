@@ -56,8 +56,7 @@
     try{ return JSON.parse(localStorage.getItem(personalLocalStorageKey(sub))||'{}'); }catch(e){ return {}; }
   }
   function personalSetLocal(sub, obj){
-    try{ localStorage.setItem(personalLocalStorageKey(sub), JSON.stringify(obj)); }
-    catch(e){ console.warn('Không thể lưu bộ nhớ cá nhân trên thiết bị:', e); }
+    try{ localStorage.setItem(personalLocalStorageKey(sub), JSON.stringify(obj)); }catch(e){}
   }
   // Lưu 1 bản ghi cá nhân (theo id) — tự chọn Firebase (nếu đã đăng nhập Google) hoặc localStorage.
   async function personalSet(sub, id, record){
@@ -178,7 +177,6 @@
   }
   // Ghi đè toàn bộ nhánh (dùng cho config, hoặc khôi phục sao lưu)
   async function cSet(sub, value){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan. Dữ liệu mẫu không được lưu vào Firebase.')) return;
     try{
       await wref(sub).set(value);
       if(sub === 'config') syncWardIndex(wardId(), value); // chạy nền, không cần chờ — phục vụ mục lục toàn hệ thống cho Admin
@@ -186,22 +184,18 @@
   }
   // Cập nhật một phần của nhánh (merge, không ghi đè các trường khác)
   async function cUpdate(sub, partial){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan. Dữ liệu mẫu không được lưu vào Firebase.')) return;
     try{ await wref(sub).update(partial); }catch(e){ console.error('Firebase update lỗi:', sub, e); }
   }
   // Ghi/thêm 1 bản ghi trong 1 tập hợp (borrowers/{id}, expenses/{id}, trash/{id}...)
   async function cSetRecord(sub, id, record){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan. Dữ liệu mẫu không được lưu vào Firebase.')) return;
     try{ await wref(sub).child(id).set(record); }catch(e){ console.error('Firebase set record lỗi:', sub, id, e); }
   }
   // Xoá 1 bản ghi khỏi 1 tập hợp
   async function cRemoveRecord(sub, id){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan. Dữ liệu mẫu không được lưu vào Firebase.')) return;
     try{ await wref(sub).child(id).remove(); }catch(e){ console.error('Firebase remove lỗi:', sub, id, e); }
   }
   // Thêm bản ghi mới với key tự sinh bởi Firebase (dùng cho Nhật ký hoạt động)
   async function cPush(sub, value){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan. Dữ liệu mẫu không được lưu vào Firebase.')) return;
     try{ const ref = wref(sub).push(); await ref.set(value); return ref.key; }
     catch(e){ console.error('Firebase push lỗi:', sub, e); }
   }
