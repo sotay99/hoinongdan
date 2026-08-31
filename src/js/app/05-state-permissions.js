@@ -161,6 +161,7 @@
     superNotesReviewFiles:[],       // tệp đã gộp trong lúc chờ xác nhận (dùng khi gửi thật cho AI/lưu thẳng)
     superNotesReviewTurns:[],       // TỪNG LƯỢT gửi riêng biệt {text, files} — dùng để HIỂN THỊ LẠI đầy đủ như 1 đoạn chat thật (mỗi lần gửi là 1 bong bóng riêng), không bị gộp mất cấu trúc
     superNotesStoppedConfirm:false, // đang hỏi "có muốn đưa thẳng vào ghi chú không" sau khi Dừng
+    _snDraftText:'', _snDraftCaptureSuppressed:false,
     _snInFlightText:'', _snInFlightFiles:[], _snInFlightParentId:null,
     _superNotesCache:null, _superNotesCacheAt:0,
     // ---- Drive Hub (metadata của app; file Google Drive chỉ là liên kết) ----
@@ -170,6 +171,10 @@
     driveSearch:'',
     driveTrashOpen:false,
     driveListMode:'grid',
+    driveSort:'name',
+    driveQuickDraft:null,
+    driveLoading:false,
+    driveLoadError:'',
   };
 
   // Trạng thái truy cập tường minh cho các module mới. `previewMode` vẫn được giữ để tương thích
