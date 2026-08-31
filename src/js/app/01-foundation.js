@@ -24,6 +24,11 @@
       ready:()=>!!window.PptxGenJS,
       label:'PptxGenJS (PowerPoint)',
     },
+    jszip: {
+      url:'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+      ready:()=>!!window.JSZip,
+      label:'JSZip (PowerPoint reader)',
+    },
   };
   function loadOptionalLibrary(name){
     const library = optionalLibraries[name];
