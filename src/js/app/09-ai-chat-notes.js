@@ -3,6 +3,8 @@
   // AI tiêu hoá, dựng theo đúng phong cách khung Chat AI (bồng bềnh, toàn màn hình).
   // =====================================================================
   function renderSuperNotesOverlay(){
+    const draftInput = document.getElementById('sn-input');
+    if(draftInput && !state._snDraftCaptureSuppressed) state._snDraftText = draftInput.value;
     let overlay = document.getElementById('super-notes-overlay');
     let firstCreate = false;
     if(!overlay){
@@ -137,7 +139,7 @@
               <div class="ai-add-opt${state._snMicListening?' ai-add-opt-disabled':''}" data-sn-add="mic2">🎙️ ${state._snMic2Listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ'}</div>
             </div>` : ''}
           </div>
-          <textarea id="sn-input" rows="1" placeholder="Gõ nội dung, hoặc tải ảnh/PDF/tài liệu để AI tự tạo ghi chú... (Enter xuống dòng, Ctrl+Enter gửi)" ${state.superNotesProcessing?'disabled':''}></textarea>
+          <textarea id="sn-input" rows="1" placeholder="Gõ nội dung, hoặc tải ảnh/PDF/tài liệu để AI tự tạo ghi chú... (Enter xuống dòng, Ctrl+Enter gửi)" ${state.superNotesProcessing?'disabled':''}>${escapeHtml(state._snDraftText||'')}</textarea>
           <div class="ai-send-wrap">
             <span class="ai-send-tooltip">Bấm Ctrl+Enter để gửi nhanh</span>
             <button id="sn-send-btn" ${state.superNotesProcessing?'disabled':''}>➤</button>
@@ -311,10 +313,19 @@
     const doSend = ()=>{
       const v = inputEl.value;
       if(!v.trim() && !state.superNotesPendingFiles.length) return;
-      queueSuperNoteForReview(v, state.superNotesPendingFiles.slice());
-      inputEl.value = '';
-      state.superNotesPendingFiles = [];
-      renderSuperNotesOverlay();
+      const files = state.superNotesPendingFiles.slice();
+      // Chuyển gói vừa gửi khỏi draft đang hiển thị. queueSuperNoteForReview() sẽ vẽ lại overlay,
+      // nên tạm ngăn render bắt lại nội dung cũ từ textarea trước khi nó bị xoá.
+      state._snDraftText = '';
+      state._snDraftCaptureSuppressed = true;
+      try{
+        queueSuperNoteForReview(v, files);
+        inputEl.value = '';
+        state.superNotesPendingFiles = [];
+        renderSuperNotesOverlay();
+      }finally{
+        state._snDraftCaptureSuppressed = false;
+      }
     };
     if(sendBtn) sendBtn.onclick = doSend;
     wireAutoResizeTextarea('sn-input');
