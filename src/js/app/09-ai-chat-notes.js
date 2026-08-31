@@ -31,7 +31,8 @@
         </div>
         ${isShared && isOwner()? `<button class="ai-newchat-btn" id="sn-shared-settings-btn">⚙️ Cài đặt & Chia sẻ</button>` : ''}
         ${isShared && !isOwner()? `<div class="sub" style="color:rgba(255,255,255,.65); padding:0 8px 8px; font-size:11px;">Quyền của bạn ở đây: <b style="color:#fff;">${canEdit?'Toàn quyền sửa':(canView?'Chỉ xem':'Không được xem')}</b></div>` : ''}
-        ${!isShared && usingLocalNotes()? `<div class="sub" style="color:rgba(255,255,255,.65); padding:0 8px 8px; font-size:11px;">💡 Bạn chưa đăng nhập bằng tài khoản Google nên ghi chú cá nhân của bạn sẽ được lưu tạm tại trình duyệt/máy tính này.</div>` : ''}
+        ${!isShared && usingLocalNotes()? `<div class="sub" style="color:rgba(255,255,255,.72); padding:0 8px 8px; font-size:11px;">💡 Bộ cá nhân đang lưu trên thiết bị này mà thôi — chưa thể chia sẻ hoặc đồng bộ sang máy khác. Dữ liệu có thể mất nếu xoá dữ liệu trình duyệt; hãy đăng nhập Google trước khi cần lưu lâu dài.</div>` : ''}
+        ${!isShared && !usingLocalNotes() && hasLocalSuperNotes()? `<div class="sub sn-local-migration-notice" style="color:rgba(255,255,255,.78); padding:0 8px 8px; font-size:11px;">📦 Phát hiện ghi chú riêng đang chờ chuyển từ trình duyệt lên Firebase.<br><button class="btn btn-ghost btn-sm" id="sn-migrate-local" style="color:#fff; border-color:rgba(255,255,255,.35); margin-top:6px;">Chuyển ghi chú lên bộ riêng</button></div>` : ''}
         <div class="ai-hist-label">${isShared? 'Bộ ghi chú dùng chung' : 'Siêu ghi chú của tôi'}</div>
         ${!state.superNotesTrashOpen? `
         <div class="sn-crumbs">
@@ -176,6 +177,8 @@
     document.getElementById('sn-space-personal').onclick = ()=> switchNotesSpace('personal');
     const sharedSettingsBtn = document.getElementById('sn-shared-settings-btn');
     if(sharedSettingsBtn) sharedSettingsBtn.onclick = renderSharedNotesSettingsPopup;
+    const migrateLocalBtn = document.getElementById('sn-migrate-local');
+    if(migrateLocalBtn) migrateLocalBtn.onclick = ()=> migrateLocalSuperNotesToCloud();
 
     // ---- điều hướng cây thư mục ----
     overlay.querySelectorAll('[data-sn-goto]').forEach(elx=> elx.onclick = ()=>{ state.superNotesCurrentFolder = elx.dataset.snGoto || null; state.superNotesEditingId = null; renderSuperNotesOverlay(); });
@@ -865,6 +868,7 @@
     items.push({id:'propaganda', ico:'📣', label:'Tạo bài Tuyên truyền'});
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
+    items.push({id:'drive', ico:'🗂️', label:'Trung tâm tài liệu'});
     // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — nằm ngay phía trên "Cài đặt & Chia sẻ"
     items.push({id:'survey', ico:'📝', label:'Biểu mẫu khảo sát'});
     if(isOwner() || settingsPerm()!=='none') items.push({id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'});
@@ -877,15 +881,16 @@
   }
 
   function describeAccess(){
-    if(state.previewMode) return 'Môi trường tham quan';
+    if(isTourMode()) return 'Môi trường tham quan';
     if(!wardId()) return 'Chưa chọn mã xã';
-    if(!state.identity.email) return 'Khách qua mã (không đăng nhập)';
+    if(isWardGuestAccess()) return 'Khách qua mã (không đăng nhập)';
     if(isOwner()) return 'Chủ mã (CHỦ MÃ)';
     if(isPending()) return 'Đang chờ Chủ mã duyệt';
     return 'Khách — đã được cấp quyền';
   }
 
   function renderApp(){
+    if(typeof driveRoute==='function' && driveRoute()) state.activeTab = 'drive';
     const nav = navItems();
     if(!nav.some(n=>n.id===state.activeTab)) state.activeTab = nav.length? nav[0].id : 'guide';
     const roleLabel = describeAccess();
@@ -905,10 +910,15 @@
     }
     root.innerHTML = `
       <div class="app-title-banner"><span>Sổ tay Công tác Hội Nông dân cấp xã/phường</span></div>
-      ${state.previewMode? `
+      ${isTourMode()? `
       <div class="preview-banner">
         ⚠️ Bạn đang ở môi trường tham quan. Hãy chọn <button class="link-btn" id="pv-login">Đăng nhập hoặc Tham gia bằng mã</button> để sử dụng;
         hoặc <button class="link-btn" id="pv-guide">Xem hướng dẫn sử dụng website</button>.
+      </div>` : ''}
+      ${isWardGuestAccess()? `
+      <div class="access-mode-banner access-mode-banner-guest">
+        <span>👤 Bạn đang dùng app bằng mã xã/phường, chưa đăng nhập Google. Bộ nhớ riêng chỉ lưu trên thiết bị này; muốn đồng bộ, chia sẻ và lưu lâu dài hãy đăng nhập.</span>
+        <button class="link-btn" id="guest-login">Đăng nhập Google</button>
       </div>` : ''}
       ${state._adminViewingWard? `
       <div class="admin-view-banner">🛡️ ADMIN đang XEM THỬ (chỉ đọc, không sửa được) dữ liệu của mã "${wardId()}". Bấm "Thoát khỏi mã định danh" để quay về mã của bạn.</div>` : ''}
@@ -969,6 +979,16 @@
     if(pvLogin) pvLogin.onclick = exitPreviewMode;
     const pvGuide = document.getElementById('pv-guide');
     if(pvGuide) pvGuide.onclick = ()=>{ state.activeTab='guide'; render(); };
+    const guestLogin = document.getElementById('guest-login');
+    if(guestLogin) guestLogin.onclick = ()=>{
+      detachRealtime();
+      clearWardGuestSession();
+      state.identity = null;
+      state.accessMode = ACCESS_MODES.SIGNED_OUT;
+      state.config = null;
+      state.view = 'login';
+      render();
+    };
     const wardLogoutBtn = document.getElementById('ward-logout-btn');
     if(wardLogoutBtn) wardLogoutBtn.onclick = exitToWallet;
     const gotoWalletBtn = document.getElementById('ward-goto-wallet');
@@ -977,6 +997,8 @@
     if(codeGuestLogoutBtn) codeGuestLogoutBtn.onclick = ()=>{
       detachRealtime();
       state.identity = null;
+      state.accessMode = ACCESS_MODES.SIGNED_OUT;
+      clearWardGuestSession();
       state.config=null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[];
       state.view = 'login'; render();
     };
@@ -996,6 +1018,7 @@
     else if(state.activeTab==='internal') renderInternalTab(content);
     else if(state.activeTab==='members') renderMembersTab(content);
     else if(state.activeTab==='strength') renderStrengthTab(content);
+    else if(state.activeTab==='drive') renderDriveHubTab(content);
     else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
@@ -1585,7 +1608,7 @@
   // Định nghĩa TOÀN BỘ cột có thể hiển thị/in/xuất Excel của Sổ vay vốn — dùng CHUNG 1 nguồn cho
   // bảng trên màn hình, in ấn, và xuất Excel để không bao giờ bị lệch nhau.
   // Tính số tiền lãi được phân bổ về từng cấp cho 1 người vay, dựa trên lãi thực tính được trong
-  // kỳ đang chọn (Báo cáo lãi) và tỷ lệ % đã kế thừa từ phương án lúc thêm người vay.
+      // kỳ đang chọn và tỷ lệ % đã kế thừa từ phương án lúc thêm người vay.
   // Số tiền phân bổ về từng cấp của Quý HIỆN TẠI — dùng ĐÚNG công thức như cột "Số tiền lãi":
   // Gốc × (tỷ lệ %/năm của cấp đó ÷ tổng số ngày chu kỳ năm) × số ngày tính lãi thực tế trong Quý
   // (đã xét Ngày vay/Ngày đến hạn nếu rơi giữa quý). Riêng cấp Ấp/Thôn lấy từ số tiền Cấp Xã nhân
