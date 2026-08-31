@@ -2,7 +2,7 @@
   "name": "functions",
   "description": "Cloud Functions cho Hoinongdan.sotay.org — tạo tiêu đề xem trước cho Biên lai khi chia sẻ link",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {
