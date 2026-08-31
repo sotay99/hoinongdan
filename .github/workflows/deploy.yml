@@ -21,8 +21,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
@@ -32,11 +33,14 @@ jobs:
         run: |
           changed="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
           targets="hosting"
+
           if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$|\.github/workflows/deploy\.yml$)' <<< "$changed"; then
             targets="hosting,functions"
           fi
+
           {
             echo "targets=$targets"
+
             if [[ "$targets" == *functions* ]]; then
               echo "functions=true"
             else
@@ -51,7 +55,7 @@ jobs:
           cp index.html functions/index.html
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -62,7 +66,13 @@ jobs:
 
       - name: Install functions dependencies
         if: steps.targets.outputs.functions == 'true'
-        run: npm ci --prefix functions --ignore-scripts --no-audit --no-fund
+        working-directory: functions
+        env:
+          npm_config_registry: https://registry.npmjs.org
+        run: |
+          npm install --package-lock=false --ignore-scripts --no-audit --no-fund
+          test -f node_modules/firebase-functions/package.json
+          test -f node_modules/firebase-admin/package.json
 
       - name: Write service account key to file
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/firebase-key.json
