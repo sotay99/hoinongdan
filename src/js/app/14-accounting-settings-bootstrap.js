@@ -148,7 +148,7 @@
       balance: acct.tonQuy,
     };
     const amount = amountMap[kind] ?? 0;
-    const moneyLabel = `${money(amount)} đ`;
+    const moneyLabel = money(amount);
     const colorMap = {
       income: '#8b5e00',
       expense: '#8b3210',
@@ -156,7 +156,7 @@
     };
     const categoryRows = Object.entries(acct.chiByCategory||{})
       .sort(([,a],[,b])=>b-a)
-      .map(([label,value])=>`<tr><td>${escapeHtml(label)}</td><td class="money">${money(value)} đ</td></tr>`)
+      .map(([label,value])=>`<tr><td>${escapeHtml(label)}</td><td class="money">${money(value)}</td></tr>`)
       .join('');
     const periodHtml = `<b>${fmtDate(from)} → ${fmtDate(to)}</b>`;
     const content = {
@@ -185,7 +185,7 @@
         lead: `Số tiền đang hiển thị là <b>${moneyLabel}</b>. Đây là số còn lại theo dữ liệu Thu − Chi trong kỳ đang xem.`,
         sections: `
           <p>Tồn quỹ được tính bằng cách lấy <b>Tổng thu ${level}</b> trừ đi <b>Tổng số tiền ${level} đã chi</b>. Với số liệu hiện tại, phép tính là:</p>
-          <div class="acct-info-equation"><span>${money(acct.xaNhan)} đ</span><b>−</b><span>${money(acct.chiTotal)} đ</span><b>=</b><strong>${money(acct.tonQuy)} đ</strong></div>
+          <div class="acct-info-equation"><span>${money(acct.xaNhan)}</span><b>−</b><span>${money(acct.chiTotal)}</span><b>=</b><strong>${money(acct.tonQuy)}</strong></div>
           <p>Nếu số tiền dương, dữ liệu đang cho thấy thu lớn hơn chi và còn số dư theo sổ. Nếu số tiền bằng 0, thu và chi cân bằng. Nếu số tiền âm, tổng chi đang lớn hơn tổng thu được ghi nhận trong kỳ; đây là tín hiệu cần kiểm tra lại các khoản chi, kỳ hạch toán hoặc số liệu phân bổ.</p>
           <p>Chỉ tiêu này là <b>số dư được tính trên sổ theo kỳ đang chọn</b>. Nó không tự động khẳng định số tiền mặt hoặc số dư tài khoản ngân hàng thực tế nếu còn khoản thu/chi chưa nhập, nhập sai kỳ, hoặc khoản đang chờ được ghi nhận.</p>
           <p>Để giải thích rõ con số này, hãy đối chiếu đồng thời ba khung: Tổng thu cho biết nguồn vào, Tổng đã chi cho biết nguồn ra, còn Tồn quỹ cho biết phần chênh lệch còn lại sau phép trừ.</p>`,
