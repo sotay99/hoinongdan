@@ -140,6 +140,82 @@
     return { id: uid(), date: todayStr(), purpose: CAT_MEETING, purposeOther:'', hamlet:(state.config.hamlets||[])[0]||'', amount:0, note:'', quarters:[], amountMode:'auto', attachments:[] };
   }
 
+  function renderAccountingStatInfoModal(kind, acct, from, to){
+    const level = adminLevelLabel();
+    const amountMap = {
+      income: acct.xaNhan,
+      expense: acct.chiTotal,
+      balance: acct.tonQuy,
+    };
+    const amount = amountMap[kind] ?? 0;
+    const moneyLabel = `${money(amount)} đ`;
+    const colorMap = {
+      income: '#8b5e00',
+      expense: '#8b3210',
+      balance: acct.tonQuy>=0 ? '#1b5e20' : '#8b1e1e',
+    };
+    const categoryRows = Object.entries(acct.chiByCategory||{})
+      .sort(([,a],[,b])=>b-a)
+      .map(([label,value])=>`<tr><td>${escapeHtml(label)}</td><td class="money">${money(value)} đ</td></tr>`)
+      .join('');
+    const periodHtml = `<b>${fmtDate(from)} → ${fmtDate(to)}</b>`;
+    const content = {
+      income: {
+        title: `💰 Tổng thu ${level}: số tiền lãi được nhận`,
+        lead: `Số tiền đang hiển thị là <b>${moneyLabel}</b>. Đây là tổng phần tiền lãi được phân bổ về ${level} trong đúng kỳ hạch toán đang xem.`,
+        sections: `
+          <p>Khoản này được hệ thống tính từ các khoản vay trong <b>Sổ vay vốn Quỹ Hỗ trợ Nông dân</b>. Với mỗi khoản vay, hệ thống chỉ lấy những Quý đã thực sự đóng lãi và đã được ghi nhận/phê duyệt, sau đó phân bổ phần tiền lãi thuộc về ${level} theo tỷ lệ phân bổ riêng của khoản vay đó.</p>
+          <p>Nói cách khác, đây là số tiền lãi ${level} <b>được nhận theo số liệu đã phát sinh</b>, không phải số tiền dự kiến, không phải tiền gốc đã giải ngân, cũng không phải toàn bộ số tiền người vay còn phải trả trong tương lai.</p>
+          <div class="acct-info-box"><b>Công thức hiểu đơn giản</b><br>Tiền lãi đã đóng của từng khoản vay × tỷ lệ phân bổ về ${level} → cộng tất cả khoản trong ${periodHtml}.</div>
+          <p>Nếu bạn đổi bộ lọc <b>Quý/Năm</b> ở phía trên module rồi mở lại modal, số tiền sẽ được tính lại theo kỳ mới. Các khoản lãi chưa đóng, chưa được phê duyệt hoặc nằm ngoài kỳ đang xem sẽ không được cộng vào con số này.</p>
+          <p>Ý nghĩa quản lý của chỉ tiêu này là cho biết trong kỳ, ${level} có bao nhiêu nguồn thu từ phần lãi được phân bổ để làm căn cứ đối chiếu với các khoản đã chi và tính số tồn quỹ.</p>`,
+      },
+      expense: {
+        title: `📤 Tổng số tiền ${level} đã chi`,
+        lead: `Số tiền đang hiển thị là <b>${moneyLabel}</b>. Đây là tổng tất cả khoản chi hợp lệ của ${level} trong kỳ hạch toán đang xem.`,
+        sections: `
+          <p>Khoản này được cộng từ các bản ghi trong <b>Sổ Thu Chi Lãi Quỹ</b> có ngày chi nằm trong ${periodHtml}. Những khoản đã bị đưa vào thùng rác hoặc không thuộc kỳ đang xem sẽ không được tính.</p>
+          <p>Mỗi khoản chi có thể thuộc một mục đích khác nhau, chẳng hạn như chi hoạt động họp, chi bồi dưỡng cán bộ hoạt động quỹ, chi trích về khu dân cư/ấp hoặc mục đích khác. Hệ thống cộng số tiền thực tế đã nhập của từng bản ghi để tạo thành tổng này.</p>
+          <div class="acct-info-box"><b>Số bản ghi đang được cộng</b><br>${acct.expenses.length ? `<b>${acct.expenses.length}</b> khoản chi hợp lệ trong kỳ.` : 'Chưa có khoản chi hợp lệ nào trong kỳ.'}</div>
+          ${categoryRows ? `<p style="margin-bottom:6px;"><b>Phân bổ theo nội dung chi</b></p><div class="table-wrap acct-info-table"><table><thead><tr><th>Nội dung</th><th>Số tiền</th></tr></thead><tbody>${categoryRows}</tbody></table></div>` : ''}
+          <p>Ý nghĩa của chỉ tiêu này là cho biết nguồn thu của ${level} đã được sử dụng bao nhiêu trong kỳ. Muốn kiểm tra chi tiết, bạn có thể xem từng dòng ở bảng <b>Danh sách khoản chi</b> bên dưới.</p>`,
+      },
+      balance: {
+        title: `⚖️ Tồn quỹ ${level}: số dư sau thu và chi`,
+        lead: `Số tiền đang hiển thị là <b>${moneyLabel}</b>. Đây là số còn lại theo dữ liệu Thu − Chi trong kỳ đang xem.`,
+        sections: `
+          <p>Tồn quỹ được tính bằng cách lấy <b>Tổng thu ${level}</b> trừ đi <b>Tổng số tiền ${level} đã chi</b>. Với số liệu hiện tại, phép tính là:</p>
+          <div class="acct-info-equation"><span>${money(acct.xaNhan)} đ</span><b>−</b><span>${money(acct.chiTotal)} đ</span><b>=</b><strong>${money(acct.tonQuy)} đ</strong></div>
+          <p>Nếu số tiền dương, dữ liệu đang cho thấy thu lớn hơn chi và còn số dư theo sổ. Nếu số tiền bằng 0, thu và chi cân bằng. Nếu số tiền âm, tổng chi đang lớn hơn tổng thu được ghi nhận trong kỳ; đây là tín hiệu cần kiểm tra lại các khoản chi, kỳ hạch toán hoặc số liệu phân bổ.</p>
+          <p>Chỉ tiêu này là <b>số dư được tính trên sổ theo kỳ đang chọn</b>. Nó không tự động khẳng định số tiền mặt hoặc số dư tài khoản ngân hàng thực tế nếu còn khoản thu/chi chưa nhập, nhập sai kỳ, hoặc khoản đang chờ được ghi nhận.</p>
+          <p>Để giải thích rõ con số này, hãy đối chiếu đồng thời ba khung: Tổng thu cho biết nguồn vào, Tổng đã chi cho biết nguồn ra, còn Tồn quỹ cho biết phần chênh lệch còn lại sau phép trừ.</p>`,
+      },
+    }[kind];
+    if(!content) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.innerHTML = `
+      <div class="modal accounting-info-modal" style="max-width:820px;">
+        <div class="modal-head" style="background:linear-gradient(180deg, #fff 0%, ${colorMap[kind]} 100%);">
+          <h3>${content.title}</h3>
+          <button class="modal-close preview-allow" id="acct-info-close" aria-label="Đóng">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="acct-info-amount" style="color:${colorMap[kind]};">${moneyLabel}</div>
+          <p class="acct-info-lead">${content.lead}</p>
+          <div class="acct-info-period">Kỳ hạch toán đang xem: ${periodHtml}</div>
+          <div class="acct-info-copy">${content.sections}</div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="acct-info-close2">Đóng bảng</button></div>
+      </div>`;
+    wrap.querySelector('#acct-info-close').onclick = close;
+    wrap.querySelector('#acct-info-close2').onclick = close;
+    wrap.onclick = e=>{ if(e.target===wrap) close(); };
+  }
+
   function renderExpensesTab(el){
     const {from,to,quarterSet} = acctPeriodRange();
     const acct = computeAcctTotals(from,to,quarterSet);
@@ -160,18 +236,18 @@
       </div>
 
       <div class="grid3">
-        <div class="stat-card" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));">
-           <div class="num mono accounting-money-pulse">${money(acct.xaNhan)}</div>
+        <div class="stat-card accounting-stat-card" role="button" tabindex="0" data-accounting-stat-info="income" aria-label="Xem giải thích Tổng thu" style="background:linear-gradient(135deg,var(--rice),var(--rice-dark));">
+          <div class="num mono accounting-money-pulse">${money(acct.xaNhan)}</div>
           <div class="lbl">TỔNG THU: Tổng lãi trích về cho ${adminLevelLabel()}</div>
           <div class="sub">Tính theo đúng tỷ lệ % phân bổ riêng của từng khoản vay (khớp Sổ vay vốn), chỉ tính lãi ĐÃ đóng</div>
         </div>
-        <div class="stat-card" style="background:linear-gradient(135deg,var(--clay),#7d3813);">
-           <div class="num mono accounting-money-pulse">${money(acct.chiTotal)}</div>
+        <div class="stat-card accounting-stat-card" role="button" tabindex="0" data-accounting-stat-info="expense" aria-label="Xem giải thích Tổng số tiền đã chi" style="background:linear-gradient(135deg,var(--clay),#7d3813);">
+          <div class="num mono accounting-money-pulse">${money(acct.chiTotal)}</div>
           <div class="lbl">Tổng số tiền ${adminLevelLabel()} đã chi</div>
           <div class="sub">Cộng dồn từ các khoản chi trong kỳ</div>
         </div>
-        <div class="stat-card" style="background:linear-gradient(135deg,${acct.tonQuy>=0?'var(--green)':'var(--red)'},${acct.tonQuy>=0?'#2f4f34':'#7a231d'});">
-           <div class="num mono accounting-money-pulse">${money(acct.tonQuy)}</div>
+        <div class="stat-card accounting-stat-card" role="button" tabindex="0" data-accounting-stat-info="balance" aria-label="Xem giải thích Tồn quỹ" style="background:linear-gradient(135deg,${acct.tonQuy>=0?'var(--green)':'var(--red)'},${acct.tonQuy>=0?'#2f4f34':'#7a231d'});">
+          <div class="num mono accounting-money-pulse">${money(acct.tonQuy)}</div>
           <div class="lbl">Tồn quỹ ${adminLevelLabel()}</div>
           <div class="sub">= Tổng nhận về − Tổng đã chi</div>
         </div>
@@ -252,6 +328,11 @@
     if(expTrashToggle) expTrashToggle.onclick = ()=>{ state.showExpenseTrash = !state.showExpenseTrash; renderExpensesTab(el); };
     if(state.showExpenseTrash) wireTrashPanel(el, ()=> renderExpensesTab(el));
 
+    document.querySelectorAll('[data-accounting-stat-info]').forEach(card=>{
+      const openInfo = ()=> renderAccountingStatInfoModal(card.dataset.accountingStatInfo, acct, from, to);
+      card.onclick = openInfo;
+      card.onkeydown = e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openInfo(); } };
+    });
     bindAcctPeriodSelector('exp', ()=>renderExpensesTab(el), el);
     const expLevelAllocationBtn = document.getElementById('exp-level-allocation-btn');
     if(expLevelAllocationBtn) expLevelAllocationBtn.onclick = ()=> renderLevelAllocationModal();
