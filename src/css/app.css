@@ -1021,3 +1021,9 @@
   @media (max-width:640px){
     .dashboard-wip-notice{font-size:14px; padding:12px 13px;}
   }
+
+  /* ---- Dòng thương hiệu trên cùng màn hình đăng nhập, ngay phía trên biểu tượng bông lúa ---- */
+  .auth-brand{margin:0 0 14px; text-align:center; font-size:14px; font-weight:800; letter-spacing:1.1px;
+    color:var(--rice-dark); text-transform:lowercase; opacity:.92;}
+  .auth-brand::after{content:''; display:block; width:46px; height:2px; margin:9px auto 0; border-radius:2px;
+    background:linear-gradient(90deg, transparent, var(--gold, #c79a2b), transparent);}

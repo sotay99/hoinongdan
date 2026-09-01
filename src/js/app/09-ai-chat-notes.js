@@ -244,6 +244,7 @@
     root.innerHTML = `
       <div class="center-screen">
         <div class="auth-card">
+          <div class="auth-brand">hoinongdan.sotay.org</div>
           <div class="rice-badge">🌾</div>
           <h1>Sổ tay Công tác<br>Hội Nông dân cấp xã/phường</h1>
           <p class="sub">Đăng nhập để quản lý công tác hội, thực lực hội, hội viên, quỹ hỗ trợ nông dân, thu chi nội bộ, vốn vay, lãi suất và báo cáo địa phương</p>

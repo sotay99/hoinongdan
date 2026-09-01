@@ -2632,6 +2632,8 @@
       if(peopleOverlay) peopleOverlay.remove();
       const officeOverlay = document.getElementById('office-overlay');
       if(officeOverlay){ officeOverlay.remove(); state._officeAppOpen = null; }
+      const propagandaOverlay = document.getElementById('propaganda-overlay');
+      if(propagandaOverlay){ propagandaOverlay.remove(); state._propagandaOpen = false; }
       return;
     }
     if(!btn){
