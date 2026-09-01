@@ -1,5 +1,5 @@
   // =====================================================================
-  // [Drive Hub] — lớp điều hướng metadata của app.
+  // [Trung tâm dữ liệu] — lớp điều hướng metadata của app (tên nội bộ: drive*).
   // Firebase là nơi lưu metadata canonical; Google Drive chỉ được dùng làm
   // liên kết/import/export ở các bước tích hợp sau.
   // =====================================================================
@@ -30,7 +30,7 @@
   }
   function driveSaveLocalTree(tree){
     try{ localStorage.setItem(DRIVE_LOCAL_STORAGE_KEY, JSON.stringify(tree||{})); return true; }
-    catch(e){ console.warn('Không thể lưu kho tài liệu local:', e); return false; }
+    catch(e){ console.warn('Không thể lưu kho dữ liệu local:', e); return false; }
   }
   function driveQuickDraftContextKey(){
     const scope = state.driveSpace==='shared'
@@ -110,7 +110,7 @@
         <div class="modal-body">
           <div class="drive-office-placeholder-icon">${appName==='Docs'?'📄':appName==='Sheets'?'📊':'📽️'}</div>
           <h4>Màn hình ${escapeHtml(label)} đang được thiết kế</h4>
-          <p class="sub">Tính năng tạo và chỉnh sửa ${escapeHtml(label)} sẽ được phát triển trong giai đoạn sau. Trong MVP này, Trung tâm tài liệu chỉ chuẩn bị sẵn vị trí và luồng điều hướng.</p>
+          <p class="sub">Tính năng tạo và chỉnh sửa ${escapeHtml(label)} sẽ được phát triển trong giai đoạn sau. Trong MVP này, Trung tâm dữ liệu chỉ chuẩn bị sẵn vị trí và luồng điều hướng.</p>
           <div class="drive-office-placeholder-note">Chưa kết nối Google Drive và chưa mở trình chỉnh sửa văn phòng bên ngoài.</div>
         </div>
         <div class="modal-foot"><button class="btn btn-primary" id="drive-office-placeholder-ok">Đã hiểu</button></div>
@@ -132,10 +132,10 @@
           <div class="office-module-icon">${icon}</div>
           <div class="eyebrow">MODULE ${escapeHtml(label.toUpperCase())}</div>
           <h3>${escapeHtml(label)}</h3>
-          <p class="sub">Module đã có vị trí riêng trong menu. Phần tạo và chỉnh sửa trực tiếp đang được xây dựng; hiện tại bạn có thể quản lý file, link và bản xem trước trong Trung tâm tài liệu.</p>
+          <p class="sub">Module đã có vị trí riêng trong menu. Phần tạo và chỉnh sửa trực tiếp đang được xây dựng; hiện tại bạn có thể quản lý file, link và bản xem trước trong Trung tâm dữ liệu.</p>
           <div class="office-module-status"><b>🚧 Đang xây dựng</b><span>Chưa kết nối Google Drive và chưa mở trình chỉnh sửa văn phòng bên ngoài.</span></div>
           <div class="office-module-actions">
-            <button class="btn btn-primary" id="office-module-drive">Mở Trung tâm tài liệu</button>
+            <button class="btn btn-primary" id="office-module-drive">Mở Trung tâm dữ liệu</button>
             <button class="btn btn-ghost" id="office-module-info">Xem thông báo chi tiết</button>
           </div>
         </div>
@@ -455,14 +455,14 @@
       }).catch(error=>{
         if(driveListenerRef!==ref) return;
         state.driveLoading=false;
-        state.driveLoadError='Không thể tải kho tài liệu. Vui lòng kiểm tra kết nối rồi thử lại.';
-        console.warn('Không tải được kho tài liệu:',error);
+        state.driveLoadError='Không thể tải kho dữ liệu. Vui lòng kiểm tra kết nối rồi thử lại.';
+        console.warn('Không tải được kho dữ liệu:',error);
         if(state.activeTab==='drive') renderDriveHubTab(document.getElementById('content'));
       });
     }, error=>{
       if(driveListenerRef!==ref) return;
       state.driveLoading=false;
-      state.driveLoadError='Không thể kết nối tới kho tài liệu. Vui lòng thử lại.';
+      state.driveLoadError='Không thể kết nối tới kho dữ liệu. Vui lòng thử lại.';
       console.warn('Realtime Drive Hub lỗi:',error);
       if(state.activeTab==='drive') renderDriveHubTab(document.getElementById('content'));
     });
@@ -589,12 +589,12 @@
             if(await driveWriteNode(id,node)) saved++;
           }
         }catch(e){
-          console.error('Lưu tệp vào kho tài liệu lỗi:',e);
+          console.error('Lưu tệp vào kho dữ liệu lỗi:',e);
           alert(`Không thể lưu "${file.name}". Tệp vẫn còn nguyên trên thiết bị của bạn.\n\n${e&&e.message?e.message:'Lỗi không xác định'}`);
         }
       }
       driveAttach(); renderDriveHubTab(document.getElementById('content'));
-      if(saved) showToast(`Đã thêm ${saved} tệp vào kho tài liệu.`);
+      if(saved) showToast(`Đã thêm ${saved} tệp vào kho dữ liệu.`);
     };
     input.click();
   }
@@ -635,8 +635,8 @@
       renderDriveHubTab(document.getElementById('content'));
       showToast(`Đã chuyển ${nodes.length} tài nguyên lên Firebase.`);
     }catch(e){
-      console.error('Chuyển kho tài liệu local lên Firebase lỗi:',e);
-      alert(`Không thể chuyển kho tài liệu lên Firebase. Dữ liệu local vẫn được giữ nguyên để thử lại.\n\n${e&&e.message?e.message:'Lỗi không xác định'}`);
+      console.error('Chuyển kho dữ liệu local lên Firebase lỗi:',e);
+      alert(`Không thể chuyển kho dữ liệu lên Firebase. Dữ liệu local vẫn được giữ nguyên để thử lại.\n\n${e&&e.message?e.message:'Lỗi không xác định'}`);
     }
   }
   async function driveRename(id){
@@ -811,7 +811,7 @@
       wrap.remove();
       driveAttach();
       renderDriveHubTab(document.getElementById('content'));
-      showToast('Đã lưu Note nhanh vào kho tài liệu.');
+      showToast('Đã lưu Note nhanh vào kho dữ liệu.');
     };
     nameInput.focus();
   }
@@ -831,7 +831,7 @@
     }
   }
   function driveRouteBackButton(){
-    return `<button class="btn btn-ghost btn-sm" id="drive-route-back">← Về Trung tâm tài liệu</button>`;
+    return `<button class="btn btn-ghost btn-sm" id="drive-route-back">← Về Trung tâm dữ liệu</button>`;
   }
   async function renderDriveResourceRoute(el, route){
     const requestId = ++driveRouteRequest;
@@ -917,8 +917,8 @@
       <div class="drive-hub">
         <div class="drive-hub-head">
           <div>
-            <div class="eyebrow">DRIVE HUB</div>
-            <h3>${isShared ? 'Kho tài liệu dùng chung' : 'Kho tài liệu cá nhân'}</h3>
+            <div class="eyebrow">TRUNG TÂM DỮ LIỆU</div>
+            <h3>${isShared ? 'Kho dữ liệu dùng chung' : 'Kho dữ liệu cá nhân'}</h3>
             <p class="sub">${isShared ? `Theo mã xã/phường <b class="mono">${escapeHtml(wardId()||'')}</b>` : (driveIsLocalPersonal() ? 'Đang lưu trên trình duyệt này; đăng nhập Google để đồng bộ lên Firebase.' : 'Metadata của app lưu theo tài khoản; Google Drive chỉ là lớp liên kết.')}</p>
           </div>
           <div class="drive-hub-actions">
@@ -929,7 +929,7 @@
         <div class="drive-space-tabs">
           <button class="btn ${!isShared?'btn-primary':'btn-ghost'} btn-sm" id="drive-personal">🔒 Cá nhân</button>
           <button class="btn ${isShared?'btn-primary':'btn-ghost'} btn-sm" id="drive-shared" ${wardId()?'':'disabled'}>🏛️ Xã/phường</button>
-          <button class="btn btn-ghost btn-sm" id="drive-trash">${state.driveTrashOpen?'◀ Kho tài liệu':'🗑️ Thùng rác'}</button>
+          <button class="btn btn-ghost btn-sm" id="drive-trash">${state.driveTrashOpen?'◀ Kho dữ liệu':'🗑️ Thùng rác'}</button>
         </div>
         ${isTourMode()? `<div class="drive-notice drive-notice-tour">⚠️ CHẾ ĐỘ THAM QUAN — tài liệu dưới đây là dữ liệu demo, không lưu và không chia sẻ thật.</div>` : ''}
         ${driveIsLocalPersonal()? `<div class="drive-notice drive-notice-local">💾 Kho cá nhân đang lưu trên thiết bị này. Bạn có thể tạo thư mục, ghi chú và tải tệp; đăng nhập Google sau đó để đồng bộ sang Firebase. Tài nguyên local không tạo URL chia sẻ dùng chung.</div>` : ''}
@@ -950,8 +950,8 @@
           </div>
         </div>
         <div class="drive-items ${state.driveListMode==='list'?'is-list':''}">
-           ${state.driveLoading ? `<div class="drive-state"><div class="drive-state-icon">⏳</div><b>Đang tải kho tài liệu…</b><span>Đang đồng bộ dữ liệu, vui lòng chờ một chút.</span></div>` :
-            state.driveLoadError ? `<div class="drive-state drive-state-error"><div class="drive-state-icon">⚠️</div><b>Không thể tải kho tài liệu</b><span>${escapeHtml(state.driveLoadError)}</span><button class="btn btn-primary btn-sm" id="drive-retry">↻ Thử lại</button></div>` :
+           ${state.driveLoading ? `<div class="drive-state"><div class="drive-state-icon">⏳</div><b>Đang tải kho dữ liệu…</b><span>Đang đồng bộ dữ liệu, vui lòng chờ một chút.</span></div>` :
+            state.driveLoadError ? `<div class="drive-state drive-state-error"><div class="drive-state-icon">⚠️</div><b>Không thể tải kho dữ liệu</b><span>${escapeHtml(state.driveLoadError)}</span><button class="btn btn-primary btn-sm" id="drive-retry">↻ Thử lại</button></div>` :
           items.length ? items.map(n=>{
             const itemCanEdit=driveCanEdit(n);
             const itemCanShare=driveCanShare(n);
@@ -965,7 +965,7 @@
                   ${state.driveTrashOpen ? (itemCanEdit?`<button data-drive-restore="${n.id}" title="Khôi phục">♻️</button>`:'') : (itemCanEdit?`<button data-drive-move="${n.id}" title="Di chuyển">↔️</button><button data-drive-rename="${n.id}" title="Đổi tên">✏️</button><button data-drive-trash="${n.id}" title="Đưa vào thùng rác">🗑️</button>`:'')}
                 </div>
               </article>`;
-           }).join('') : `<div class="drive-empty"><div>🗂️</div><b>${state.driveTrashOpen?'Thùng rác trống':state.driveSearch?'Không tìm thấy tài liệu phù hợp':'Kho tài liệu đã sẵn sàng'}</b><span>${state.driveTrashOpen?'Các tài liệu đã xoá sẽ xuất hiện ở đây.':state.driveSearch?'Thử từ khoá khác hoặc xoá bộ lọc tìm kiếm.':'Chưa có tài liệu trong thư mục này. Hãy tạo mục đầu tiên để bắt đầu.'}</span>${canEdit&&!state.driveTrashOpen&&!state.driveSearch?`<div class="drive-empty-actions"><button class="btn btn-primary btn-sm" id="drive-empty-new-folder">＋ Tạo thư mục</button><button class="btn btn-primary btn-sm" id="drive-empty-new-file">＋ Tải tệp</button><button class="btn btn-primary btn-sm" id="drive-empty-new-link">＋ Thêm liên kết</button></div>`:''}</div>`}
+           }).join('') : `<div class="drive-empty"><div>🗂️</div><b>${state.driveTrashOpen?'Thùng rác trống':state.driveSearch?'Không tìm thấy tài liệu phù hợp':'Kho dữ liệu đã sẵn sàng'}</b><span>${state.driveTrashOpen?'Các tài liệu đã xoá sẽ xuất hiện ở đây.':state.driveSearch?'Thử từ khoá khác hoặc xoá bộ lọc tìm kiếm.':'Chưa có tài liệu trong thư mục này. Hãy tạo mục đầu tiên để bắt đầu.'}</span>${canEdit&&!state.driveTrashOpen&&!state.driveSearch?`<div class="drive-empty-actions"><button class="btn btn-primary btn-sm" id="drive-empty-new-folder">＋ Tạo thư mục</button><button class="btn btn-primary btn-sm" id="drive-empty-new-file">＋ Tải tệp</button><button class="btn btn-primary btn-sm" id="drive-empty-new-link">＋ Thêm liên kết</button></div>`:''}</div>`}
         </div>
       </div>`;
     const bind = (id, event, fn)=>{ const node=document.getElementById(id); if(node) node.addEventListener(event, fn); };

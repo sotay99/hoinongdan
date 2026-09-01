@@ -899,7 +899,7 @@
     items.push({id:'propaganda', ico:'📣', label:'Tạo bài Tuyên truyền'});
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
-    items.push({id:'drive', ico:'🗂️', label:'Trung tâm tài liệu'});
+    items.push({id:'drive', ico:'🗂️', label:'Trung tâm dữ liệu'});
     items.push({id:'docs', ico:'📄', label:'Tài liệu'});
     items.push({id:'sheets', ico:'📊', label:'Trang tính'});
     items.push({id:'slides', ico:'📽️', label:'Trình bày'});
