@@ -2764,14 +2764,17 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     renderQuickNoteOverlay();
   }
   async function finalizeQuickNoteReview(useAI){
+    // Hỏi nơi lưu TRƯỚC khi xử lý: nếu người dùng huỷ ở modal thì giữ nguyên gói nội dung
+    // đang chờ, không mất công tiêu hoá rồi mới phát hiện không có chỗ lưu.
+    const target = await renderQuickNoteSaveTargetModal();
+    if(!target) return;
     const text = state.quickNoteReviewText;
     const files = (state.quickNoteReviewFiles||[]).slice();
-    const parentId = null; // modal chọn thư mục sẽ quyết định nơi lưu
     state.quickNoteReviewMode = false;
     state.quickNoteReviewText = '';
     state.quickNoteReviewFiles = [];
     state.quickNoteReviewTurns = [];
-    await processQuickNoteInput(text, files, parentId, !useAI);
+    await processQuickNoteInput(text, files, target.parentId, !useAI);
   }
   // Sau khi bấm Dừng giữa lúc AI đang tiêu hoá — hỏi có muốn đưa thẳng gói nội dung/tệp đang dở
   // vào ghi chú mà KHÔNG cần tiêu hoá nữa không.
@@ -2781,7 +2784,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     const parentId = state._qnInFlightParentId;
     state.quickNoteStoppedConfirm = false;
     if(useAI){
-      await processQuickNoteInput(text, files, parentId, true); // đưa thẳng vào ghi chú, bỏ qua AI
+      // parentId đã chọn từ lượt trước thì dùng lại; chưa có thì hỏi lại.
+      let target = parentId!==undefined && parentId!==null ? { parentId } : await renderQuickNoteSaveTargetModal();
+      if(!target){ state.quickNoteStoppedConfirm = true; renderQuickNoteOverlay(); return; }
+      await processQuickNoteInput(text, files, target.parentId, true); // đưa thẳng vào ghi chú, bỏ qua AI
     } else {
       // Không muốn đưa thẳng vào -> khôi phục lại y nguyên nội dung/tệp vào ô nhập để sửa/gửi lại
       state.quickNotePendingFiles = files;

@@ -935,3 +935,11 @@
   .ai-attach-chip{ display:inline-flex; align-items:center; gap:8px; background:#fff3cd; border:2px solid #ffc107; border-radius:20px; padding:9px 16px; font-size:15px; font-weight:800; color:#7a5b00; }
   .ai-attach-chip button{ background:none; border:none; cursor:pointer; font-size:15px; font-weight:800; color:var(--red); padding:0; }
   .ai-bubble-attach{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+
+  /* Modal chọn thư mục lưu ghi chú (Ghi chú nhanh -> Trung tâm dữ liệu) */
+  .qn-target-tree{max-height:46vh; overflow:auto; border:1px solid var(--line); border-radius:10px; background:var(--paper-2); padding:5px;}
+  .qn-target-row{display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:13.5px; color:var(--ink);}
+  .qn-target-row:hover{background:rgba(0,0,0,.05);}
+  .qn-target-row.selected{background:var(--rice-dark); color:#fff; font-weight:700;}
+  .qn-target-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .qn-target-error{padding:9px 11px; margin-bottom:9px; border-radius:9px; font-size:12.5px; background:rgba(180,44,44,.1); color:#8b1e1e;}

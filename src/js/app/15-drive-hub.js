@@ -601,6 +601,78 @@
     return ok ? id : null;
   }
 
+  // Modal "Lưu ghi chú vào Trung tâm dữ liệu" — hiện cây thư mục Bộ cá nhân để người dùng chọn
+  // nơi lưu, kèm một nút lưu nhanh vào thư mục "Ghi chú nhanh" (tự tạo nếu chưa có).
+  // Trả về Promise: { parentId } khi người dùng chốt, hoặc null khi họ huỷ.
+  function renderQuickNoteSaveTargetModal(){
+    return new Promise(async (resolve)=>{
+      const wrap = document.createElement('div');
+      wrap.className = 'modal-bg';
+      document.body.appendChild(wrap);
+      let selectedId = null;   // null = lưu ở gốc
+      let tree = {};
+      let loadError = '';
+      try{ tree = await drivePersonalTree(); }
+      catch(e){ loadError = 'Không đọc được danh sách thư mục. Bạn vẫn có thể lưu vào gốc.'; }
+
+      const close = (result)=>{ wrap.remove(); resolve(result); };
+
+      function folderRowsHtml(parentId, depth){
+        return Object.values(tree)
+          .filter(n=> n && n.type==='folder' && !n.deleted && (n.parentId||null)===(parentId||null))
+          .sort((a,b)=>(a.name||'').localeCompare(b.name||'','vi'))
+          .map(n=>`
+            <div class="qn-target-row ${selectedId===n.id?'selected':''}" data-qn-target="${n.id}" style="padding-left:${12+depth*18}px">
+              <span>📁</span><span class="qn-target-name">${escapeHtml(n.name)}</span>
+            </div>
+            ${folderRowsHtml(n.id, depth+1)}`).join('');
+      }
+
+      function draw(){
+        wrap.innerHTML = `
+          <div class="modal" role="dialog" aria-modal="true" aria-labelledby="qn-target-title">
+            <div class="modal-head">
+              <h3 id="qn-target-title">💾 Lưu ghi chú vào Trung tâm dữ liệu</h3>
+              <button class="modal-close" id="qn-target-close" aria-label="Đóng">✕</button>
+            </div>
+            <div class="modal-body">
+              <p class="sub" style="margin-top:0;">Ghi chú sẽ được lưu vào <b>Bộ cá nhân</b> của Trung tâm dữ liệu.</p>
+              <button class="btn btn-primary btn-block" id="qn-target-quick">⚡ Lưu nhanh vào thư mục “${escapeHtml(QUICK_NOTE_FOLDER_NAME)}”</button>
+              <div class="divider-lbl">hoặc chọn thư mục</div>
+              ${loadError? `<div class="qn-target-error">⚠️ ${escapeHtml(loadError)}</div>` : ''}
+              <div class="qn-target-tree">
+                <div class="qn-target-row ${selectedId===null?'selected':''}" data-qn-target="">
+                  <span>🗂️</span><span class="qn-target-name"><b>(Thư mục gốc)</b></span>
+                </div>
+                ${folderRowsHtml(null, 1)}
+              </div>
+            </div>
+            <div class="modal-foot">
+              <button class="btn btn-ghost" id="qn-target-cancel">Huỷ</button>
+              <button class="btn btn-primary" id="qn-target-save">Lưu vào thư mục đã chọn</button>
+            </div>
+          </div>`;
+        wrap.querySelector('#qn-target-close').onclick = ()=> close(null);
+        wrap.querySelector('#qn-target-cancel').onclick = ()=> close(null);
+        wrap.querySelector('#qn-target-save').onclick = ()=> close({ parentId: selectedId });
+        wrap.querySelector('#qn-target-quick').onclick = async (e)=>{
+          const btn = e.currentTarget;
+          btn.disabled = true; btn.textContent = '⏳ Đang chuẩn bị thư mục…';
+          const folderId = await driveEnsureQuickNoteFolder();
+          if(folderId===null){
+            btn.disabled = false; btn.textContent = `⚡ Lưu nhanh vào thư mục “${QUICK_NOTE_FOLDER_NAME}”`;
+            return; // driveEnsureQuickNoteFolder đã báo lỗi cụ thể rồi
+          }
+          close({ parentId: folderId });
+        };
+        wrap.querySelectorAll('[data-qn-target]').forEach(row=>{
+          row.onclick = ()=>{ selectedId = row.dataset.qnTarget || null; draw(); };
+        });
+      }
+      draw();
+    });
+  }
+
   async function driveUpdateNode(id, partial){
     if(blockTourMutation('Bạn đang ở môi trường tham quan. Tài nguyên demo không được lưu.')) return false;
     const current = state.driveResources[id];
