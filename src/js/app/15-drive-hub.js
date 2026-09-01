@@ -286,7 +286,7 @@
     return key ? rtdb.ref(`users/${key}/drive_resources`) : null;
   }
   function driveUserKey(){
-    return state.identity && (state.identity.uid || superNotesUserKey()) ? String(state.identity.uid || superNotesUserKey()) : null;
+    return state.identity && (state.identity.uid || accountStorageKey()) ? String(state.identity.uid || accountStorageKey()) : null;
   }
   function driveLegacyRef(){
     const emailKey=state.identity&&state.identity.email ? emailToKey(state.identity.email) : null;
@@ -580,7 +580,7 @@
             node.localDataUrl=await driveReadFileAsDataUrl(file);
             if(await driveWriteNode(id,node)) saved++;
           }else{
-            const scope=state.driveSpace==='shared' ? `ward_${wardId()}` : `user_${superNotesUserKey()||'account'}`;
+            const scope=state.driveSpace==='shared' ? `ward_${wardId()}` : `user_${accountStorageKey()||'account'}`;
             const storagePath=`drive-resources/${scope}/${id}-${driveSafeFileName(file.name)}`;
             const upload=storage.ref(storagePath);
             await upload.put(file);
@@ -620,7 +620,7 @@
         delete node.storageScope;
         if(node.localDataUrl && node.type==='file'){
           const blob=await (await fetch(node.localDataUrl)).blob();
-          const storagePath=`drive-resources/user_${superNotesUserKey()||'account'}/${node.id}-${driveSafeFileName(node.name)}`;
+          const storagePath=`drive-resources/user_${accountStorageKey()||'account'}/${node.id}-${driveSafeFileName(node.name)}`;
           const upload=storage.ref(storagePath);
           await upload.put(blob);
           node.storagePath=storagePath;

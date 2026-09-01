@@ -2495,7 +2495,9 @@
   // xem thêm ghi chú ở đầu module Huấn luyện AI. Firebase Storage vẫn dùng cho file gốc, best-effort.)
   // =====================================================================
   const LOCAL_NOTES_KEY = 'hnd_local_notes_tree_v1';
-  function superNotesUserKey(){ return (state.identity && (state.identity.uid || state.identity.email)) ? String(state.identity.uid || emailToKey(state.identity.email)) : null; }
+  // Uỷ quyền sang accountStorageKey() ở 03-cloud-storage.js — nơi đặt chung cho cả Trung tâm
+  // dữ liệu lẫn Ghi chú nhanh. Giữ tên cũ tạm thời cho các lời gọi còn lại trong tệp này.
+  function superNotesUserKey(){ return accountStorageKey(); }
   function superNotesLegacyUserKey(){
     const email=state.identity&&state.identity.email;
     const current=superNotesUserKey();

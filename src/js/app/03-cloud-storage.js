@@ -51,6 +51,17 @@
     return legacyKey && legacyKey!==currentKey ? rtdb.ref(`userPersonalData/${legacyKey}/${sub}`) : null;
   }
   function isPersonalStorageLinkedToGoogle(){ return !!personalUserKey(); }
+  // accountStorageKey() — khoá định danh tài khoản dùng để dựng đường dẫn kho cá nhân trên
+  // Realtime Database và Firebase Storage (Trung tâm dữ liệu, Ghi chú nhanh...).
+  // LƯU Ý: cách tính KHÁC personalUserKey() ở trên — hàm này dùng emailToKey (dấu chấm -> dấu
+  // phẩy) còn personalUserKey dùng personalEmailKey (dấu chấm -> gạch dưới, hạ chữ thường).
+  // Hai cách cho ra hai chuỗi khác nhau, nên KHÔNG được thay lẫn cho nhau: đổi sang hàm kia sẽ
+  // trỏ vào một đường dẫn khác và làm mất dấu những tệp đã tải lên trước đó.
+  function accountStorageKey(){
+    return (state.identity && (state.identity.uid || state.identity.email))
+      ? String(state.identity.uid || emailToKey(state.identity.email))
+      : null;
+  }
   // uref(sub) — con trỏ Firebase tới đúng kho dữ liệu cá nhân của người dùng đang đăng nhập, không
   // phụ thuộc mã xã nào cả. CHỈ dùng được khi đã đăng nhập bằng Google.
   function uref(sub){
