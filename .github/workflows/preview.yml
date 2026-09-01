@@ -80,9 +80,19 @@ jobs:
             exit $status
           fi
 
-          url="$(grep -oE 'https://[A-Za-z0-9._-]+\.web\.app' /tmp/channel.log | head -1)"
+          # Bóc ĐÚNG dòng "Channel URL". Firebase còn in một dòng "Hosting URL:" trong phần
+          # tóm tắt mặc định, trỏ tới địa chỉ PRODUCTION — bắt nhầm dòng đó sẽ đưa người xem
+          # tới trang thật thay vì bản xem trước.
+          url="$(grep 'Channel URL' /tmp/channel.log | grep -oE 'https://[A-Za-z0-9._-]+\.web\.app' | head -1)"
           if [[ -z "$url" ]]; then
-            echo "::error::firebase báo thành công nhưng không tìm thấy địa chỉ xem trước trong đầu ra."
+            echo "::error::firebase báo thành công nhưng không tìm thấy dòng 'Channel URL' trong đầu ra."
+            exit 1
+          fi
+          # Chốt chặn: địa chỉ channel LUÔN có '--' ngăn giữa tên site và tên channel. Địa chỉ
+          # production thì không. Thiếu dấu đó nghĩa là đã bóc nhầm — dừng lại thay vì đưa
+          # nhầm địa chỉ trang thật cho người xem.
+          if [[ "$url" != *"--"* ]]; then
+            echo "::error::Địa chỉ bóc được ($url) không phải địa chỉ channel — thiếu dấu '--'."
             exit 1
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
