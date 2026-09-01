@@ -1970,6 +1970,8 @@
     document.body.classList.add('public-survey-mode');
     root.innerHTML = '<div class="center-screen">Đang tải biểu mẫu…</div>';
     let survey = null, submitted = false, lastResult = null;
+    let surveyLoadState = 'loading';
+    let surveyLoadError = '';
     let currentSectionIdx = 0;
     const collected = {}; // câu trả lời đã thu thập được, giữ lại xuyên suốt các Phần
 
@@ -1987,7 +1989,17 @@
     }
 
     function renderFillForm(){
-      if(!survey){
+      if(surveyLoadState==='loading'){
+        root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">📝</div><h1>Đang tải biểu mẫu…</h1><p class="sub">Vui lòng chờ trong giây lát.</p></div></div>`;
+        return;
+      }
+      if(surveyLoadState==='error'){
+        root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">⚠️</div><h1>Không tải được biểu mẫu</h1><p class="sub">Có thể kết nối mạng đang gặp sự cố hoặc biểu mẫu tạm thời không thể truy cập. Vui lòng thử lại.</p><button class="btn btn-primary btn-block" id="ps-retry-btn" style="margin-top:14px;">↻ Thử lại</button></div></div>`;
+        const retryBtn = document.getElementById('ps-retry-btn');
+        if(retryBtn) retryBtn.onclick = loadSurvey;
+        return;
+      }
+      if(surveyLoadState==='notFound' || !survey){
         root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">📝</div><h1>Không tìm thấy biểu mẫu</h1><p class="sub">Đường link này có thể đã bị xoá hoặc không tồn tại.</p></div></div>`;
         return;
       }
@@ -2064,15 +2076,31 @@
       };
     }
 
-    (async ()=>{
+    async function loadSurvey(){
+      surveyLoadState = 'loading';
+      surveyLoadError = '';
+      survey = null;
+      renderFillForm();
       try{
         const snap = await rtdb.ref(`surveys/${surveyId}`).get();
-        survey = (snap && snap.exists()) ? snap.val() : null;
-        if(survey && survey.deleted) survey = null;
-        if(survey) ensureSurveySections(survey);
-      }catch(e){ console.error('[Khảo sát công khai] Không tải được biểu mẫu:', e); survey = null; }
+        const nextSurvey = (snap && snap.exists()) ? snap.val() : null;
+        if(!nextSurvey || nextSurvey.deleted){
+          surveyLoadState = 'notFound';
+          survey = null;
+        }else{
+          ensureSurveySections(nextSurvey);
+          survey = nextSurvey;
+          surveyLoadState = 'ready';
+        }
+      }catch(e){
+        console.error('[Khảo sát công khai] Không tải được biểu mẫu:', e);
+        surveyLoadError = String(e && e.code || 'load_failed');
+        surveyLoadState = 'error';
+        survey = null;
+      }
       renderFillForm();
-    })();
+    }
+    loadSurvey();
   }
 
 
@@ -2457,7 +2485,7 @@
 
   // =====================================================================
   // Module [Siêu ghi chú] — NAY TÁCH 2 KHÔNG GIAN LƯU TRỮ:
-  //   • 'personal' (Bộ cá nhân, bảo mật): users/{emailKey}/super_notes/tree/{id} — nếu có tài
+  //   • 'personal' (Bộ cá nhân, bảo mật): users/{uid}/super_notes/tree/{id} — nếu có tài
   //     khoản Google. Nếu KHÔNG có tài khoản (Khách qua mã không đăng nhập) thì lưu tạm vào
   //     localStorage của trình duyệt (KHÔNG đẩy lên Firebase), theo đúng yêu cầu.
   //   • 'shared' (Bộ dùng chung của Xã/Phường): communes/{wardId}/shared_notes/tree/{id} — mọi
@@ -2467,11 +2495,61 @@
   // xem thêm ghi chú ở đầu module Huấn luyện AI. Firebase Storage vẫn dùng cho file gốc, best-effort.)
   // =====================================================================
   const LOCAL_NOTES_KEY = 'hnd_local_notes_tree_v1';
-  function superNotesUserKey(){ return (state.identity && state.identity.email) ? emailToKey(state.identity.email) : null; }
+  function superNotesUserKey(){ return (state.identity && (state.identity.uid || state.identity.email)) ? String(state.identity.uid || emailToKey(state.identity.email)) : null; }
+  function superNotesLegacyUserKey(){
+    const email=state.identity&&state.identity.email;
+    const current=superNotesUserKey();
+    const legacy=email ? emailToKey(email) : null;
+    return legacy && legacy!==current ? legacy : null;
+  }
   function hasSuperNotesAccount(){ return !!superNotesUserKey(); }
   // Bộ cá nhân của Khách qua mã (không đăng nhập Google) không có nơi lưu trên đám mây -> dùng
   // localStorage của chính máy/trình duyệt họ đang dùng.
   function usingLocalNotes(){ return state.superNotesSpace==='personal' && !hasSuperNotesAccount(); }
+  function getLocalSuperNotesTree(){
+    const tree = lget(LOCAL_NOTES_KEY, {});
+    return tree && typeof tree==='object' ? tree : {};
+  }
+  function hasLocalSuperNotes(){
+    return Object.values(getLocalSuperNotesTree()).some(n=> n && !n.deleted);
+  }
+  // Chuyển dữ liệu local lên đúng kho cá nhân của tài khoản đang đăng nhập. Luôn tạo ID mới để
+  // không va chạm với cây Firebase hiện có, giữ nguyên quan hệ cha/con và không ghi đè dữ liệu cloud.
+  async function migrateLocalSuperNotesToCloud(){
+    if(!hasSuperNotesAccount()){ alert('Vui lòng đăng nhập Google trước khi chuyển ghi chú lên Firebase.'); return; }
+    const localTree = getLocalSuperNotesTree();
+    const localNodes = Object.values(localTree).filter(n=> n && n.id);
+    if(!localNodes.length){ alert('Không có ghi chú local nào cần chuyển.'); return; }
+    if(!confirm(`Chuyển ${localNodes.length} ghi chú/thư mục từ trình duyệt lên Bộ cá nhân Firebase?\n\nDữ liệu cloud hiện có sẽ được giữ nguyên, không ghi đè. Sau khi chuyển thành công, bản local sẽ được xoá khỏi thiết bị này.`)) return;
+    const ref = currentNotesTreeRef();
+    if(!ref || state.superNotesSpace!=='personal'){ alert('Chỉ có thể chuyển vào Bộ cá nhân.'); return; }
+    const idMap = {};
+    localNodes.forEach(node=>{ idMap[node.id] = uidKn(); });
+    const updates = {};
+    localNodes.forEach(node=>{
+      const newId = idMap[node.id];
+      updates[newId] = {
+        ...node,
+        id:newId,
+        parentId: node.parentId ? (idMap[node.parentId] || null) : null,
+        migratedFrom:'browser',
+        migratedAt:new Date().toISOString(),
+        updatedAt:new Date().toISOString(),
+      };
+    });
+    try{
+      await ref.update(updates);
+      localStorage.removeItem(LOCAL_NOTES_KEY);
+      state.superNotesTree = {};
+      state._superNotesCache = null;
+      alert(`Đã chuyển ${localNodes.length} ghi chú/thư mục lên Bộ cá nhân Firebase. Dữ liệu giờ có thể đồng bộ và chia sẻ theo quyền của tài khoản.`);
+      attachSuperNotesRealtime();
+      renderSuperNotesOverlay();
+    }catch(e){
+      console.error('Chuyển ghi chú local lên Firebase lỗi:', e);
+      alert('Không thể chuyển ghi chú lên Firebase. Dữ liệu local vẫn được giữ nguyên trên thiết bị để thử lại.');
+    }
+  }
   function currentNotesTreeRef(){
     if(state.superNotesSpace==='shared'){
       const wid = wardId();
@@ -2479,6 +2557,10 @@
     }
     const key = superNotesUserKey();
     return key ? rtdb.ref(`users/${key}/super_notes/tree`) : null; // null -> dùng local (usingLocalNotes())
+  }
+  function legacyNotesTreeRef(){
+    const key=superNotesLegacyUserKey();
+    return key ? rtdb.ref(`users/${key}/super_notes/tree`) : null;
   }
   function snAfterLocalWrite(){ state._superNotesCache = null; if(state._superNotesOpen) renderSuperNotesOverlay(); }
 
@@ -2516,7 +2598,7 @@
   function attachSuperNotesRealtime(){
     if(usingLocalNotes()){
       detachSuperNotesRealtime();
-      state.superNotesTree = lget(LOCAL_NOTES_KEY, {});
+      state.superNotesTree = getLocalSuperNotesTree();
       return;
     }
     const ref = currentNotesTreeRef();
@@ -2526,8 +2608,14 @@
     detachSuperNotesRealtime();
     superNotesListenerRef = ref;
     superNotesListenerKey = pathKey;
-    ref.on('value', snap=>{
-      state.superNotesTree = (snap && snap.exists()) ? snap.val() : {};
+    ref.on('value', async snap=>{
+      const canonical=(snap && snap.exists()) ? (snap.val()||{}) : {};
+      const legacyRef=legacyNotesTreeRef();
+      let legacy={};
+      if(legacyRef){
+        try{ const legacySnap=await legacyRef.once('value'); legacy=legacySnap&&legacySnap.exists() ? (legacySnap.val()||{}) : {}; }catch(e){}
+      }
+      state.superNotesTree = {...legacy,...canonical};
       state._superNotesCache = null; // dữ liệu vừa đổi -> làm mới bộ nhớ đệm ở lượt chat AI kế tiếp
       if(state._superNotesOpen) renderSuperNotesOverlay();
     });
@@ -2567,7 +2655,7 @@
   // ---- Các nguyên tố ghi dữ liệu DÙNG CHUNG cho cả 3 kiểu backend (Firebase cá nhân/chung, local) ----
   async function snWriteNode(id, node){
     if(usingLocalNotes()){
-      const tree = lget(LOCAL_NOTES_KEY, {});
+      const tree = getLocalSuperNotesTree();
       tree[id] = node;
       lset(LOCAL_NOTES_KEY, tree);
       state.superNotesTree = tree;
@@ -2580,7 +2668,7 @@
   }
   async function snUpdateNode(id, partial){
     if(usingLocalNotes()){
-      const tree = lget(LOCAL_NOTES_KEY, {});
+      const tree = getLocalSuperNotesTree();
       tree[id] = { ...(tree[id]||{}), ...partial };
       lset(LOCAL_NOTES_KEY, tree);
       state.superNotesTree = tree;
@@ -2595,7 +2683,7 @@
   // {"id": null} để xoá hẳn 1 node — dùng cho xoá mềm theo lô / xoá vĩnh viễn theo lô.
   async function snBatchUpdate(updatesObj){
     if(usingLocalNotes()){
-      const tree = lget(LOCAL_NOTES_KEY, {});
+      const tree = getLocalSuperNotesTree();
       Object.entries(updatesObj).forEach(([path, val])=>{
         const slash = path.indexOf('/');
         if(slash===-1){
@@ -2659,7 +2747,17 @@
   async function snRestoreNode(id){
     if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
     if(!snCanEdit()){ alert('Bạn không có quyền khôi phục ở Bộ ghi chú dùng chung này.'); return; }
-    await snUpdateNode(id, { deleted:false, deletedAt:null });
+    const node = state.superNotesTree[id];
+    if(!node) return;
+    const ids = node.type==='folder' ? [id, ...snDescendantsOf(id)] : [id];
+    const now = new Date().toISOString();
+    const updates = {};
+    ids.forEach(nid=>{
+      updates[`${nid}/deleted`] = false;
+      updates[`${nid}/deletedAt`] = null;
+      updates[`${nid}/updatedAt`] = now;
+    });
+    await snBatchUpdate(updates);
   }
   async function snPurgeNode(id){
     if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
@@ -2705,7 +2803,7 @@
     // tài khoản Google mới có Nguồn 2.
     const key = superNotesUserKey();
     if(!key){
-      try{ return combineNotesNodesToText(lget(LOCAL_NOTES_KEY, {}), 'Siêu ghi chú cá nhân (lưu tạm trên máy)'); }
+      try{ return combineNotesNodesToText(getLocalSuperNotesTree(), 'Siêu ghi chú cá nhân (lưu tạm trên máy)'); }
       catch(e){ console.error('Không đọc được Siêu ghi chú cá nhân (local):', e); return ''; }
     }
     try{
@@ -2885,9 +2983,11 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     state.superNotesProcessing = true;
     state.superNotesJustCompleted = false;
     state.superNotesJustCompletedMsg = '';
-    // Lưu lại đúng nội dung/tệp đang xử lý — nếu bị Dừng giữa chừng, dùng lại đúng gói này để hỏi
-    // "có muốn đưa thẳng vào ghi chú mà không cần tiêu hoá không?".
-    if(!skipAI){ state._snInFlightText = text; state._snInFlightFiles = (files||[]).slice(); state._snInFlightParentId = parentId; }
+    // Lưu lại đúng nội dung/tệp đang xử lý — nếu bị Dừng giữa chừng hoặc lỗi, khôi phục đúng gói
+    // này để người dùng có thể sửa và thử lại. Ghi cả trường hợp bỏ qua AI.
+    state._snInFlightText = text || '';
+    state._snInFlightFiles = (files||[]).slice();
+    state._snInFlightParentId = parentId;
     try{
       if(files && files.length){
         for(let i=0;i<files.length;i++){
@@ -2901,6 +3001,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         await processSingleSuperNoteInput(null, text, parentId, signal, skipAI);
       }
       state.superNotesPendingFiles = [];
+      state._snDraftText = '';
+      state._snInFlightText = '';
+      state._snInFlightFiles = [];
+      state._snInFlightParentId = null;
       state.superNotesJustCompleted = true;
       // Yêu cầu mới: dòng thông báo hoàn tất là do "AI nói" nên KHÔNG tự động biến mất nữa.
       state.superNotesJustCompletedMsg = 'Chàng đã tiêu hoá xong tài liệu và đã đưa vào cây thư mục, bạn hãy vào cây thư mục để xem tài liệu.';
@@ -2910,6 +3014,11 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         state.superNotesStoppedConfirm = true;
       } else {
         console.error('[Siêu ghi chú] Xử lý AI tiêu hoá lỗi:', e);
+        state._snDraftText = state._snInFlightText || '';
+        state.superNotesPendingFiles = (state._snInFlightFiles||[]).slice();
+        state._snInFlightText = '';
+        state._snInFlightFiles = [];
+        state._snInFlightParentId = null;
         alert('Xử lý AI tiêu hoá thất bại: ' + e.message + '\n\nNội dung/tệp bạn đã nhập vẫn được giữ nguyên để bạn thử lại hoặc chỉnh sửa.');
       }
     }finally{
@@ -2956,9 +3065,12 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     } else {
       // Không muốn đưa thẳng vào -> khôi phục lại y nguyên nội dung/tệp vào ô nhập để sửa/gửi lại
       state.superNotesPendingFiles = files;
-      const inputEl = document.getElementById('sn-input');
-      if(inputEl) inputEl.value = text || '';
-      renderSuperNotesOverlay();
+      state._snDraftText = text || '';
+      state._snInFlightText = '';
+      state._snInFlightFiles = [];
+      state._snInFlightParentId = null;
+      state._snDraftCaptureSuppressed = true;
+      try{ renderSuperNotesOverlay(); }finally{ state._snDraftCaptureSuppressed = false; }
     }
   }
 
@@ -3741,13 +3853,20 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // ---------- borrower modal ----------
   function renderModal(){
     const isNew = !state.modal.payload;
-    const project = isNew ? (state.loanProjects||[]).find(p=>p.id===state.modal.projectId) : projectOf(state.modal.payload);
+    if(!isNew && !state.modal.projectId){
+      const legacyProject = (state.loanProjects||[]).find(p=>p.name && p.name===state.modal.payload.project);
+      state.modal.projectId = state.modal.payload.projectId || (legacyProject && legacyProject.id) || null;
+    }
+    const project = (state.loanProjects||[]).find(p=>p.id===state.modal.projectId) || (!isNew ? projectOf(state.modal.payload) : null);
     const b = state.modal.payload ? {...state.modal.payload} : emptyBorrowerForProject(project);
     const hamlets = state.config.hamlets||[];
     // Danh sách phương án cho ô "Chọn phương án vay" khi thêm người vay mới — CHỈ hiện những phương
     // án CHƯA hoàn tất toàn bộ (loại trừ phương án mà TẤT CẢ người vay bên trong đã tất toán/trả nợ
     // trước hạn xong hết — phương án mới tạo, chưa có ai, vẫn được hiện bình thường).
     const projects = eligibleProjectsForBorrowerAssignment();
+    // Khi sửa một hồ sơ cũ, giữ phương án hiện tại trong danh sách kể cả khi phương án đó vừa bị
+    // ẩn khỏi danh sách gán mới; nếu không dropdown sẽ hiển thị rỗng dù hồ sơ vẫn thuộc phương án đó.
+    if(!isNew && project && !projects.some(pr=>pr.id===project.id)) projects.unshift(project);
     // Đơn giản hoá: chỉ còn phụ thuộc vào việc ĐÃ chọn phương án vay hay chưa (isNew && !project) — bỏ
     // hẳn khái niệm "needsProjectPicker"/chuyển đổi qua lại giữa 2 chế độ hiển thị, vì giờ khung chọn
     // phương án vay và khung thông tin cụ thể LUÔN hiện CÙNG LÚC, không cần vẽ lại cả modal khi đổi
@@ -4035,11 +4154,13 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     if(saveBtn) saveBtn.onclick = async ()=>{
       const name = wrap.querySelector('#m-name').value.trim();
       if(!name){ alert('Vui lòng nhập họ và tên.'); return; }
-      if(isNew && !state.modal.projectId){ alert('Vui lòng chọn phương án vay trước khi lưu.'); return; }
+      const selectedProjectId = state.modal.projectId || (!isNew ? b.projectId : '');
+      if(!selectedProjectId){ alert('Vui lòng chọn phương án vay trước khi lưu.'); return; }
       // QUAN TRỌNG: tính lại "project" MỚI NHẤT tại đây (không dùng biến "project" ở ngoài — biến đó
       // chỉ đúng tại THỜI ĐIỂM modal vừa mở, có thể đã LỖI THỜI nếu người dùng vừa đổi lựa chọn ở
       // dropdown sau đó, vì giờ đây đổi lựa chọn không còn vẽ lại cả modal nữa).
-      const curProject = isNew ? (state.loanProjects||[]).find(p=>p.id===state.modal.projectId) : project;
+      const curProject = (state.loanProjects||[]).find(p=>p.id===selectedProjectId);
+      if(!curProject){ alert('Không tìm thấy phương án vay đã chọn. Vui lòng đóng bảng và mở lại để cập nhật danh sách.'); return; }
       const hamlet = wrap.querySelector('#m-hamlet').value;
       if(!hamlet){ alert('Vui lòng chọn Địa bàn dân cư.'); return; }
       const principal = parseVNMoney(wrap.querySelector('#m-principal').value);
@@ -4056,9 +4177,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         name,
         hamlet,
         principal,
-        // Phương án vay + các trường điều khoản vay kế thừa theo phương án đó — luôn lấy đúng theo
-        // "curProject" vừa tính lại ở trên (mới nhất), KHÔNG dùng "project" cũ đã lỗi thời.
-        ...(isNew && curProject ? { projectId: curProject.id, rate: curProject.interestRate, loanDate: curProject.disburseDate, dueDate: curProject.dueDate, fundSource: curProject.fundSourceType } : {}),
+        // Khi thêm mới hoặc chuyển sang phương án khác, kế thừa điều khoản từ phương án đích. Nếu
+        // vẫn ở phương án cũ thì giữ ngày vay riêng của Người thừa kế (nếu có).
+        projectId: curProject.id,
+        ...((isNew || b.projectId!==curProject.id) ? { rate: curProject.interestRate, loanDate: curProject.disburseDate, dueDate: curProject.dueDate, fundSource: curProject.fundSourceType } : {}),
         birthYear: wrap.querySelector('#m-birthYear').value.trim(),
         managerId: (wrap.querySelector('#m-manager')?.value) || b.managerId || 'chihoitruong',
         cccd: wrap.querySelector('#m-cccd').value.replace(/\D/g,''),
@@ -4072,7 +4194,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       };
 
       // Phát hiện có thay đổi THẬT SỰ hay không (so với dữ liệu gốc trước khi sửa).
-      const compareKeysB = ['name','hamlet','principal','birthYear','managerId','cccd','phone','address','preMergerAddress','industry','repayAbility','guarantor','note'];
+      const compareKeysB = ['projectId','name','hamlet','principal','birthYear','managerId','cccd','phone','address','preMergerAddress','industry','repayAbility','guarantor','note'];
       const hasChangedB = !isNew && compareKeysB.some(k=> String(b[k]??'') !== String(updated[k]??''));
       if(hasChangedB){
         if(!confirm(`Bạn có chắc chắn muốn lưu thay đổi thông tin hộ vay "${name}" không? Hệ thống sẽ tự động lập 1 Giấy xác nhận cho hành động này và lưu vào kho Giấy xác nhận.`)) return;
@@ -4107,13 +4229,17 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         await pushConfirmationDocument('borrower_create', `Giấy xác nhận Tạo khoản vay thành công đối với hộ vay "${updated.name}"`,
           `Hộ vay "${updated.name}" đã được thêm mới thành công vào ngày ${fmtDate(todayStr())}. Số tiền vay gốc: ${money(updated.principal)}${curProject? `, thuộc phương án "${curProject.name}"` : ''}. Địa bàn: ${escapeHtml(updated.hamlet||'')}.`, updated);
       } else if(hasChangedB){
-        const FIELD_LABELS_B = { name:'Họ và tên', hamlet:`Địa bàn dân cư (${subAdminLabel()})`, principal:'Số tiền vay gốc', birthYear:'Năm sinh', managerId:'Người quản lý', cccd:'Số CCCD', phone:'Số điện thoại', address:'Địa chỉ hiện tại', preMergerAddress:'Địa chỉ trước sáp nhập', industry:'Ngành nghề', repayAbility:'Khả năng trả nợ', guarantor:'Người bảo lãnh', note:'Ghi chú' };
+        const FIELD_LABELS_B = { projectId:'Phương án vay', name:'Họ và tên', hamlet:`Địa bàn dân cư (${subAdminLabel()})`, principal:'Số tiền vay gốc', birthYear:'Năm sinh', managerId:'Người quản lý', cccd:'Số CCCD', phone:'Số điện thoại', address:'Địa chỉ hiện tại', preMergerAddress:'Địa chỉ trước sáp nhập', industry:'Ngành nghề', repayAbility:'Khả năng trả nợ', guarantor:'Người bảo lãnh', note:'Ghi chú' };
         const changedLines = compareKeysB.filter(k=> String(b[k]??'') !== String(updated[k]??'')).map(k=>{
           const oldV = k==='principal'? money(b[k]||0) : (b[k]||'(để trống)');
           const newV = k==='principal'? money(updated[k]||0) : (updated[k]||'(để trống)');
           const mgrName = (id)=>{ const m=ensureDefaultManagers().find(x=>x.id===id); return m? m.name : id; };
-          const oldDisp = k==='managerId'? mgrName(b[k]) : oldV;
-          const newDisp = k==='managerId'? mgrName(updated[k]) : newV;
+          const projectName = (id, fallback)=>{
+            const p=(state.loanProjects||[]).find(x=>x.id===id);
+            return p ? p.name : (fallback || id || '(để trống)');
+          };
+          const oldDisp = k==='managerId' ? mgrName(b[k]) : (k==='projectId' ? projectName(b[k], b.project) : oldV);
+          const newDisp = k==='managerId' ? mgrName(updated[k]) : (k==='projectId' ? projectName(updated[k], '') : newV);
           return `${FIELD_LABELS_B[k]||k} được sửa từ "${oldDisp}" thành "${newDisp}"`;
         });
         await pushConfirmationDocument('borrower_edit', `Giấy xác nhận sửa thông tin hộ vay "${name}"`,
