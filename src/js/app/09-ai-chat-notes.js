@@ -22,6 +22,8 @@
     const isShared = state.superNotesSpace==='shared';
     const canEdit = isShared ? snCanEdit() : true;
     const canView = isShared ? snCanView() : true;
+    const notesLoading = !!state.superNotesLoading;
+    const notesLoadError = String(state.superNotesLoadError||'');
 
     overlay.innerHTML = `
       <div class="ai-sidebar ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar" style="display:flex; flex-direction:column;">
@@ -35,6 +37,8 @@
         ${isShared && !isOwner()? `<div class="sub" style="color:rgba(255,255,255,.65); padding:0 8px 8px; font-size:11px;">Quyền của bạn ở đây: <b style="color:#fff;">${canEdit?'Toàn quyền sửa':(canView?'Chỉ xem':'Không được xem')}</b></div>` : ''}
         ${!isShared && usingLocalNotes()? `<div class="sub" style="color:rgba(255,255,255,.72); padding:0 8px 8px; font-size:11px;">💡 Bộ cá nhân đang lưu trên thiết bị này mà thôi — chưa thể chia sẻ hoặc đồng bộ sang máy khác. Dữ liệu có thể mất nếu xoá dữ liệu trình duyệt; hãy đăng nhập Google trước khi cần lưu lâu dài.</div>` : ''}
         ${!isShared && !usingLocalNotes() && hasLocalSuperNotes()? `<div class="sub sn-local-migration-notice" style="color:rgba(255,255,255,.78); padding:0 8px 8px; font-size:11px;">📦 Phát hiện ghi chú riêng đang chờ chuyển từ trình duyệt lên Firebase.<br><button class="btn btn-ghost btn-sm" id="sn-migrate-local" style="color:#fff; border-color:rgba(255,255,255,.35); margin-top:6px;">Chuyển ghi chú lên bộ riêng</button></div>` : ''}
+        ${notesLoading ? `<div class="sn-status sn-status-loading">⏳ Đang tải Siêu ghi chú…</div>` : ''}
+        ${notesLoadError ? `<div class="sn-status sn-status-error"><b>Không thể tải dữ liệu ghi chú</b><span>${escapeHtml(notesLoadError)}</span><button class="btn btn-ghost btn-sm" id="sn-retry-load">↻ Thử lại</button></div>` : ''}
         <div class="ai-hist-label">${isShared? 'Bộ ghi chú dùng chung' : 'Siêu ghi chú của tôi'}</div>
         ${!state.superNotesTrashOpen? `
         <div class="sn-crumbs">
@@ -50,6 +54,8 @@
         </div>`}
         <div class="ai-hist-list">
           ${!canView? `<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px;">Bạn không có quyền xem Bộ ghi chú dùng chung này. Vui lòng liên hệ Chủ mã.</div>` :
+            notesLoading ? `<div class="sn-empty-state">Đang đồng bộ danh sách…</div>` :
+            notesLoadError ? `<div class="sn-empty-state">Danh sách chưa thể hiển thị. Hãy bấm “Thử lại”.</div>` :
             items.length? items.map(n=>`
             <div class="sn-tree-row ${n.id===state.superNotesEditingId?'active':''}" data-sn-item="${n.id}">
               <span>${n.type==='folder'?'📁':'📝'}</span>
@@ -63,7 +69,7 @@
                   <button data-sn-delete="${n.id}" title="Xoá vào thùng rác">🗑️</button>
                 ` : '')}
               </span>
-            </div>`).join('') : `<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px;">${state.superNotesTrashOpen? 'Thùng rác trống.' : 'Trống — hãy tạo ghi chú, thư mục, hoặc nhập nội dung bên dưới để AI tự tạo.'}</div>`}
+            </div>`).join('') : `<div class="sn-empty-state"><b>${state.superNotesTrashOpen?'Thùng rác trống.':'Chưa có ghi chú nào'}</b><span>${state.superNotesTrashOpen?'Các mục đã xoá sẽ xuất hiện ở đây.':'Bấm “📝 Ghi chú” để tạo ghi chú đầu tiên, hoặc nhập nội dung ở khung bên phải rồi gửi.'}</span></div>`}
         </div>
         <button class="ai-newchat-btn" id="sn-trash-btn" style="margin:8px 10px 0; margin-top:auto;">${state.superNotesTrashOpen? '◀ Quay lại kho ghi chú' : '🗑️ Thùng rác'}</button>
       </div>
@@ -74,7 +80,9 @@
         <div class="ai-header">🗒️ Siêu ghi chú${editingNode? ' — ' + escapeHtml(editingNode.name) : ''}</div>
         ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
         <div class="ai-messages" id="sn-content-area" style="align-items:stretch;">
-          ${!canView? `<div class="ai-bubble assistant">Bạn không có quyền xem Bộ ghi chú dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền.</div>` :
+          ${notesLoadError ? `<div class="ai-bubble assistant">⚠️ ${escapeHtml(notesLoadError)}<br><button class="btn btn-primary btn-sm" id="sn-retry-load-main" style="margin-top:10px;">↻ Thử tải lại</button></div>` :
+          notesLoading ? `<div class="ai-bubble assistant">⏳ Đang tải dữ liệu Siêu ghi chú từ ${isShared?'kho dùng chung':'kho cá nhân'}…</div>` :
+          !canView? `<div class="ai-bubble assistant">Bạn không có quyền xem Bộ ghi chú dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền.</div>` :
             editingNode? `
             <div style="display:flex; flex-direction:column; gap:10px; height:100%;">
               <div style="display:flex; gap:8px; align-items:center;">
@@ -181,6 +189,18 @@
     if(sharedSettingsBtn) sharedSettingsBtn.onclick = renderSharedNotesSettingsPopup;
     const migrateLocalBtn = document.getElementById('sn-migrate-local');
     if(migrateLocalBtn) migrateLocalBtn.onclick = ()=> migrateLocalSuperNotesToCloud();
+    const retryNotes = ()=>{
+      state.superNotesLoadError='';
+      state.superNotesLoading=true;
+      state.superNotesTree={};
+      detachSuperNotesRealtime();
+      attachSuperNotesRealtime();
+      renderSuperNotesOverlay();
+    };
+    const retryNotesBtn = document.getElementById('sn-retry-load');
+    if(retryNotesBtn) retryNotesBtn.onclick = retryNotes;
+    const retryNotesMainBtn = document.getElementById('sn-retry-load-main');
+    if(retryNotesMainBtn) retryNotesMainBtn.onclick = retryNotes;
 
     // ---- điều hướng cây thư mục ----
     overlay.querySelectorAll('[data-sn-goto]').forEach(elx=> elx.onclick = ()=>{ state.superNotesCurrentFolder = elx.dataset.snGoto || null; state.superNotesEditingId = null; renderSuperNotesOverlay(); });
@@ -880,6 +900,10 @@
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
     items.push({id:'drive', ico:'🗂️', label:'Trung tâm tài liệu'});
+    items.push({id:'docs', ico:'📄', label:'Tài liệu'});
+    items.push({id:'sheets', ico:'📊', label:'Trang tính'});
+    items.push({id:'slides', ico:'📽️', label:'Trình bày'});
+    items.push({id:'superNotes', ico:'🗒️', label:'Siêu ghi chú'});
     // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — nằm ngay phía trên "Cài đặt & Chia sẻ"
     items.push({id:'survey', ico:'📝', label:'Biểu mẫu khảo sát'});
     if(isOwner() || settingsPerm()!=='none') items.push({id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'});
@@ -971,6 +995,7 @@
         // "Tạo bài Tuyên truyền" giờ là overlay toàn màn hình (y hệt Chat AI/Siêu ghi chú) — KHÔNG đổi
         // state.activeTab, chỉ mở overlay lên; khi thoát ra vẫn ở đúng module trước đó, không bị chuyển tab.
         if(clickedTab==='propaganda'){ openPropagandaModule(); state.bellOpen=false; render(); return; }
+        if(clickedTab==='superNotes'){ state.bellOpen=false; openSuperNotes(); return; }
         state.activeTab = clickedTab;
         state.bellOpen=false;
         render();
@@ -1030,6 +1055,9 @@
     else if(state.activeTab==='members') renderMembersTab(content);
     else if(state.activeTab==='strength') renderStrengthTab(content);
     else if(state.activeTab==='drive') renderDriveHubTab(content);
+     else if(state.activeTab==='docs') renderOfficeModule(content,'Docs');
+     else if(state.activeTab==='sheets') renderOfficeModule(content,'Sheets');
+     else if(state.activeTab==='slides') renderOfficeModule(content,'Slides');
     else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
