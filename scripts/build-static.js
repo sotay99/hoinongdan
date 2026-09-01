@@ -5,6 +5,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { extractDesignSystemTheme: extractDesignSystemThemeShared } = require("./lib/design-system");
 
 const root = path.resolve(__dirname, "..");
 const manifestPath = path.join(root, "src/js/app/manifest.json");
@@ -32,20 +33,11 @@ function fingerprint(buffer) {
 }
 
 function extractDesignSystemTheme(source) {
-  const css = source.toString("utf8");
-  const light = css.match(/^\s*:root\s*\{[\s\S]*?^\s*\}/m)?.[0];
-  const dark = css.match(/^\s*\.dark\s*\{[\s\S]*?^\s*\}/m)?.[0];
-  if (!light || !dark) {
+  const extracted = extractDesignSystemThemeShared(source);
+  if (!extracted) {
     die("Hội Nông dân Web Design System stylesheet is missing :root or .dark tokens");
   }
-  return Buffer.from(
-    "/* Generated from @workspace/hoi-nong-dan-web; do not edit this output. */\n\n" +
-      light.trim() +
-      "\n\n" +
-      dark.trim() +
-      "\n",
-    "utf8",
-  );
+  return extracted;
 }
 
 function loadManifest() {

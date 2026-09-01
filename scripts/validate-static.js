@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
+const { extractDesignSystemTheme } = require("./lib/design-system");
 
 const root = path.resolve(__dirname, "..");
 const indexPath = path.join(root, "index.html");
@@ -98,12 +99,18 @@ while ((match = tagPattern.exec(html)) !== null) {
   references.push({ url, resolvedPath });
 }
 
-const expectedReferencePatterns = [
-  /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/,
-  /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/,
-  /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/,
-  /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/,
-];
+// build-static.js chèn design-system.css NGAY TRƯỚC base.css và chỉ khi index.html
+// chưa có sẵn tham chiếu đó. Bản kiểm tra phải phản ánh ĐÚNG cùng quy tắc, nếu không
+// nó sẽ báo sai mỗi khi bản build hợp lệ có đủ 5 tham chiếu.
+const designSystemPattern = /^\/assets\/css\/design-system\.[a-f0-9]{12}\.css$/;
+const basePattern = /^\/assets\/css\/base\.[a-f0-9]{12}\.css$/;
+const appCssPattern = /^\/assets\/css\/app\.[a-f0-9]{12}\.css$/;
+const firebaseJsPattern = /^\/assets\/js\/firebase-init\.[a-f0-9]{12}\.js$/;
+const appJsPattern = /^\/assets\/js\/app\.[a-f0-9]{12}\.js$/;
+const hasDesignSystemReference = /\/assets\/css\/design-system(?:\.[a-f0-9]{12})?\.css/.test(html);
+const expectedReferencePatterns = hasDesignSystemReference
+  ? [designSystemPattern, basePattern, appCssPattern, firebaseJsPattern, appJsPattern]
+  : [basePattern, appCssPattern, firebaseJsPattern, appJsPattern];
 const actualReferences = references.map(({ url }) => url);
 if (
   actualReferences.length !== expectedReferencePatterns.length ||
@@ -131,9 +138,11 @@ const requiredDeferredScripts = [
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js",
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js",
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js",
-  actualReferences[2],
-  actualReferences[3],
-];
+  // Tra theo MẪU chứ không theo chỉ số cứng: thêm/bớt một stylesheet sẽ làm lệch
+  // chỉ số và khiến bản kiểm tra tưởng nhầm một tệp CSS là script.
+  actualReferences.find((url) => firebaseJsPattern.test(url)),
+  actualReferences.find((url) => appJsPattern.test(url)),
+].filter(Boolean);
 for (const url of requiredDeferredScripts) {
   const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const scriptTag = html.match(new RegExp(`<script\\b[^>]*\\bsrc\\s*=\\s*["']${escapedUrl}["'][^>]*>`, "i"));
@@ -162,9 +171,9 @@ if (fs.existsSync(functionsIndexPath) && !fs.readFileSync(indexPath).equals(fs.r
 }
 
 const canonicalByPattern = [
-  { pattern: expectedReferencePatterns[2], source: path.join(root, "src/js/firebase-init.js"), label: "Firebase" },
-  { pattern: expectedReferencePatterns[0], source: path.join(root, "src/css/base.css"), label: "base CSS" },
-  { pattern: expectedReferencePatterns[1], source: path.join(root, "src/css/app.css"), label: "app CSS" },
+  { pattern: firebaseJsPattern, source: path.join(root, "src/js/firebase-init.js"), label: "Firebase" },
+  { pattern: basePattern, source: path.join(root, "src/css/base.css"), label: "base CSS" },
+  { pattern: appCssPattern, source: path.join(root, "src/css/app.css"), label: "app CSS" },
 ];
 for (const { pattern, source, label } of canonicalByPattern) {
   const reference = references.find(({ url }) => pattern.test(url));
@@ -173,6 +182,25 @@ for (const { pattern, source, label } of canonicalByPattern) {
   } else if (reference && fs.existsSync(reference.resolvedPath)) {
     if (!fs.readFileSync(source).equals(fs.readFileSync(reference.resolvedPath))) {
       fail(`Generated ${label} does not exactly match its canonical source`);
+    }
+  }
+}
+
+// design-system.css là tệp ĐƯỢC SINH RA (chỉ gồm 2 khối token :root và .dark trích
+// từ nguồn), nên phải so với KẾT QUẢ TRÍCH — dùng đúng module mà build-static.js dùng.
+if (hasDesignSystemReference) {
+  const designSystemSource = path.join(root, "src/css/design-system.css");
+  const designSystemReference = references.find(({ url }) => designSystemPattern.test(url));
+  if (!fs.existsSync(designSystemSource)) {
+    fail("Canonical design system source is missing: src/css/design-system.css");
+  } else {
+    const expected = extractDesignSystemTheme(fs.readFileSync(designSystemSource));
+    if (!expected) {
+      fail("Design system stylesheet is missing its :root or .dark token blocks");
+    } else if (designSystemReference && fs.existsSync(designSystemReference.resolvedPath)) {
+      if (!expected.equals(fs.readFileSync(designSystemReference.resolvedPath))) {
+        fail("Generated design system CSS does not match the tokens extracted from its source");
+      }
     }
   }
 }
@@ -187,7 +215,7 @@ for (const entry of manifest) {
     chunkBuffers.push(fs.readFileSync(chunkPath));
   }
 }
-const appReference = references.find(({ url }) => expectedReferencePatterns[3].test(url));
+const appReference = references.find(({ url }) => appJsPattern.test(url));
 if (appReference && fs.existsSync(appReference.resolvedPath) && chunkBuffers.length === manifest.length) {
   if (!Buffer.concat(chunkBuffers).equals(fs.readFileSync(appReference.resolvedPath))) {
     fail("Generated app does not equal zero-separator manifest concatenation");
