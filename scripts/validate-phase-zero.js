@@ -42,7 +42,7 @@ const failures = checks.filter(([, pattern]) => !pattern.test(source)).map(([lab
 
 if (/Báo cáo lãi/i.test(source)) failures.push('removed "Báo cáo lãi" phrase');
 if (failures.length) {
-  console.error(`Phase 0 readiness failed:\n- ${failures.join("\n- ")}`);
+  console.error(`Phase 0 readiness failed:\n- ${failures.join("\n- ")}\n\nGHI CHÚ: đây là "hợp đồng bằng regex" — nó chỉ kiểm tra sự CÓ MẶT của một đoạn mã,\nKHÔNG kiểm tra đoạn mã đó có chạy đúng hay không. Khi một mục thất bại, hãy tự hỏi:\n  • Vừa đổi tên hàm / sửa câu chữ tiếng Việt? -> cập nhật lại mẫu trong tệp kiểm tra này.\n  • Vừa xoá thật tính năng đó? -> xoá mục tương ứng và ghi rõ lý do trong commit.\nNgược lại, script này báo ĐẠT KHÔNG có nghĩa là ứng dụng chạy được: kiểm tra phạm vi\nbiến và cấu trúc bản nối nằm ở scripts/validate-bundle-scope.js.`);
   process.exit(1);
 }
 
