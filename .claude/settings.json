@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git rev-parse *)",
+      "Bash(git ls-files *)",
+      "Bash(git ls-remote *)",
+      "Bash(git cat-file *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(node scripts/*)",
+      "mcp__github__list_branches",
+      "mcp__github__list_commits",
+      "mcp__github__get_commit",
+      "mcp__github__create_branch",
+      "mcp__github__create_pull_request",
+      "mcp__github__update_pull_request",
+      "mcp__github__merge_pull_request",
+      "mcp__github__pull_request_read",
+      "mcp__github__list_pull_requests",
+      "mcp__github__actions_list",
+      "mcp__github__actions_get",
+      "mcp__github__get_job_logs",
+      "mcp__github__actions_run_trigger"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git filter-branch *)",
+      "Bash(git reflog expire *)",
+      "Bash(git update-ref -d *)"
+    ]
+  }
+}
