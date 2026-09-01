@@ -39,9 +39,26 @@ requireText(source, /function\s+driveMigrateLocal\s*\(/, "local-to-Firebase migr
 requireText(source, /storageScope:'local'/, "local resource scope marker");
 requireText(source, /function\s+driveCreateFile\s*\(/, "file upload action");
 requireText(source, /function\s+drivePopulateFileViewer\s*\(/, "read-only file viewer");
+requireText(source, /function\s+driveOpenOfficeApp\s*\(/, "office placeholder action");
+requireText(source, /drive-office-placeholder/, "office placeholder screen");
+requireText(source, /kind==='pptx'/, "PowerPoint read-only preview");
+requireText(source, /driveLoading|driveLoadError/, "Hub loading/error state");
+requireText(source, /id="drive-retry"/, "Hub retry action");
+requireText(source, /DRIVE_QUICK_DRAFT_KEY/, "durable Quick Note draft");
+requireText(source, /driveLoadQuickDraft\s*\(/, "Quick Note draft restore");
+requireText(source, /driveDescendantIds\(parentId\)/, "recursive Hub search");
+requireText(source, /driveIsLocalPersonal\(\)[\s\S]*state\.driveResources\s*=\s*driveLocalTree\(\)/, "local resource hydration");
+requireText(source, /route\.space==='personal'[\s\S]*return driveLocalTree\(\)/, "local resource route");
+requireText(source, /const conflicts=nodes\.filter/, "migration conflict guard");
+requireText(source, /Không thể lưu tài nguyên lên máy chủ/, "cloud write error message");
+requireText(source, /nextSearch\.focus\(\)/, "search focus restoration");
 requireText(css, /\.drive-comments\s*\{/, "comment thread styles");
 requireText(css, /\.drive-share-add\s*\{/, "share modal styles");
 requireText(css, /\.drive-file-viewer\s*\{/, "file viewer styles");
+requireText(css, /\.drive-viewer-slides\s*\{/, "PowerPoint preview styles");
+requireText(css, /\.drive-state\s*\{/, "Hub loading/error styles");
+requireText(css, /\.drive-route-error\s*\{/, "resource route error styles");
+requireText(css, /prefers-reduced-motion/, "reduced motion styles");
 if (!manifest.includes("15-drive-hub.js")) failures.push("Drive Hub chunk missing from app manifest");
 
 if (failures.length) {
