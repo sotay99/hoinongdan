@@ -40,12 +40,17 @@ requireText(source, /storageScope:'local'/, "local resource scope marker");
 requireText(source, /function\s+driveCreateFile\s*\(/, "file upload action");
 requireText(source, /function\s+drivePopulateFileViewer\s*\(/, "read-only file viewer");
 requireText(source, /function\s+driveOpenOfficeApp\s*\(/, "office placeholder action");
+// Hai mục "durable Quick Note draft" và "Quick Note draft restore" đã được gỡ: nút Ghi chú
+// nhanh trong Trung tâm dữ liệu không còn modal soạn thảo riêng với bản nháp localStorage,
+// nó chỉ là đường dẫn mở thẳng module Ghi chú nhanh. Ghim đúng hành vi mới thay vào đó.
+requireText(source, /function\s+driveOpenQuickNote\s*\(\)\{\s*openQuickNote\(\);/, "nút Ghi chú nhanh mở thẳng module");
+requireText(source, /async function\s+driveSaveQuickNote\s*\(/, "lưu ghi chú vào Bộ cá nhân");
+requireText(source, /function\s+renderQuickNoteSaveTargetModal\s*\(/, "modal chọn thư mục lưu");
+requireText(source, /QUICK_NOTE_FOLDER_NAME/, "thư mục Ghi chú nhanh mặc định");
 requireText(source, /drive-office-placeholder/, "office placeholder screen");
 requireText(source, /kind==='pptx'/, "PowerPoint read-only preview");
 requireText(source, /driveLoading|driveLoadError/, "Hub loading/error state");
 requireText(source, /id="drive-retry"/, "Hub retry action");
-requireText(source, /DRIVE_QUICK_DRAFT_KEY/, "durable Quick Note draft");
-requireText(source, /driveLoadQuickDraft\s*\(/, "Quick Note draft restore");
 requireText(source, /driveDescendantIds\(parentId\)/, "recursive Hub search");
 requireText(source, /driveIsLocalPersonal\(\)[\s\S]*state\.driveResources\s*=\s*driveLocalTree\(\)/, "local resource hydration");
 requireText(source, /route\.space==='personal'[\s\S]*return driveLocalTree\(\)/, "local resource route");

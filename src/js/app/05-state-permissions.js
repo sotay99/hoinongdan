@@ -165,7 +165,6 @@
     driveTrashOpen:false,
     driveListMode:'grid',
     driveSort:'name',
-    driveQuickDraft:null,
     driveLoading:false,
     driveLoadError:'',
   };

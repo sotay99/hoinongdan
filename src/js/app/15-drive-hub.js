@@ -9,7 +9,6 @@
   let driveLegacyTreePath = '';
   let driveRouteRequest = 0;
   const DRIVE_LOCAL_STORAGE_KEY = 'hnd_drive_resources_local_v1';
-  const DRIVE_QUICK_DRAFT_KEY = 'hnd_drive_quick_draft_v1';
   const DRIVE_LOCAL_FILE_LIMIT = 8 * 1024 * 1024;
   const DRIVE_PERMISSIONS = Object.freeze({
     viewer:{label:'Viewer — chỉ xem'},
@@ -42,30 +41,6 @@
   function driveSaveLocalTree(tree){
     try{ localStorage.setItem(DRIVE_LOCAL_STORAGE_KEY, JSON.stringify(tree||{})); return true; }
     catch(e){ console.warn('Không thể lưu kho dữ liệu local:', e); return false; }
-  }
-  function driveQuickDraftContextKey(){
-    const scope = state.driveSpace==='shared'
-      ? `shared_${wardId()||'unknown'}`
-      : `personal_${driveUserKey()||'guest'}`;
-    return `${scope}_${state.driveCurrentFolder||'root'}`;
-  }
-  function driveQuickDraftStorageKey(contextKey=driveQuickDraftContextKey()){
-    return `${DRIVE_QUICK_DRAFT_KEY}_${contextKey}`;
-  }
-  function driveLoadQuickDraft(contextKey=driveQuickDraftContextKey()){
-    try{
-      const value=JSON.parse(localStorage.getItem(driveQuickDraftStorageKey(contextKey))||'null');
-      return value && value.contextKey===contextKey ? value : null;
-    }catch(e){ return null; }
-  }
-  function driveSaveQuickDraft(draft){
-    state.driveQuickDraft=draft;
-    try{ localStorage.setItem(driveQuickDraftStorageKey(draft.contextKey),JSON.stringify(draft)); }
-    catch(e){ console.warn('Không thể lưu draft Note nhanh:',e); }
-  }
-  function driveClearQuickDraft(contextKey=driveQuickDraftContextKey()){
-    state.driveQuickDraft=null;
-    try{ localStorage.removeItem(driveQuickDraftStorageKey(contextKey)); }catch(e){}
   }
   function driveHasLocalResources(){
     return Object.values(driveLocalTree()).some(node=>node && node.id);
@@ -918,57 +893,11 @@
     };
     render();
   }
+  // Nút "Ghi chú nhanh" trong Trung tâm dữ liệu chỉ là ĐƯỜNG DẪN sang module Ghi chú nhanh.
+  // Trước đây nó mở một modal soạn thảo riêng, trùng việc với module kia; nay bỏ hẳn, mọi
+  // việc soạn ghi chú đều diễn ra ở một nơi duy nhất.
   function driveOpenQuickNote(){
-    if(isTourMode()){
-      alert('Quick Note trong môi trường tham quan chỉ được mở sau khi bạn đăng nhập hoặc tham gia bằng mã xã/phường.');
-      return;
-    }
-    if(state.driveSpace==='personal' && !drivePersonalAccessAllowed()){
-      alert('Khách qua mã xã/phường không được xem hoặc tạo dữ liệu cá nhân. Hãy chuyển sang Kho dùng chung hoặc đăng nhập Google.');
-      return;
-    }
-    const wrap=document.createElement('div');
-    wrap.className='modal-bg';
-    document.body.appendChild(wrap);
-    const contextKey=driveQuickDraftContextKey();
-    const draft=(state.driveQuickDraft&&state.driveQuickDraft.contextKey===contextKey)
-      ? state.driveQuickDraft
-      : (driveLoadQuickDraft(contextKey)||{});
-    const folder=state.driveCurrentFolder ? state.driveResources[state.driveCurrentFolder] : null;
-    wrap.innerHTML=`
-      <div class="modal drive-quick-note-modal" role="dialog" aria-modal="true" aria-labelledby="drive-quick-note-title">
-        <div class="modal-head"><h3 id="drive-quick-note-title">📝 Note nhanh</h3><button class="modal-close" id="drive-quick-note-close" aria-label="Đóng">✕</button></div>
-        <div class="modal-body">
-          <p class="sub">Lưu trực tiếp vào ${escapeHtml(folder ? `thư mục “${folder.name}”` : (state.driveSpace==='shared'?'Kho dùng chung':'Kho cá nhân'))}.</p>
-          <label class="field-label" for="drive-quick-note-name">Tiêu đề</label>
-          <input class="text-input" id="drive-quick-note-name" value="${escapeHtml(draft.name||'')}" placeholder="Ví dụ: Việc cần làm tuần này">
-          <label class="field-label" for="drive-quick-note-content">Nội dung</label>
-          <textarea class="text-input" id="drive-quick-note-content" rows="10" placeholder="Ghi nhanh nội dung…">${escapeHtml(draft.content||'')}</textarea>
-        </div>
-        <div class="modal-foot"><button class="btn btn-ghost" id="drive-quick-note-cancel">Đóng</button><button class="btn btn-primary" id="drive-quick-note-save">Lưu Note</button></div>
-      </div>`;
-    const nameInput=wrap.querySelector('#drive-quick-note-name');
-    const contentInput=wrap.querySelector('#drive-quick-note-content');
-    const keepDraft=()=>{ driveSaveQuickDraft({contextKey,name:nameInput.value,content:contentInput.value}); };
-    nameInput.oninput=keepDraft; contentInput.oninput=keepDraft;
-    const close=()=>{ keepDraft(); wrap.remove(); };
-    wrap.querySelector('#drive-quick-note-close').onclick=close;
-    wrap.querySelector('#drive-quick-note-cancel').onclick=close;
-    wrap.querySelector('#drive-quick-note-save').onclick=async()=>{
-      const name=(nameInput.value||'').trim() || 'Note nhanh';
-      const content=contentInput.value||'';
-      if(!content.trim()){ alert('Vui lòng nhập nội dung note.'); contentInput.focus(); return; }
-      const now=new Date().toISOString();
-      const id=driveNodeId();
-      const ok=await driveWriteNode(id,{id,type:'file',fileKind:'text',mimeType:'text/plain',name,parentId:state.driveCurrentFolder||null,content,size:new Blob([content]).size,createdAt:now,updatedAt:now,createdBy:(state.identity&&state.identity.email)||'browser'});
-      if(!ok) return;
-       driveClearQuickDraft(contextKey);
-      wrap.remove();
-      driveAttach();
-      renderDriveHubTab(document.getElementById('content'));
-      showToast('Đã lưu Note nhanh vào kho dữ liệu.');
-    };
-    nameInput.focus();
+    openQuickNote();
   }
   async function driveLoadRouteData(route){
     if(isTourMode()) return driveDemoTree();
@@ -1077,7 +1006,7 @@
             <p class="sub">${isShared ? `Theo mã xã/phường <b class="mono">${escapeHtml(wardId()||'')}</b>` : (driveIsLocalPersonal() ? 'Đang lưu trên trình duyệt này; đăng nhập Google để đồng bộ lên Firebase.' : 'Metadata của app lưu theo tài khoản; Google Drive chỉ là lớp liên kết.')}</p>
           </div>
           <div class="drive-hub-actions">
-            <button class="btn btn-ghost btn-sm" id="drive-open-note">📝 Quick Note</button>
+            <button class="btn btn-ghost btn-sm" id="drive-open-note">🗒️ Ghi chú nhanh</button>
             <button class="btn btn-ghost btn-sm" id="drive-refresh">↻ Làm mới</button>
           </div>
         </div>
