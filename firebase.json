@@ -16,7 +16,7 @@
   ],
   "hosting": {
     "predeploy": [
-      "node scripts/build-static.js && node scripts/validate-static.js"
+      "node scripts/build-static.js && node scripts/validate-drive-contract.js && node scripts/validate-phase-zero.js"
     ],
     "public": "public",
     "ignore": [
