@@ -23,15 +23,31 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Lấy đủ lịch sử: bước chọn target bên dưới so sánh với commit TRƯỚC khi
+      # push, mà commit đó có thể nằm ngoài một bản clone nông. Đẩy nhiều commit
+      # một lượt từng làm workflow chết ngay ở bước đó với "fatal: bad object".
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Select Firebase deploy targets
         id: targets
         shell: bash
         run: |
-          changed="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+          before="${{ github.event.before }}"
+
+          # Không tin tưởng mù quáng vào commit "before": nó rỗng/toàn số 0 khi
+          # nhánh vừa được tạo, và có thể không tồn tại sau khi lịch sử bị viết
+          # lại. Khi không xác định được phạm vi thay đổi thì deploy CẢ HAI
+          # target — chậm hơn một chút nhưng luôn đúng, thay vì hỏng cả lần chạy.
+          if [[ -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]] \
+             && git cat-file -e "$before^{commit}" 2>/dev/null; then
+            changed="$(git diff --name-only "$before" "${{ github.sha }}")"
+          else
+            echo "Không xác định được commit gốc ($before) — deploy cả hosting lẫn functions cho an toàn."
+            changed="functions/"
+          fi
+
           targets="hosting"
 
           if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$|\.github/workflows/deploy\.yml$)' <<< "$changed"; then
