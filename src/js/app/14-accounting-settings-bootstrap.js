@@ -2599,13 +2599,23 @@
     if(usingLocalNotes()){
       detachSuperNotesRealtime();
       state.superNotesTree = getLocalSuperNotesTree();
+      state.superNotesLoading = false;
+      state.superNotesLoadError = '';
       return;
     }
     const ref = currentNotesTreeRef();
-    if(!ref){ state.superNotesTree = {}; return; }
+    if(!ref){
+      state.superNotesTree = {};
+      state.superNotesLoading = false;
+      state.superNotesLoadError = state.superNotesSpace==='shared' ? 'Chưa chọn mã xã/phường để mở Bộ ghi chú dùng chung.' : 'Chưa có tài khoản để mở Bộ ghi chú cá nhân.';
+      return;
+    }
     const pathKey = ref.toString();
     if(superNotesListenerRef && superNotesListenerKey === pathKey) return; // đã đúng path rồi, khỏi gắn lại
     detachSuperNotesRealtime();
+    state.superNotesTree = {};
+    state.superNotesLoading = true;
+    state.superNotesLoadError = '';
     superNotesListenerRef = ref;
     superNotesListenerKey = pathKey;
     ref.on('value', async snap=>{
@@ -4605,7 +4615,14 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
               flashTargets = ['q1','q2','q3','q4'].flatMap(qk=>[{qk,part:'start'},{qk,part:'end'}]);
               renderBody();
             });
-          });
+    }, error=>{
+      if(superNotesListenerRef!==ref) return;
+      state.superNotesLoading = false;
+      state.superNotesLoadError = 'Firebase không cho phép đọc kho ghi chú này hoặc kết nối đã bị gián đoạn.';
+      state.superNotesTree = {};
+      console.warn('Realtime Siêu ghi chú lỗi:',error);
+      if(state._superNotesOpen) renderSuperNotesOverlay();
+    });
         }
       } else if(view.mode==='month'){
         wrap.querySelector('#qim-back-main').onclick = ()=>{ view = {mode:'main'}; renderBody(); };
