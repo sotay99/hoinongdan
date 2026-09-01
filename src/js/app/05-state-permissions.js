@@ -164,6 +164,8 @@
     _snDraftText:'', _snDraftCaptureSuppressed:false,
     _snInFlightText:'', _snInFlightFiles:[], _snInFlightParentId:null,
     _superNotesCache:null, _superNotesCacheAt:0,
+    superNotesLoading:false,
+    superNotesLoadError:'',
     // ---- Drive Hub (metadata của app; file Google Drive chỉ là liên kết) ----
     driveSpace:'personal',       // 'personal' | 'shared'
     driveResources:{},
