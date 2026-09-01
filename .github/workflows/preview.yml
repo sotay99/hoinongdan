@@ -1,0 +1,90 @@
+name: Deploy preview channel
+
+# Tạo BẢN XEM TRƯỚC cho một nhánh: một địa chỉ web thật, chạy trên chính hạ tầng
+# Firebase Hosting, nhưng nằm ở "channel" riêng — KHÔNG đụng gì tới production
+# (hoinongdan.sotay.org) và tự hết hạn sau 7 ngày.
+#
+# Chỉ triển khai HOSTING. Cloud Function receiptMeta KHÔNG được triển khai kèm,
+# nên đường dẫn /bienlai/<mã> trên bản xem trước vẫn chạy function của production.
+# Mọi phần còn lại của giao diện là mã của đúng nhánh này.
+
+on:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Đặt tên channel theo tên nhánh
+        id: channel
+        shell: bash
+        run: |
+          # Tên channel chỉ được chứa chữ thường, số và dấu gạch ngang; tối đa 63 ký tự.
+          raw="${GITHUB_REF_NAME}"
+          name="$(tr '[:upper:]' '[:lower:]' <<< "$raw" | sed 's/[^a-z0-9-]/-/g; s/-\+/-/g; s/^-//; s/-$//')"
+          name="${name:0:50}"
+          [[ -z "$name" ]] && name="preview"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "Channel: $name  (từ nhánh $raw)"
+
+      - name: Copy index.html to public and functions
+        run: |
+          mkdir -p public
+          cp index.html public/index.html
+          cp index.html functions/index.html
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Write service account key to file
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/firebase-key.json
+
+      # Hook predeploy trong firebase.json tự chạy build + cả 4 script kiểm tra,
+      # nên bản xem trước chịu đúng bộ kiểm tra như production.
+      - name: Deploy bản xem trước
+        id: deploy
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-key.json
+        run: |
+          firebase hosting:channel:deploy "${{ steps.channel.outputs.name }}" \
+            --project congtachoinongdan \
+            --expires 7d \
+            --json > /tmp/channel.json
+          url="$(python3 -c "
+          import json
+          d = json.load(open('/tmp/channel.json'))
+          r = d.get('result', d)
+          site = next(iter(r.values())) if isinstance(r, dict) and r else {}
+          print(site.get('url', ''))
+          ")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: In địa chỉ xem trước
+        run: |
+          {
+            echo "## Bản xem trước đã sẵn sàng"
+            echo
+            echo "**${{ steps.deploy.outputs.url }}**"
+            echo
+            echo "- Nhánh: \`${{ github.ref_name }}\` · commit \`${{ github.sha }}\`"
+            echo "- Tự hết hạn sau 7 ngày. Production (hoinongdan.sotay.org) KHÔNG bị ảnh hưởng."
+            echo "- Chưa đăng nhập Google được trên địa chỉ này thì bấm **Môi trường tham quan**"
+            echo "  ở màn hình đầu để vào xem giao diện với dữ liệu mẫu."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Địa chỉ xem trước: ${{ steps.deploy.outputs.url }}"
