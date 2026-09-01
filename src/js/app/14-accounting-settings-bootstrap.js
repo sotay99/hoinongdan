@@ -4912,14 +4912,3 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       showToast(isNew? 'Đã tạo phương án vay thành công!' : 'Đã lưu thay đổi thành công!');
     };
   }
-
-  const _publicReceiptId = publicReceiptRouteId();
-  const _publicSurveyId = publicSurveyRouteId();
-  if(_publicReceiptId){
-    renderPublicReceiptPage(_publicReceiptId);
-  } else if(_publicSurveyId){
-    renderPublicSurveyPage(_publicSurveyId);
-  } else {
-    boot();
-  }
-})();

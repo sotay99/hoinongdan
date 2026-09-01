@@ -1019,3 +1019,23 @@
     el.querySelectorAll('[data-drive-item]').forEach(item=>item.addEventListener('contextmenu',e=>openDriveContextMenu(e,item.dataset.driveItem)));
     document.addEventListener('click',closeDriveContextMenu,{once:true});
   }
+
+  // =====================================================================
+  // ĐIỂM KHỞI ĐỘNG ỨNG DỤNG — PHẢI LUÔN NẰM Ở CUỐI PHẦN CUỐI CÙNG trong
+  // manifest.json. Toàn bộ 15 phần được nối lại thành MỘT hàm bọc (IIFE)
+  // duy nhất mở ở 01-foundation.js và đóng ngay bên dưới, nhờ vậy mọi phần
+  // dùng chung được `state`, `render`, `escapeHtml`... Nếu sau này thêm
+  // phần 16, hãy CHUYỂN nguyên khối này xuống cuối phần đó — để mọi khai
+  // báo `let/const` đều đã khởi tạo xong trước khi boot() chạy (tránh lỗi
+  // "Cannot access before initialization").
+  // =====================================================================
+  const _publicReceiptId = publicReceiptRouteId();
+  const _publicSurveyId = publicSurveyRouteId();
+  if(_publicReceiptId){
+    renderPublicReceiptPage(_publicReceiptId);
+  } else if(_publicSurveyId){
+    renderPublicSurveyPage(_publicSurveyId);
+  } else {
+    boot();
+  }
+})();
