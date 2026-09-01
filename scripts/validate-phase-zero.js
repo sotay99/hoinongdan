@@ -27,6 +27,16 @@ const checks = [
   ["sharing modal", /function\s+renderDriveShareModal\s*\(/],
   ["comment thread", /function\s+driveAddComment\s*\(/],
   ["kept loan-house statistic", /Tổng số hộ vay đang theo dõi/],
+  ["public survey load states", /surveyLoadState\s*=\s*'loading'/],
+  ["public survey retry action", /id="ps-retry-btn"/],
+  ["public survey reload helper", /async function\s+loadSurvey\s*\(/],
+  ["borrower edit project selection", /if\(!isNew && !state\.modal\.projectId\)/],
+  ["borrower project reassignment persistence", /projectId:\s*curProject\.id/],
+  ["borrower project change audit", /compareKeysB\s*=\s*\['projectId'/],
+  ["Super Notes draft capture", /state\._snDraftText\s*=\s*draftInput\.value/],
+  ["Super Notes draft restore", /id="sn-input"[\s\S]*state\._snDraftText/],
+  ["Super Notes failed-input restore", /state\.superNotesPendingFiles\s*=\s*\(state\._snInFlightFiles\|\|\[\]\)\.slice\(\)/],
+  ["Super Notes folder restore", /const ids = node\.type==='folder' \? \[id, \.\.\.snDescendantsOf\(id\)\] : \[id\]/],
 ];
 const failures = checks.filter(([, pattern]) => !pattern.test(source)).map(([label]) => label);
 
