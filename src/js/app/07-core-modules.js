@@ -1453,6 +1453,7 @@
   }
 
   const IDENTITY_KEY = 'hnd_identity'; // chỉ lưu trên máy này (localStorage), không đưa lên đám mây
+  const GUEST_SESSION_KEY = 'hnd_guest_access_session_v1';
   // Mỗi tài khoản Google (email) có thể sở hữu/tham gia NHIỀU mã xã (multi-tenant).
   // Máy này chỉ cache "mã xã đang xem gần nhất" để lần sau mở lên vào thẳng, còn danh sách
   // đầy đủ các mã xã (Ví mã xã) luôn được đọc lại từ Firebase: users/{email}/wards.
@@ -1472,6 +1473,20 @@
   }
   function setActiveWardCache(wid){ lset(activeWardCacheKey(state.identity.email), wid||''); }
   function seenWelcomeKey(email){ return `hnd_seen_welcome_${emailToKey(email)}`; }
+  function beginWardGuestSession(wid){
+    const session = {
+      id:'guest_' + uid() + '_' + Date.now().toString(36),
+      wardId:wid,
+      startedAt:new Date().toISOString(),
+    };
+    state.guestSessionId = session.id;
+    try{ sessionStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(session)); }catch(e){}
+    return session.id;
+  }
+  function clearWardGuestSession(){
+    state.guestSessionId = null;
+    try{ sessionStorage.removeItem(GUEST_SESSION_KEY); }catch(e){}
+  }
 
   // ---------- VÍ MÃ XÃ (multi-tenant wallet) ----------
   // users/{emailKey}/wards/{wardId}        = {kind:'owner'|'guest', wardName, addedAt, av}
@@ -1736,6 +1751,8 @@
     if(!cfg || cfg.deleted){ alert('Mã định danh này chưa tồn tại hoặc đã bị xoá. Vui lòng kiểm tra lại cho đúng (chỉ gồm chữ thường/số/gạch dưới/gạch ngang, không dấu, không khoảng trắng).'); return false; }
     if((cfg.accessCode||'') !== (password||'')){ alert('Mã định danh đúng, nhưng sai mật khẩu mã xã. Vui lòng nhập đúng mật khẩu (để trống nếu mã này không đặt mật khẩu).'); return false; }
     state.previewMode = false;
+    state.accessMode = ACCESS_MODES.WARD_GUEST;
+    beginWardGuestSession(wid);
     state.identity = { name:'Khách qua mã (không đăng nhập)', email:null, photo:'', wardId: wid };
     state.config = cfg;
     state.activeTab = 'dashboard';
@@ -1894,6 +1911,8 @@
     const demo = buildDemoState();
     detachRealtime();
     state.previewMode = true;
+    state.accessMode = ACCESS_MODES.TOUR;
+    clearWardGuestSession();
     state.identity = { name:'Khách tham quan', email:null, photo:'', wardId:'demo' };
     state.config = demo.config;
     state.borrowers = demo.borrowers;
@@ -1910,6 +1929,8 @@
   }
   function exitPreviewMode(){
     state.previewMode = false;
+    state.accessMode = ACCESS_MODES.SIGNED_OUT;
+    clearWardGuestSession();
     state.identity = null;
     state.config=null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.interestPaymentBoxes=null; state.loanExtensions=null;
     state.view = 'login';
@@ -1918,6 +1939,7 @@
 
   // Vào xem/làm việc với 1 mã xã đã có trong Ví (không cần hỏi lại mật khẩu).
   async function enterWard(wid){
+    state.accessMode = hasAuthenticatedIdentity() ? ACCESS_MODES.GOOGLE : ACCESS_MODES.WARD_GUEST;
     state.identity.wardId = wid;
     setActiveWardCache(wid);
     lset(IDENTITY_KEY, state.identity);
@@ -2122,6 +2144,8 @@
         detachSuperNotesRealtime();
         detachSurveysRealtime();
         state.identity = null; lset(IDENTITY_KEY, null);
+         state.accessMode = ACCESS_MODES.SIGNED_OUT;
+         state.guestSessionId = null;
         state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.surveySpace='personal'; state.surveyView='list'; state.surveyDraft=null; state.surveyEditingId=null; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
         state.myWards=[]; state.myDeletedWards=[]; state.sysTrash=[];
         state.admins={}; state.aiChats=[]; state.aiActiveChatId=null; state._aiChatOpen=false; state._adminViewingWard=false;
@@ -2138,8 +2162,10 @@
         await auth.signOut();
         return;
       }
-      state.identity = { name: user.displayName || email, email, photo: user.photoURL || '', wardId:'' };
+       state.identity = { uid:user.uid || '', name: user.displayName || email, email, photo: user.photoURL || '', wardId:'' };
+       state.accessMode = ACCESS_MODES.GOOGLE;
       lset(IDENTITY_KEY, state.identity);
+      migrateLegacyPersonalDataToUid().catch(e=>console.warn('Migration kho cá nhân UID bị bỏ qua:',e));
       ensureAccountSecretId(); // không cần chờ — chạy nền, không ảnh hưởng luồng hiển thị
       await loadWallet();
       const cachedActive = lget(activeWardCacheKey(email), '');
