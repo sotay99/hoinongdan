@@ -1756,6 +1756,7 @@
     state.identity = { name:'Khách qua mã (không đăng nhập)', email:null, photo:'', wardId: wid };
     state.config = cfg;
     state.activeTab = 'dashboard';
+    resetTabScrollMemory(); // phiên mới: bỏ trí nhớ cuộn của phiên trước
     state.view = 'app';
     state._showWardWelcome = true;
     attachRealtime();
@@ -1923,6 +1924,7 @@
     state.interestPaymentBoxes = demo.interestPaymentBoxes;
     state.loanExtensions = demo.loanExtensions;
     state.activeTab = 'dashboard';
+    resetTabScrollMemory(); // phiên mới: bỏ trí nhớ cuộn của phiên trước
     state.view = 'app';
     state._showPreviewWelcome = true; // yêu cầu 5: bật popup chào mừng ngay lần vào đầu tiên
     render();
@@ -1952,6 +1954,7 @@
       state.view = 'wallet'; render();
       return;
     }
+    resetTabScrollMemory(); // phiên mới: bỏ trí nhớ cuộn của phiên trước
     state.view = 'app';
     state._showWardWelcome = true;
     attachRealtime();

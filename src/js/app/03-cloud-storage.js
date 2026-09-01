@@ -164,6 +164,7 @@
     state.config = await cGetOnce('config', null);
     if(!state.config){ alert('Không tìm thấy dữ liệu cấu hình cho mã này (có thể đã bị xoá vĩnh viễn).'); state._adminViewingWard = false; return; }
     state.activeTab = 'dashboard';
+    resetTabScrollMemory(); // phiên mới: bỏ trí nhớ cuộn của phiên trước
     state.view = 'app';
     state._showWardWelcome = true;
     attachRealtime();

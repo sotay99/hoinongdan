@@ -1295,6 +1295,8 @@
     icon:'🪪', eyebrow:'QUẢN LÝ HỘI VIÊN', title:'Hồ sơ hội viên',
     lead:'Danh sách hội viên của một xã thường là một tệp Excel nặng vài nghìn dòng, có một bảng gốc và cả chục bảng phụ chạy theo công thức. Sửa một chỗ ở bảng gốc thì mọi bảng khác đổi theo — nhưng chỉ cần gõ thừa một dấu cách là số liệu sai mà máy không hề báo lỗi. Module này thay cách làm ấy bằng một cơ sở dữ liệu hội viên đúng nghĩa.',
     blocks:[
+      ['\u2728','Thêm nhanh hồ sơ hội viên bằng cách trò chuyện với AI',
+       'Đúng như tính năng "Thêm nhanh bằng AI" đã chạy trong Sổ vay vốn. Mở một khung chat toàn màn hình, đồng chí nhắn tin, đính kèm ảnh hoặc tài liệu, hoặc bấm micro nói cho máy tự gõ ra chữ — ảnh chụp CCCD, đơn xin vào Hội, sổ ghi chép tay, danh sách in sẵn của chi hội đều được. Bấm "Tiêu hoá tài liệu bằng AI" là AI đọc hết và rót vào đúng từng trường của hồ sơ, gom lại thành một "Hồ sơ đang soạn" duy nhất mà đồng chí mở ra xem và sửa được bất cứ lúc nào. Còn thiếu trường bắt buộc hay có chỗ mâu thuẫn thì AI hỏi lại chứ không tự bịa; nhắn thêm một câu là nó cập nhật lại ngay. Ưng ý rồi mới bấm nút thêm vào danh sách hội viên — trước đó chưa có gì được ghi vào hệ thống cả.'],
       ['📇','Mỗi hội viên là một hồ sơ, không còn là một dòng trong bảng',
        'Đầy đủ các trường mà cơ sở Hội vẫn phải khai: họ và tên, năm sinh tách theo nam và nữ, dân tộc, tôn giáo, số CCCD, trình độ văn hoá, năm vào Hội, năm cấp thẻ hội viên, nơi ở hiện nay, nơi ở trước sáp nhập, hội viên nòng cốt, chức vụ hiện nay, số điện thoại, ngày và lý do xoá tên, ghi chú. Mở hồ sơ ra là thấy trọn vẹn một con người, không phải rê chuột ngang ba mươi mấy cột.'],
       ['🌾','Phần sản xuất — kinh doanh gắn liền với hồ sơ',

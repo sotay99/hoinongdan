@@ -235,7 +235,7 @@
     const backBtn = document.getElementById('office-back');
     if(backBtn) backBtn.onclick = closeOfficeModule;
     const driveBtn = document.getElementById('office-goto-drive');
-    if(driveBtn) driveBtn.onclick = ()=>{ closeOfficeModule(); state.activeTab='drive'; render(); };
+    if(driveBtn) driveBtn.onclick = ()=>{ closeOfficeModule(); switchTab('drive'); };
   }
   function driveDecodeDataUrl(dataUrl){
     const comma = String(dataUrl||'').indexOf(',');

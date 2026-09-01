@@ -52,6 +52,10 @@
     categoryChangeLog:[],           // Nhật ký tạo/sửa tên phân loại biên lai
     quarterStatusLog:{},            // { [borrowerId]: [ {id,key,label,direction,reason,at} ] } — Lịch sử trạng thái Quý
     activeTab:'dashboard',
+    // Vị trí cuộn đã ghi nhớ của TỪNG module: { [tên tab]: số pixel đã cuộn }.
+    // Rời module nào thì ghi lại đang xem tới đâu, quay lại thì cuộn về đúng chỗ cũ.
+    // Module chưa từng cuộn thì không có khoá trong này và sẽ mở ra ở đầu trang.
+    _tabScroll:{},
     reportMode:'quarter',
     reportQuarter:'q1',
     reportFrom:'', reportTo:'',

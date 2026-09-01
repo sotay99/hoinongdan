@@ -129,7 +129,7 @@
     }, true);
     document.getElementById('qn-goto-chat-btn').onclick = ()=>{ closeQuickNote(); openAiChat(); };
     const gotoDriveBtn = document.getElementById('qn-goto-drive-btn');
-    if(gotoDriveBtn) gotoDriveBtn.onclick = ()=>{ closeQuickNote(); state.activeTab = 'drive'; render(); };
+    if(gotoDriveBtn) gotoDriveBtn.onclick = ()=>{ closeQuickNote(); switchTab('drive'); };
 
     // ---- thanh chọn model AI (dùng chung logic với Chat AI) ----
     const modelSelectEl = document.getElementById('qn-model-select');
@@ -682,6 +682,7 @@
       // danh THẬT SỰ được tạo xong (trước đó chỉ là bản nháp cục bộ, chưa từng ghi lên Firebase).
       await rtdb.ref(`users/${emailToKey(state.identity.email)}/wards/${wardId()}`).set({kind:'owner', wardName:req.wardNameVal, addedAt:new Date().toISOString(), ...(state._pendingIsRandom? {autoRandom:true} : {})});
       delete state._pendingIsRandom;
+      resetTabScrollMemory(); // phiên mới: bỏ trí nhớ cuộn của phiên trước
       state.view = 'app';
       state._showWardWelcome = true;
       attachRealtime();
@@ -763,6 +764,54 @@
   // Cuộn mục menu vừa bấm vào GIỮA khung menu và cho tên module nhảy múa vài nhịp rồi đứng
   // im — dùng lại đúng hiệu ứng nameDance sẵn có của app (phóng to 1,1 lần), chỉ khác là chạy
   // hữu hạn 3 nhịp thay vì lặp vô hạn. Gọi sau render() vì render() dựng lại toàn bộ DOM menu.
+  // =====================================================================
+  // GHI NHỚ VỊ TRÍ CUỘN CỦA TỪNG MODULE
+  // Rời một module thì ghi lại đang cuộn tới đâu; quay lại module đó thì cuộn
+  // về đúng chỗ cũ. Module chưa từng cuộn thì mở ra ở đầu trang.
+  //
+  // LƯU Ý: trang cuộn bằng CHÍNH CỬA SỔ (.app-shell chỉ có min-height:100vh,
+  // #content không tự cuộn riêng) nên phải đọc/ghi window chứ không phải
+  // scrollTop của #content.
+  // =====================================================================
+  function currentScrollTop(){
+    return window.pageYOffset || (document.scrollingElement || document.documentElement).scrollTop || 0;
+  }
+  function rememberTabScroll(){
+    if(!state._tabScroll) state._tabScroll = {};
+    if(state.activeTab) state._tabScroll[state.activeTab] = currentScrollTop();
+  }
+  // Xoá sạch trí nhớ cuộn — gọi khi đổi sang mã định danh khác hoặc bắt đầu
+  // phiên mới, để không cuộn theo vị trí của dữ liệu phiên trước.
+  function resetTabScrollMemory(){ state._tabScroll = {}; }
+  function scrollWindowTo(top){
+    window.scrollTo(0, top);
+    // Ngay sau khi dựng lại giao diện, trang có thể còn NGẮN hơn vị trí cần tới
+    // (ảnh/phông chữ chưa xong) nên lệnh cuộn ở trên bị trình duyệt kẹp lại ở đáy.
+    // Đặt lại một lần nữa ở nhịp vẽ kế tiếp, và một lần nữa sau focusNavItem()
+    // (hàm đó chạy trong setTimeout 0 nên phải xếp hàng sau nó mới chắc ăn).
+    // Chỉ đặt lại khi vị trí đã lệch, để không giật khi người dùng vừa cuộn tay.
+    const reassert = ()=>{ if(Math.abs(currentScrollTop() - top) > 2) window.scrollTo(0, top); };
+    requestAnimationFrame(reassert);
+    setTimeout(reassert, 0);
+  }
+  function restoreTabScroll(tabId){
+    scrollWindowTo((state._tabScroll && state._tabScroll[tabId]) || 0);
+  }
+  // Đổi module: ghi nhớ chỗ đang đứng ở module cũ rồi cuộn tới chỗ cũ của module mới.
+  function switchTab(tabId){
+    if(!tabId) return;
+    // Bấm lại đúng module ĐANG xem thì giữ nguyên chỗ đang đứng — không kéo người
+    // dùng về vị trí đã ghi nhớ từ lần rời module đó trước đây.
+    const sameTab = state.activeTab === tabId;
+    const keepTop = sameTab ? currentScrollTop() : null;
+    if(!sameTab) rememberTabScroll();
+    state.activeTab = tabId;
+    state.bellOpen = false;
+    render();
+    if(sameTab) scrollWindowTo(keepTop);
+    else restoreTabScroll(tabId);
+  }
+
   function focusNavItem(selector){
     setTimeout(()=>{
       const el = document.querySelector(selector);
@@ -885,9 +934,7 @@
         // state.activeTab, chỉ mở overlay lên; khi thoát ra vẫn ở đúng module trước đó, không bị chuyển tab.
         // Cũng không cuộn/nhảy múa, vì lý do như ba công cụ văn phòng ở trên.
         if(clickedTab==='propaganda'){ openPropagandaModule(); state.bellOpen=false; render(); return; }
-        state.activeTab = clickedTab;
-        state.bellOpen=false;
-        render();
+        switchTab(clickedTab);
         focusNavItem(`.nav-item[data-tab="${clickedTab}"]`);
       };
     });
@@ -906,7 +953,7 @@
     const pvLogin = document.getElementById('pv-login');
     if(pvLogin) pvLogin.onclick = exitPreviewMode;
     const pvGuide = document.getElementById('pv-guide');
-    if(pvGuide) pvGuide.onclick = ()=>{ state.activeTab='guide'; render(); };
+    if(pvGuide) pvGuide.onclick = ()=>{ switchTab('guide'); };
     const guestLogin = document.getElementById('guest-login');
     if(guestLogin) guestLogin.onclick = ()=>{
       detachRealtime();
