@@ -1,6 +1,13 @@
   // =====================================================================
-  // Không gian [Siêu ghi chú] — sidebar cây thư mục cá nhân + khung soạn thảo + khung nhập liệu
-  // AI tiêu hoá, dựng theo đúng phong cách khung Chat AI (bồng bềnh, toàn màn hình).
+  // Không gian [Ghi chú nhanh] — tên nội bộ vẫn là superNotes*/sn-* trong mã.
+  //
+  // Trước đây module này có cây thư mục và hai không gian lưu trữ riêng, trùng
+  // hoàn toàn với Trung tâm dữ liệu. Nay nó chỉ còn ĐÚNG MỘT việc: soạn nội
+  // dung (gõ chữ, nói, hoặc tải ảnh/PDF/tài liệu để AI tiêu hoá) rồi lưu kết
+  // quả vào Trung tâm dữ liệu — Bộ cá nhân, qua modal chọn thư mục.
+  //
+  // Khung bên trái vì thế rất tối giản: chỉ còn lối thoát và lối sang Chat AI.
+  // Chỗ trống bên dưới dành cho các nâng cấp sau này.
   // =====================================================================
   function renderSuperNotesOverlay(){
     const draftInput = document.getElementById('sn-input');
@@ -12,88 +19,27 @@
       document.body.appendChild(overlay);
       firstCreate = true;
     }
-    const curId = state.superNotesCurrentFolder;
-    const crumbs = snBreadcrumb(curId);
-    const items = state.superNotesTrashOpen
-      ? Object.values(state.superNotesTree||{}).filter(n=> n && n.deleted).sort((a,b)=>(b.deletedAt||'').localeCompare(a.deletedAt||''))
-      : snChildrenOf(curId);
-    const editingNode = state.superNotesEditingId ? state.superNotesTree[state.superNotesEditingId] : null;
     const provider = getActiveAiProvider();
-    const isShared = state.superNotesSpace==='shared';
-    const canEdit = isShared ? snCanEdit() : true;
-    const canView = isShared ? snCanView() : true;
-    const notesLoading = !!state.superNotesLoading;
-    const notesLoadError = String(state.superNotesLoadError||'');
 
     overlay.innerHTML = `
       <div class="ai-sidebar ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar" style="display:flex; flex-direction:column;">
         <button class="ai-exit-btn" id="sn-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="sn-goto-chat-btn">💬 Chat với AI Chàng Nông dân Thông minh</button>
-        <div style="display:flex; gap:6px; margin-bottom:10px;">
-          <button class="ai-newchat-btn" id="sn-space-shared" style="flex:1; margin-bottom:0; ${isShared?'background:rgba(255,255,255,.28); font-weight:800;':''}">🏛️ Bộ chung Xã/Phường</button>
-          <button class="ai-newchat-btn" id="sn-space-personal" style="flex:1; margin-bottom:0; ${!isShared?'background:rgba(255,255,255,.28); font-weight:800;':''}">🔒 Bộ cá nhân</button>
+        <button class="ai-newchat-btn" id="sn-goto-drive-btn">🗂️ Mở Trung tâm dữ liệu</button>
+        <div class="sn-side-note">
+          <b>Ghi chú nhanh</b>
+          <span>Soạn nội dung ở khung bên phải. Xong, bạn chọn thư mục trong Trung tâm dữ liệu để lưu.</span>
         </div>
-        ${isShared && isOwner()? `<button class="ai-newchat-btn" id="sn-shared-settings-btn">⚙️ Cài đặt & Chia sẻ</button>` : ''}
-        ${isShared && !isOwner()? `<div class="sub" style="color:rgba(255,255,255,.65); padding:0 8px 8px; font-size:11px;">Quyền của bạn ở đây: <b style="color:#fff;">${canEdit?'Toàn quyền sửa':(canView?'Chỉ xem':'Không được xem')}</b></div>` : ''}
-        ${!isShared && usingLocalNotes()? `<div class="sub" style="color:rgba(255,255,255,.72); padding:0 8px 8px; font-size:11px;">💡 Bộ cá nhân đang lưu trên thiết bị này mà thôi — chưa thể chia sẻ hoặc đồng bộ sang máy khác. Dữ liệu có thể mất nếu xoá dữ liệu trình duyệt; hãy đăng nhập Google trước khi cần lưu lâu dài.</div>` : ''}
-        ${!isShared && !usingLocalNotes() && hasLocalSuperNotes()? `<div class="sub sn-local-migration-notice" style="color:rgba(255,255,255,.78); padding:0 8px 8px; font-size:11px;">📦 Phát hiện ghi chú riêng đang chờ chuyển từ trình duyệt lên Firebase.<br><button class="btn btn-ghost btn-sm" id="sn-migrate-local" style="color:#fff; border-color:rgba(255,255,255,.35); margin-top:6px;">Chuyển ghi chú lên bộ riêng</button></div>` : ''}
-        ${notesLoading ? `<div class="sn-status sn-status-loading">⏳ Đang tải Siêu ghi chú…</div>` : ''}
-        ${notesLoadError ? `<div class="sn-status sn-status-error"><b>Không thể tải dữ liệu ghi chú</b><span>${escapeHtml(notesLoadError)}</span><button class="btn btn-ghost btn-sm" id="sn-retry-load">↻ Thử lại</button></div>` : ''}
-        <div class="ai-hist-label">${isShared? 'Bộ ghi chú dùng chung' : 'Siêu ghi chú của tôi'}</div>
-        ${!state.superNotesTrashOpen? `
-        <div class="sn-crumbs">
-          <span data-sn-goto="">🏠 Gốc</span>${crumbs.map(c=>` / <span data-sn-goto="${c.id}">${escapeHtml(c.name)}</span>`).join('')}
-        </div>
-        ${canEdit? `
-        <div class="toolbar" style="padding:0 10px 8px; flex-wrap:wrap; gap:6px;">
-          <button class="btn btn-ghost btn-sm" id="sn-new-folder" style="color:#fff; border-color:rgba(255,255,255,.3);">📁 Thư mục</button>
-          <button class="btn btn-ghost btn-sm" id="sn-new-text" style="color:#fff; border-color:rgba(255,255,255,.3);">📝 Ghi chú</button>
-        </div>` : ''}` : `
-        <div class="toolbar" style="padding:0 10px 8px;">
-          <button class="btn btn-ghost btn-sm" id="sn-close-trash" style="color:#fff; border-color:rgba(255,255,255,.3);">◀ Quay lại</button>
-        </div>`}
-        <div class="ai-hist-list">
-          ${!canView? `<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px;">Bạn không có quyền xem Bộ ghi chú dùng chung này. Vui lòng liên hệ Chủ mã.</div>` :
-            notesLoading ? `<div class="sn-empty-state">Đang đồng bộ danh sách…</div>` :
-            notesLoadError ? `<div class="sn-empty-state">Danh sách chưa thể hiển thị. Hãy bấm “Thử lại”.</div>` :
-            items.length? items.map(n=>`
-            <div class="sn-tree-row ${n.id===state.superNotesEditingId?'active':''}" data-sn-item="${n.id}">
-              <span>${n.type==='folder'?'📁':'📝'}</span>
-              <span class="sn-tree-name">${escapeHtml(n.name)}</span>
-              <span class="sn-tree-actions">
-                ${state.superNotesTrashOpen? (canEdit? `
-                  <button data-sn-restore="${n.id}" title="Khôi phục">♻️</button>
-                  <button data-sn-purge="${n.id}" title="Xoá vĩnh viễn">🗑️</button>
-                ` : '') : (canEdit? `
-                  <button data-sn-rename="${n.id}" title="Đổi tên">✏️</button>
-                  <button data-sn-delete="${n.id}" title="Xoá vào thùng rác">🗑️</button>
-                ` : '')}
-              </span>
-            </div>`).join('') : `<div class="sn-empty-state"><b>${state.superNotesTrashOpen?'Thùng rác trống.':'Chưa có ghi chú nào'}</b><span>${state.superNotesTrashOpen?'Các mục đã xoá sẽ xuất hiện ở đây.':'Bấm “📝 Ghi chú” để tạo ghi chú đầu tiên, hoặc nhập nội dung ở khung bên phải rồi gửi.'}</span></div>`}
-        </div>
-        <button class="ai-newchat-btn" id="sn-trash-btn" style="margin:8px 10px 0; margin-top:auto;">${state.superNotesTrashOpen? '◀ Quay lại kho ghi chú' : '🗑️ Thùng rác'}</button>
       </div>
-      <button class="ai-sidebar-toggle-btn preview-allow ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar-toggle-btn" title="${state._snSidebarCollapsed?'Mở khung danh sách ghi chú':'Đóng khung danh sách ghi chú'}">${state._snSidebarCollapsed?'▶':'◀'}</button>
+      <button class="ai-sidebar-toggle-btn preview-allow ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar-toggle-btn" title="${state._snSidebarCollapsed?'Mở khung thao tác':'Đóng khung thao tác'}">${state._snSidebarCollapsed?'▶':'◀'}</button>
       <div class="ai-sidebar-scrim ${!state._snSidebarCollapsed?'show':''}" id="sn-sidebar-scrim"></div>
-      <button class="ai-close-fab preview-allow" id="sn-close-fab" title="Đóng Siêu ghi chú">✕</button>
+      <button class="ai-close-fab preview-allow" id="sn-close-fab" title="Đóng Ghi chú nhanh">✕</button>
       <div class="ai-main ${state._snSidebarCollapsed?'ai-sidebar-collapsed':''}" id="sn-main-panel">
-        <div class="ai-header">🗒️ Siêu ghi chú${editingNode? ' — ' + escapeHtml(editingNode.name) : ''}</div>
+        <div class="ai-header">🗒️ Ghi chú nhanh</div>
         ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
         <div class="ai-messages" id="sn-content-area" style="align-items:stretch;">
-          ${notesLoadError ? `<div class="ai-bubble assistant">⚠️ ${escapeHtml(notesLoadError)}<br><button class="btn btn-primary btn-sm" id="sn-retry-load-main" style="margin-top:10px;">↻ Thử tải lại</button></div>` :
-          notesLoading ? `<div class="ai-bubble assistant">⏳ Đang tải dữ liệu Siêu ghi chú từ ${isShared?'kho dùng chung':'kho cá nhân'}…</div>` :
-          !canView? `<div class="ai-bubble assistant">Bạn không có quyền xem Bộ ghi chú dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền.</div>` :
-            editingNode? `
-            <div style="display:flex; flex-direction:column; gap:10px; height:100%;">
-              <div style="display:flex; gap:8px; align-items:center;">
-                <input id="sn-editor-name" value="${escapeHtml(editingNode.name)}" style="flex:1; font-weight:700;" ${canEdit?'':'disabled'}>
-                ${canEdit? `<button class="btn btn-primary btn-sm" id="sn-editor-save">💾 Lưu</button>` : ''}
-              </div>
-              ${editingNode.storageUrl? `<p class="sub" style="margin:0;"><a href="${editingNode.storageUrl}" target="_blank" rel="noopener">📎 Xem/tải tệp gốc</a></p>` : ''}
-              <textarea id="sn-editor-content" style="flex:1; min-height:340px; width:100%; font-family:inherit; font-size:13.5px; padding:12px; border:1px solid var(--line); border-radius:10px; resize:vertical;" ${canEdit?'':'disabled'}>${escapeHtml(editingNode.content||'')}</textarea>
-            </div>` : `
-            <div class="ai-bubble assistant">${isShared? `Đây là <b>Bộ ghi chú dùng chung</b> của mã xã <b class="mono">${escapeHtml(wardId()||'')}</b> 🏛️ — mọi người cùng mã định danh đều xem được (tuỳ quyền Chủ mã cấp).` : `Chào bạn! Đây là <b>Siêu ghi chú cá nhân</b> của riêng bạn 📓 — nơi lưu mọi tri thức cá nhân để "Chàng Nông dân Thông minh" hiểu bạn hơn khi trò chuyện.`}<br><br>
-            Bạn có thể: bấm vào 1 ghi chú bên trái để xem${canEdit?'/sửa':''}, ${canEdit? 'hoặc gõ chữ / nói / tải ảnh-PDF / tải cả thư mục vào khung bên dưới — AI sẽ tự đọc, biên tập sạch sẽ và tạo ra ghi chú mới giúp bạn.' : '(bạn chỉ có quyền xem ở đây).'}</div>`}
+          <div class="ai-bubble assistant">Chào bạn! Đây là <b>Ghi chú nhanh</b> 📓 — gõ chữ, nói, hoặc tải ảnh/PDF/tài liệu vào khung bên dưới, AI sẽ đọc và biên tập sạch sẽ thành một ghi chú.<br><br>
+          Ghi chú tạo xong được lưu vào <b>Trung tâm dữ liệu</b> (Bộ cá nhân) — bạn chọn thư mục lúc lưu, hoặc bấm lưu nhanh vào thư mục “Ghi chú nhanh”.</div>
           ${state.superNotesJustCompletedMsg? `<div class="kn-done-banner">✅ ${escapeHtml(state.superNotesJustCompletedMsg)}</div>` : ''}
           ${state.superNotesReviewMode? `
             ${(state.superNotesReviewTurns||[]).map(t=>`
@@ -107,7 +53,7 @@
               </div>
             </div>` : ''}
           ${state.superNotesStoppedConfirm? `
-            <div class="ai-bubble assistant">Bạn đã bắt AI dừng tiêu hoá ghi chú và tài liệu của bạn, bạn có muốn đưa thẳng mọi thứ vào bộ ghi chú mà không cần tiêu hoá không?
+            <div class="ai-bubble assistant">Bạn đã bắt AI dừng tiêu hoá ghi chú và tài liệu của bạn, bạn có muốn đưa thẳng mọi thứ vào ghi chú mà không cần tiêu hoá không?
               <div style="display:flex; gap:8px; margin-top:12px;">
                 <button class="btn btn-primary btn-sm" id="sn-stopped-yes">Có</button>
                 <button class="btn btn-ghost btn-sm" id="sn-stopped-no">Không</button>
@@ -120,7 +66,6 @@
             </div>` : ''}
         </div>
 
-        ${canView && canEdit? `
         <div class="ai-model-bar">
           <div class="ai-model-select" id="sn-model-select">
             <span>${provider? `🧠 ${escapeHtml(provider.label||provider.model)}` : '⚠️ Chưa cấu hình AI'}</span><span class="ai-model-caret">▾</span>
@@ -152,7 +97,7 @@
             <span class="ai-send-tooltip">Bấm Ctrl+Enter để gửi nhanh</span>
             <button id="sn-send-btn" ${state.superNotesProcessing?'disabled':''}>➤</button>
           </div>
-        </div>` : ''}
+        </div>
       </div>`;
 
     const contentArea = document.getElementById('sn-content-area');
@@ -183,69 +128,8 @@
       requestAnimationFrame(blurSnInputIfAny);
     }, true);
     document.getElementById('sn-goto-chat-btn').onclick = ()=>{ closeSuperNotes(); openAiChat(); };
-    document.getElementById('sn-space-shared').onclick = ()=> switchNotesSpace('shared');
-    document.getElementById('sn-space-personal').onclick = ()=> switchNotesSpace('personal');
-    const sharedSettingsBtn = document.getElementById('sn-shared-settings-btn');
-    if(sharedSettingsBtn) sharedSettingsBtn.onclick = renderSharedNotesSettingsPopup;
-    const migrateLocalBtn = document.getElementById('sn-migrate-local');
-    if(migrateLocalBtn) migrateLocalBtn.onclick = ()=> migrateLocalSuperNotesToCloud();
-    const retryNotes = ()=>{
-      state.superNotesLoadError='';
-      state.superNotesLoading=true;
-      state.superNotesTree={};
-      detachSuperNotesRealtime();
-      attachSuperNotesRealtime();
-      renderSuperNotesOverlay();
-    };
-    const retryNotesBtn = document.getElementById('sn-retry-load');
-    if(retryNotesBtn) retryNotesBtn.onclick = retryNotes;
-    const retryNotesMainBtn = document.getElementById('sn-retry-load-main');
-    if(retryNotesMainBtn) retryNotesMainBtn.onclick = retryNotes;
-
-    // ---- điều hướng cây thư mục ----
-    overlay.querySelectorAll('[data-sn-goto]').forEach(elx=> elx.onclick = ()=>{ state.superNotesCurrentFolder = elx.dataset.snGoto || null; state.superNotesEditingId = null; renderSuperNotesOverlay(); });
-    overlay.querySelectorAll('[data-sn-item]').forEach(elx=>{
-      elx.addEventListener('click', (e)=>{
-        if(e.target.closest('[data-sn-rename],[data-sn-delete],[data-sn-restore],[data-sn-purge]')) return;
-        const node = state.superNotesTree[elx.dataset.snItem];
-        if(!node) return;
-        if(node.type==='folder' && !state.superNotesTrashOpen){ state.superNotesCurrentFolder = node.id; state.superNotesEditingId = null; renderSuperNotesOverlay(); }
-        else if(node.type==='file' && !state.superNotesTrashOpen){ state.superNotesEditingId = node.id; renderSuperNotesOverlay(); }
-      });
-    });
-
-    // ---- tạo mới / thùng rác ----
-    const newFolderBtn = document.getElementById('sn-new-folder');
-    if(newFolderBtn) newFolderBtn.onclick = async ()=>{ const name = prompt('Tên thư mục mới:'); if(name && name.trim()) await snCreateFolder(name, curId); };
-    const newTextBtn = document.getElementById('sn-new-text');
-    if(newTextBtn) newTextBtn.onclick = async ()=>{
-      const name = prompt('Tên ghi chú mới:', 'Ghi chú mới');
-      if(name===null) return;
-      const id = await snCreateTextFile(name, curId, '');
-      if(id){ state.superNotesEditingId = id; renderSuperNotesOverlay(); }
-    };
-    const trashBtn = document.getElementById('sn-trash-btn');
-    if(trashBtn) trashBtn.onclick = ()=>{ state.superNotesTrashOpen = !state.superNotesTrashOpen; state.superNotesEditingId = null; renderSuperNotesOverlay(); };
-    const closeTrashBtn = document.getElementById('sn-close-trash');
-    if(closeTrashBtn) closeTrashBtn.onclick = ()=>{ state.superNotesTrashOpen = false; renderSuperNotesOverlay(); };
-    overlay.querySelectorAll('[data-sn-rename]').forEach(btn=> btn.onclick = async (e)=>{
-      e.stopPropagation();
-      const node = state.superNotesTree[btn.dataset.snRename];
-      const name = prompt('Đổi tên thành:', node? node.name : '');
-      if(name && name.trim()) await snRenameNode(btn.dataset.snRename, name);
-    });
-    overlay.querySelectorAll('[data-sn-delete]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); snSoftDeleteNode(btn.dataset.snDelete); });
-    overlay.querySelectorAll('[data-sn-restore]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); snRestoreNode(btn.dataset.snRestore); });
-    overlay.querySelectorAll('[data-sn-purge]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); snPurgeNode(btn.dataset.snPurge); });
-
-    // ---- lưu file đang mở ----
-    const editorSaveBtn = document.getElementById('sn-editor-save');
-    if(editorSaveBtn) editorSaveBtn.onclick = async ()=>{
-      const newName = document.getElementById('sn-editor-name').value;
-      const newContent = document.getElementById('sn-editor-content').value;
-      if(newName && newName.trim() && newName.trim()!==editingNode.name) await snRenameNode(editingNode.id, newName);
-      await snSaveTextFile(editingNode.id, newContent);
-    };
+    const gotoDriveBtn = document.getElementById('sn-goto-drive-btn');
+    if(gotoDriveBtn) gotoDriveBtn.onclick = ()=>{ closeSuperNotes(); state.activeTab = 'drive'; render(); };
 
     // ---- thanh chọn model AI (dùng chung logic với Chat AI) ----
     const modelSelectEl = document.getElementById('sn-model-select');
@@ -354,69 +238,6 @@
         if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); doSend(); }
       });
     }
-  }
-
-  // Popup [Cài đặt & Chia sẻ] cho Bộ ghi chú dùng chung — chỉ Chủ mã (isOwner()) mới thấy nút mở.
-  function renderSharedNotesSettingsPopup(){
-    const cfg = state.sharedNotesConfig || {defaultPerm:'view', grants:{}};
-    const wrap = document.createElement('div');
-    wrap.className = 'modal-bg';
-    wrap.innerHTML = `
-      <div class="modal" style="max-width:520px;">
-        <div class="modal-body">
-          <h3 style="margin-top:0;">⚙️ Cài đặt & Chia sẻ — Bộ ghi chú dùng chung</h3>
-          <p class="sub" style="margin-top:0;">Áp dụng mặc định cho mọi người đang có chung mã định danh <b class="mono">${escapeHtml(wardId()||'')}</b> (kể cả Khách qua mã không đăng nhập):</p>
-          <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
-            <label><input type="radio" name="sns-default" value="none" ${cfg.defaultPerm==='none'?'checked':''}> Không cho phép xem</label>
-            <label><input type="radio" name="sns-default" value="view" ${(cfg.defaultPerm==='view'||!cfg.defaultPerm)?'checked':''}> Cho phép xem (chỉ đọc)</label>
-            <label><input type="radio" name="sns-default" value="edit" ${cfg.defaultPerm==='edit'?'checked':''}> Cho phép sửa (toàn quyền thêm/sửa/xoá)</label>
-          </div>
-          <div class="divider-lbl">Phân quyền riêng cho từng người (theo email Google)</div>
-          <div class="toolbar">
-            <input id="sns-email" placeholder="email@gmail.com" style="min-width:200px;">
-            <select id="sns-perm">
-              <option value="none">Không cho xem</option>
-              <option value="view">Chỉ xem</option>
-              <option value="edit" selected>Toàn quyền sửa</option>
-            </select>
-            <button class="btn btn-primary btn-sm" id="sns-add-grant">Thêm</button>
-          </div>
-          <div id="sns-grants-list" style="margin:10px 0;">
-            ${Object.values(cfg.grants||{}).length? Object.values(cfg.grants||{}).map(g=>`
-              <div class="kv-row"><span>${escapeHtml(g.email)} — ${g.perm==='edit'?'Toàn quyền sửa':g.perm==='view'?'Chỉ xem':'Không cho xem'}</span><button class="btn btn-ghost btn-sm" data-sns-remove="${emailToKey(g.email)}">Gỡ</button></div>`).join('') : '<div class="sub">Chưa có phân quyền riêng nào.</div>'}
-          </div>
-          <div style="display:flex; gap:10px; margin-top:14px;">
-            <button class="btn btn-ghost" id="sns-close" style="flex:1;">Đóng</button>
-            <button class="btn btn-primary" id="sns-save" style="flex:1;">💾 Lưu</button>
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(wrap);
-    let localGrants = { ...(cfg.grants||{}) };
-    function refreshGrantsList(){
-      const listEl = wrap.querySelector('#sns-grants-list');
-      const arr = Object.values(localGrants);
-      listEl.innerHTML = arr.length? arr.map(g=>`
-        <div class="kv-row"><span>${escapeHtml(g.email)} — ${g.perm==='edit'?'Toàn quyền sửa':g.perm==='view'?'Chỉ xem':'Không cho xem'}</span><button class="btn btn-ghost btn-sm" data-sns-remove="${emailToKey(g.email)}">Gỡ</button></div>`).join('') : '<div class="sub">Chưa có phân quyền riêng nào.</div>';
-      listEl.querySelectorAll('[data-sns-remove]').forEach(btn=> btn.onclick = ()=>{ delete localGrants[btn.dataset.snsRemove]; refreshGrantsList(); });
-    }
-    refreshGrantsList();
-    wrap.querySelector('#sns-close').onclick = ()=> wrap.remove();
-    wrap.querySelector('#sns-add-grant').onclick = ()=>{
-      const email = wrap.querySelector('#sns-email').value.trim().toLowerCase();
-      const perm = wrap.querySelector('#sns-perm').value;
-      if(!email || !email.includes('@')){ alert('Vui lòng nhập đúng email.'); return; }
-      localGrants[emailToKey(email)] = { email, perm };
-      wrap.querySelector('#sns-email').value = '';
-      refreshGrantsList();
-    };
-    wrap.querySelector('#sns-save').onclick = async ()=>{
-      const defaultPerm = wrap.querySelector('input[name="sns-default"]:checked').value;
-      await saveSharedNotesConfig({ defaultPerm, grants: localGrants });
-      alert('Đã lưu cấu hình chia sẻ Bộ ghi chú dùng chung.');
-      wrap.remove();
-      renderSuperNotesOverlay();
-    };
   }
 
   function renderLogin(){

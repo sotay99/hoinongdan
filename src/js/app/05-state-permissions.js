@@ -126,7 +126,6 @@
     aiWebSearchOn:false,       // bật/tắt chế độ tìm kiếm web (Google Search grounding) cho các tin nhắn tiếp theo
     _aiMicListening:false,     // đang thu âm giọng nói hay không
     _aiBubbleEditingIndex:null,   // index tin nhắn người dùng đang được sửa (null = không sửa)
-    _aiBubbleAddNoteMenuIndex:null, // index tin nhắn đang mở menu "Thêm vào Siêu ghi chú"
     // ---- Module [Tạo bài Tuyên truyền] — bản sao kiến trúc Chat AI, vai biên tập viên tuyên truyền ----
     propagandaChats:[], propagandaActiveChatId:null, propagandaSending:false,
     propagandaPendingAttachments:[], propagandaWebSearchOn:false, _propagandaMicListening:false,
@@ -142,12 +141,6 @@
     knowledgeUploading:false,
     _systemKnowledgeCache:null, _systemKnowledgeCacheAt:0, // bộ nhớ đệm "Bối cảnh tri thức" cho AI
     // ---- Siêu ghi chú (cá nhân hoá theo tài khoản) ----
-    superNotesTree:{},
-    superNotesSpace:'personal', // 'personal' | 'shared' — mặc định luôn vào Bộ cá nhân trước
-    sharedNotesConfig:{defaultPerm:'view', grants:{}}, // phân quyền Bộ ghi chú dùng chung (Chủ mã cấu hình)
-    superNotesCurrentFolder:null,
-    superNotesTrashOpen:false,
-    superNotesEditingId:null,
     _superNotesOpen:false,
     superNotesPendingAttachments:[], // [{name, mimeType, base64, file}] — tệp chờ AI tiêu hoá
     superNotesProcessing:false,
@@ -164,8 +157,6 @@
     _snDraftText:'', _snDraftCaptureSuppressed:false,
     _snInFlightText:'', _snInFlightFiles:[], _snInFlightParentId:null,
     _superNotesCache:null, _superNotesCacheAt:0,
-    superNotesLoading:false,
-    superNotesLoadError:'',
     // ---- Drive Hub (metadata của app; file Google Drive chỉ là liên kết) ----
     driveSpace:'personal',       // 'personal' | 'shared'
     driveResources:{},

@@ -8,6 +8,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const sourceRoot = path.join(root, "src");
 const files = [
+  "js/app/03-cloud-storage.js",
   "js/app/05-state-permissions.js",
   "js/app/07-core-modules.js",
   "js/app/09-ai-chat-notes.js",
@@ -18,9 +19,14 @@ const source = files.map((file) => fs.readFileSync(path.join(sourceRoot, file), 
 const checks = [
   ["explicit access modes", /const\s+ACCESS_MODES\s*=\s*Object\.freeze/],
   ["Tour mutation guard", /function\s+blockTourMutation\s*\(/],
-  ["personal/shared memory selector", /function\s+usingLocalNotes\s*\(/],
-  ["local Super Notes migration", /function\s+migrateLocalSuperNotesToCloud\s*\(/],
   ["Drive Hub navigation", /function\s+renderDriveHubTab\s*\(/],
+  // Ba mục dưới đây thay cho "personal/shared memory selector", "local Super Notes migration"
+  // và "Super Notes folder restore" đã bị gỡ: Ghi chú nhanh không còn cây thư mục lẫn hai
+  // không gian lưu trữ riêng, nên những tính năng ấy không còn tồn tại để mà kiểm tra.
+  // Thay vào đó ghim đúng hành vi mới: ghi chú được lưu vào Trung tâm dữ liệu, Bộ cá nhân.
+  ["Ghi chú nhanh lưu vào Trung tâm dữ liệu", /async function\s+driveSaveQuickNote\s*\(/],
+  ["tự tạo thư mục Ghi chú nhanh", /async function\s+driveEnsureQuickNoteFolder\s*\(/],
+  ["khoá tài khoản dùng chung cho kho cá nhân", /function\s+accountStorageKey\s*\(/],
   ["Quick Note bridge", /function\s+driveOpenQuickNote\s*\(/],
   ["resource URLs", /function\s+driveRoute\s*\(/],
   ["resource ACL", /function\s+drivePermissionForNode\s*\(/],
@@ -36,7 +42,6 @@ const checks = [
   ["Super Notes draft capture", /state\._snDraftText\s*=\s*draftInput\.value/],
   ["Super Notes draft restore", /id="sn-input"[\s\S]*state\._snDraftText/],
   ["Super Notes failed-input restore", /state\.superNotesPendingFiles\s*=\s*\(state\._snInFlightFiles\|\|\[\]\)\.slice\(\)/],
-  ["Super Notes folder restore", /const ids = node\.type==='folder' \? \[id, \.\.\.snDescendantsOf\(id\)\] : \[id\]/],
 ];
 const failures = checks.filter(([, pattern]) => !pattern.test(source)).map(([label]) => label);
 

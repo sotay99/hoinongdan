@@ -19,8 +19,19 @@
   function drivePersonalAccessAllowed(){
     return hasAuthenticatedIdentity() || state.accessMode===ACCESS_MODES.SIGNED_OUT;
   }
+  // Bộ cá nhân của người chưa đăng nhập Google nằm ở localStorage của chính trình duyệt.
+  // Tách riêng khỏi driveIsLocalPersonal() vì Ghi chú nhanh LUÔN lưu vào Bộ cá nhân, bất kể
+  // giao diện Trung tâm dữ liệu đang mở bộ nào.
+  function drivePersonalIsLocal(){
+    return !hasAuthenticatedIdentity() && state.accessMode===ACCESS_MODES.SIGNED_OUT && !isTourMode();
+  }
   function driveIsLocalPersonal(){
-    return state.driveSpace==='personal' && !hasAuthenticatedIdentity() && state.accessMode===ACCESS_MODES.SIGNED_OUT && !isTourMode();
+    return state.driveSpace==='personal' && drivePersonalIsLocal();
+  }
+  // Con trỏ tới Bộ cá nhân trên Firebase, không phụ thuộc state.driveSpace.
+  function drivePersonalRef(){
+    const key = driveUserKey();
+    return key ? rtdb.ref(`users/${key}/drive_resources`) : null;
   }
   function driveLocalTree(){
     try{
@@ -518,6 +529,78 @@
       return false;
     }
   }
+  // ---------------------------------------------------------------------
+  // CẦU NỐI TỪ MODULE [GHI CHÚ NHANH]
+  // Ghi chú do Ghi chú nhanh tạo ra được lưu vào ĐÂY — Trung tâm dữ liệu, Bộ cá nhân.
+  // Không dùng driveWriteNode() vì hàm đó bám theo thư mục và không gian mà giao diện
+  // Trung tâm dữ liệu đang mở; ghi chú thì luôn phải vào Bộ cá nhân, vào đúng thư mục
+  // người dùng chọn trong modal lưu.
+  // ---------------------------------------------------------------------
+  async function drivePersonalTree(){
+    if(drivePersonalIsLocal()) return driveLocalTree();
+    const ref = drivePersonalRef();
+    if(!ref) return {};
+    try{
+      const snap = await ref.get();
+      return (snap && snap.exists()) ? (snap.val()||{}) : {};
+    }catch(error){
+      console.error('Không đọc được Bộ cá nhân của Trung tâm dữ liệu:', error);
+      throw error;
+    }
+  }
+  const QUICK_NOTE_FOLDER_NAME = 'Ghi chú nhanh';
+  // Tìm thư mục "Ghi chú nhanh" ở gốc Bộ cá nhân; chưa có thì tạo. Trả về id thư mục.
+  async function driveEnsureQuickNoteFolder(){
+    const tree = await drivePersonalTree();
+    const found = Object.values(tree).find(n=>
+      n && n.type==='folder' && !n.deleted && !n.parentId && n.name===QUICK_NOTE_FOLDER_NAME);
+    if(found) return found.id;
+    const id = driveNodeId();
+    const now = new Date().toISOString();
+    const ok = await drivePersonalWriteNode(id, {
+      id, type:'folder', name:QUICK_NOTE_FOLDER_NAME, parentId:null,
+      createdAt:now, updatedAt:now, createdBy:(state.identity&&state.identity.email)||'browser',
+    });
+    return ok ? id : null;
+  }
+  async function drivePersonalWriteNode(id, node){
+    if(drivePersonalIsLocal()){
+      const tree = driveLocalTree();
+      tree[id] = {...node, storageScope:'local'};
+      if(!driveSaveLocalTree(tree)){ alert('Không thể lưu trên thiết bị này. Có thể bộ nhớ trình duyệt đã đầy.'); return false; }
+      state.driveResources = tree;
+      return true;
+    }
+    const ref = drivePersonalRef();
+    if(!ref){ alert('Không xác định được Bộ cá nhân. Vui lòng đăng nhập lại.'); return false; }
+    try{
+      await ref.child(id).set(node);
+      return true;
+    }catch(error){
+      console.error('Ghi ghi chú vào Trung tâm dữ liệu lỗi:', error);
+      alert('Không thể lưu ghi chú lên máy chủ. Nội dung chưa được ghi; vui lòng thử lại.');
+      return false;
+    }
+  }
+  // Lưu MỘT ghi chú vào Bộ cá nhân. parentId = null nghĩa là để ở gốc.
+  async function driveSaveQuickNote({ name, content, parentId=null, storagePath='', storageUrl='' }){
+    if(blockTourMutation('Bạn đang ở môi trường tham quan, ghi chú không được lưu lại.')) return null;
+    const id = driveNodeId();
+    const now = new Date().toISOString();
+    const ok = await drivePersonalWriteNode(id, {
+      id, type:'file', fileKind:'text', mimeType:'text/plain',
+      name: (name||'Ghi chú mới').slice(0,80),
+      parentId: parentId || null,
+      content: content || '',
+      size: new Blob([content||'']).size,
+      storagePath, storageUrl,
+      createdAt:now, updatedAt:now, deleted:false,
+      createdBy:(state.identity&&state.identity.email)||'browser',
+      source:'quick-note',
+    });
+    return ok ? id : null;
+  }
+
   async function driveUpdateNode(id, partial){
     if(blockTourMutation('Bạn đang ở môi trường tham quan. Tài nguyên demo không được lưu.')) return false;
     const current = state.driveResources[id];

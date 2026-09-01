@@ -2484,310 +2484,20 @@
   }
 
   // =====================================================================
-  // Module [Siêu ghi chú] — NAY TÁCH 2 KHÔNG GIAN LƯU TRỮ:
-  //   • 'personal' (Bộ cá nhân, bảo mật): users/{uid}/super_notes/tree/{id} — nếu có tài
-  //     khoản Google. Nếu KHÔNG có tài khoản (Khách qua mã không đăng nhập) thì lưu tạm vào
-  //     localStorage của trình duyệt (KHÔNG đẩy lên Firebase), theo đúng yêu cầu.
-  //   • 'shared' (Bộ dùng chung của Xã/Phường): communes/{wardId}/shared_notes/tree/{id} — mọi
-  //     người có chung mã định danh của xã đó đều truy cập được, theo đúng phân quyền Chủ mã cấu
-  //     hình tại "⚙️ Cài đặt & Chia sẻ" (mặc định "Cho phép xem" cho người mới, Chủ mã luôn toàn quyền).
-  // (Ghi chú kiến trúc: hệ thống dùng Realtime Database thay Firestore để đồng bộ toàn ứng dụng —
-  // xem thêm ghi chú ở đầu module Huấn luyện AI. Firebase Storage vẫn dùng cho file gốc, best-effort.)
+  // Module [Ghi chú nhanh] — tên nội bộ vẫn là superNotes*/sn-* trong mã.
+  //
+  // TRƯỚC ĐÂY module này có cây thư mục riêng và hai không gian lưu trữ
+  // (Bộ cá nhân / Bộ chung Xã-Phường), trùng lặp hoàn toàn với Trung tâm dữ
+  // liệu. Nay toàn bộ phần kho đã nhường lại cho Trung tâm dữ liệu; Ghi chú
+  // nhanh chỉ còn đúng một việc: soạn nội dung (gõ chữ hoặc để AI tiêu hoá
+  // tài liệu) rồi lưu kết quả vào Trung tâm dữ liệu, Bộ cá nhân.
+  //
+  // Vì vậy các hàm cây thư mục (snChildrenOf, snCreateFolder, snWriteNode...),
+  // hai hàm chuyển không gian, cùng cụm phân quyền Bộ ghi chú dùng chung
+  // (sharedNotesConfig, sharedNotesPerm, loadSharedNotesConfig...) đều đã bị
+  // xoá. Phân quyền giờ do chính Trung tâm dữ liệu đảm nhiệm, chi tiết hơn
+  // (Viewer / Commenter / Editor theo từng tài nguyên).
   // =====================================================================
-  const LOCAL_NOTES_KEY = 'hnd_local_notes_tree_v1';
-  // Uỷ quyền sang accountStorageKey() ở 03-cloud-storage.js — nơi đặt chung cho cả Trung tâm
-  // dữ liệu lẫn Ghi chú nhanh. Giữ tên cũ tạm thời cho các lời gọi còn lại trong tệp này.
-  function superNotesUserKey(){ return accountStorageKey(); }
-  function superNotesLegacyUserKey(){
-    const email=state.identity&&state.identity.email;
-    const current=superNotesUserKey();
-    const legacy=email ? emailToKey(email) : null;
-    return legacy && legacy!==current ? legacy : null;
-  }
-  function hasSuperNotesAccount(){ return !!superNotesUserKey(); }
-  // Bộ cá nhân của Khách qua mã (không đăng nhập Google) không có nơi lưu trên đám mây -> dùng
-  // localStorage của chính máy/trình duyệt họ đang dùng.
-  function usingLocalNotes(){ return state.superNotesSpace==='personal' && !hasSuperNotesAccount(); }
-  function getLocalSuperNotesTree(){
-    const tree = lget(LOCAL_NOTES_KEY, {});
-    return tree && typeof tree==='object' ? tree : {};
-  }
-  function hasLocalSuperNotes(){
-    return Object.values(getLocalSuperNotesTree()).some(n=> n && !n.deleted);
-  }
-  // Chuyển dữ liệu local lên đúng kho cá nhân của tài khoản đang đăng nhập. Luôn tạo ID mới để
-  // không va chạm với cây Firebase hiện có, giữ nguyên quan hệ cha/con và không ghi đè dữ liệu cloud.
-  async function migrateLocalSuperNotesToCloud(){
-    if(!hasSuperNotesAccount()){ alert('Vui lòng đăng nhập Google trước khi chuyển ghi chú lên Firebase.'); return; }
-    const localTree = getLocalSuperNotesTree();
-    const localNodes = Object.values(localTree).filter(n=> n && n.id);
-    if(!localNodes.length){ alert('Không có ghi chú local nào cần chuyển.'); return; }
-    if(!confirm(`Chuyển ${localNodes.length} ghi chú/thư mục từ trình duyệt lên Bộ cá nhân Firebase?\n\nDữ liệu cloud hiện có sẽ được giữ nguyên, không ghi đè. Sau khi chuyển thành công, bản local sẽ được xoá khỏi thiết bị này.`)) return;
-    const ref = currentNotesTreeRef();
-    if(!ref || state.superNotesSpace!=='personal'){ alert('Chỉ có thể chuyển vào Bộ cá nhân.'); return; }
-    const idMap = {};
-    localNodes.forEach(node=>{ idMap[node.id] = uidKn(); });
-    const updates = {};
-    localNodes.forEach(node=>{
-      const newId = idMap[node.id];
-      updates[newId] = {
-        ...node,
-        id:newId,
-        parentId: node.parentId ? (idMap[node.parentId] || null) : null,
-        migratedFrom:'browser',
-        migratedAt:new Date().toISOString(),
-        updatedAt:new Date().toISOString(),
-      };
-    });
-    try{
-      await ref.update(updates);
-      localStorage.removeItem(LOCAL_NOTES_KEY);
-      state.superNotesTree = {};
-      state._superNotesCache = null;
-      alert(`Đã chuyển ${localNodes.length} ghi chú/thư mục lên Bộ cá nhân Firebase. Dữ liệu giờ có thể đồng bộ và chia sẻ theo quyền của tài khoản.`);
-      attachSuperNotesRealtime();
-      renderSuperNotesOverlay();
-    }catch(e){
-      console.error('Chuyển ghi chú local lên Firebase lỗi:', e);
-      alert('Không thể chuyển ghi chú lên Firebase. Dữ liệu local vẫn được giữ nguyên trên thiết bị để thử lại.');
-    }
-  }
-  function currentNotesTreeRef(){
-    if(state.superNotesSpace==='shared'){
-      const wid = wardId();
-      return wid ? rtdb.ref(`communes/${wid}/shared_notes/tree`) : null;
-    }
-    const key = superNotesUserKey();
-    return key ? rtdb.ref(`users/${key}/super_notes/tree`) : null; // null -> dùng local (usingLocalNotes())
-  }
-  function legacyNotesTreeRef(){
-    const key=superNotesLegacyUserKey();
-    return key ? rtdb.ref(`users/${key}/super_notes/tree`) : null;
-  }
-  function snAfterLocalWrite(){ state._superNotesCache = null; if(state._superNotesOpen) renderSuperNotesOverlay(); }
-
-  // ---- Phân quyền Bộ ghi chú DÙNG CHUNG (Yêu cầu 4) ----
-  function sharedNotesPerm(){
-    if(isOwner()) return 'edit'; // Chủ mã luôn toàn quyền với bộ chung của chính mình
-    const cfg = state.sharedNotesConfig || {};
-    const email = state.identity && state.identity.email;
-    if(email){
-      const g = (cfg.grants||{})[emailToKey(email)];
-      if(g && g.perm) return g.perm;
-    }
-    return cfg.defaultPerm || 'view';
-  }
-  // Cá nhân: luôn toàn quyền với đúng dữ liệu của chính mình (kể cả lưu local). Chung: theo phân quyền.
-  function snCanEdit(){ return state.superNotesSpace==='personal' ? true : sharedNotesPerm()==='edit'; }
-  function snCanView(){ return state.superNotesSpace==='personal' ? true : sharedNotesPerm()!=='none'; }
-  async function loadSharedNotesConfig(){
-    const wid = wardId();
-    if(!wid){ state.sharedNotesConfig = {defaultPerm:'view', grants:{}}; return; }
-    try{
-      const snap = await rtdb.ref(`communes/${wid}/shared_notes/config`).get();
-      state.sharedNotesConfig = (snap && snap.exists()) ? snap.val() : {defaultPerm:'view', grants:{}};
-    }catch(e){ state.sharedNotesConfig = {defaultPerm:'view', grants:{}}; }
-  }
-  async function saveSharedNotesConfig(cfg){
-    const wid = wardId();
-    if(!wid || !isOwner()) return;
-    await rtdb.ref(`communes/${wid}/shared_notes/config`).set(cfg);
-    state.sharedNotesConfig = cfg;
-  }
-
-  let superNotesListenerRef = null;
-  let superNotesListenerKey = null; // đánh dấu đang lắng nghe đúng path nào (tránh gắn trùng khi đổi không gian/đổi mã)
-  function attachSuperNotesRealtime(){
-    if(usingLocalNotes()){
-      detachSuperNotesRealtime();
-      state.superNotesTree = getLocalSuperNotesTree();
-      state.superNotesLoading = false;
-      state.superNotesLoadError = '';
-      return;
-    }
-    const ref = currentNotesTreeRef();
-    if(!ref){
-      state.superNotesTree = {};
-      state.superNotesLoading = false;
-      state.superNotesLoadError = state.superNotesSpace==='shared' ? 'Chưa chọn mã xã/phường để mở Bộ ghi chú dùng chung.' : 'Chưa có tài khoản để mở Bộ ghi chú cá nhân.';
-      return;
-    }
-    const pathKey = ref.toString();
-    if(superNotesListenerRef && superNotesListenerKey === pathKey) return; // đã đúng path rồi, khỏi gắn lại
-    detachSuperNotesRealtime();
-    state.superNotesTree = {};
-    state.superNotesLoading = true;
-    state.superNotesLoadError = '';
-    superNotesListenerRef = ref;
-    superNotesListenerKey = pathKey;
-    ref.on('value', async snap=>{
-      const canonical=(snap && snap.exists()) ? (snap.val()||{}) : {};
-      const legacyRef=legacyNotesTreeRef();
-      let legacy={};
-      if(legacyRef){
-        try{ const legacySnap=await legacyRef.once('value'); legacy=legacySnap&&legacySnap.exists() ? (legacySnap.val()||{}) : {}; }catch(e){}
-      }
-      state.superNotesTree = {...legacy,...canonical};
-      state._superNotesCache = null; // dữ liệu vừa đổi -> làm mới bộ nhớ đệm ở lượt chat AI kế tiếp
-      if(state._superNotesOpen) renderSuperNotesOverlay();
-    });
-  }
-  function detachSuperNotesRealtime(){
-    if(superNotesListenerRef){ superNotesListenerRef.off(); superNotesListenerRef = null; superNotesListenerKey = null; }
-  }
-  // Chuyển đổi giữa 2 không gian (Yêu cầu 2) — tải/lắng nghe lại đúng nguồn dữ liệu tương ứng.
-  async function switchNotesSpace(space){
-    if(state.superNotesSpace === space) return;
-    state.superNotesSpace = space;
-    state.superNotesCurrentFolder = null;
-    state.superNotesEditingId = null;
-    state.superNotesTrashOpen = false;
-    if(space==='shared') await loadSharedNotesConfig();
-    attachSuperNotesRealtime();
-    renderSuperNotesOverlay();
-  }
-  function snChildrenOf(parentId){
-    return Object.values(state.superNotesTree||{})
-      .filter(n=> n && !n.deleted && (n.parentId||null) === (parentId||null))
-      .sort((a,b)=>{ if(a.type!==b.type) return a.type==='folder'? -1 : 1; return (a.name||'').localeCompare(b.name||''); });
-  }
-  function snBreadcrumb(folderId){
-    const path = []; let cur = folderId; let guard = 0;
-    while(cur && state.superNotesTree[cur] && guard++ < 20){ path.unshift(state.superNotesTree[cur]); cur = state.superNotesTree[cur].parentId; }
-    return path;
-  }
-  function snDescendantsOf(id){
-    const out = []; const stack = [id];
-    while(stack.length){
-      const cur = stack.pop();
-      Object.values(state.superNotesTree||{}).forEach(n=>{ if(n && n.parentId===cur){ out.push(n.id); stack.push(n.id); } });
-    }
-    return out;
-  }
-  // ---- Các nguyên tố ghi dữ liệu DÙNG CHUNG cho cả 3 kiểu backend (Firebase cá nhân/chung, local) ----
-  async function snWriteNode(id, node){
-    if(usingLocalNotes()){
-      const tree = getLocalSuperNotesTree();
-      tree[id] = node;
-      lset(LOCAL_NOTES_KEY, tree);
-      state.superNotesTree = tree;
-      snAfterLocalWrite();
-      return;
-    }
-    const ref = currentNotesTreeRef();
-    if(!ref) return;
-    await ref.child(id).set(node);
-  }
-  async function snUpdateNode(id, partial){
-    if(usingLocalNotes()){
-      const tree = getLocalSuperNotesTree();
-      tree[id] = { ...(tree[id]||{}), ...partial };
-      lset(LOCAL_NOTES_KEY, tree);
-      state.superNotesTree = tree;
-      snAfterLocalWrite();
-      return;
-    }
-    const ref = currentNotesTreeRef();
-    if(!ref) return;
-    await ref.child(id).update(partial);
-  }
-  // updatesObj dạng {"id/field": value, ...} (multi-path update, giống Firebase .update()) hoặc
-  // {"id": null} để xoá hẳn 1 node — dùng cho xoá mềm theo lô / xoá vĩnh viễn theo lô.
-  async function snBatchUpdate(updatesObj){
-    if(usingLocalNotes()){
-      const tree = getLocalSuperNotesTree();
-      Object.entries(updatesObj).forEach(([path, val])=>{
-        const slash = path.indexOf('/');
-        if(slash===-1){
-          if(val===null) delete tree[path]; else tree[path] = val;
-        } else {
-          const id = path.slice(0,slash), field = path.slice(slash+1);
-          tree[id] = tree[id] || {};
-          if(val===null) delete tree[id][field]; else tree[id][field] = val;
-        }
-      });
-      lset(LOCAL_NOTES_KEY, tree);
-      state.superNotesTree = tree;
-      snAfterLocalWrite();
-      return;
-    }
-    const ref = currentNotesTreeRef();
-    if(!ref) return;
-    await ref.update(updatesObj);
-  }
-  async function snCreateFolder(name, parentId){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn không có quyền tạo thư mục ở Bộ ghi chú dùng chung này.'); return; }
-    const nm = (name||'').trim();
-    if(!nm){ alert('Vui lòng nhập tên thư mục.'); return; }
-    const id = uidKn();
-    await snWriteNode(id, { id, type:'folder', parentId: parentId||null, name:nm, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false });
-  }
-  async function snCreateTextFile(name, parentId, content){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return null; }
-    if(!snCanEdit()){ alert('Bạn không có quyền tạo ghi chú ở Bộ ghi chú dùng chung này.'); return null; }
-    const id = uidKn();
-    await snWriteNode(id, {
-      id, type:'file', fileKind:'text', parentId: parentId||null, name:(name||'').trim() || 'Ghi chú mới', content: content||'',
-      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
-    });
-    return id;
-  }
-  async function snSaveTextFile(id, content){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn chỉ được XEM, không có quyền sửa ở Bộ ghi chú dùng chung này.'); return; }
-    await snUpdateNode(id, { content: content||'', updatedAt:new Date().toISOString() });
-  }
-  async function snRenameNode(id, newName){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn không có quyền đổi tên ở Bộ ghi chú dùng chung này.'); return; }
-    const nm = (newName||'').trim();
-    if(!nm) return;
-    await snUpdateNode(id, { name:nm, updatedAt:new Date().toISOString() });
-  }
-  async function snSoftDeleteNode(id){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn không có quyền xoá ở Bộ ghi chú dùng chung này.'); return; }
-    const node = state.superNotesTree[id];
-    if(!node) return;
-    if(!confirm(`Xoá "${node.name}" vào thùng rác${node.type==='folder'?' (cùng toàn bộ nội dung bên trong)':''}? Có thể khôi phục lại sau.`)) return;
-    const ids = node.type==='folder' ? [id, ...snDescendantsOf(id)] : [id];
-    const updates = {};
-    ids.forEach(nid=>{ updates[`${nid}/deleted`] = true; updates[`${nid}/deletedAt`] = new Date().toISOString(); });
-    await snBatchUpdate(updates);
-  }
-  async function snRestoreNode(id){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn không có quyền khôi phục ở Bộ ghi chú dùng chung này.'); return; }
-    const node = state.superNotesTree[id];
-    if(!node) return;
-    const ids = node.type==='folder' ? [id, ...snDescendantsOf(id)] : [id];
-    const now = new Date().toISOString();
-    const updates = {};
-    ids.forEach(nid=>{
-      updates[`${nid}/deleted`] = false;
-      updates[`${nid}/deletedAt`] = null;
-      updates[`${nid}/updatedAt`] = now;
-    });
-    await snBatchUpdate(updates);
-  }
-  async function snPurgeNode(id){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn không có quyền xoá vĩnh viễn ở Bộ ghi chú dùng chung này.'); return; }
-    const node = state.superNotesTree[id];
-    if(!node) return;
-    if(!confirm(`XOÁ VĨNH VIỄN "${node.name}"? Không thể khôi phục lại được nữa.`)) return;
-    const ids = node.type==='folder' ? [id, ...snDescendantsOf(id)] : [id];
-    if(!usingLocalNotes()){
-      for(const nid of ids){
-        const n = state.superNotesTree[nid];
-        if(n && n.storagePath){ try{ await storage.ref(n.storagePath).delete(); }catch(e){ console.warn('Xoá tệp gốc trên Storage lỗi (bỏ qua):', e); } }
-      }
-    }
-    const updates = {};
-    ids.forEach(nid=> updates[nid] = null);
-    await snBatchUpdate(updates);
-  }
 
   // ---- Nguồn 2 cho "bộ não" AI: toàn bộ nội dung Siêu ghi chú CÁ NHÂN của CHÍNH người đang chat ----
   // Gộp các node văn bản của 1 cây ghi chú thành 1 chuỗi tri thức — dùng chung cho cả nguồn
@@ -2810,19 +2520,21 @@
     return combined.trim();
   }
   async function getUserSuperNotesKnowledge(){
-    // Yêu cầu mới: Khách qua mã (chưa đăng nhập Google) lưu Siêu ghi chú cá nhân tạm ở localStorage
-    // của chính máy họ — vẫn phải "bốc" đúng nguồn đó để nạp bối cảnh cho AI, không chỉ riêng
-    // tài khoản Google mới có Nguồn 2.
-    const key = superNotesUserKey();
+    // Ghi chú giờ nằm trong Trung tâm dữ liệu (Bộ cá nhân), không còn cây riêng nữa —
+    // nên nguồn tri thức này đọc thẳng từ đó. Chưa đăng nhập Google thì Bộ cá nhân của
+    // Trung tâm dữ liệu chính là kho localStorage của trình duyệt, vẫn phải bốc đúng nguồn ấy.
+    const key = accountStorageKey();
     if(!key){
-      try{ return combineNotesNodesToText(getLocalSuperNotesTree(), 'Siêu ghi chú cá nhân (lưu tạm trên máy)'); }
-      catch(e){ console.error('Không đọc được Siêu ghi chú cá nhân (local):', e); return ''; }
+      try{
+        const local = lget(DRIVE_LOCAL_STORAGE_KEY, {});
+        return combineNotesNodesToText(local && typeof local==='object' ? local : {}, 'Ghi chú cá nhân (lưu tạm trên máy)');
+      }catch(e){ console.error('Không đọc được ghi chú cá nhân (local):', e); return ''; }
     }
     try{
-      const snap = await rtdb.ref(`users/${key}/super_notes/tree`).get();
+      const snap = await rtdb.ref(`users/${key}/drive_resources`).get();
       if(!snap || !snap.exists()) return '';
-      return combineNotesNodesToText(snap.val(), 'Siêu ghi chú cá nhân');
-    }catch(e){ console.error('Không tải được Siêu ghi chú cá nhân:', e); return ''; }
+      return combineNotesNodesToText(snap.val(), 'Ghi chú cá nhân');
+    }catch(e){ console.error('Không tải được ghi chú cá nhân:', e); return ''; }
   }
   async function getUserSuperNotesKnowledgeCached(){
     const now = Date.now();
@@ -2893,18 +2605,19 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // hẳn bước gọi AI, đưa thẳng vào cây thư mục.
   async function processSingleSuperNoteInput(rawFile, userText, parentId, signal, skipAI){
     if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn không có quyền thêm ghi chú ở Bộ ghi chú dùng chung này.'); return; }
     let storagePath = '', storageUrl = '';
-    if(rawFile && !usingLocalNotes()){
+    // Tệp gốc chỉ đẩy lên Firebase Storage khi Bộ cá nhân nằm trên đám mây; chưa đăng nhập
+    // thì Bộ cá nhân là localStorage nên bỏ qua bước này.
+    if(rawFile && !drivePersonalIsLocal()){
       try{
-        const ownerTag = superNotesUserKey() || `ward_${wardId()||'x'}`;
+        const ownerTag = accountStorageKey() || `ward_${wardId()||'x'}`;
         const rid = 'raw_' + uidKn();
-        storagePath = `super_notes_files/${ownerTag}/${rid}_${rawFile.name}`;
+        storagePath = `quick_note_files/${ownerTag}/${rid}_${rawFile.name}`;
         const stRef = storage.ref(storagePath);
         await stRef.put(rawFile);
         storageUrl = await stRef.getDownloadURL();
       }catch(e){
-        console.warn('[Siêu ghi chú] Tải file gốc lên Storage lỗi (bỏ qua, vẫn tiếp tục xử lý):', e);
+        console.warn('[Ghi chú nhanh] Tải file gốc lên Storage lỗi (bỏ qua, vẫn tiếp tục xử lý):', e);
         storagePath = ''; storageUrl = '';
       }
     }
@@ -2917,14 +2630,12 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     // Yêu cầu mới: file/thư mục quá nặng -> KHÔNG cho AI tiêu hoá, đưa thẳng vào cây thư mục kèm
     // thông báo rõ ràng, không qua bước nào khác.
     if(overSizeLimit){
-      const id = uidKn();
       const sizeMb = (rawFile.size/1024/1024).toFixed(1);
-      await snWriteNode(id, {
-        id, type:'file', fileKind:'text', parentId: parentId||null,
+      await driveSaveQuickNote({
+        parentId: parentId||null,
         name: rawFile.name.slice(0,80),
         content: `[TỆP GỐC ĐÍNH KÈM — VƯỢT GIỚI HẠN DUNG LƯỢNG ĐỂ AI TIÊU HOÁ]\nTên tệp: ${rawFile.name}\nDung lượng: ${sizeMb} MB (giới hạn cho phép AI tiêu hoá là ${(MAX_AI_DIGEST_BYTES/1024/1024).toFixed(0)}MB)\n\nFile/thư mục/ghi chú của bạn vượt quá giới hạn dung lượng để AI có thể tiêu hoá nên là tài liệu này sẽ được đưa thẳng vào cây thư mục mà không trải qua bước nào cả. Bạn có thể mở tệp gốc bên dưới để xem nội dung.`,
         storagePath, storageUrl,
-        createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
       });
       alert(`"${rawFile.name}" vượt quá giới hạn dung lượng để AI có thể tiêu hoá nên tài liệu này sẽ được đưa thẳng vào cây thư mục mà không trải qua bước nào cả.`);
       return;
@@ -2975,11 +2686,9 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       parsed = await digestNoteInput(digestInput);
     }
     const content = `[NGUYÊN VĂN NGƯỜI DÙNG NHẬP VÀO]\n${parsed.rawText}\n\n[NỘI DUNG ĐÃ ĐƯỢC AI TIÊU HOÁ]\n${parsed.digestedText}`;
-    const id = uidKn();
-    await snWriteNode(id, {
-      id, type:'file', fileKind:'text', parentId: parentId||null,
+    await driveSaveQuickNote({
+      parentId: parentId||null,
       name: parsed.fileName.slice(0,80), content, storagePath, storageUrl,
-      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), deleted:false,
     });
   }
   // Điều phối: 1 đoạn text và/hoặc NHIỀU tệp gốc (kể cả "Thêm thư mục" chọn nhiều tệp cùng lúc)
@@ -2988,7 +2697,6 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // giữ nguyên để người dùng sửa lại hoặc tự xoá.
   async function processSuperNoteInput(text, files, parentId, skipAI){
     if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
-    if(!snCanEdit()){ alert('Bạn không có quyền thêm ghi chú ở Bộ ghi chú dùng chung này.'); return; }
     if((!files || !files.length) && (!text || !text.trim())) return;
     state.superNotesAbortController = new AbortController();
     const signal = state.superNotesAbortController.signal;
@@ -3058,7 +2766,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   async function finalizeSuperNoteReview(useAI){
     const text = state.superNotesReviewText;
     const files = (state.superNotesReviewFiles||[]).slice();
-    const parentId = state.superNotesCurrentFolder;
+    const parentId = null; // modal chọn thư mục sẽ quyết định nơi lưu
     state.superNotesReviewMode = false;
     state.superNotesReviewText = '';
     state.superNotesReviewFiles = [];
@@ -4617,14 +4325,12 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
               flashTargets = ['q1','q2','q3','q4'].flatMap(qk=>[{qk,part:'start'},{qk,part:'end'}]);
               renderBody();
             });
-    }, error=>{
-      if(superNotesListenerRef!==ref) return;
-      state.superNotesLoading = false;
-      state.superNotesLoadError = 'Firebase không cho phép đọc kho ghi chú này hoặc kết nối đã bị gián đoạn.';
-      state.superNotesTree = {};
-      console.warn('Realtime Siêu ghi chú lỗi:',error);
-      if(state._superNotesOpen) renderSuperNotesOverlay();
-    });
+          // Tham số thứ 3 là useCapture, KHÔNG phải callback lỗi. Trước đây chỗ này vô tình
+          // chứa nguyên khối xử lý lỗi realtime của Siêu ghi chú — bị hiểu thành giá trị
+          // truthy nên khối ấy chưa bao giờ chạy, chỉ có tác dụng bật bắt sự kiện ở pha
+          // capture. Giữ nguyên `true` để hành vi không đổi (đúng ý đồ "nút LUÔN nhận được
+          // click" ghi ở trên), và bỏ khối chết đi.
+          }, true);
         }
       } else if(view.mode==='month'){
         wrap.querySelector('#qim-back-main').onclick = ()=>{ view = {mode:'main'}; renderBody(); };

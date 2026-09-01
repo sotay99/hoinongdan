@@ -806,29 +806,20 @@ ${fileGenerationTrainingText()}`;
   // "Thêm vào Siêu ghi chú" — đóng Chat AI, mở Siêu ghi chú đúng không gian đã chọn, dán sẵn nội
   // dung tin nhắn vào khung nhập liệu để người dùng xem/sửa rồi tự bấm Gửi.
   // ---------------------------------------------------------------------
-  function toggleAddNoteMenu(idx){
-    state._aiBubbleAddNoteMenuIndex = (state._aiBubbleAddNoteMenuIndex === idx) ? null : idx;
-    renderAiChatOverlay();
-  }
-  async function addMessageToNotes(idx, space){
+  async function addMessageToNotes(idx){
     const chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
     const msg = chat && chat.messages[idx];
     if(!msg) return;
     const text = msg.text || '';
-    state._aiBubbleAddNoteMenuIndex = null;
     writeClipboardSilent(text);
     closeAiChat();
     state._superNotesOpen = true;
-    state.superNotesSpace = 'personal';
-    state.superNotesCurrentFolder = null; state.superNotesEditingId = null; state.superNotesTrashOpen = false;
-    attachSuperNotesRealtime();
-    if(space === 'shared') await switchNotesSpace('shared');
-    else renderSuperNotesOverlay();
+    renderSuperNotesOverlay();
     setTimeout(()=>{
       const inputEl = document.getElementById('sn-input');
       if(inputEl){ inputEl.value = text; inputEl.focus(); }
     }, 60);
-    showToast(space==='shared'? 'Đã đưa vào ô nhập của Bộ ghi chú dùng chung!' : 'Đã đưa vào ô nhập của Bộ ghi chú cá nhân!');
+    showToast('Đã đưa nội dung vào ô nhập của Ghi chú nhanh!');
   }
 
   // Dựng không gian chat toàn màn hình kiểu Gemini (sidebar lịch sử + khung chat + ô nhập).
@@ -899,13 +890,7 @@ ${fileGenerationTrainingText()}`;
                     ${m.role==='user'? `<button class="ai-bubble-act" data-bubble-edit="${idx}" title="Sửa">✏️</button>` : ''}
                     ${isLastUserMsg? `<button class="ai-bubble-act" data-bubble-reload="${idx}" title="Tải lại — yêu cầu AI trả lời lại">🔄</button>` : ''}
                     <button class="ai-bubble-act" data-bubble-copy="${idx}" title="Sao chép">📋</button>
-                    <div class="ai-bubble-addnote-wrap">
-                      <button class="ai-bubble-act" data-bubble-addnote="${idx}" title="Thêm vào Siêu ghi chú">📌</button>
-                      ${state._aiBubbleAddNoteMenuIndex===idx? `<div class="ai-bubble-addnote-menu">
-                        <div class="ai-add-opt" data-addnote-space="shared" data-addnote-idx="${idx}">🏛️ Thêm vào Bộ ghi chú dùng chung</div>
-                        <div class="ai-add-opt" data-addnote-space="personal" data-addnote-idx="${idx}">🔒 Thêm vào Bộ ghi chú cá nhân</div>
-                      </div>` : ''}
-                    </div>
+                    <button class="ai-bubble-act" data-bubble-addnote="${idx}" title="Thêm vào Ghi chú nhanh">📌</button>
                     <button class="ai-bubble-act" data-bubble-delete="${idx}" title="Xoá tin nhắn này">🗑️</button>
                   </div>
                 </div>`;
@@ -1014,13 +999,9 @@ ${fileGenerationTrainingText()}`;
       btn.onclick = ()=> deleteMessageAt(parseInt(btn.dataset.bubbleDelete,10));
     });
     overlay.querySelectorAll('[data-bubble-addnote]').forEach(btn=>{
-      btn.onclick = (e)=>{ e.stopPropagation(); toggleAddNoteMenu(parseInt(btn.dataset.bubbleAddnote,10)); };
-    });
-    overlay.querySelectorAll('[data-addnote-space]').forEach(elx=>{
-      elx.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        addMessageToNotes(parseInt(elx.dataset.addnoteIdx,10), elx.dataset.addnoteSpace);
-      });
+      // Ghi chú nhanh chỉ còn một nơi lưu (Trung tâm dữ liệu, Bộ cá nhân) nên không cần
+      // menu chọn Bộ chung/Bộ cá nhân nữa — bấm là đưa thẳng nội dung sang ô nhập.
+      btn.onclick = (e)=>{ e.stopPropagation(); addMessageToNotes(parseInt(btn.dataset.bubbleAddnote,10)); };
     });
     overlay.querySelectorAll('[data-edit-cancel]').forEach(btn=> btn.onclick = cancelEditMessage);
     overlay.querySelectorAll('[data-edit-resend]').forEach(btn=>{
@@ -1073,8 +1054,8 @@ ${fileGenerationTrainingText()}`;
     // tránh chồng chất listener qua mỗi lần render lại).
     if(firstCreate){
       aiOutsideClickHandler = ()=>{
-        if(state._aiModelMenuOpen || state._aiAddMenuOpen || state._aiBubbleAddNoteMenuIndex!=null){
-          state._aiModelMenuOpen = false; state._aiAddMenuOpen = false; state._aiBubbleAddNoteMenuIndex = null;
+        if(state._aiModelMenuOpen || state._aiAddMenuOpen){
+          state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
           if(document.getElementById('ai-chat-overlay')){
             const inputEl = document.getElementById('ai-input');
             const savedValue = inputEl ? inputEl.value : '';

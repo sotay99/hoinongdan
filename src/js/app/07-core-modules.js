@@ -2141,7 +2141,6 @@
       if(!user){
         detachRealtime();
         detachKnowledgeRealtime();
-        detachSuperNotesRealtime();
         detachSurveysRealtime();
         state.identity = null; lset(IDENTITY_KEY, null);
          state.accessMode = ACCESS_MODES.SIGNED_OUT;
@@ -2151,7 +2150,7 @@
         state.admins={}; state.aiChats=[]; state.aiActiveChatId=null; state._aiChatOpen=false; state._adminViewingWard=false;
         state.propagandaChats=[]; state.propagandaActiveChatId=null; state._propagandaChatsLoaded=false; state.propagandaPendingAttachments=[];
         state.knowledgeTree={}; state.knowledgeCurrentFolder=null; state.knowledgeTrashOpen=false;
-        state.superNotesTree={}; state.superNotesSpace='personal'; state.sharedNotesConfig={defaultPerm:'view', grants:{}}; state.superNotesCurrentFolder=null; state.superNotesTrashOpen=false; state.superNotesEditingId=null; state._superNotesOpen=false;
+        state._superNotesOpen=false; state._superNotesCache=null;
         state.view = 'login';
         render();
         return;
@@ -2735,11 +2734,8 @@
   async function openSuperNotes(){
     closeAiChat();
     state._superNotesOpen = true;
-    state.superNotesSpace = 'personal'; // Yêu cầu 2: luôn mặc định vào Bộ cá nhân trước mỗi lần mở
-    state.superNotesCurrentFolder = null;
-    state.superNotesEditingId = null;
-    state.superNotesTrashOpen = false;
-    attachSuperNotesRealtime();
+    // Ghi chú nhanh không còn cây thư mục hay không gian lưu trữ riêng — mọi ghi chú
+    // được lưu thẳng vào Trung tâm dữ liệu (Bộ cá nhân) nên không cần gắn realtime gì ở đây.
     renderSuperNotesOverlay();
     // Đảm bảo KHÔNG có con trỏ văn bản (và do đó KHÔNG có bàn phím ảo tự bật lên trên điện thoại) ngay
     // lúc vừa mở module — chỉ khi người dùng TỰ bấm vào khung nhập thì mới có con trỏ để nhập liệu.
@@ -2786,7 +2782,7 @@
   function closeAiChat(){
     state._aiChatOpen = false;
     state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
-    state._aiBubbleEditingIndex = null; state._aiBubbleAddNoteMenuIndex = null;
+    state._aiBubbleEditingIndex = null;
     const overlay = document.getElementById('ai-chat-overlay');
     if(overlay) overlay.remove();
     if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
