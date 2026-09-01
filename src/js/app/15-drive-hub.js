@@ -9,13 +9,13 @@
   let driveLegacyTreePath = '';
   let driveRouteRequest = 0;
   const DRIVE_LOCAL_STORAGE_KEY = 'hnd_drive_resources_local_v1';
+  const DRIVE_QUICK_DRAFT_KEY = 'hnd_drive_quick_draft_v1';
   const DRIVE_LOCAL_FILE_LIMIT = 8 * 1024 * 1024;
   const DRIVE_PERMISSIONS = Object.freeze({
     viewer:{label:'Viewer — chỉ xem'},
     commenter:{label:'Commenter — xem và bình luận'},
     editor:{label:'Editor — được chỉnh sửa'},
   });
-
   function drivePersonalAccessAllowed(){
     return hasAuthenticatedIdentity() || state.accessMode===ACCESS_MODES.SIGNED_OUT;
   }
@@ -31,6 +31,30 @@
   function driveSaveLocalTree(tree){
     try{ localStorage.setItem(DRIVE_LOCAL_STORAGE_KEY, JSON.stringify(tree||{})); return true; }
     catch(e){ console.warn('Không thể lưu kho tài liệu local:', e); return false; }
+  }
+  function driveQuickDraftContextKey(){
+    const scope = state.driveSpace==='shared'
+      ? `shared_${wardId()||'unknown'}`
+      : `personal_${driveUserKey()||'guest'}`;
+    return `${scope}_${state.driveCurrentFolder||'root'}`;
+  }
+  function driveQuickDraftStorageKey(contextKey=driveQuickDraftContextKey()){
+    return `${DRIVE_QUICK_DRAFT_KEY}_${contextKey}`;
+  }
+  function driveLoadQuickDraft(contextKey=driveQuickDraftContextKey()){
+    try{
+      const value=JSON.parse(localStorage.getItem(driveQuickDraftStorageKey(contextKey))||'null');
+      return value && value.contextKey===contextKey ? value : null;
+    }catch(e){ return null; }
+  }
+  function driveSaveQuickDraft(draft){
+    state.driveQuickDraft=draft;
+    try{ localStorage.setItem(driveQuickDraftStorageKey(draft.contextKey),JSON.stringify(draft)); }
+    catch(e){ console.warn('Không thể lưu draft Note nhanh:',e); }
+  }
+  function driveClearQuickDraft(contextKey=driveQuickDraftContextKey()){
+    state.driveQuickDraft=null;
+    try{ localStorage.removeItem(driveQuickDraftStorageKey(contextKey)); }catch(e){}
   }
   function driveHasLocalResources(){
     return Object.values(driveLocalTree()).some(node=>node && node.id);
@@ -74,6 +98,27 @@
     if(!node) return '';
     if(node.localDataUrl || node.storageUrl || node.url) return node.localDataUrl || node.storageUrl || node.url;
     return node.content!=null ? `data:text/plain;charset=utf-8,${encodeURIComponent(String(node.content))}` : '';
+  }
+  function driveOpenOfficeApp(appName){
+    const labels={Docs:'Google Docs',Sheets:'Google Sheets',Slides:'Google Slides'};
+    const label=labels[appName]||appName;
+    const wrap=document.createElement('div');
+    wrap.className='modal-bg drive-office-placeholder-bg';
+    wrap.innerHTML=`
+      <div class="modal drive-office-placeholder" role="dialog" aria-modal="true" aria-labelledby="drive-office-placeholder-title">
+        <div class="modal-head"><h3 id="drive-office-placeholder-title">🛠️ ${escapeHtml(label)}</h3><button class="modal-close" id="drive-office-placeholder-close" aria-label="Đóng">✕</button></div>
+        <div class="modal-body">
+          <div class="drive-office-placeholder-icon">${appName==='Docs'?'📄':appName==='Sheets'?'📊':'📽️'}</div>
+          <h4>Màn hình ${escapeHtml(label)} đang được thiết kế</h4>
+          <p class="sub">Tính năng tạo và chỉnh sửa ${escapeHtml(label)} sẽ được phát triển trong giai đoạn sau. Trong MVP này, Trung tâm tài liệu chỉ chuẩn bị sẵn vị trí và luồng điều hướng.</p>
+          <div class="drive-office-placeholder-note">Chưa kết nối Google Drive và chưa mở trình chỉnh sửa văn phòng bên ngoài.</div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-primary" id="drive-office-placeholder-ok">Đã hiểu</button></div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close=()=>wrap.remove();
+    wrap.querySelector('#drive-office-placeholder-close').onclick=close;
+    wrap.querySelector('#drive-office-placeholder-ok').onclick=close;
   }
   function driveDecodeDataUrl(dataUrl){
     const comma = String(dataUrl||'').indexOf(',');
@@ -153,6 +198,24 @@
         await loadOptionalLibrary('mammoth');
         const result = await mammoth.convertToHtml({arrayBuffer:buffer});
         el.innerHTML = `<article class="drive-viewer-docx">${result.value||'<p>Không có nội dung để xem.</p>'}</article>`;
+        return;
+      }
+      if(kind==='pptx'){
+        await loadOptionalLibrary('jszip');
+        const zip=await JSZip.loadAsync(buffer);
+        const slideFiles=Object.keys(zip.files)
+          .filter(name=>/^ppt\/slides\/slide\d+\.xml$/i.test(name))
+          .sort((a,b)=>parseInt(a.match(/slide(\d+)/i)[1],10)-parseInt(b.match(/slide(\d+)/i)[1],10));
+        if(!slideFiles.length) throw new Error('Không tìm thấy nội dung slide');
+        const slides=[];
+        for(let i=0;i<slideFiles.length;i++){
+          const xmlText=await zip.files[slideFiles[i]].async('text');
+          const xml=new DOMParser().parseFromString(xmlText,'application/xml');
+          const textNodes=Array.from(xml.getElementsByTagNameNS('*','t'));
+          const text=textNodes.map(node=>node.textContent||'').join(' ').replace(/\s+/g,' ').trim();
+          slides.push(`<article class="drive-viewer-slide"><div class="drive-viewer-slide-number">Slide ${i+1}</div><div>${escapeHtml(text||'Slide này không có phần văn bản để hiển thị.')}</div></article>`);
+        }
+        el.innerHTML=`<div class="drive-viewer-slides"><div class="drive-viewer-slide-note">Bản xem trước PowerPoint dạng đọc-only — hiển thị văn bản trong từng slide.</div>${slides.join('')}</div>`;
         return;
       }
     }catch(e){
@@ -275,14 +338,20 @@
     const ref=driveCommentRef(resourceId);
     if(!ref) return false;
     const id=driveCommentId();
-    await ref.child(id).set({
-      id, text:value,
-      authorEmail:(state.identity&&state.identity.email)||'',
-      authorName:(state.identity&&state.identity.name)||'Người dùng',
-      createdAt:new Date().toISOString(),
-      deleted:false,
-    });
-    return true;
+    try{
+      await ref.child(id).set({
+        id, text:value,
+        authorEmail:(state.identity&&state.identity.email)||'',
+        authorName:(state.identity&&state.identity.name)||'Người dùng',
+        createdAt:new Date().toISOString(),
+        deleted:false,
+      });
+      return true;
+    }catch(error){
+      console.error('Ghi bình luận lỗi:',error);
+      alert('Không thể gửi bình luận. Vui lòng kiểm tra kết nối rồi thử lại.');
+      return false;
+    }
   }
   function driveCanDeleteComment(comment){
     if(isTourMode() || !comment) return false;
@@ -295,8 +364,14 @@
     if(!driveCanDeleteComment(comment)){ alert('Bạn chỉ có thể xoá bình luận của mình.'); return false; }
     const ref=driveCommentRef(resourceId);
     if(!ref) return false;
-    await ref.child(commentId).update({deleted:true,deletedAt:new Date().toISOString()});
-    return true;
+    try{
+      await ref.child(commentId).update({deleted:true,deletedAt:new Date().toISOString()});
+      return true;
+    }catch(error){
+      console.error('Xoá bình luận lỗi:',error);
+      alert('Không thể xoá bình luận. Vui lòng kiểm tra kết nối rồi thử lại.');
+      return false;
+    }
   }
   function driveCommentList(node){
     return Object.values((node&&node.comments)||{})
@@ -310,22 +385,37 @@
     if(isTourMode()){
       driveDetach();
       state.driveResources = driveDemoTree();
+      state.driveLoading=false;
+      state.driveLoadError='';
+      return;
+    }
+    if(driveIsLocalPersonal()){
+      driveDetach();
+      state.driveResources = driveLocalTree();
+      state.driveLoading=false;
+      state.driveLoadError='';
       return;
     }
     if(state.driveSpace==='personal' && !drivePersonalAccessAllowed()){
       driveDetach();
       state.driveResources = {};
+      state.driveLoading=false;
+      state.driveLoadError='';
       return;
     }
     const ref = driveRef();
     if(!ref){
       driveDetach();
       state.driveResources = {};
+      state.driveLoading=false;
+      state.driveLoadError='';
       return;
     }
     const path = ref.toString();
     if(driveListenerRef && driveListenerPath===path) return;
     driveDetach();
+    state.driveLoading=true;
+    state.driveLoadError='';
     driveLegacyTreePromise=null;
     driveLegacyTreePath='';
     driveListenerRef = ref;
@@ -334,8 +424,22 @@
       driveTreeForUser(ref,state.driveSpace).then(tree=>{
         if(driveListenerRef!==ref) return;
         state.driveResources = tree;
+        state.driveLoading=false;
+        state.driveLoadError='';
+        if(state.activeTab==='drive') renderDriveHubTab(document.getElementById('content'));
+      }).catch(error=>{
+        if(driveListenerRef!==ref) return;
+        state.driveLoading=false;
+        state.driveLoadError='Không thể tải kho tài liệu. Vui lòng kiểm tra kết nối rồi thử lại.';
+        console.warn('Không tải được kho tài liệu:',error);
         if(state.activeTab==='drive') renderDriveHubTab(document.getElementById('content'));
       });
+    }, error=>{
+      if(driveListenerRef!==ref) return;
+      state.driveLoading=false;
+      state.driveLoadError='Không thể kết nối tới kho tài liệu. Vui lòng thử lại.';
+      console.warn('Realtime Drive Hub lỗi:',error);
+      if(state.activeTab==='drive') renderDriveHubTab(document.getElementById('content'));
     });
   }
   function driveNodeId(){ return 'dr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
@@ -352,8 +456,10 @@
   function driveChildren(){
     const parentId = state.driveCurrentFolder || null;
     const query = (state.driveSearch||'').trim().toLocaleLowerCase('vi');
+    const searchScope = query && parentId ? new Set(driveDescendantIds(parentId)) : null;
     const items = Object.values(state.driveResources||{})
-      .filter(n=> n && (state.driveTrashOpen ? n.deleted : !n.deleted) && (n.parentId||null)===parentId)
+      .filter(n=> n && (state.driveTrashOpen ? n.deleted : !n.deleted))
+      .filter(n=> (n.parentId||null)===parentId || (query && (!searchScope || searchScope.has(n.id))))
       .filter(n=> !query || `${n.name||''} ${n.description||''}`.toLocaleLowerCase('vi').includes(query))
     const sort=state.driveSort||'name';
     return items.sort((a,b)=>{
@@ -378,8 +484,14 @@
     }
     const ref = driveRef();
     if(!ref) return false;
-    await ref.child(id).set(node);
-    return true;
+    try{
+      await ref.child(id).set(node);
+      return true;
+    }catch(error){
+      console.error('Ghi tài nguyên lên Firebase lỗi:',error);
+      alert('Không thể lưu tài nguyên lên máy chủ. Dữ liệu chưa được ghi; vui lòng thử lại.');
+      return false;
+    }
   }
   async function driveUpdateNode(id, partial){
     if(blockTourMutation('Bạn đang ở môi trường tham quan. Tài nguyên demo không được lưu.')) return false;
@@ -394,8 +506,14 @@
     }
     const ref = driveRef();
     if(!ref) return false;
-    await ref.child(id).update(partial);
-    return true;
+    try{
+      await ref.child(id).update(partial);
+      return true;
+    }catch(error){
+      console.error('Cập nhật tài nguyên trên Firebase lỗi:',error);
+      alert('Không thể cập nhật tài nguyên trên máy chủ. Thay đổi chưa được lưu; vui lòng thử lại.');
+      return false;
+    }
   }
   async function driveCreateFolder(){
     if(!driveCanEdit(state.driveCurrentFolder ? state.driveResources[state.driveCurrentFolder] : null)) return;
@@ -465,6 +583,13 @@
     if(!ref){ alert('Chưa xác định được kho Firebase của tài khoản.'); return; }
     const updates={};
     try{
+      const remoteSnap=await ref.get();
+      const remote=remoteSnap&&remoteSnap.exists() ? (remoteSnap.val()||{}) : {};
+      const conflicts=nodes.filter(node=>remote[node.id]);
+      if(conflicts.length){
+        alert(`Không thể chuyển tự động vì ${conflicts.length} tài nguyên local bị trùng ID với kho Firebase (${conflicts.slice(0,3).map(node=>node.name||node.id).join(', ')}${conflicts.length>3?'…':''}). Dữ liệu local vẫn được giữ nguyên để xử lý an toàn.`);
+        return;
+      }
       for(const sourceNode of nodes){
         const node={...sourceNode};
         delete node.storageScope;
@@ -479,9 +604,7 @@
         }
         updates[node.id]=node;
       }
-      const remoteSnap=await ref.get();
-      const remote=remoteSnap&&remoteSnap.exists() ? (remoteSnap.val()||{}) : {};
-      await ref.update({...updates,...remote});
+      await ref.update(updates);
       localStorage.removeItem(DRIVE_LOCAL_STORAGE_KEY);
       driveAttach();
       renderDriveHubTab(document.getElementById('content'));
@@ -627,7 +750,10 @@
     const wrap=document.createElement('div');
     wrap.className='modal-bg';
     document.body.appendChild(wrap);
-    const draft=state.driveQuickDraft||{};
+    const contextKey=driveQuickDraftContextKey();
+    const draft=(state.driveQuickDraft&&state.driveQuickDraft.contextKey===contextKey)
+      ? state.driveQuickDraft
+      : (driveLoadQuickDraft(contextKey)||{});
     const folder=state.driveCurrentFolder ? state.driveResources[state.driveCurrentFolder] : null;
     wrap.innerHTML=`
       <div class="modal drive-quick-note-modal" role="dialog" aria-modal="true" aria-labelledby="drive-quick-note-title">
@@ -643,7 +769,7 @@
       </div>`;
     const nameInput=wrap.querySelector('#drive-quick-note-name');
     const contentInput=wrap.querySelector('#drive-quick-note-content');
-    const keepDraft=()=>{ state.driveQuickDraft={name:nameInput.value,content:contentInput.value}; };
+    const keepDraft=()=>{ driveSaveQuickDraft({contextKey,name:nameInput.value,content:contentInput.value}); };
     nameInput.oninput=keepDraft; contentInput.oninput=keepDraft;
     const close=()=>{ keepDraft(); wrap.remove(); };
     wrap.querySelector('#drive-quick-note-close').onclick=close;
@@ -656,7 +782,7 @@
       const id=driveNodeId();
       const ok=await driveWriteNode(id,{id,type:'file',fileKind:'text',mimeType:'text/plain',name,parentId:state.driveCurrentFolder||null,content,size:new Blob([content]).size,createdAt:now,updatedAt:now,createdBy:(state.identity&&state.identity.email)||'browser'});
       if(!ok) return;
-      state.driveQuickDraft=null;
+       driveClearQuickDraft(contextKey);
       wrap.remove();
       driveAttach();
       renderDriveHubTab(document.getElementById('content'));
@@ -668,6 +794,7 @@
     if(isTourMode()) return driveDemoTree();
     if(route.space==='personal' && !drivePersonalAccessAllowed()) return null;
     if(route.space==='shared' && (!wardId() || !state.config || state.config.deleted)) return null;
+    if(route.space==='personal' && !hasAuthenticatedIdentity() && state.accessMode===ACCESS_MODES.SIGNED_OUT) return driveLocalTree();
     const ref = route.space==='shared'
       ? rtdb.ref(`communes/${wardId()}/drive_resources`)
       : rtdb.ref(`users/${driveUserKey()}/drive_resources`);
@@ -675,7 +802,7 @@
       return await driveTreeForUser(ref,route.space);
     }catch(e){
       console.warn('Không tải được resource URL:', e);
-      return null;
+      throw e;
     }
   }
   function driveRouteBackButton(){
@@ -684,7 +811,16 @@
   async function renderDriveResourceRoute(el, route){
     const requestId = ++driveRouteRequest;
     el.innerHTML = `<div class="drive-route-card"><div class="drive-route-loading">Đang kiểm tra quyền truy cập tài nguyên…</div></div>`;
-    const tree = await driveLoadRouteData(route);
+    let tree;
+    try{
+      tree = await driveLoadRouteData(route);
+    }catch(e){
+      if(requestId!==driveRouteRequest) return;
+      el.innerHTML = `<div class="drive-route-card"><div class="drive-route-actions">${driveRouteBackButton()}</div><div class="drive-route-error"><div>⚠️</div><h3>Không thể tải tài nguyên</h3><p>Kiểm tra kết nối mạng rồi thử lại.</p><button class="btn btn-primary btn-sm" id="drive-route-retry">↻ Thử lại</button></div></div>`;
+      const back=document.getElementById('drive-route-back'); if(back) back.onclick=driveGoHub;
+      const retry=document.getElementById('drive-route-retry'); if(retry) retry.onclick=()=>renderDriveResourceRoute(el,route);
+      return;
+    }
     if(requestId!==driveRouteRequest) return;
     if(tree) state.driveResources=tree;
     const node = tree && tree[route.id];
@@ -775,9 +911,9 @@
         ${!isShared && hasAuthenticatedIdentity() && driveHasLocalResources()? `<div class="drive-notice drive-notice-migration">📦 Phát hiện tài nguyên đang chờ chuyển từ trình duyệt lên kho cá nhân Firebase. <button class="btn btn-ghost btn-sm" id="drive-migrate-local">Chuyển lên Firebase</button></div>` : ''}
         ${isShared && !canEdit? `<div class="drive-notice">Bạn đang ở chế độ xem. Chỉ Chủ mã mới được tạo, đổi tên hoặc đưa tài liệu vào thùng rác.</div>` : ''}
         <div class="drive-office-grid" aria-label="Ứng dụng văn phòng">
-          <button class="drive-office-card" data-drive-office="Docs"><span>📄</span><b>Docs</b><small>Đang thiết kế · xem DOCX</small></button>
-          <button class="drive-office-card" data-drive-office="Sheets"><span>📊</span><b>Sheets</b><small>Đang thiết kế · xem XLSX</small></button>
-          <button class="drive-office-card" data-drive-office="Slides"><span>📽️</span><b>Slides</b><small>Đang thiết kế · xem PPTX</small></button>
+          <button class="drive-office-card" data-drive-office="Docs" title="Xem trạng thái Docs"><span>📄</span><b>Docs</b><small>Đang thiết kế — sẽ sớm ra mắt</small></button>
+          <button class="drive-office-card" data-drive-office="Sheets" title="Xem trạng thái Sheets"><span>📊</span><b>Sheets</b><small>Đang thiết kế — sẽ sớm ra mắt</small></button>
+          <button class="drive-office-card" data-drive-office="Slides" title="Xem trạng thái Slides"><span>📽️</span><b>Slides</b><small>Đang thiết kế — sẽ sớm ra mắt</small></button>
         </div>
         <div class="drive-toolbar">
           <div class="drive-breadcrumb"><button data-drive-folder="">⌂ Gốc</button>${crumbs.map(c=>`<span>/</span><button data-drive-folder="${c.id}">${escapeHtml(c.name)}</button>`).join('')}</div>
@@ -789,7 +925,9 @@
           </div>
         </div>
         <div class="drive-items ${state.driveListMode==='list'?'is-list':''}">
-          ${items.length ? items.map(n=>{
+          ${state.driveLoading ? `<div class="drive-state"><div class="drive-state-icon">⏳</div><b>Đang tải kho tài liệu…</b><span>Đang đồng bộ dữ liệu, vui lòng chờ một chút.</span></div>` :
+            state.driveLoadError ? `<div class="drive-state drive-state-error"><div class="drive-state-icon">⚠️</div><b>Không thể tải kho tài liệu</b><span>${escapeHtml(state.driveLoadError)}</span><button class="btn btn-primary btn-sm" id="drive-retry">↻ Thử lại</button></div>` :
+          items.length ? items.map(n=>{
             const itemCanEdit=driveCanEdit(n);
             const itemCanShare=driveCanShare(n);
             return `
@@ -810,17 +948,28 @@
     bind('drive-shared','click',()=>{ if(!wardId()) return; state.driveSpace='shared'; state.driveCurrentFolder=null; state.driveSearch=''; state.driveTrashOpen=false; renderDriveHubTab(el); });
     bind('drive-trash','click',()=>{ state.driveTrashOpen=!state.driveTrashOpen; state.driveCurrentFolder=null; renderDriveHubTab(el); });
     bind('drive-refresh','click',()=>{ driveDetach(); driveAttach(); renderDriveHubTab(el); });
+     bind('drive-retry','click',()=>{ driveDetach(); driveAttach(); renderDriveHubTab(el); });
     bind('drive-open-note','click',driveOpenQuickNote);
     bind('drive-new-folder','click',driveCreateFolder);
      bind('drive-new-file','click',driveCreateFile);
     bind('drive-new-link','click',driveCreateLink);
     bind('drive-toggle-view','click',()=>{ state.driveListMode=state.driveListMode==='grid'?'list':'grid'; renderDriveHubTab(el); });
     const search=document.getElementById('drive-search');
-    if(search) search.addEventListener('input', e=>{ state.driveSearch=e.target.value; renderDriveHubTab(el); });
+    if(search) search.addEventListener('input', e=>{
+      state.driveSearch=e.target.value;
+      const selectionStart=e.target.selectionStart;
+      const selectionEnd=e.target.selectionEnd;
+      renderDriveHubTab(el);
+      const nextSearch=document.getElementById('drive-search');
+      if(nextSearch){
+        nextSearch.focus();
+        if(selectionStart!=null && nextSearch.setSelectionRange) nextSearch.setSelectionRange(selectionStart,selectionEnd==null?selectionStart:selectionEnd);
+      }
+    });
      const sort=document.getElementById('drive-sort');
      if(sort) sort.addEventListener('change', e=>{ state.driveSort=e.target.value; renderDriveHubTab(el); });
      bind('drive-migrate-local','click',driveMigrateLocal);
-     el.querySelectorAll('[data-drive-office]').forEach(btn=>btn.onclick=()=>alert(`${btn.dataset.driveOffice} đang được thiết kế. MVP hiện hỗ trợ xem file đọc-only và chưa ghi nội dung văn phòng.`));
+      el.querySelectorAll('[data-drive-office]').forEach(btn=>btn.onclick=()=>driveOpenOfficeApp(btn.dataset.driveOffice));
     el.querySelectorAll('[data-drive-folder]').forEach(btn=>btn.onclick=()=>{ state.driveCurrentFolder=btn.dataset.driveFolder||null; state.driveSearch=''; renderDriveHubTab(el); });
     el.querySelectorAll('[data-drive-item]').forEach(item=>item.onclick=(e)=>{
       if(e.target.closest('button')) return;
