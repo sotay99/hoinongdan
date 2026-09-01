@@ -5,6 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <meta name="theme-color" content="#2F4A3C">
 <title>Sổ tay Công tác Hội Nông dân cấp xã/phường</title>
+
+<!-- ============== KHUNG XEM TRƯỚC KHI GỬI LINK (Zalo, Messenger, Facebook, Telegram) ==============
+     Ảnh 1:1 (1200x1200) nằm trên Firebase Storage, trong thư mục
+     "Sổ tay Hội Nông dân (hoinongdan.sotay.org)/Ảnh xem trước thumbnail của app khi gửi link",
+     tên tệp thumbnail.hoinongdan.png. Đường dẫn dưới đây là đường dẫn tải CÔNG KHAI (?alt=media,
+     không cần token) nên trình thu thập của Zalo/Messenger đọc được mà không cần đăng nhập.
+     Đổi ảnh khác thì thay đúng 3 dòng og:image / og:image:secure_url / twitter:image.
+
+     LƯU Ý: đường dẫn /bienlai/** do Cloud Function receiptMeta phục vụ; function đó chèn thẻ
+     og: RIÊNG của từng biên lai vào NGAY SAU thẻ head mở, tức là đứng TRƯỚC khối này, nên biên lai
+     vẫn giữ khung xem trước riêng. Khối này chỉ đóng vai trò dự phòng cho biên lai không có ảnh. -->
+<meta name="description" content="Quản lý công tác hội, thực lực hội, hội viên, Quỹ Hỗ trợ Nông dân, thu chi nội bộ, vốn vay, lãi suất và báo cáo địa phương.">
+<link rel="canonical" href="https://hoinongdan.sotay.org/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Sổ tay Công tác Hội Nông dân cấp xã/phường">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:url" content="https://hoinongdan.sotay.org/">
+<meta property="og:title" content="Sổ tay Công tác Hội Nông dân cấp xã/phường">
+<meta property="og:description" content="Quản lý công tác hội, thực lực hội, hội viên, Quỹ Hỗ trợ Nông dân, thu chi nội bộ, vốn vay, lãi suất và báo cáo địa phương.">
+<meta property="og:image" content="https://firebasestorage.googleapis.com/v0/b/congtachoinongdan.firebasestorage.app/o/S%E1%BB%95%20tay%20H%E1%BB%99i%20N%C3%B4ng%20d%C3%A2n%20%28hoinongdan.sotay.org%29%2F%E1%BA%A2nh%20xem%20tr%C6%B0%E1%BB%9Bc%20thumbnail%20c%E1%BB%A7a%20app%20khi%20g%E1%BB%ADi%20link%2Fthumbnail.hoinongdan.png?alt=media">
+<meta property="og:image:secure_url" content="https://firebasestorage.googleapis.com/v0/b/congtachoinongdan.firebasestorage.app/o/S%E1%BB%95%20tay%20H%E1%BB%99i%20N%C3%B4ng%20d%C3%A2n%20%28hoinongdan.sotay.org%29%2F%E1%BA%A2nh%20xem%20tr%C6%B0%E1%BB%9Bc%20thumbnail%20c%E1%BB%A7a%20app%20khi%20g%E1%BB%ADi%20link%2Fthumbnail.hoinongdan.png?alt=media">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="1200">
+<meta property="og:image:alt" content="Ảnh xem trước Sổ tay Công tác Hội Nông dân cấp xã/phường — hoinongdan.sotay.org">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Sổ tay Công tác Hội Nông dân cấp xã/phường">
+<meta name="twitter:description" content="Quản lý công tác hội, thực lực hội, hội viên, Quỹ Hỗ trợ Nông dân, thu chi nội bộ, vốn vay, lãi suất và báo cáo địa phương.">
+<meta name="twitter:image" content="https://firebasestorage.googleapis.com/v0/b/congtachoinongdan.firebasestorage.app/o/S%E1%BB%95%20tay%20H%E1%BB%99i%20N%C3%B4ng%20d%C3%A2n%20%28hoinongdan.sotay.org%29%2F%E1%BA%A2nh%20xem%20tr%C6%B0%E1%BB%9Bc%20thumbnail%20c%E1%BB%A7a%20app%20khi%20g%E1%BB%ADi%20link%2Fthumbnail.hoinongdan.png?alt=media">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
