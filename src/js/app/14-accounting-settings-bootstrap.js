@@ -1510,7 +1510,7 @@
       <div class="panel">
         <div class="panel-head"><h3>BIỂU MẪU/KHẢO SÁT/BÀI KIỂM TRA</h3></div>
         <div class="panel-body">
-          <p class="sub" style="margin-top:0;">Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người... người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ được tham gia khảo sát / làm bài kiểm tra bằng đường link do đồng chí cung cấp!</p>
+          <p class="sub" style="margin-top:0;">Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người, tạo cuộc thi trực tuyến và chấm điểm tự động, ... người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ được tham gia khảo sát / làm bài kiểm tra bằng đường link do đồng chí cung cấp!</p>
           <div class="toolbar" style="margin-bottom:14px;">
             <button class="btn ${isShared?'btn-primary':'btn-ghost'} btn-sm" id="sv-space-shared">🏛️ Biểu mẫu dùng chung xã/phường</button>
             <button class="btn ${!isShared?'btn-primary':'btn-ghost'} btn-sm" id="sv-space-personal">🔒 Biểu mẫu cá nhân</button>
@@ -2973,9 +2973,23 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       <div class="panel">
         <div class="panel-head"><h3>📖 Hướng dẫn sử dụng</h3></div>
         <div class="panel-body">
-          <div class="empty-state">
-            <div class="e-ico">📖</div>
-            <p>rỗng để sau này nâng cấp thêm</p>
+          <div class="guide-notice">
+            <div class="guide-notice-ico">🚧</div>
+            <div>
+              <b>Tính năng đang nâng cấp</b>
+              <p>Phần hướng dẫn hiện chưa có nội dung. Đồng chí thông cảm, app vẫn đang trong quá trình xây dựng.</p>
+            </div>
+          </div>
+          <div class="guide-plan">
+            <h4>Hướng đi sắp tới của phần Hướng dẫn</h4>
+            <p><b>Module này nhiều khả năng sẽ được xoá bỏ.</b> Lý do: một cuốn cẩm nang dày đặt ở một góc riêng thì hiếm ai chịu đọc, mà đọc xong quay lại module cũng đã quên mất nửa phần.</p>
+            <p>Thay vào đó, hướng dẫn sẽ được đưa <b>vào thẳng từng module</b>: mỗi module có một nút hướng dẫn riêng, bấm vào là AI agent trò chuyện trực tiếp với đồng chí ngay tại đó.</p>
+            <p>Cách này có ba cái lợi rõ rệt:</p>
+            <ul>
+              <li><b>Đúng ngữ cảnh</b> — AI biết đồng chí đang đứng ở module nào, đang làm dở việc gì, nên hướng dẫn đúng thứ đang cần chứ không bắt đọc lan man.</li>
+              <li><b>Kèm một kèm một</b> — đồng chí hỏi tới đâu AI giảng tới đó, chưa hiểu thì hỏi lại, hỏi bao nhiêu lần cũng được.</li>
+              <li><b>Trực quan</b> — AI chỉ rõ bấm nút nào, điền ô nào, thay vì mô tả bằng chữ rồi để đồng chí tự mò.</li>
+            </ul>
           </div>
         </div>
       </div>`;

@@ -1000,3 +1000,24 @@
   .sidebar-copyright{margin-top:9px; padding-top:10px; border-top:1px solid rgba(255,255,255,.09);
     display:flex; flex-direction:column; gap:2px; color:rgba(255,255,255,.42); font-size:10.5px; line-height:1.5;}
   .sidebar-copyright-brand{color:rgba(255,255,255,.82); font-weight:800; font-size:12.5px; letter-spacing:.4px;}
+
+  /* ---- Dòng cảnh báo đỏ ở đầu module Tổng quan (tạm thời, gỡ khi app hoàn thiện) ---- */
+  .dashboard-wip-notice{margin:0 0 16px; padding:14px 17px; border-radius:12px;
+    background:rgba(180,44,44,.09); border:1px solid rgba(180,44,44,.34); border-left:5px solid #b42c2c;
+    color:#a01c1c; font-size:15.5px; font-weight:700; line-height:1.6;}
+
+  /* ---- Module Hướng dẫn sử dụng: khối báo đang nâng cấp và định hướng sắp tới ---- */
+  .guide-notice{display:flex; gap:13px; align-items:flex-start; padding:15px 17px; border-radius:12px;
+    background:rgba(199,154,43,.12); border:1px solid rgba(199,154,43,.42); margin-bottom:18px;}
+  .guide-notice-ico{font-size:26px; line-height:1;}
+  .guide-notice b{display:block; color:var(--ink); font-size:15.5px; margin-bottom:4px;}
+  .guide-notice p{margin:0; font-size:13.5px; line-height:1.65; color:#5f5a4e;}
+  .guide-plan h4{margin:0 0 11px; font-size:16px; color:var(--ink);}
+  .guide-plan p{margin:0 0 11px; font-size:14px; line-height:1.72; color:#5f5a4e;}
+  .guide-plan ul{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:8px;}
+  .guide-plan li{font-size:14px; line-height:1.7; color:#5f5a4e;}
+  .guide-plan b{color:var(--ink);}
+
+  @media (max-width:640px){
+    .dashboard-wip-notice{font-size:14px; padding:12px 13px;}
+  }

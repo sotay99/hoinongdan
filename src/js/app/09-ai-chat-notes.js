@@ -1106,6 +1106,7 @@
     const active = state.borrowers.filter(b=>!b.deleted && !b.settled);
     const totalPrincipal = active.reduce((s,b)=>s+ (parseFloat(b.principal)||0),0);
     el.innerHTML = `
+      <div class="dashboard-wip-notice">App đang xây dựng nên ở đây chỉ thống kê Quỹ Hỗ trợ Nông dân. Sau này khi app hoàn thiện, phần Tổng quan sẽ thống kê đầy đủ mọi dữ liệu có trong app cùng các dữ liệu liên quan tới công tác Hội và cán bộ Hội.</div>
       <div class="grid3">
         <div class="stat-card stat-yellow"><div class="num mono">${counts.yellow}</div><div class="lbl">🟡 Sắp đến hạn (≤60 ngày)</div><div class="sub">Cảnh báo sớm — cần chuẩn bị thu hồi vốn</div></div>
         <div class="stat-card stat-orange"><div class="num mono">${counts.orange}</div><div class="lbl">🟠 Cận hạn (≤30 ngày)</div><div class="sub">Cần liên hệ hộ vay đôn đốc</div></div>
