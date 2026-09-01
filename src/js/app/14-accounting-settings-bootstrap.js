@@ -1264,7 +1264,7 @@
   // Mở/đóng module "Tạo bài Tuyên truyền" — dạng overlay toàn màn hình, y hệt module Chat AI/Siêu ghi
   // chú (không còn là 1 tab thông thường trong #content nữa).
   async function openPropagandaModule(){
-    closeAiChat(); closeSuperNotes();
+    closeAiChat(); closeQuickNote();
     state._propagandaOpen = true;
     renderPropagandaOverlay();
     // Đảm bảo KHÔNG có con trỏ văn bản (và do đó KHÔNG có bàn phím ảo tự bật lên trên điện thoại) ngay
@@ -2484,7 +2484,7 @@
   }
 
   // =====================================================================
-  // Module [Ghi chú nhanh] — tên nội bộ vẫn là superNotes*/sn-* trong mã.
+  // Module [Ghi chú nhanh] — tên nội bộ vẫn là quickNote*/sn-* trong mã.
   //
   // TRƯỚC ĐÂY module này có cây thư mục riêng và hai không gian lưu trữ
   // (Bộ cá nhân / Bộ chung Xã-Phường), trùng lặp hoàn toàn với Trung tâm dữ
@@ -2499,7 +2499,7 @@
   // (Viewer / Commenter / Editor theo từng tài nguyên).
   // =====================================================================
 
-  // ---- Nguồn 2 cho "bộ não" AI: toàn bộ nội dung Siêu ghi chú CÁ NHÂN của CHÍNH người đang chat ----
+  // ---- Nguồn 2 cho "bộ não" AI: ghi chú cá nhân của CHÍNH người đang chat, đọc từ Trung tâm dữ liệu ----
   // Gộp các node văn bản của 1 cây ghi chú thành 1 chuỗi tri thức — dùng chung cho cả nguồn
   // Firebase (tài khoản Google) lẫn localStorage (Khách qua mã chưa đăng nhập).
   function combineNotesNodesToText(nodes, labelPrefix){
@@ -2519,7 +2519,7 @@
     }
     return combined.trim();
   }
-  async function getUserSuperNotesKnowledge(){
+  async function getUserQuickNoteKnowledge(){
     // Ghi chú giờ nằm trong Trung tâm dữ liệu (Bộ cá nhân), không còn cây riêng nữa —
     // nên nguồn tri thức này đọc thẳng từ đó. Chưa đăng nhập Google thì Bộ cá nhân của
     // Trung tâm dữ liệu chính là kho localStorage của trình duyệt, vẫn phải bốc đúng nguồn ấy.
@@ -2536,17 +2536,17 @@
       return combineNotesNodesToText(snap.val(), 'Ghi chú cá nhân');
     }catch(e){ console.error('Không tải được ghi chú cá nhân:', e); return ''; }
   }
-  async function getUserSuperNotesKnowledgeCached(){
+  async function getUserQuickNoteKnowledgeCached(){
     const now = Date.now();
-    if(state._superNotesCache!=null && (now - state._superNotesCacheAt) < 120000) return state._superNotesCache;
-    const text = await getUserSuperNotesKnowledge();
-    state._superNotesCache = text;
-    state._superNotesCacheAt = now;
+    if(state._quickNoteCache!=null && (now - state._quickNoteCacheAt) < 120000) return state._quickNoteCache;
+    const text = await getUserQuickNoteKnowledge();
+    state._quickNoteCache = text;
+    state._quickNoteCacheAt = now;
     return text;
   }
 
   // ---------------------------------------------------------------------
-  // Pipeline "AI TIÊU HOÁ TRI THỨC" cho Siêu ghi chú: gõ chữ / nói / tải ảnh-PDF / tải cả thư mục
+  // Pipeline "AI TIÊU HOÁ TRI THỨC" cho Ghi chú nhanh: gõ chữ / nói / tải ảnh-PDF / tải cả thư mục
   // đều đi qua ĐÚNG 1 hàm này — luôn ưu tiên Gemini (Pro rồi tới Flash) vì cần khả năng đọc file
   // (ảnh/PDF) mạnh, trả về đúng cấu trúc JSON {fileName, rawText, digestedText}.
   // ---------------------------------------------------------------------
@@ -2568,7 +2568,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       result = await callGeminiOnce(provider, 'gemini-pro-latest', messages, opts, null);
     }catch(e1){
       if(e1 && e1.name==='AbortError') throw e1; // đã bị dừng chủ động -> không dò tầng dự phòng nữa
-      console.warn('[Siêu ghi chú] Gemini Pro lỗi, tự động chuyển Flash:', e1);
+      console.warn('[Ghi chú nhanh] Gemini Pro lỗi, tự động chuyển Flash:', e1);
       result = await callGeminiOnce(provider, 'gemini-flash-latest', messages, opts, null);
     }
     const cleaned = result.text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
@@ -2603,7 +2603,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // .docx/.xlsx/.txt/.csv: trích xuất văn bản trước bằng mammoth/XLSX. Ảnh/PDF/định dạng khác: gửi
   // cho Gemini OCR trực tiếp — TRỪ KHI vượt giới hạn dung lượng hoặc skipAI=true, khi đó bỏ qua
   // hẳn bước gọi AI, đưa thẳng vào cây thư mục.
-  async function processSingleSuperNoteInput(rawFile, userText, parentId, signal, skipAI){
+  async function processSingleQuickNoteInput(rawFile, userText, parentId, signal, skipAI){
     if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
     let storagePath = '', storageUrl = '';
     // Tệp gốc chỉ đẩy lên Firebase Storage khi Bộ cá nhân nằm trên đám mây; chưa đăng nhập
@@ -2667,7 +2667,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         if(ext==='docx' || ext==='xlsx' || ext==='xls'){
           throw new Error(`Không thể đọc tệp Office "${rawFile.name}". Vui lòng kiểm tra kết nối mạng rồi thử lại.`);
         }
-        console.error('[Siêu ghi chú] Trích xuất nội dung tệp lỗi, sẽ thử gửi thẳng cho AI OCR:', e);
+        console.error('[Ghi chú nhanh] Trích xuất nội dung tệp lỗi, sẽ thử gửi thẳng cho AI OCR:', e);
         if(!skipAI){ try{ digestInput.attachment = { mimeType: rawFile.type || 'application/octet-stream', base64: await fileToBase64(rawFile) }; }catch(e2){} }
       }
     }
@@ -2695,57 +2695,57 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // -> xử lý TUẦN TỰ, mỗi tệp ra đúng 1 file ghi chú riêng (văn bản gõ tay chỉ gắn vào tệp đầu).
   // CHỈ xoá nội dung ô nhập/danh sách tệp khi xử lý THÀNH CÔNG — nếu bị dừng giữa chừng hoặc lỗi,
   // giữ nguyên để người dùng sửa lại hoặc tự xoá.
-  async function processSuperNoteInput(text, files, parentId, skipAI){
+  async function processQuickNoteInput(text, files, parentId, skipAI){
     if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
     if((!files || !files.length) && (!text || !text.trim())) return;
-    state.superNotesAbortController = new AbortController();
-    const signal = state.superNotesAbortController.signal;
-    state.superNotesProcessing = true;
-    state.superNotesJustCompleted = false;
-    state.superNotesJustCompletedMsg = '';
+    state.quickNoteAbortController = new AbortController();
+    const signal = state.quickNoteAbortController.signal;
+    state.quickNoteProcessing = true;
+    state.quickNoteJustCompleted = false;
+    state.quickNoteJustCompletedMsg = '';
     // Lưu lại đúng nội dung/tệp đang xử lý — nếu bị Dừng giữa chừng hoặc lỗi, khôi phục đúng gói
     // này để người dùng có thể sửa và thử lại. Ghi cả trường hợp bỏ qua AI.
-    state._snInFlightText = text || '';
-    state._snInFlightFiles = (files||[]).slice();
-    state._snInFlightParentId = parentId;
+    state._qnInFlightText = text || '';
+    state._qnInFlightFiles = (files||[]).slice();
+    state._qnInFlightParentId = parentId;
     try{
       if(files && files.length){
         for(let i=0;i<files.length;i++){
-          state.superNotesProcessingMsg = skipAI? `Đang lưu tệp ${i+1}/${files.length}: ${files[i].name}` : `Đang tiêu hoá tệp ${i+1}/${files.length}: ${files[i].name}`;
-          renderSuperNotesOverlay();
-          await processSingleSuperNoteInput(files[i], i===0? text : '', parentId, signal, skipAI);
+          state.quickNoteProcessingMsg = skipAI? `Đang lưu tệp ${i+1}/${files.length}: ${files[i].name}` : `Đang tiêu hoá tệp ${i+1}/${files.length}: ${files[i].name}`;
+          renderQuickNoteOverlay();
+          await processSingleQuickNoteInput(files[i], i===0? text : '', parentId, signal, skipAI);
         }
       } else {
-        state.superNotesProcessingMsg = skipAI? 'Đang lưu nội dung' : 'Đang tiêu hoá nội dung';
-        renderSuperNotesOverlay();
-        await processSingleSuperNoteInput(null, text, parentId, signal, skipAI);
+        state.quickNoteProcessingMsg = skipAI? 'Đang lưu nội dung' : 'Đang tiêu hoá nội dung';
+        renderQuickNoteOverlay();
+        await processSingleQuickNoteInput(null, text, parentId, signal, skipAI);
       }
-      state.superNotesPendingFiles = [];
-      state._snDraftText = '';
-      state._snInFlightText = '';
-      state._snInFlightFiles = [];
-      state._snInFlightParentId = null;
-      state.superNotesJustCompleted = true;
+      state.quickNotePendingFiles = [];
+      state._qnDraftText = '';
+      state._qnInFlightText = '';
+      state._qnInFlightFiles = [];
+      state._qnInFlightParentId = null;
+      state.quickNoteJustCompleted = true;
       // Yêu cầu mới: dòng thông báo hoàn tất là do "AI nói" nên KHÔNG tự động biến mất nữa.
-      state.superNotesJustCompletedMsg = 'Chàng đã tiêu hoá xong tài liệu và đã đưa vào cây thư mục, bạn hãy vào cây thư mục để xem tài liệu.';
+      state.quickNoteJustCompletedMsg = 'Chàng đã tiêu hoá xong tài liệu và đã đưa vào cây thư mục, bạn hãy vào cây thư mục để xem tài liệu.';
     }catch(e){
       if(e && e.name==='AbortError'){
         // Yêu cầu mới: hỏi người dùng có muốn đưa thẳng vào ghi chú mà không tiêu hoá không.
-        state.superNotesStoppedConfirm = true;
+        state.quickNoteStoppedConfirm = true;
       } else {
-        console.error('[Siêu ghi chú] Xử lý AI tiêu hoá lỗi:', e);
-        state._snDraftText = state._snInFlightText || '';
-        state.superNotesPendingFiles = (state._snInFlightFiles||[]).slice();
-        state._snInFlightText = '';
-        state._snInFlightFiles = [];
-        state._snInFlightParentId = null;
+        console.error('[Ghi chú nhanh] Xử lý AI tiêu hoá lỗi:', e);
+        state._qnDraftText = state._qnInFlightText || '';
+        state.quickNotePendingFiles = (state._qnInFlightFiles||[]).slice();
+        state._qnInFlightText = '';
+        state._qnInFlightFiles = [];
+        state._qnInFlightParentId = null;
         alert('Xử lý AI tiêu hoá thất bại: ' + e.message + '\n\nNội dung/tệp bạn đã nhập vẫn được giữ nguyên để bạn thử lại hoặc chỉnh sửa.');
       }
     }finally{
-      state.superNotesProcessing = false;
-      state.superNotesProcessingMsg = '';
-      state.superNotesAbortController = null;
-      renderSuperNotesOverlay();
+      state.quickNoteProcessing = false;
+      state.quickNoteProcessingMsg = '';
+      state.quickNoteAbortController = null;
+      renderQuickNoteOverlay();
     }
   }
 
@@ -2753,44 +2753,44 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // Yêu cầu mới: trước khi thực sự tiêu hoá, luôn dừng lại hỏi xác nhận — người dùng có thể tiếp
   // tục bổ sung thêm nội dung/tệp (gộp dần), hoặc chọn 1 trong 2 nút để chốt lại.
   // ---------------------------------------------------------------------
-  function queueSuperNoteForReview(text, files){
+  function queueQuickNoteForReview(text, files){
     if((!text || !text.trim()) && (!files || !files.length)) return;
-    state.superNotesReviewMode = true;
-    if(text && text.trim()) state.superNotesReviewText = (state.superNotesReviewText? state.superNotesReviewText+'\n\n' : '') + text.trim();
-    if(files && files.length) state.superNotesReviewFiles = (state.superNotesReviewFiles||[]).concat(files);
+    state.quickNoteReviewMode = true;
+    if(text && text.trim()) state.quickNoteReviewText = (state.quickNoteReviewText? state.quickNoteReviewText+'\n\n' : '') + text.trim();
+    if(files && files.length) state.quickNoteReviewFiles = (state.quickNoteReviewFiles||[]).concat(files);
     // Lưu lại ĐÚNG NGUYÊN 1 lượt gửi này (text + files kèm theo) — để hiển thị lại đầy đủ như 1 đoạn
     // chat thật (mỗi lần gửi là 1 bong bóng riêng), không bị mất cấu trúc khi gộp chung vào 1 khối.
-    state.superNotesReviewTurns = (state.superNotesReviewTurns||[]).concat([{ text: text&&text.trim()? text.trim() : '', files: files&&files.length? files.slice() : [] }]);
-    renderSuperNotesOverlay();
+    state.quickNoteReviewTurns = (state.quickNoteReviewTurns||[]).concat([{ text: text&&text.trim()? text.trim() : '', files: files&&files.length? files.slice() : [] }]);
+    renderQuickNoteOverlay();
   }
-  async function finalizeSuperNoteReview(useAI){
-    const text = state.superNotesReviewText;
-    const files = (state.superNotesReviewFiles||[]).slice();
+  async function finalizeQuickNoteReview(useAI){
+    const text = state.quickNoteReviewText;
+    const files = (state.quickNoteReviewFiles||[]).slice();
     const parentId = null; // modal chọn thư mục sẽ quyết định nơi lưu
-    state.superNotesReviewMode = false;
-    state.superNotesReviewText = '';
-    state.superNotesReviewFiles = [];
-    state.superNotesReviewTurns = [];
-    await processSuperNoteInput(text, files, parentId, !useAI);
+    state.quickNoteReviewMode = false;
+    state.quickNoteReviewText = '';
+    state.quickNoteReviewFiles = [];
+    state.quickNoteReviewTurns = [];
+    await processQuickNoteInput(text, files, parentId, !useAI);
   }
   // Sau khi bấm Dừng giữa lúc AI đang tiêu hoá — hỏi có muốn đưa thẳng gói nội dung/tệp đang dở
   // vào ghi chú mà KHÔNG cần tiêu hoá nữa không.
-  async function resolveSuperNoteStoppedConfirm(useAI){
-    const text = state._snInFlightText;
-    const files = (state._snInFlightFiles||[]).slice();
-    const parentId = state._snInFlightParentId;
-    state.superNotesStoppedConfirm = false;
+  async function resolveQuickNoteStoppedConfirm(useAI){
+    const text = state._qnInFlightText;
+    const files = (state._qnInFlightFiles||[]).slice();
+    const parentId = state._qnInFlightParentId;
+    state.quickNoteStoppedConfirm = false;
     if(useAI){
-      await processSuperNoteInput(text, files, parentId, true); // đưa thẳng vào ghi chú, bỏ qua AI
+      await processQuickNoteInput(text, files, parentId, true); // đưa thẳng vào ghi chú, bỏ qua AI
     } else {
       // Không muốn đưa thẳng vào -> khôi phục lại y nguyên nội dung/tệp vào ô nhập để sửa/gửi lại
-      state.superNotesPendingFiles = files;
-      state._snDraftText = text || '';
-      state._snInFlightText = '';
-      state._snInFlightFiles = [];
-      state._snInFlightParentId = null;
-      state._snDraftCaptureSuppressed = true;
-      try{ renderSuperNotesOverlay(); }finally{ state._snDraftCaptureSuppressed = false; }
+      state.quickNotePendingFiles = files;
+      state._qnDraftText = text || '';
+      state._qnInFlightText = '';
+      state._qnInFlightFiles = [];
+      state._qnInFlightParentId = null;
+      state._qnDraftCaptureSuppressed = true;
+      try{ renderQuickNoteOverlay(); }finally{ state._qnDraftCaptureSuppressed = false; }
     }
   }
 
@@ -4326,7 +4326,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
               renderBody();
             });
           // Tham số thứ 3 là useCapture, KHÔNG phải callback lỗi. Trước đây chỗ này vô tình
-          // chứa nguyên khối xử lý lỗi realtime của Siêu ghi chú — bị hiểu thành giá trị
+          // chứa nguyên khối xử lý lỗi realtime của Ghi chú nhanh — bị hiểu thành giá trị
           // truthy nên khối ấy chưa bao giờ chạy, chỉ có tác dụng bật bắt sự kiện ở pha
           // capture. Giữ nguyên `true` để hành vi không đổi (đúng ý đồ "nút LUÔN nhận được
           // click" ghi ở trên), và bỏ khối chết đi.

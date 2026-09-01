@@ -383,7 +383,7 @@
   // modal con nằm lồng sâu bên trong modal khác, kể cả modal xây dựng trong tương lai (không cần sửa
   // bất kỳ đoạn code JS nào tạo modal, đây là cơ chế TOÀN CỤC áp dụng tự động). Mỗi modal-bg có cặp nút
   // RIÊNG của chính nó — 2 nút LUÔN thẳng hàng dọc, kéo-thả CÙNG NHAU (dùng lại đúng makeGroupDraggable
-  // đã xây cho 3 nút Chat AI/Siêu ghi chú/Chat với Mọi người), độ mờ 55% giống hệt 3 nút đó.
+  // đã xây cho 3 nút Chat AI/Ghi chú nhanh/Chat với Mọi người), độ mờ 55% giống hệt 3 nút đó.
   // Modal thường có 2 khung cuộn riêng biệt: khung NGOÀI (chính modal-bg, để thấy được tiêu đề trên
   // cùng/nút ở đáy modal khi nội dung quá dài không vừa màn hình) VÀ khung TRONG (.modal-body, nội dung
   // bên trong). Phải cuộn CẢ 2 cùng lúc thì mới thực sự "lên tới đầu"/"xuống tới cuối" đúng nghĩa.

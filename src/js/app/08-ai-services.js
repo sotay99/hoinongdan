@@ -803,7 +803,7 @@ ${fileGenerationTrainingText()}`;
   }
 
   // ---------------------------------------------------------------------
-  // "Thêm vào Siêu ghi chú" — đóng Chat AI, mở Siêu ghi chú đúng không gian đã chọn, dán sẵn nội
+  // "Thêm vào Ghi chú nhanh" — đóng Chat AI, mở Ghi chú nhanh đúng không gian đã chọn, dán sẵn nội
   // dung tin nhắn vào khung nhập liệu để người dùng xem/sửa rồi tự bấm Gửi.
   // ---------------------------------------------------------------------
   async function addMessageToNotes(idx){
@@ -813,10 +813,10 @@ ${fileGenerationTrainingText()}`;
     const text = msg.text || '';
     writeClipboardSilent(text);
     closeAiChat();
-    state._superNotesOpen = true;
-    renderSuperNotesOverlay();
+    state._quickNoteOpen = true;
+    renderQuickNoteOverlay();
     setTimeout(()=>{
-      const inputEl = document.getElementById('sn-input');
+      const inputEl = document.getElementById('qn-input');
       if(inputEl){ inputEl.value = text; inputEl.focus(); }
     }, 60);
     showToast('Đã đưa nội dung vào ô nhập của Ghi chú nhanh!');
@@ -846,7 +846,7 @@ ${fileGenerationTrainingText()}`;
       <div class="ai-sidebar ${state._aiSidebarCollapsed?'collapsed':''}" id="ai-sidebar">
         <button class="ai-exit-btn" id="ai-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="ai-newchat-btn">➕ Đoạn chat mới</button>
-        <button class="ai-newchat-btn" id="ai-goto-notes-btn">🗒️ Mở Siêu ghi chú</button>
+        <button class="ai-newchat-btn" id="ai-goto-notes-btn">🗒️ Mở Ghi chú nhanh</button>
         <div class="ai-hist-label">Lịch sử đoạn chat</div>
         <div class="ai-hist-list">
           ${state.aiChats.length? state.aiChats.map(c=>`
@@ -966,7 +966,7 @@ ${fileGenerationTrainingText()}`;
       requestAnimationFrame(blurAiInputIfAny);
     }, true); // bắt ở giai đoạn CAPTURE — chặn TRƯỚC khi bất kỳ nút/thao tác nào khác bên trong kịp xử lý, đúng yêu cầu "chỉ có đúng 1 kết quả duy nhất là đóng khung"
     const gotoNotesBtn = document.getElementById('ai-goto-notes-btn');
-    if(gotoNotesBtn) gotoNotesBtn.onclick = ()=>{ closeAiChat(); openSuperNotes(); };
+    if(gotoNotesBtn) gotoNotesBtn.onclick = ()=>{ closeAiChat(); openQuickNote(); };
     overlay.querySelectorAll('[data-ai-hist]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
         if(e.target.closest('[data-ai-hist-del]')) return;
@@ -981,7 +981,7 @@ ${fileGenerationTrainingText()}`;
       btn.onclick = (e)=>{ e.stopPropagation(); renameAiChat(btn.dataset.aiHistRename); };
     });
 
-    // ---- Icon hành động trên bong bóng tin nhắn: Sửa / Tải lại / Copy / Thêm vào Siêu ghi chú / Xoá ----
+    // ---- Icon hành động trên bong bóng tin nhắn: Sửa / Tải lại / Copy / Thêm vào Ghi chú nhanh / Xoá ----
     overlay.querySelectorAll('[data-bubble-edit]').forEach(btn=>{
       btn.onclick = ()=> startEditMessage(parseInt(btn.dataset.bubbleEdit,10));
     });
@@ -1081,7 +1081,7 @@ ${fileGenerationTrainingText()}`;
     if(sendBtn) sendBtn.onclick = doSend;
     wireAutoResizeTextarea('ai-input');
     if(inputEl){
-      // Không tự động focus — đồng bộ với các module AI khác (Siêu ghi chú/Tuyên truyền/Thêm nhanh
+      // Không tự động focus — đồng bộ với các module AI khác (Ghi chú nhanh/Tuyên truyền/Thêm nhanh
       // bằng AI): mặc định KHÔNG có con trỏ văn bản, chỉ khi người dùng TỰ bấm vào khung chat mới có
       // con trỏ để nhập. (Trước đây dòng focus() gắn cứng ở đây chạy lại MỖI LẦN vẽ lại toàn bộ khung
       // chat — kể cả khi chỉ bấm nút "Thêm thành phần" cũng kích hoạt vẽ lại — khiến con trỏ tự xuất

@@ -2150,7 +2150,7 @@
         state.admins={}; state.aiChats=[]; state.aiActiveChatId=null; state._aiChatOpen=false; state._adminViewingWard=false;
         state.propagandaChats=[]; state.propagandaActiveChatId=null; state._propagandaChatsLoaded=false; state.propagandaPendingAttachments=[];
         state.knowledgeTree={}; state.knowledgeCurrentFolder=null; state.knowledgeTrashOpen=false;
-        state._superNotesOpen=false; state._superNotesCache=null;
+        state._quickNoteOpen=false; state._quickNoteCache=null;
         state.view = 'login';
         render();
         return;
@@ -2551,14 +2551,14 @@
     });
   }
   // Cho phép kéo-thả 1 nút/khung nổi (fixed) theo CHIỀU DỌC MÀ THÔI (không cho đổi vị trí ngang) —
-  // dùng chung cho nút Chat AI, Siêu ghi chú, và nút Thao tác (ẩn/hiện menu). Vị trí thay đổi NGAY LẬP
+  // dùng chung cho nút Chat AI, Ghi chú nhanh, và nút Thao tác (ẩn/hiện menu). Vị trí thay đổi NGAY LẬP
   // TỨC theo thời gian thực trong lúc đang kéo. KHÔNG lưu lại vị trí — mỗi lần vào lại app (tải lại
   // trang) đều tự động bắt đầu lại đúng vị trí mặc định ban đầu, đúng yêu cầu; trong CÙNG 1 phiên làm
   // việc thì vị trí vừa kéo được giữ nguyên xuyên suốt (vì phần tử DOM không bị tạo lại giữa các lần
   // vẽ lại — chỉ tạo đúng 1 lần).
   // verticalProp: 'bottom' hoặc 'top' — tuỳ phần tử đang định vị theo cạnh nào.
   // rememberKey (tuỳ chọn): nếu phần tử này có thể bị VẼ LẠI (tạo mới) thường xuyên trong 1 phiên làm
-  // việc (VD nút "Thao tác" — nằm trong HTML render() chính, không giống nút Chat AI/Siêu ghi chú được
+  // việc (VD nút "Thao tác" — nằm trong HTML render() chính, không giống nút Chat AI/Ghi chú nhanh được
   // tạo đúng 1 lần) — truyền vào 1 tên khoá bất kỳ để hàm này tự ghi nhớ + tự áp dụng lại đúng vị trí
   // đã kéo mỗi lần phần tử mới được tạo ra, không bị "quên" mất vị trí sau mỗi lần vẽ lại.
   window.__vDragPositions = window.__vDragPositions || {};
@@ -2624,7 +2624,7 @@
       if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
       const notesWrap = document.getElementById('fab-notes-wrap');
       if(notesWrap) notesWrap.remove();
-      const notesOverlay = document.getElementById('super-notes-overlay');
+      const notesOverlay = document.getElementById('quick-note-overlay');
       if(notesOverlay) notesOverlay.remove();
       const peopleBtn = document.getElementById('fab-people-btn');
       if(peopleBtn) peopleBtn.remove();
@@ -2654,7 +2654,7 @@
       if(aiOutsideClickHandler){ document.removeEventListener('click', aiOutsideClickHandler); aiOutsideClickHandler = null; }
     }
 
-    // ---- Icon "Siêu ghi chú" — hiện cho MỌI phiên đang ở giao diện chính (kể cả tham quan/khách
+    // ---- Icon "Ghi chú nhanh" — hiện cho MỌI phiên đang ở giao diện chính (kể cả tham quan/khách
     // qua mã, để họ vẫn thấy được module + cảnh báo tương ứng — quyền hạn xử lý bên trong module).
     let notesWrap = document.getElementById('fab-notes-wrap');
     {
@@ -2663,20 +2663,20 @@
         notesWrap.id = 'fab-notes-wrap';
         notesWrap.className = 'fab-notes-wrap';
         const willShowPopup = !!state._showWardWelcome;
-        notesWrap.innerHTML = `<button id="fab-notes-btn" class="fab-notes-btn ${willShowPopup?'fab-pre-popup':'fab-intro'}" title="Siêu ghi chú" data-tooltip="Siêu ghi chú">🗒️</button>`;
+        notesWrap.innerHTML = `<button id="fab-notes-btn" class="fab-notes-btn ${willShowPopup?'fab-pre-popup':'fab-intro'}" title="Ghi chú nhanh" data-tooltip="Ghi chú nhanh">🗒️</button>`;
         document.body.appendChild(notesWrap);
-        notesWrap.querySelector('#fab-notes-btn').onclick = openSuperNotes;
+        notesWrap.querySelector('#fab-notes-btn').onclick = openQuickNote;
         if(!willShowPopup) setTimeout(()=>{ const b = document.getElementById('fab-notes-btn'); if(b) b.classList.remove('fab-intro'); }, 5000);
       }
-      if(state._superNotesOpen && !document.getElementById('super-notes-overlay')){
-        renderSuperNotesOverlay();
-      } else if(!state._superNotesOpen){
-        const notesOverlay = document.getElementById('super-notes-overlay');
+      if(state._quickNoteOpen && !document.getElementById('quick-note-overlay')){
+        renderQuickNoteOverlay();
+      } else if(!state._quickNoteOpen){
+        const notesOverlay = document.getElementById('quick-note-overlay');
         if(notesOverlay) notesOverlay.remove();
       }
     }
 
-    // ---- Icon "Chat với Mọi người" — nút thứ 3, luôn nằm ngay dưới "Siêu ghi chú", LUÔN dính liền
+    // ---- Icon "Chat với Mọi người" — nút thứ 3, luôn nằm ngay dưới "Ghi chú nhanh", LUÔN dính liền
     // và di chuyển CÙNG LÚC với 2 nút phía trên khi kéo-thả bất kỳ nút nào trong 3 nút này.
     let peopleBtn = document.getElementById('fab-people-btn');
     if(!peopleBtn){
@@ -2730,24 +2730,24 @@
     state.sidebarCollapsed = false;
     applySidebarCollapsedVisual(false);
   }
-  // Chuyển từ Chat AI sang Siêu ghi chú và ngược lại — ẩn bên này, mở thẳng bên kia, mượt mà.
-  async function openSuperNotes(){
+  // Chuyển từ Chat AI sang Ghi chú nhanh và ngược lại — ẩn bên này, mở thẳng bên kia, mượt mà.
+  async function openQuickNote(){
     closeAiChat();
-    state._superNotesOpen = true;
+    state._quickNoteOpen = true;
     // Ghi chú nhanh không còn cây thư mục hay không gian lưu trữ riêng — mọi ghi chú
     // được lưu thẳng vào Trung tâm dữ liệu (Bộ cá nhân) nên không cần gắn realtime gì ở đây.
-    renderSuperNotesOverlay();
+    renderQuickNoteOverlay();
     // Đảm bảo KHÔNG có con trỏ văn bản (và do đó KHÔNG có bàn phím ảo tự bật lên trên điện thoại) ngay
     // lúc vừa mở module — chỉ khi người dùng TỰ bấm vào khung nhập thì mới có con trỏ để nhập liệu.
     requestAnimationFrame(()=>{
       if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
     });
   }
-  function closeSuperNotes(){
-    state._superNotesOpen = false;
-    const overlay = document.getElementById('super-notes-overlay');
+  function closeQuickNote(){
+    state._quickNoteOpen = false;
+    const overlay = document.getElementById('quick-note-overlay');
     if(overlay) overlay.remove();
-    if(snOutsideClickHandler){ document.removeEventListener('click', snOutsideClickHandler); snOutsideClickHandler = null; }
+    if(qnOutsideClickHandler){ document.removeEventListener('click', qnOutsideClickHandler); qnOutsideClickHandler = null; }
     // Thoát module ra thì LUÔN hiện khung menu chính (bất kể trước đây đang đóng hay mở).
     state.sidebarCollapsed = false;
     applySidebarCollapsedVisual(false);
@@ -2880,7 +2880,7 @@
   // Micro — nhận dạng giọng nói (Web Speech API), điền thẳng vào ô nhập, y hệt icon micro của Gemini.
   let aiRecognition = null;
   let aiOutsideClickHandler = null; // tham chiếu handler "bấm ra ngoài để đóng dropdown" — dùng để gỡ đúng lúc đóng chat
-  let snOutsideClickHandler = null; // tương tự, dùng cho dropdown trong Siêu ghi chú
+  let qnOutsideClickHandler = null; // tương tự, dùng cho dropdown trong Ghi chú nhanh
   // Bảng thông báo nhỏ "Đang lắng nghe..." khi micro (1 hoặc 2) đang hoạt động — CỐ Ý không có nút
   // đóng/X nào cả (chỉ tự ẩn khi dừng nghe, qua đúng các nút bên trong bảng hoặc các nút dừng khác).
   let micStatusTimerInterval = null;
@@ -3236,8 +3236,8 @@
     aiRecorder2.start();
   }
   function toggleAiRecordThenTranscribe(){ toggleMic2Generic('ai', renderAiChatOverlay); }
-  function toggleNotesMic(){ toggleMicGeneric('sn', renderSuperNotesOverlay); }
-  function toggleNotesMic2(){ toggleMic2Generic('sn', renderSuperNotesOverlay); }
+  function toggleNotesMic(){ toggleMicGeneric('sn', renderQuickNoteOverlay); }
+  function toggleNotesMic2(){ toggleMic2Generic('sn', renderQuickNoteOverlay); }
   function togglePgMic(){ toggleMicGeneric('pg', renderPropagandaOverlay); }
   function togglePgMic2(){ toggleMic2Generic('pg', renderPropagandaOverlay); }
   function toggleQaiMic(rerenderFn){ toggleMicGeneric('qai', rerenderFn); }
@@ -3306,16 +3306,16 @@ ${projectLines? projectLines+'\n' : ''}- Tổng số hộ đang vay: ${list.leng
 (Đây là số liệu tóm tắt tức thời từ phần mềm, có thể không phản ánh 100% chi tiết từng hộ — khuyên người dùng đối chiếu lại Module "Sổ vay vốn" nếu cần độ chính xác tuyệt đối.)`;
     }
     // Yêu cầu mới: nạp "Bối cảnh tri thức" — gộp Nguồn 1 (kho tri thức chung do Admin huấn luyện)
-    // và Nguồn 2 (Siêu ghi chú cá nhân của chính người dùng đang chat) — dùng CHUNG cho mọi model
+    // và Nguồn 2 (ghi chú cá nhân trong Trung tâm dữ liệu của chính người dùng đang chat) — dùng CHUNG cho mọi model
     // AI, ở mọi tầng dự phòng (Gemini Pro/Flash, ChatGPT, Claude...).
     // KHÁCH THAM QUAN (chưa đăng nhập, chưa có mã định danh thật — state.previewMode) KHÔNG có
-    // kho Siêu ghi chú nào cả -> bỏ qua hẳn bước quét Nguồn 2 cho gọn, chỉ còn Nguồn 1 + kiến thức
+    // kho ghi chú cá nhân nào cả -> bỏ qua hẳn bước quét Nguồn 2 cho gọn, chỉ còn Nguồn 1 + kiến thức
     // nền sẵn có của mô hình AI (Nguồn 3).
     let knowledgeBlock = '';
     try{
       const [systemKnowledge, personalNotes] = await Promise.all([
         getSystemKnowledgeCached(),
-        state.previewMode ? Promise.resolve('') : getUserSuperNotesKnowledgeCached(),
+        state.previewMode ? Promise.resolve('') : getUserQuickNoteKnowledgeCached(),
       ]);
       if(systemKnowledge) knowledgeBlock += `\n\n===== TÀI LIỆU TRI THỨC NỀN DO ADMIN CUNG CẤP (ưu tiên tham khảo khi trả lời nghiệp vụ/hướng dẫn sử dụng) =====\n${systemKnowledge}`;
       if(personalNotes) knowledgeBlock += `\n\n===== SIÊU GHI CHÚ CÁ NHÂN CỦA NGƯỜI ĐANG CHAT (ưu tiên cao nhất — đây là ghi chú riêng của chính họ) =====\n${personalNotes}`;

@@ -1,5 +1,5 @@
   // =====================================================================
-  // Không gian [Ghi chú nhanh] — tên nội bộ vẫn là superNotes*/sn-* trong mã.
+  // Không gian [Ghi chú nhanh] — tên nội bộ vẫn là quickNote*/sn-* trong mã.
   //
   // Trước đây module này có cây thư mục và hai không gian lưu trữ riêng, trùng
   // hoàn toàn với Trung tâm dữ liệu. Nay nó chỉ còn ĐÚNG MỘT việc: soạn nội
@@ -9,69 +9,69 @@
   // Khung bên trái vì thế rất tối giản: chỉ còn lối thoát và lối sang Chat AI.
   // Chỗ trống bên dưới dành cho các nâng cấp sau này.
   // =====================================================================
-  function renderSuperNotesOverlay(){
-    const draftInput = document.getElementById('sn-input');
-    if(draftInput && !state._snDraftCaptureSuppressed) state._snDraftText = draftInput.value;
-    let overlay = document.getElementById('super-notes-overlay');
+  function renderQuickNoteOverlay(){
+    const draftInput = document.getElementById('qn-input');
+    if(draftInput && !state._qnDraftCaptureSuppressed) state._qnDraftText = draftInput.value;
+    let overlay = document.getElementById('quick-note-overlay');
     let firstCreate = false;
     if(!overlay){
-      overlay = document.createElement('div'); overlay.id = 'super-notes-overlay'; overlay.className = 'ai-overlay';
+      overlay = document.createElement('div'); overlay.id = 'quick-note-overlay'; overlay.className = 'ai-overlay';
       document.body.appendChild(overlay);
       firstCreate = true;
     }
     const provider = getActiveAiProvider();
 
     overlay.innerHTML = `
-      <div class="ai-sidebar ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar" style="display:flex; flex-direction:column;">
-        <button class="ai-exit-btn" id="sn-exit-btn">✕ THOÁT</button>
-        <button class="ai-newchat-btn" id="sn-goto-chat-btn">💬 Chat với AI Chàng Nông dân Thông minh</button>
-        <button class="ai-newchat-btn" id="sn-goto-drive-btn">🗂️ Mở Trung tâm dữ liệu</button>
-        <div class="sn-side-note">
+      <div class="ai-sidebar ${state._qnSidebarCollapsed?'collapsed':''}" id="qn-sidebar" style="display:flex; flex-direction:column;">
+        <button class="ai-exit-btn" id="qn-exit-btn">✕ THOÁT</button>
+        <button class="ai-newchat-btn" id="qn-goto-chat-btn">💬 Chat với AI Chàng Nông dân Thông minh</button>
+        <button class="ai-newchat-btn" id="qn-goto-drive-btn">🗂️ Mở Trung tâm dữ liệu</button>
+        <div class="qn-side-note">
           <b>Ghi chú nhanh</b>
           <span>Soạn nội dung ở khung bên phải. Xong, bạn chọn thư mục trong Trung tâm dữ liệu để lưu.</span>
         </div>
       </div>
-      <button class="ai-sidebar-toggle-btn preview-allow ${state._snSidebarCollapsed?'collapsed':''}" id="sn-sidebar-toggle-btn" title="${state._snSidebarCollapsed?'Mở khung thao tác':'Đóng khung thao tác'}">${state._snSidebarCollapsed?'▶':'◀'}</button>
-      <div class="ai-sidebar-scrim ${!state._snSidebarCollapsed?'show':''}" id="sn-sidebar-scrim"></div>
-      <button class="ai-close-fab preview-allow" id="sn-close-fab" title="Đóng Ghi chú nhanh">✕</button>
-      <div class="ai-main ${state._snSidebarCollapsed?'ai-sidebar-collapsed':''}" id="sn-main-panel">
+      <button class="ai-sidebar-toggle-btn preview-allow ${state._qnSidebarCollapsed?'collapsed':''}" id="qn-sidebar-toggle-btn" title="${state._qnSidebarCollapsed?'Mở khung thao tác':'Đóng khung thao tác'}">${state._qnSidebarCollapsed?'▶':'◀'}</button>
+      <div class="ai-sidebar-scrim ${!state._qnSidebarCollapsed?'show':''}" id="qn-sidebar-scrim"></div>
+      <button class="ai-close-fab preview-allow" id="qn-close-fab" title="Đóng Ghi chú nhanh">✕</button>
+      <div class="ai-main ${state._qnSidebarCollapsed?'ai-sidebar-collapsed':''}" id="qn-main-panel">
         <div class="ai-header">🗒️ Ghi chú nhanh</div>
         ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
-        <div class="ai-messages" id="sn-content-area" style="align-items:stretch;">
+        <div class="ai-messages" id="qn-content-area" style="align-items:stretch;">
           <div class="ai-bubble assistant">Chào bạn! Đây là <b>Ghi chú nhanh</b> 📓 — gõ chữ, nói, hoặc tải ảnh/PDF/tài liệu vào khung bên dưới, AI sẽ đọc và biên tập sạch sẽ thành một ghi chú.<br><br>
           Ghi chú tạo xong được lưu vào <b>Trung tâm dữ liệu</b> (Bộ cá nhân) — bạn chọn thư mục lúc lưu, hoặc bấm lưu nhanh vào thư mục “Ghi chú nhanh”.</div>
-          ${state.superNotesJustCompletedMsg? `<div class="kn-done-banner">✅ ${escapeHtml(state.superNotesJustCompletedMsg)}</div>` : ''}
-          ${state.superNotesReviewMode? `
-            ${(state.superNotesReviewTurns||[]).map(t=>`
+          ${state.quickNoteJustCompletedMsg? `<div class="kn-done-banner">✅ ${escapeHtml(state.quickNoteJustCompletedMsg)}</div>` : ''}
+          ${state.quickNoteReviewMode? `
+            ${(state.quickNoteReviewTurns||[]).map(t=>`
               <div class="ai-bubble-wrap user">
                 <div class="ai-bubble user">${t.text? escapeHtml(t.text) : ''}${t.files&&t.files.length? `<div class="ai-bubble-attach">${t.files.map(f=>`<span class="ai-attach-chip">📎 ${escapeHtml(f.name)}</span>`).join('')}</div>` : ''}</div>
               </div>`).join('')}
             <div class="ai-bubble assistant">Tôi đã xem tài liệu và ghi chú của bạn, bây giờ bạn hãy tiếp tục bổ sung thêm những thành phần tiếp theo ở khung chat bên dưới để hoàn thiện tệp ghi chú này. Nếu bạn không muốn bổ sung gì nữa, hãy chọn các phương án dưới đây:
               <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
-                <button class="btn btn-primary btn-sm" id="sn-review-digest">✅ Hãy tiêu hoá tài liệu bằng AI và tạo ghi chú thành công</button>
-                <button class="btn btn-ghost btn-sm" id="sn-review-skip">⏭️ Bỏ qua bước tiêu hoá tài liệu bằng AI và tạo ghi chú thành công luôn!</button>
+                <button class="btn btn-primary btn-sm" id="qn-review-digest">✅ Hãy tiêu hoá tài liệu bằng AI và tạo ghi chú thành công</button>
+                <button class="btn btn-ghost btn-sm" id="qn-review-skip">⏭️ Bỏ qua bước tiêu hoá tài liệu bằng AI và tạo ghi chú thành công luôn!</button>
               </div>
             </div>` : ''}
-          ${state.superNotesStoppedConfirm? `
+          ${state.quickNoteStoppedConfirm? `
             <div class="ai-bubble assistant">Bạn đã bắt AI dừng tiêu hoá ghi chú và tài liệu của bạn, bạn có muốn đưa thẳng mọi thứ vào ghi chú mà không cần tiêu hoá không?
               <div style="display:flex; gap:8px; margin-top:12px;">
-                <button class="btn btn-primary btn-sm" id="sn-stopped-yes">Có</button>
-                <button class="btn btn-ghost btn-sm" id="sn-stopped-no">Không</button>
+                <button class="btn btn-primary btn-sm" id="qn-stopped-yes">Có</button>
+                <button class="btn btn-ghost btn-sm" id="qn-stopped-no">Không</button>
               </div>
             </div>` : ''}
-          ${state.superNotesProcessing? `
+          ${state.quickNoteProcessing? `
             <div class="ai-bubble assistant thinking" style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
-              <span>⏳ ${waveTextHtml(state.superNotesProcessingMsg||'Đang xử lý')}</span>
-              <button class="btn btn-ghost btn-sm" id="sn-stop-btn" style="flex-shrink:0; white-space:nowrap;">⏹ Dừng lại</button>
+              <span>⏳ ${waveTextHtml(state.quickNoteProcessingMsg||'Đang xử lý')}</span>
+              <button class="btn btn-ghost btn-sm" id="qn-stop-btn" style="flex-shrink:0; white-space:nowrap;">⏹ Dừng lại</button>
             </div>` : ''}
         </div>
 
         <div class="ai-model-bar">
-          <div class="ai-model-select" id="sn-model-select">
+          <div class="ai-model-select" id="qn-model-select">
             <span>${provider? `🧠 ${escapeHtml(provider.label||provider.model)}` : '⚠️ Chưa cấu hình AI'}</span><span class="ai-model-caret">▾</span>
             ${state._aiModelMenuOpen? `<div class="ai-model-dropdown">
               ${state.aiProviders.length? state.aiProviders.map(p=>`
-                <div class="ai-model-opt ${provider&&p.id===provider.id?'active':''}" data-sn-select-provider="${p.id}">
+                <div class="ai-model-opt ${provider&&p.id===provider.id?'active':''}" data-qn-select-provider="${p.id}">
                   ${escapeHtml(p.label||p.model)}<span class="sub">${escapeHtml(p.model)}</span>
                 </div>`).join('') : `<div class="ai-model-opt sub">Chưa có cấu hình AI nào — vào "CÀI ĐẶT ADMIN" để thêm.</div>`}
             </div>` : ''}
@@ -79,160 +79,160 @@
           <span class="ai-model-select" style="margin-left:8px; background:rgba(199,154,43,.1); cursor:default;">💡 Ưu tiên dùng Gemini để đọc ảnh/PDF chính xác nhất</span>
         </div>
 
-        ${state.superNotesPendingFiles.length? `<div class="ai-attach-row">
-          ${state.superNotesPendingFiles.map((f,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(f.name)} <button data-sn-pending-remove="${i}" ${state.superNotesProcessing?'disabled':''}>✕</button></span>`).join('')}
+        ${state.quickNotePendingFiles.length? `<div class="ai-attach-row">
+          ${state.quickNotePendingFiles.map((f,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(f.name)} <button data-qn-pending-remove="${i}" ${state.quickNoteProcessing?'disabled':''}>✕</button></span>`).join('')}
         </div>` : ''}
 
         <div class="ai-inputbar">
-          <div class="ai-add-btn" id="sn-add-btn" role="button" tabindex="0">➕<span class="ai-add-label"> Tải tài liệu lên</span>
+          <div class="ai-add-btn" id="qn-add-btn" role="button" tabindex="0">➕<span class="ai-add-label"> Tải tài liệu lên</span>
             ${state._aiAddMenuOpen? `<div class="ai-add-menu">
-              <div class="ai-add-opt" data-sn-add="file">📄 Tải tài liệu lên (ảnh/PDF/Word/Excel...)</div>
-              <div class="ai-add-opt" data-sn-add="folder">🗂️ Thêm thư mục (nhiều tệp cùng lúc)</div>
-              <div class="ai-add-opt${state._snMic2Listening?' ai-add-opt-disabled':''}" data-sn-add="mic">🎤 ${state._snMicListening? '✅ Đang nghe — bấm để dừng' : 'Vừa nói vừa ra chữ'}</div>
-              <div class="ai-add-opt${state._snMicListening?' ai-add-opt-disabled':''}" data-sn-add="mic2">🎙️ ${state._snMic2Listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ'}</div>
+              <div class="ai-add-opt" data-qn-add="file">📄 Tải tài liệu lên (ảnh/PDF/Word/Excel...)</div>
+              <div class="ai-add-opt" data-qn-add="folder">🗂️ Thêm thư mục (nhiều tệp cùng lúc)</div>
+              <div class="ai-add-opt${state._qnMic2Listening?' ai-add-opt-disabled':''}" data-qn-add="mic">🎤 ${state._qnMicListening? '✅ Đang nghe — bấm để dừng' : 'Vừa nói vừa ra chữ'}</div>
+              <div class="ai-add-opt${state._qnMicListening?' ai-add-opt-disabled':''}" data-qn-add="mic2">🎙️ ${state._qnMic2Listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ'}</div>
             </div>` : ''}
           </div>
-          <textarea id="sn-input" rows="1" placeholder="Gõ nội dung, hoặc tải ảnh/PDF/tài liệu để AI tự tạo ghi chú... (Enter xuống dòng, Ctrl+Enter gửi)" ${state.superNotesProcessing?'disabled':''}>${escapeHtml(state._snDraftText||'')}</textarea>
+          <textarea id="qn-input" rows="1" placeholder="Gõ nội dung, hoặc tải ảnh/PDF/tài liệu để AI tự tạo ghi chú... (Enter xuống dòng, Ctrl+Enter gửi)" ${state.quickNoteProcessing?'disabled':''}>${escapeHtml(state._qnDraftText||'')}</textarea>
           <div class="ai-send-wrap">
             <span class="ai-send-tooltip">Bấm Ctrl+Enter để gửi nhanh</span>
-            <button id="sn-send-btn" ${state.superNotesProcessing?'disabled':''}>➤</button>
+            <button id="qn-send-btn" ${state.quickNoteProcessing?'disabled':''}>➤</button>
           </div>
         </div>
       </div>`;
 
-    const contentArea = document.getElementById('sn-content-area');
+    const contentArea = document.getElementById('qn-content-area');
     if(contentArea) contentArea.scrollTop = contentArea.scrollHeight;
 
-    document.getElementById('sn-exit-btn').onclick = closeSuperNotes;
-    const snCloseFab = document.getElementById('sn-close-fab');
-    if(snCloseFab) snCloseFab.onclick = closeSuperNotes;
+    document.getElementById('qn-exit-btn').onclick = closeQuickNote;
+    const snCloseFab = document.getElementById('qn-close-fab');
+    if(snCloseFab) snCloseFab.onclick = closeQuickNote;
     // Đóng/mở khung danh sách ghi chú bên trái — hiệu ứng, cách hoạt động y hệt module Chat AI.
-    const blurSnInputIfAny = ()=>{ const inp = document.getElementById('sn-input'); if(inp && document.activeElement===inp) inp.blur(); };
-    const snSidebarToggleBtn = document.getElementById('sn-sidebar-toggle-btn');
+    const blurQnInputIfAny = ()=>{ const inp = document.getElementById('qn-input'); if(inp && document.activeElement===inp) inp.blur(); };
+    const snSidebarToggleBtn = document.getElementById('qn-sidebar-toggle-btn');
     if(snSidebarToggleBtn) snSidebarToggleBtn.onclick = (e)=>{
       e.stopPropagation();
-      state._snSidebarCollapsed = !state._snSidebarCollapsed;
-      renderSuperNotesOverlay();
-      requestAnimationFrame(blurSnInputIfAny);
+      state._qnSidebarCollapsed = !state._qnSidebarCollapsed;
+      renderQuickNoteOverlay();
+      requestAnimationFrame(blurQnInputIfAny);
     };
-    const snSidebarScrim = document.getElementById('sn-sidebar-scrim');
-    if(snSidebarScrim) snSidebarScrim.onclick = ()=>{ state._snSidebarCollapsed = true; renderSuperNotesOverlay(); requestAnimationFrame(blurSnInputIfAny); };
-    const snMainPanel = document.getElementById('sn-main-panel');
+    const snSidebarScrim = document.getElementById('qn-sidebar-scrim');
+    if(snSidebarScrim) snSidebarScrim.onclick = ()=>{ state._qnSidebarCollapsed = true; renderQuickNoteOverlay(); requestAnimationFrame(blurQnInputIfAny); };
+    const snMainPanel = document.getElementById('qn-main-panel');
     if(snMainPanel) snMainPanel.addEventListener('click', (e)=>{
       if(!isNarrowScreenForSidebar()) return;
-      if(state._snSidebarCollapsed) return;
+      if(state._qnSidebarCollapsed) return;
       e.preventDefault();
       e.stopPropagation();
-      state._snSidebarCollapsed = true;
-      renderSuperNotesOverlay();
-      requestAnimationFrame(blurSnInputIfAny);
+      state._qnSidebarCollapsed = true;
+      renderQuickNoteOverlay();
+      requestAnimationFrame(blurQnInputIfAny);
     }, true);
-    document.getElementById('sn-goto-chat-btn').onclick = ()=>{ closeSuperNotes(); openAiChat(); };
-    const gotoDriveBtn = document.getElementById('sn-goto-drive-btn');
-    if(gotoDriveBtn) gotoDriveBtn.onclick = ()=>{ closeSuperNotes(); state.activeTab = 'drive'; render(); };
+    document.getElementById('qn-goto-chat-btn').onclick = ()=>{ closeQuickNote(); openAiChat(); };
+    const gotoDriveBtn = document.getElementById('qn-goto-drive-btn');
+    if(gotoDriveBtn) gotoDriveBtn.onclick = ()=>{ closeQuickNote(); state.activeTab = 'drive'; render(); };
 
     // ---- thanh chọn model AI (dùng chung logic với Chat AI) ----
-    const modelSelectEl = document.getElementById('sn-model-select');
+    const modelSelectEl = document.getElementById('qn-model-select');
     if(modelSelectEl) modelSelectEl.addEventListener('click', (e)=>{ e.stopPropagation(); toggleAiModelMenu(); });
-    overlay.querySelectorAll('[data-sn-select-provider]').forEach(elx=>{
-      elx.addEventListener('click', (e)=>{ e.stopPropagation(); selectAiProvider(elx.dataset.snSelectProvider); renderSuperNotesOverlay(); });
+    overlay.querySelectorAll('[data-qn-select-provider]').forEach(elx=>{
+      elx.addEventListener('click', (e)=>{ e.stopPropagation(); selectAiProvider(elx.dataset.qnSelectProvider); renderQuickNoteOverlay(); });
     });
 
     // ---- nút "Tải tài liệu lên" (đổi tên từ "THÊM THÀNH PHẦN") — chỉ THÊM vào danh sách chờ,
     // KHÔNG xử lý ngay, để người dùng xem lại/gỡ bớt trước khi tự bấm Gửi ----
-    const addBtn = document.getElementById('sn-add-btn');
+    const addBtn = document.getElementById('qn-add-btn');
     if(addBtn) addBtn.addEventListener('click', (e)=>{
       e.stopPropagation();
       state._aiAddMenuOpen = !state._aiAddMenuOpen;
-      // Ô nhập liệu <textarea id="sn-input"> KHÔNG hề gắn với biến trạng thái nào (chỉ là DOM thao tác
+      // Ô nhập liệu <textarea id="qn-input"> KHÔNG hề gắn với biến trạng thái nào (chỉ là DOM thao tác
       // tay thuần tuý) — nên mỗi lần vẽ lại TOÀN BỘ khung, ô này sẽ bị dựng lại RỖNG, xoá sạch chữ đang
       // gõ dở. Lưu lại giá trị TRƯỚC khi vẽ lại, rồi khôi phục lại NGAY SAU đó.
-      const inputEl = document.getElementById('sn-input');
+      const inputEl = document.getElementById('qn-input');
       const savedValue = inputEl ? inputEl.value : '';
-      renderSuperNotesOverlay();
-      const inputElAfter = document.getElementById('sn-input');
+      renderQuickNoteOverlay();
+      const inputElAfter = document.getElementById('qn-input');
       if(inputElAfter && savedValue) inputElAfter.value = savedValue;
       if(inputElAfter) autoResizeTextarea(inputElAfter);
     });
-    overlay.querySelectorAll('[data-sn-add]').forEach(elx=>{
+    overlay.querySelectorAll('[data-qn-add]').forEach(elx=>{
       elx.addEventListener('click', (e)=>{
         e.stopPropagation();
         state._aiAddMenuOpen = false;
-        if(elx.dataset.snAdd==='mic' || elx.dataset.snAdd==='mic2'){
+        if(elx.dataset.qnAdd==='mic' || elx.dataset.qnAdd==='mic2'){
           // Đóng NGAY menu bằng thao tác DOM trực tiếp — 2 hàm mic bên dưới không được phép vẽ lại toàn
           // bộ khung (sẽ làm mất chữ đang gõ dở), nên chỉ đặt state không đủ để menu biến mất trên màn
           // hình, phải tự tay gỡ khung menu khỏi trang ngay tại đây.
-          const menuEl = document.querySelector('#sn-add-btn .ai-add-menu');
+          const menuEl = document.querySelector('#qn-add-btn .ai-add-menu');
           if(menuEl) menuEl.remove();
-          if(elx.dataset.snAdd==='mic') toggleNotesMic(); else toggleNotesMic2();
+          if(elx.dataset.qnAdd==='mic') toggleNotesMic(); else toggleNotesMic2();
           return;
         }
         const input = document.createElement('input');
         input.type = 'file'; input.multiple = true;
-        if(elx.dataset.snAdd==='folder') input.webkitdirectory = true;
+        if(elx.dataset.qnAdd==='folder') input.webkitdirectory = true;
         input.onchange = ()=>{
-          state.superNotesPendingFiles = state.superNotesPendingFiles.concat(Array.from(input.files||[]));
-          renderSuperNotesOverlay();
+          state.quickNotePendingFiles = state.quickNotePendingFiles.concat(Array.from(input.files||[]));
+          renderQuickNoteOverlay();
         };
         input.click();
       });
     });
-    overlay.querySelectorAll('[data-sn-pending-remove]').forEach(btn=>{
+    overlay.querySelectorAll('[data-qn-pending-remove]').forEach(btn=>{
       btn.onclick = ()=>{
-        state.superNotesPendingFiles.splice(parseInt(btn.dataset.snPendingRemove,10), 1);
-        renderSuperNotesOverlay();
+        state.quickNotePendingFiles.splice(parseInt(btn.dataset.qnPendingRemove,10), 1);
+        renderQuickNoteOverlay();
       };
     });
 
     // ---- Dừng lại giữa chừng khi AI đang tiêu hoá — huỷ request đang chạy, GIỮ NGUYÊN nội dung/tệp ----
-    const stopBtn = document.getElementById('sn-stop-btn');
-    if(stopBtn) stopBtn.onclick = ()=>{ if(state.superNotesAbortController) state.superNotesAbortController.abort(); };
+    const stopBtn = document.getElementById('qn-stop-btn');
+    if(stopBtn) stopBtn.onclick = ()=>{ if(state.quickNoteAbortController) state.quickNoteAbortController.abort(); };
 
     // ---- Xác nhận trước khi tiêu hoá (2 nút) ----
-    const reviewDigestBtn = document.getElementById('sn-review-digest');
-    if(reviewDigestBtn) reviewDigestBtn.onclick = ()=> finalizeSuperNoteReview(true);
-    const reviewSkipBtn = document.getElementById('sn-review-skip');
-    if(reviewSkipBtn) reviewSkipBtn.onclick = ()=> finalizeSuperNoteReview(false);
+    const reviewDigestBtn = document.getElementById('qn-review-digest');
+    if(reviewDigestBtn) reviewDigestBtn.onclick = ()=> finalizeQuickNoteReview(true);
+    const reviewSkipBtn = document.getElementById('qn-review-skip');
+    if(reviewSkipBtn) reviewSkipBtn.onclick = ()=> finalizeQuickNoteReview(false);
 
     // ---- Xác nhận sau khi bấm Dừng (Có/Không đưa thẳng vào ghi chú) ----
-    const stoppedYesBtn = document.getElementById('sn-stopped-yes');
-    if(stoppedYesBtn) stoppedYesBtn.onclick = ()=> resolveSuperNoteStoppedConfirm(true);
-    const stoppedNoBtn = document.getElementById('sn-stopped-no');
-    if(stoppedNoBtn) stoppedNoBtn.onclick = ()=> resolveSuperNoteStoppedConfirm(false);
+    const stoppedYesBtn = document.getElementById('qn-stopped-yes');
+    if(stoppedYesBtn) stoppedYesBtn.onclick = ()=> resolveQuickNoteStoppedConfirm(true);
+    const stoppedNoBtn = document.getElementById('qn-stopped-no');
+    if(stoppedNoBtn) stoppedNoBtn.onclick = ()=> resolveQuickNoteStoppedConfirm(false);
 
     // Bấm ra ngoài thì đóng dropdown "THÊM/model" (gắn 1 lần duy nhất lúc tạo overlay)
     if(firstCreate){
-      snOutsideClickHandler = ()=>{
+      qnOutsideClickHandler = ()=>{
         if(state._aiModelMenuOpen || state._aiAddMenuOpen){
           state._aiModelMenuOpen = false; state._aiAddMenuOpen = false;
-          if(document.getElementById('super-notes-overlay')) renderSuperNotesOverlay();
+          if(document.getElementById('quick-note-overlay')) renderQuickNoteOverlay();
         }
       };
-      document.addEventListener('click', snOutsideClickHandler);
+      document.addEventListener('click', qnOutsideClickHandler);
     }
 
     // ---- gửi nội dung gõ tay + tệp đang chờ -> ĐƯA VÀO BƯỚC XÁC NHẬN trước khi tiêu hoá ----
-    const sendBtn = document.getElementById('sn-send-btn');
-    const inputEl = document.getElementById('sn-input');
+    const sendBtn = document.getElementById('qn-send-btn');
+    const inputEl = document.getElementById('qn-input');
     const doSend = ()=>{
       const v = inputEl.value;
-      if(!v.trim() && !state.superNotesPendingFiles.length) return;
-      const files = state.superNotesPendingFiles.slice();
-      // Chuyển gói vừa gửi khỏi draft đang hiển thị. queueSuperNoteForReview() sẽ vẽ lại overlay,
+      if(!v.trim() && !state.quickNotePendingFiles.length) return;
+      const files = state.quickNotePendingFiles.slice();
+      // Chuyển gói vừa gửi khỏi draft đang hiển thị. queueQuickNoteForReview() sẽ vẽ lại overlay,
       // nên tạm ngăn render bắt lại nội dung cũ từ textarea trước khi nó bị xoá.
-      state._snDraftText = '';
-      state._snDraftCaptureSuppressed = true;
+      state._qnDraftText = '';
+      state._qnDraftCaptureSuppressed = true;
       try{
-        queueSuperNoteForReview(v, files);
+        queueQuickNoteForReview(v, files);
         inputEl.value = '';
-        state.superNotesPendingFiles = [];
-        renderSuperNotesOverlay();
+        state.quickNotePendingFiles = [];
+        renderQuickNoteOverlay();
       }finally{
-        state._snDraftCaptureSuppressed = false;
+        state._qnDraftCaptureSuppressed = false;
       }
     };
     if(sendBtn) sendBtn.onclick = doSend;
-    wireAutoResizeTextarea('sn-input');
+    wireAutoResizeTextarea('qn-input');
     if(inputEl){
       inputEl.addEventListener('keydown', (e)=>{
         if(e.key==='Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); doSend(); }
@@ -724,7 +724,7 @@
     items.push({id:'docs', ico:'📄', label:'Tài liệu'});
     items.push({id:'sheets', ico:'📊', label:'Trang tính'});
     items.push({id:'slides', ico:'📽️', label:'Trình bày'});
-    // "Siêu ghi chú" KHÔNG có mục riêng trong menu trái: lối vào duy nhất là nút nổi 🗒️ ở góc
+    // "Ghi chú nhanh" KHÔNG có mục riêng trong menu trái: lối vào duy nhất là nút nổi 🗒️ ở góc
     // phải màn hình (fab-notes-btn, dựng trong 07-core-modules.js). Trước đây có cả hai lối vào
     // cùng mở đúng một overlay nên bị trùng lặp; nay gom về một.
     // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — nằm ngay phía trên "Cài đặt & Chia sẻ"
@@ -815,7 +815,7 @@
     document.querySelectorAll('.nav-item').forEach(el=>{
       el.onclick = ()=>{
         const clickedTab = el.dataset.tab;
-        // "Tạo bài Tuyên truyền" giờ là overlay toàn màn hình (y hệt Chat AI/Siêu ghi chú) — KHÔNG đổi
+        // "Tạo bài Tuyên truyền" giờ là overlay toàn màn hình (y hệt Chat AI/Ghi chú nhanh) — KHÔNG đổi
         // state.activeTab, chỉ mở overlay lên; khi thoát ra vẫn ở đúng module trước đó, không bị chuyển tab.
         if(clickedTab==='propaganda'){ openPropagandaModule(); state.bellOpen=false; render(); return; }
         state.activeTab = clickedTab;
@@ -2645,7 +2645,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       };
       wrap.querySelector('#qai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };
       wireAutoResizeTextarea('qai-input');
-      // Không tự động focus — đồng bộ với các module AI khác (Chat AI/Siêu ghi chú/Tuyên truyền): mặc
+      // Không tự động focus — đồng bộ với các module AI khác (Chat AI/Ghi chú nhanh/Tuyên truyền): mặc
       // định KHÔNG có con trỏ văn bản, chỉ khi người dùng TỰ bấm vào khung chat mới có con trỏ để nhập.
       wrap.querySelector('#qai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
       // Bấm vào khung chat (có con trỏ văn bản) -> cũng cuộn xuống cuối luôn, y hệt hiệu ứng nút mũi tên xuống.

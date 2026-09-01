@@ -140,23 +140,23 @@
     knowledgeEditingId:null,   // id file văn bản đang mở trong khung soạn thảo (null = không mở)
     knowledgeUploading:false,
     _systemKnowledgeCache:null, _systemKnowledgeCacheAt:0, // bộ nhớ đệm "Bối cảnh tri thức" cho AI
-    // ---- Siêu ghi chú (cá nhân hoá theo tài khoản) ----
-    _superNotesOpen:false,
-    superNotesPendingAttachments:[], // [{name, mimeType, base64, file}] — tệp chờ AI tiêu hoá
-    superNotesProcessing:false,
-    superNotesProcessingMsg:'',
-    superNotesPendingFiles:[], // [File] — tệp đã chọn, đang chờ trong ô nhập (chưa gửi xử lý)
-    superNotesAbortController:null, // dùng để Dừng lại giữa chừng khi AI đang tiêu hoá
-    superNotesJustCompleted:false,  // hiện banner "Đã xong!" — giờ KHÔNG tự ẩn nữa (do AI "nói")
-    superNotesJustCompletedMsg:'',  // nội dung banner hoàn tất (do AI nói)
-    superNotesReviewMode:false,     // đang ở bước xác nhận trước khi tiêu hoá/bỏ qua
-    superNotesReviewText:'',        // văn bản đã gộp trong lúc chờ xác nhận (dùng khi gửi thật cho AI/lưu thẳng)
-    superNotesReviewFiles:[],       // tệp đã gộp trong lúc chờ xác nhận (dùng khi gửi thật cho AI/lưu thẳng)
-    superNotesReviewTurns:[],       // TỪNG LƯỢT gửi riêng biệt {text, files} — dùng để HIỂN THỊ LẠI đầy đủ như 1 đoạn chat thật (mỗi lần gửi là 1 bong bóng riêng), không bị gộp mất cấu trúc
-    superNotesStoppedConfirm:false, // đang hỏi "có muốn đưa thẳng vào ghi chú không" sau khi Dừng
-    _snDraftText:'', _snDraftCaptureSuppressed:false,
-    _snInFlightText:'', _snInFlightFiles:[], _snInFlightParentId:null,
-    _superNotesCache:null, _superNotesCacheAt:0,
+    // ---- Ghi chú nhanh (cá nhân hoá theo tài khoản) ----
+    _quickNoteOpen:false,
+    quickNotePendingAttachments:[], // [{name, mimeType, base64, file}] — tệp chờ AI tiêu hoá
+    quickNoteProcessing:false,
+    quickNoteProcessingMsg:'',
+    quickNotePendingFiles:[], // [File] — tệp đã chọn, đang chờ trong ô nhập (chưa gửi xử lý)
+    quickNoteAbortController:null, // dùng để Dừng lại giữa chừng khi AI đang tiêu hoá
+    quickNoteJustCompleted:false,  // hiện banner "Đã xong!" — giờ KHÔNG tự ẩn nữa (do AI "nói")
+    quickNoteJustCompletedMsg:'',  // nội dung banner hoàn tất (do AI nói)
+    quickNoteReviewMode:false,     // đang ở bước xác nhận trước khi tiêu hoá/bỏ qua
+    quickNoteReviewText:'',        // văn bản đã gộp trong lúc chờ xác nhận (dùng khi gửi thật cho AI/lưu thẳng)
+    quickNoteReviewFiles:[],       // tệp đã gộp trong lúc chờ xác nhận (dùng khi gửi thật cho AI/lưu thẳng)
+    quickNoteReviewTurns:[],       // TỪNG LƯỢT gửi riêng biệt {text, files} — dùng để HIỂN THỊ LẠI đầy đủ như 1 đoạn chat thật (mỗi lần gửi là 1 bong bóng riêng), không bị gộp mất cấu trúc
+    quickNoteStoppedConfirm:false, // đang hỏi "có muốn đưa thẳng vào ghi chú không" sau khi Dừng
+    _qnDraftText:'', _qnDraftCaptureSuppressed:false,
+    _qnInFlightText:'', _qnInFlightFiles:[], _qnInFlightParentId:null,
+    _quickNoteCache:null, _quickNoteCacheAt:0,
     // ---- Drive Hub (metadata của app; file Google Drive chỉ là liên kết) ----
     driveSpace:'personal',       // 'personal' | 'shared'
     driveResources:{},

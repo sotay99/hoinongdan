@@ -55,11 +55,6 @@
   .office-module-status span{font-size:13px; color:#756f60;}
   .office-module-actions{display:flex; justify-content:center; gap:9px; flex-wrap:wrap;}
   .drive-empty-actions{display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:10px;}
-  .sn-status{margin:0 10px 9px; padding:9px 10px; border-radius:9px; font-size:11px; display:flex; flex-direction:column; gap:4px;}
-  .sn-status-loading{color:rgba(255,255,255,.82); background:rgba(255,255,255,.08);}
-  .sn-status-error{color:#ffe6e6; background:rgba(180,44,44,.28); border:1px solid rgba(255,180,180,.3);}
-  .sn-empty-state{display:flex; flex-direction:column; gap:5px; padding:12px 10px; color:rgba(255,255,255,.72); font-size:12px; line-height:1.5;}
-  .sn-empty-state b{color:#fff;}
   .drive-toolbar{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
   .drive-breadcrumb{display:flex; align-items:center; gap:7px; flex-wrap:wrap; color:#756f60;}
   .drive-breadcrumb button{border:0; background:none; color:var(--rice-dark); font-weight:700; cursor:pointer; padding:4px;}
@@ -555,7 +550,7 @@
   .receipt-head-refund h3{ color:#7a1010 !important; }
   .refund-btn{ border:1px solid #c62828; border-radius:8px; padding:6px 14px; font-weight:700; color:#b71c1c; cursor:pointer; animation: refundBtnPulse 12.6s ease-in-out infinite; }
   /* Tooltip tuỳ chỉnh — hiện NGAY BÊN CẠNH icon (bên trái, vì các nút này luôn nằm sát mép phải màn
-     hình) khi rê chuột vào — dùng chung cho cả 3 nút nổi (Chat AI / Siêu ghi chú / Chat với Mọi người)
+     hình) khi rê chuột vào — dùng chung cho cả 3 nút nổi (Chat AI / Ghi chú nhanh / Chat với Mọi người)
      qua thuộc tính data-tooltip. Chỉ áp dụng khi có thiết bị chuột thật (hover) — không hiện trên cảm
      ứng (tránh vướng víu khi chạm trên điện thoại/máy tính bảng). */
   [data-tooltip]{ position:relative !important; }
@@ -580,7 +575,7 @@
   .fab-chat:hover{ filter:brightness(1.08); opacity:1; }
   @media (max-width:640px){ .fab-chat{ right:0 !important; bottom:14px; width:54px; height:54px; font-size:22px; } }
 
-  /* "Siêu ghi chú" — icon bồng bềnh nằm ngay trên đầu icon Chat AI, y hệt kiểu dáng/hiệu ứng */
+  /* "Ghi chú nhanh" — icon bồng bềnh nằm ngay trên đầu icon Chat AI, y hệt kiểu dáng/hiệu ứng */
   .fab-notes-wrap{ position:fixed !important; right:0 !important; left:auto !important; bottom:96px; top:auto !important; z-index:400; display:flex; flex-direction:column; align-items:center; gap:6px; }
   .fab-notes-label{ background:var(--rice-dark); color:#fff; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,.18); }
   .fab-notes-btn{ width:60px; height:60px; border-radius:50%; background:linear-gradient(145deg, var(--gold), var(--rice-dark)); color:#fff; border:none;
@@ -590,7 +585,7 @@
   .fab-notes-btn.fab-intro{ animation: fabIntro 1s ease-in-out 5 !important; }
   @media (max-width:640px){ .fab-notes-wrap{ right:0 !important; bottom:82px; } .fab-notes-btn{ width:54px; height:54px; font-size:22px; } }
 
-  /* "Chat với Mọi người" — nút thứ 3, ngay dưới "Siêu ghi chú", cùng kích thước/kiểu dáng/hiệu ứng,
+  /* "Chat với Mọi người" — nút thứ 3, ngay dưới "Ghi chú nhanh", cùng kích thước/kiểu dáng/hiệu ứng,
      cùng khoảng cách 74px như giữa 2 nút phía trên. */
   .fab-people-btn{
     position:fixed !important; right:0 !important; left:auto !important; bottom:170px; top:auto !important; width:60px; height:60px; border-radius:50%;
@@ -652,16 +647,10 @@
   .hscroll-btn:hover{ opacity:1; }
   @media (max-width:640px){ .hscroll-btn{ width:32px; height:32px; font-size:14px; } }
 
-  /* Cây thư mục/tệp trong sidebar Siêu ghi chú */
-  .sn-crumbs{ font-size:11px; color:rgba(255,255,255,.75); padding:0 10px 8px; word-break:break-word; }
-  .sn-crumbs span{ cursor:pointer; text-decoration:underline; }
-  .sn-tree-row{ display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:8px; cursor:pointer; font-size:12.5px; color:#fff; }
-  .sn-tree-row:hover{ background:rgba(255,255,255,.1); }
-  .sn-tree-row.active{ background:rgba(255,255,255,.2); font-weight:700; }
-  .sn-tree-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .sn-tree-actions{ display:flex; gap:5px; opacity:.65; flex-shrink:0; }
-  .sn-tree-actions button{ background:none; border:none; color:#fff; cursor:pointer; font-size:11px; padding:0; }
-  .sn-tree-actions button:hover{ opacity:1; }
+  /* Khung nhắc việc trong sidebar Ghi chú nhanh — thay cho cây thư mục đã gỡ */
+  .qn-side-note{margin:10px; padding:11px 12px; border-radius:10px; background:rgba(255,255,255,.08); display:flex; flex-direction:column; gap:5px;}
+  .qn-side-note b{color:#fff; font-size:13px;}
+  .qn-side-note span{color:rgba(255,255,255,.72); font-size:11.5px; line-height:1.55;}
   /* Yêu cầu 6: nhún nhảy/rung rinh sống động trong 5 giây đầu tiên khi vào giao diện chính, để
      thu hút sự chú ý — sau đó tự động chuyển về hiệu ứng "lềnh bềnh" tuần hoàn như bình thường. */
   @keyframes fabIntro{

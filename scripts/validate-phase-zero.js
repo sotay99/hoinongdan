@@ -39,9 +39,9 @@ const checks = [
   ["borrower edit project selection", /if\(!isNew && !state\.modal\.projectId\)/],
   ["borrower project reassignment persistence", /projectId:\s*curProject\.id/],
   ["borrower project change audit", /compareKeysB\s*=\s*\['projectId'/],
-  ["Super Notes draft capture", /state\._snDraftText\s*=\s*draftInput\.value/],
-  ["Super Notes draft restore", /id="sn-input"[\s\S]*state\._snDraftText/],
-  ["Super Notes failed-input restore", /state\.superNotesPendingFiles\s*=\s*\(state\._snInFlightFiles\|\|\[\]\)\.slice\(\)/],
+  ["Ghi chú nhanh: giữ bản nháp đang gõ", /state\._qnDraftText\s*=\s*draftInput\.value/],
+  ["Ghi chú nhanh: khôi phục bản nháp", /id="qn-input"[\s\S]*state\._qnDraftText/],
+  ["Ghi chú nhanh: khôi phục tệp khi lỗi", /state\.quickNotePendingFiles\s*=\s*\(state\._qnInFlightFiles\|\|\[\]\)\.slice\(\)/],
 ];
 const failures = checks.filter(([, pattern]) => !pattern.test(source)).map(([label]) => label);
 
