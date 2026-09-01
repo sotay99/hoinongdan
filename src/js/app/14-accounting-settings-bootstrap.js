@@ -1282,31 +1282,57 @@
     applySidebarCollapsedVisual(false);
   }
 
-  function renderMembersTab(el){
-    el.innerHTML = `
-      <div class="panel">
-        <div class="panel-head"><h3>🪪 Hồ sơ hội viên</h3></div>
-        <div class="panel-body">
-          <div class="empty-state">
-            <div class="e-ico">🚧</div>
-            <p style="font-weight:700; color:var(--rice-dark); letter-spacing:.02em;">TÍNH NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP</p>
-          </div>
-        </div>
-      </div>`;
-  }
+  // =====================================================================
+  // Hai module HỒ SƠ HỘI VIÊN và THỰC LỰC HỘI hiện mới có trang giới thiệu.
+  // Dùng chung khung dựng renderUpcomingModule() của bảy module đang nâng cấp
+  // (định nghĩa ở 15-drive-hub.js) để giao diện thống nhất trong toàn app.
+  //
+  // Nội dung giới thiệu bám sát cách các cơ sở Hội đang làm trên Excel: một
+  // bảng gốc chứa toàn bộ hội viên, các bảng "để in" và "thực lực" theo xã và
+  // theo từng chi hội thôn/ấp đều chạy bằng công thức tham chiếu sang bảng gốc.
+  // =====================================================================
+  const MEMBERS_INTRO = {
+    icon:'🪪', eyebrow:'QUẢN LÝ HỘI VIÊN', title:'Hồ sơ hội viên',
+    lead:'Danh sách hội viên của một xã thường là một tệp Excel nặng vài nghìn dòng, có một bảng gốc và cả chục bảng phụ chạy theo công thức. Sửa một chỗ ở bảng gốc thì mọi bảng khác đổi theo — nhưng chỉ cần gõ thừa một dấu cách là số liệu sai mà máy không hề báo lỗi. Module này thay cách làm ấy bằng một cơ sở dữ liệu hội viên đúng nghĩa.',
+    blocks:[
+      ['📇','Mỗi hội viên là một hồ sơ, không còn là một dòng trong bảng',
+       'Đầy đủ các trường mà cơ sở Hội vẫn phải khai: họ và tên, năm sinh tách theo nam và nữ, dân tộc, tôn giáo, số CCCD, trình độ văn hoá, năm vào Hội, năm cấp thẻ hội viên, nơi ở hiện nay, nơi ở trước sáp nhập, hội viên nòng cốt, chức vụ hiện nay, số điện thoại, ngày và lý do xoá tên, ghi chú. Mở hồ sơ ra là thấy trọn vẹn một con người, không phải rê chuột ngang ba mươi mấy cột.'],
+      ['🌾','Phần sản xuất — kinh doanh gắn liền với hồ sơ',
+       'Diện tích sản xuất, ngành nghề chính, mức thu nhập bình quân một năm, số lao động tham gia, có ở tổ hợp tác hay hợp tác xã nào, loại hình sản xuất, cây trồng vật nuôi chính, quy mô, mức độ ứng dụng khoa học kỹ thuật, sản phẩm tiêu biểu, kênh tiêu thụ, đăng ký danh hiệu Nông dân sản xuất kinh doanh giỏi, mức độ tham gia sinh hoạt Hội, cùng phần thuận lợi — khó khăn — kiến nghị của chính hội viên.'],
+      ['🔤','Nhập bằng cách chọn, không phải gõ tay',
+       'Dân tộc, tôn giáo, chi hội thôn/ấp, danh hiệu, mức độ sinh hoạt đều chọn từ danh mục có sẵn. Đây là chỗ Excel hay hỏng nhất: "S\u0027tiêng" gõ thành "Stiêng" hay lỡ thừa một dấu cách ở đầu ô thì máy coi là hai dân tộc khác nhau, thống kê lệch mà nhìn qua vẫn tưởng đúng. Chọn từ danh mục thì lỗi ấy không còn cửa xảy ra.'],
+      ['📤','Mang nguyên tệp Excel đang dùng vào, không phải nhập lại',
+       'Tải lên tệp danh sách hội viên hiện có, AI đọc hiểu bảng, tự khớp từng cột vào đúng trường hồ sơ rồi đưa lại cho đồng chí duyệt trước khi lưu. Những dòng thiếu thông tin, trùng CCCD hay ghi khác kiểu nhau đều được nhặt riêng ra để đồng chí xử lý, thay vì lẫn vào giữa mấy nghìn dòng.'],
+      ['🚩','Đánh dấu dữ liệu chưa chắc chắn thay vì bỏ trống',
+       'Nhiều hồ sơ có chỗ phải tạm suy đoán — đoán dân tộc theo họ, đoán năm sinh khi chưa có CCCD. Cách làm trên Excel là tô chữ màu đỏ rồi nhớ lấy. Ở đây mỗi trường có thể gắn cờ "cần xác minh", app tự lập danh sách những hồ sơ còn cờ để chi hội trưởng mang theo mà hỏi lại hội viên, xác minh xong bấm gỡ cờ.'],
+      ['🔎','Tìm, lọc, rồi in đúng mẫu báo cáo',
+       'Lọc theo chi hội thôn/ấp, giới tính, độ tuổi, dân tộc, tôn giáo, đảng viên, hội viên nòng cốt, đã cấp thẻ hay chưa, đạt danh hiệu cấp nào. Kết quả lọc in thẳng ra danh sách đúng thể thức báo cáo, đánh số thứ tự theo xã và theo ấp — và chỉ in đúng số hội viên đang có, không sinh ra hàng chục trang giấy trắng như khi in cả bảng Excel còn dư dòng trống.'],
+    ],
+    note:['Vì sao phải bỏ Excel','Không phải vì Excel kém — file Excel mà các cơ sở Hội đang dùng được dựng rất công phu. Vấn đề là nó mong manh: xoá nhầm một dòng, đổi tên một trang tính, hay copy sang tệp khác là công thức đứt, số liệu hiện #REF! hoặc lặng lẽ nhảy về 0. Dữ liệu hội viên của cả xã không nên phụ thuộc vào việc mọi người đều nhớ đủ ngần ấy điều cấm kỵ.'],
+  };
 
-  function renderStrengthTab(el){
-    el.innerHTML = `
-      <div class="panel">
-        <div class="panel-head"><h3>💪 Thực lực Hội</h3></div>
-        <div class="panel-body">
-          <div class="empty-state">
-            <div class="e-ico">🚧</div>
-            <p style="font-weight:700; color:var(--rice-dark); letter-spacing:.02em;">TÍNH NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP</p>
-          </div>
-        </div>
-      </div>`;
-  }
+  const STRENGTH_INTRO = {
+    icon:'💪', eyebrow:'THỐNG KÊ TỔ CHỨC', title:'Thực lực Hội',
+    lead:'Thực lực Hội là bức chân dung bằng con số của tổ chức: có bao nhiêu hộ nông dân, bao nhiêu hộ đã có hội viên, hội viên là dân tộc thiểu số và người có đạo bao nhiêu, bộ máy chi hội — tổ hội ra sao, bao nhiêu người đạt danh hiệu sản xuất kinh doanh giỏi. Module này dựng sẵn các bảng ấy và tự tính từ hồ sơ hội viên, ở cả cấp xã lẫn từng chi hội thôn/ấp.',
+    blocks:[
+      ['📊','Các bảng thực lực dựng sẵn đúng mẫu đang dùng',
+       'Bảng tổng hợp rà soát số lượng hội viên; bảng hội viên là đồng bào dân tộc thiểu số; bảng hội viên là người có đạo; bảng chi hội khu dân cư và chi — tổ hội nghề nghiệp; bảng thống kê Nông dân sản xuất kinh doanh giỏi theo cấp xã, cấp tỉnh, cấp trung ương. Đúng những bảng cấp trên vẫn yêu cầu, không phải dựng lại từ đầu mỗi kỳ báo cáo.'],
+      ['🏘️','Cấp xã hay cấp chi hội thôn/ấp, chỉ khác một cú bấm',
+       'Cùng một bộ bảng, đổi đơn vị là toàn bộ số liệu tính lại cho đúng chi hội đó. Không cần mỗi ấp một trang tính riêng, không cần nhớ ô nào đang trỏ tới ấp nào — và thêm một ấp mới cũng không phải đi dựng thêm bảng.'],
+      ['⚡','Số liệu đúng ngay lúc nhìn, không cần bấm tính lại',
+       'Thêm một hội viên, sửa nơi ở, xoá tên một người — mọi bảng thực lực đổi theo tức thì. Các tỉ lệ phần trăm cũng tự tính: tỉ lệ hộ nông dân đã có hội viên, tỉ lệ hội viên sinh hoạt thường xuyên, tỉ lệ hội viên nòng cốt. Không còn cảnh bấm F9 rồi đóng mở lại tệp mà vẫn ngờ ngợ không biết số đã đúng chưa.'],
+      ['✍️','Những số không nằm trong hồ sơ thì nhập tay, và app nhớ giúp',
+       'Tổng số hộ dân cư, số hộ nông dân, số lao động nông nghiệp trên 18 tuổi, số chi hội và tổ hội nghề nghiệp là số liệu của địa phương, không suy ra được từ danh sách hội viên. App tách riêng đúng những ô ấy để đồng chí điền, ghi lại thời điểm cập nhật gần nhất và nhắc khi số đã cũ so với kỳ báo cáo.'],
+      ['📈','So sánh giữa các kỳ và giữa các chi hội',
+       'Mỗi lần chốt số là một mốc được lưu lại. Từ đó thấy được quý này tăng giảm bao nhiêu hội viên so với quý trước, chi hội nào phát triển hội viên tốt, chi hội nào tỉ lệ sinh hoạt thường xuyên đang tụt — những điều mà một bảng số liệu tại một thời điểm không nói ra được.'],
+      ['📄','Xuất ra để nộp, dán đi đâu cũng không lỗi',
+       'Kết xuất Word, Excel hoặc PDF đúng thể thức văn bản của Hội, kèm phần tiêu đề và ngày tháng. Con số xuất ra là con số thật, không phải công thức tham chiếu — dán sang tệp khác hay gửi cho cấp trên đều giữ nguyên, không bao giờ hiện #REF! hay tự nhảy về 0.'],
+    ],
+    note:['Điều quan trọng nhất','Thực lực Hội không phải là một bảng để điền, mà là kết quả đọc ra từ hồ sơ hội viên. Chừng nào hồ sơ được giữ đúng và đủ thì báo cáo thực lực chỉ còn là việc mở ra xem rồi kết xuất — cán bộ Hội không phải ngồi đếm tay, cũng không phải chịu trách nhiệm cho một con số mà mình không biết nó ra từ đâu.'],
+  };
+
+  function renderMembersTab(el){ renderUpcomingModule(el, MEMBERS_INTRO); }
+  function renderStrengthTab(el){ renderUpcomingModule(el, STRENGTH_INTRO); }
 
   // =====================================================================
   // Module [BIỂU MẪU / KHẢO SÁT / BÀI KIỂM TRA] — kiểu Google Forms.
