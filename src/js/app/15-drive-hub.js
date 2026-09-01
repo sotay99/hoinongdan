@@ -106,30 +106,136 @@
     wrap.querySelector('#drive-office-placeholder-close').onclick=close;
     wrap.querySelector('#drive-office-placeholder-ok').onclick=close;
   }
-  function renderOfficeModule(el, appName){
-    if(!el) return;
-    const labels={Docs:'Tài liệu',Sheets:'Trang tính',Slides:'Trình bày'};
-    const icons={Docs:'📄',Sheets:'📊',Slides:'📽️'};
-    const label=labels[appName]||appName;
-    const icon=icons[appName]||'🛠️';
-    el.innerHTML=`
-      <div class="office-module-page">
-        <div class="office-module-card">
-          <div class="office-module-icon">${icon}</div>
-          <div class="eyebrow">MODULE ${escapeHtml(label.toUpperCase())}</div>
-          <h3>${escapeHtml(label)}</h3>
-          <p class="sub">Module đã có vị trí riêng trong menu. Phần tạo và chỉnh sửa trực tiếp đang được xây dựng; hiện tại bạn có thể quản lý file, link và bản xem trước trong Trung tâm dữ liệu.</p>
-          <div class="office-module-status"><b>🚧 Đang xây dựng</b><span>Chưa kết nối Google Drive và chưa mở trình chỉnh sửa văn phòng bên ngoài.</span></div>
-          <div class="office-module-actions">
-            <button class="btn btn-primary" id="office-module-drive">Mở Trung tâm dữ liệu</button>
-            <button class="btn btn-ghost" id="office-module-info">Xem thông báo chi tiết</button>
+  // =====================================================================
+  // BỘ CÔNG CỤ VĂN PHÒNG — Tài liệu / Trang tính / Trình bày
+  // Ba module này hiển thị TOÀN MÀN HÌNH (overlay riêng, che cả khung menu trái) giống
+  // module Tạo bài Tuyên truyền, vì sau này chúng là trình soạn thảo thực thụ cần trọn
+  // không gian làm việc. Hiện tại mới có trang giới thiệu.
+  // =====================================================================
+  const OFFICE_APPS = {
+    Docs: {
+      icon:'📄', label:'Tài liệu', eyebrow:'SOẠN THẢO VĂN BẢN',
+      tagline:'Một trình soạn thảo văn bản đầy đủ ngay trong Sổ tay — làm được mọi việc như Word, cộng thêm một trợ lý AI ngồi cạnh bạn suốt quá trình soạn thảo.',
+      blocks:[
+        ['✍️','Soạn thảo đầy đủ như phần mềm Word thật',
+         'Định dạng chữ, căn lề, giãn dòng, đánh số trang, chèn bảng biểu, chèn ảnh, tạo mục lục tự động, đánh số đề mục nhiều cấp, chèn chú thích chân trang, header và footer. Hỗ trợ đúng thể thức văn bản hành chính Việt Nam: quốc hiệu tiêu ngữ, số ký hiệu, nơi nhận, chữ ký và dấu.'],
+        ['🤖','Trợ lý AI ngồi ngay trong trang soạn thảo',
+         'Bôi đen một đoạn rồi bảo AI viết lại cho gọn, đổi giọng văn cho trang trọng hơn, tóm tắt thành vài gạch đầu dòng, hay mở rộng một ý thành đoạn hoàn chỉnh. Bạn cũng có thể mô tả bằng lời — "soạn giúp tôi báo cáo tổng kết công tác Hội quý III" — và AI dựng sẵn khung văn bản đúng thể thức để bạn chỉnh sửa tiếp.'],
+        ['🗂️','Lấy dữ liệu thẳng từ Trung tâm dữ liệu',
+         'AI đọc được các tệp bạn đã lưu trong Trung tâm dữ liệu, nên khi soạn báo cáo nó có thể trích số liệu từ chính tài liệu của xã/phường mình thay vì bịa ra. Văn bản soạn xong cũng lưu ngược lại vào đúng thư mục bạn chọn.'],
+        ['📋','Kho mẫu văn bản dùng sẵn',
+         'Nghị quyết, kế hoạch, báo cáo tháng/quý/năm, tờ trình, giấy mời họp, biên bản, thông báo, quyết định... chọn mẫu là có ngay khung sườn, chỉ việc điền nội dung của địa phương mình.'],
+        ['👥','Nhiều người cùng làm trên một văn bản',
+         'Chia sẻ cho đồng nghiệp theo quyền Xem, Góp ý hoặc Sửa; ai sửa gì đều có dấu vết. Góp ý được ghi ngay bên lề đoạn văn liên quan, không phải gửi qua lại nhiều bản.'],
+        ['📤','Xuất ra định dạng quen thuộc',
+         'Tải về dưới dạng .docx hoặc PDF để in, ký và đóng dấu, hoặc gửi đi qua hệ thống văn bản của cấp trên.'],
+      ],
+    },
+    Sheets: {
+      icon:'📊', label:'Trang tính', eyebrow:'BẢNG TÍNH VÀ SỐ LIỆU',
+      tagline:'Bảng tính làm được mọi việc như Excel, nhưng bạn có thể ra lệnh bằng tiếng Việt thay vì phải nhớ công thức.',
+      blocks:[
+        ['🧮','Bảng tính đầy đủ như Excel',
+         'Công thức, hàm tính toán, định dạng theo điều kiện, lọc và sắp xếp, gộp ô, cố định dòng tiêu đề, nhiều trang tính trong một tệp, bảng tổng hợp. Nhập được tệp .xlsx sẵn có và xuất ra đúng định dạng đó.'],
+        ['🗣️','Ra lệnh bằng tiếng Việt, AI viết công thức thay bạn',
+         'Không cần nhớ cú pháp hàm. Chỉ cần gõ "tính tổng số hội viên từng ấp rồi sắp xếp giảm dần" hoặc "tô đỏ những dòng quá hạn đóng lãi" — AI hiểu và làm ngay trên bảng của bạn, đồng thời giải thích nó vừa làm gì để bạn kiểm tra lại.'],
+        ['🧹','AI dọn dữ liệu lộn xộn',
+         'Danh sách gõ tay thường sai chính tả tên, lệch định dạng ngày tháng, trùng lặp dòng, họ tên viết hoa không đồng nhất. AI rà soát, chỉ ra chỗ nghi ngờ và đề xuất cách sửa hàng loạt — việc trước đây phải ngồi sửa tay cả buổi.'],
+        ['📈','Dựng biểu đồ và bảng tổng hợp trong một câu',
+         'Mô tả điều bạn muốn thấy, AI chọn giúp loại biểu đồ phù hợp và dựng luôn. Thích hợp cho báo cáo thực lực Hội, tiến độ thu lãi, cơ cấu hội viên theo độ tuổi hay ngành nghề.'],
+        ['🔗','Nối với số liệu sẵn có trong app',
+         'Kéo thẳng số liệu từ Sổ vay vốn, Sổ Thu Chi Lãi Quỹ hay Hồ sơ hội viên sang bảng tính để tự tổng hợp, khỏi phải chép tay và khỏi sai sót.'],
+        ['📤','Xuất và chia sẻ',
+         'Tải về .xlsx hoặc PDF, hoặc chia sẻ cho đồng nghiệp cùng làm với phân quyền rõ ràng.'],
+      ],
+    },
+    Slides: {
+      icon:'📽️', label:'Trình bày', eyebrow:'BÀI TRÌNH CHIẾU',
+      tagline:'Dựng bài trình chiếu như PowerPoint, và để AI biến một bản báo cáo dài thành bộ slide gọn gàng chỉ trong ít phút.',
+      blocks:[
+        ['🎬','Đầy đủ như PowerPoint',
+         'Bố cục slide, chèn ảnh và biểu đồ, hiệu ứng chuyển slide, ghi chú cho người trình bày, chế độ trình chiếu toàn màn hình, đánh số slide. Mở được tệp .pptx sẵn có và xuất ra đúng định dạng đó.'],
+        ['⚡','Từ báo cáo dài thành bộ slide trong ít phút',
+         'Đưa cho AI một bản báo cáo Word hoặc một tệp trong Trung tâm dữ liệu, nói rõ trình bày trong bao nhiêu phút và cho ai nghe — AI rút ra các ý chính, chia thành từng slide hợp lý, viết tiêu đề gãy gọn và soạn sẵn cả lời dẫn cho người trình bày.'],
+        ['🎨','Giao diện thống nhất, đúng phong cách của Hội',
+         'Bộ màu và kiểu chữ đồng bộ cho cả bài, không còn cảnh mỗi slide một kiểu. Có sẵn các mẫu phù hợp với hội nghị, sơ kết, tổng kết, tập huấn và tuyên truyền.'],
+        ['🗣️','Luyện trước khi lên trình bày',
+         'AI ước lượng thời lượng từng slide, cảnh báo chỗ quá nhiều chữ, và gợi ý những câu hỏi mà người nghe nhiều khả năng sẽ hỏi để bạn chuẩn bị trước.'],
+        ['🗂️','Nối với Trung tâm dữ liệu',
+         'Lấy ảnh, biểu đồ và số liệu thẳng từ kho tài liệu của xã/phường; bài trình chiếu làm xong lưu lại đúng thư mục bạn chọn.'],
+        ['📤','Trình chiếu và chia sẻ',
+         'Chiếu trực tiếp trong app, tải về .pptx hoặc PDF, hoặc gửi liên kết cho người khác xem trước.'],
+      ],
+    },
+  };
+
+  function openOfficeModule(appName){
+    if(!OFFICE_APPS[appName]) return;
+    if(typeof closeAiChat==='function') closeAiChat();
+    if(typeof closeQuickNote==='function') closeQuickNote();
+    state._officeAppOpen = appName;
+    renderOfficeOverlay();
+    requestAnimationFrame(()=>{
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    });
+  }
+  function closeOfficeModule(){
+    state._officeAppOpen = null;
+    const overlay = document.getElementById('office-overlay');
+    if(overlay) overlay.remove();
+    // Thoát module ra thì LUÔN hiện lại khung menu chính, giống module Tuyên truyền.
+    state.sidebarCollapsed = false;
+    applySidebarCollapsedVisual(false);
+  }
+  function renderOfficeOverlay(){
+    const appName = state._officeAppOpen;
+    const cfg = OFFICE_APPS[appName];
+    if(!cfg) return;
+    let overlay = document.getElementById('office-overlay');
+    if(!overlay){
+      overlay = document.createElement('div');
+      overlay.id = 'office-overlay';
+      overlay.className = 'ai-overlay office-overlay';
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <div class="office-doc">
+        <div class="office-doc-head">
+          <div>
+            <div class="eyebrow">${escapeHtml(cfg.eyebrow)}</div>
+            <h2>${cfg.icon} ${escapeHtml(cfg.label)}</h2>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="office-exit">✕ Thoát</button>
+        </div>
+        <div class="office-doc-body">
+          <div class="office-badge">🚧 Đang xây dựng — sẽ sớm ra mắt</div>
+          <p class="office-lead">${escapeHtml(cfg.tagline)}</p>
+          <div class="office-grid">
+            ${cfg.blocks.map(([ico,h,p])=>`
+              <div class="office-feature">
+                <div class="office-feature-ico">${ico}</div>
+                <div>
+                  <h4>${escapeHtml(h)}</h4>
+                  <p>${escapeHtml(p)}</p>
+                </div>
+              </div>`).join('')}
+          </div>
+          <div class="office-foot-note">
+            <b>Vì sao gắn liền với Trung tâm dữ liệu?</b>
+            <span>Mọi tệp bạn tạo ra ở đây đều nằm trong Trung tâm dữ liệu — cùng một kho, cùng một cách phân quyền, cùng một chỗ tìm kiếm. Không còn cảnh mỗi tài liệu một nơi, cũng không phải nhớ mình đã lưu ở đâu.</span>
+          </div>
+          <div class="office-doc-actions">
+            <button class="btn btn-primary" id="office-goto-drive">🗂️ Mở Trung tâm dữ liệu</button>
+            <button class="btn btn-ghost" id="office-back">← Quay lại</button>
           </div>
         </div>
       </div>`;
-    const driveBtn=document.getElementById('office-module-drive');
-    if(driveBtn) driveBtn.onclick=()=>{ state.activeTab='drive'; render(); };
-    const infoBtn=document.getElementById('office-module-info');
-    if(infoBtn) infoBtn.onclick=()=>driveOpenOfficeApp(appName);
+    const exitBtn = document.getElementById('office-exit');
+    if(exitBtn) exitBtn.onclick = closeOfficeModule;
+    const backBtn = document.getElementById('office-back');
+    if(backBtn) backBtn.onclick = closeOfficeModule;
+    const driveBtn = document.getElementById('office-goto-drive');
+    if(driveBtn) driveBtn.onclick = ()=>{ closeOfficeModule(); state.activeTab='drive'; render(); };
   }
   function driveDecodeDataUrl(dataUrl){
     const comma = String(dataUrl||'').indexOf(',');
@@ -1103,6 +1209,173 @@
     el.querySelectorAll('[data-drive-item]').forEach(item=>item.addEventListener('contextmenu',e=>openDriveContextMenu(e,item.dataset.driveItem)));
     document.addEventListener('click',closeDriveContextMenu,{once:true});
   }
+
+  // =====================================================================
+  // BẢY MODULE ĐANG NÂNG CẤP — Lịch công tác, Danh sách công việc, Tập huấn bằng AI,
+  // Phòng họp không giấy, Quản lý Fanpage, Chăm sóc hội viên, Công tác Chi hội.
+  // Hiện mới có trang giới thiệu; dùng chung một hàm dựng để khỏi lặp mã.
+  // =====================================================================
+  function renderUpcomingModule(el, cfg){
+    if(!el) return;
+    el.innerHTML = `
+      <div class="upcoming-page">
+        <div class="upcoming-card">
+          <div class="upcoming-head">
+            <div class="upcoming-ico">${cfg.icon}</div>
+            <div>
+              <div class="eyebrow">${escapeHtml(cfg.eyebrow)}</div>
+              <h3>${escapeHtml(cfg.title)}</h3>
+            </div>
+          </div>
+          <div class="upcoming-badge">🚧 Tính năng đang nâng cấp — sẽ sớm ra mắt</div>
+          <p class="upcoming-lead">${escapeHtml(cfg.lead)}</p>
+          <div class="upcoming-grid">
+            ${cfg.blocks.map(([ico,h,p])=>`
+              <div class="upcoming-feature">
+                <div class="upcoming-feature-ico">${ico}</div>
+                <div><h4>${escapeHtml(h)}</h4><p>${escapeHtml(p)}</p></div>
+              </div>`).join('')}
+          </div>
+          ${cfg.note? `<div class="upcoming-note"><b>${escapeHtml(cfg.note[0])}</b><span>${escapeHtml(cfg.note[1])}</span></div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  const UPCOMING_MODULES = {
+    schedule: {
+      icon:'📅', eyebrow:'QUẢN LÝ THỜI GIAN', title:'Lịch Công tác',
+      lead:'Lịch công tác của xã/phường thường phát ra dưới dạng một tệp chung cho tất cả cán bộ, mỗi người phải tự dò xem dòng nào là của mình. Module này để AI làm việc dò ấy thay bạn.',
+      blocks:[
+        ['📤','Tải tệp lịch chung lên là xong',
+         'Nhận tệp Word, Excel, PDF hay kể cả ảnh chụp bảng lịch dán ở cơ quan. AI đọc hiểu nội dung, không cần bạn phải nhập lại từng dòng.'],
+        ['🔍','AI tách riêng phần việc của bạn',
+         'Từ lịch chung của cả cơ quan, AI lọc ra đúng những buổi có tên bạn hoặc thuộc mảng bạn phụ trách, rồi ghi vào lịch riêng: làm việc gì, ở đâu, lúc mấy giờ, đi cùng ai, cần chuẩn bị gì.'],
+        ['🔔','Nhắc hẹn như Lịch Google',
+         'Báo trước theo mốc bạn đặt — một ngày trước, một giờ trước, mười lăm phút trước. Nhắc qua thông báo trên điện thoại và máy tính, hoặc gửi email cho những việc quan trọng.'],
+        ['🗓️','Nhìn được cả tuần, cả tháng, cả quý',
+         'Xem theo ngày, tuần, tháng hoặc dạng danh sách. Thấy ngay chỗ trùng lịch, chỗ hai cuộc họp sát nhau không kịp di chuyển, hay tuần nào đang quá tải.'],
+        ['🤝','Chia sẻ lịch trong cơ quan',
+         'Cho phép đồng nghiệp xem lịch của bạn khi cần xếp họp, hoặc xem lịch chung của cả Ban Thường vụ để chọn khung giờ mọi người đều rảnh.'],
+        ['🔗','Nối với các phần khác của Sổ tay',
+         'Buổi họp có tài liệu kèm theo thì mở thẳng từ Trung tâm dữ liệu; việc phát sinh sau cuộc họp đẩy sang Danh sách công việc.'],
+      ],
+      note:['Vì sao cần AI ở đây?','Vì lịch công tác mỗi nơi trình bày một kiểu, có nơi làm bảng, có nơi gạch đầu dòng, có nơi viết thành đoạn văn. Nếu bắt phần mềm đọc theo khuôn cứng thì chỉ cần đổi mẫu là hỏng. AI đọc hiểu được nội dung nên mẫu nào cũng dùng được.'],
+    },
+    tasks: {
+      icon:'✅', eyebrow:'THEO DÕI TIẾN ĐỘ', title:'Danh sách Công việc',
+      lead:'Nơi tập hợp tất cả đầu việc của bạn — dù nó đến từ một văn bản chỉ đạo, một cuộc họp, hay chỉ là câu dặn dò trong nhóm chat — rồi theo dõi đến khi xong.',
+      blocks:[
+        ['🧠','AI đọc mọi thứ bạn đưa vào và tự rút ra đầu việc',
+         'Dán một đoạn tin nhắn, tải lên một công văn, hay đưa biên bản cuộc họp — AI nhặt ra các việc cần làm, đoán thời hạn từ nội dung, xếp mức độ ưu tiên và hỏi lại bạn những chỗ chưa rõ.'],
+        ['🗺️','Bản đồ công việc theo tuần, tháng, năm',
+         'Nhìn thấy toàn cảnh chặng đường: việc nào phải xong trước để việc sau chạy được, giai đoạn nào dồn việc, mốc nào là hạn cuối không lùi được.'],
+        ['📊','Theo dõi tiến độ và chấm KPI',
+         'Mỗi đầu việc có phần trăm hoàn thành, hạn chót và trạng thái. Hệ thống tự tổng hợp thành điểm KPI theo kỳ, không phải ngồi cộng tay cuối quý.'],
+        ['📎','Đính kèm bằng chứng cho từng việc',
+         'Gắn tệp, ảnh chụp hoặc liên kết làm minh chứng cho việc đã hoàn thành — lúc chấm KPI hay bị hỏi lại thì có ngay, khỏi đi tìm.'],
+        ['📝','AI soạn báo cáo tiến độ để nộp cấp trên',
+         'Đến kỳ báo cáo, AI tổng hợp những việc đã làm trong kỳ, kết quả đạt được, việc còn dở và lý do, rồi dựng thành bản báo cáo đúng thể thức để bạn rà lại và nộp.'],
+        ['👥','Giao việc và theo dõi người khác',
+         'Cán bộ phụ trách giao việc cho từng người, thấy được ai đang làm đến đâu, việc nào sắp trễ hạn để nhắc trước khi muộn.'],
+      ],
+      note:['Điều khác biệt','Phần mềm quản lý công việc thông thường bắt bạn ngồi nhập từng đầu việc — mà chính việc nhập ấy đã đủ mất công để người ta bỏ dùng. Ở đây bạn chỉ cần ném nguyên tài liệu hoặc đoạn chat vào, phần bóc tách để AI lo.'],
+    },
+    training: {
+      icon:'🎓', eyebrow:'ĐÀO TẠO', title:'Tập huấn bằng AI',
+      lead:'Thay vì tập trung hàng trăm hội viên vào hội trường rồi giảng một lượt cho tất cả, bạn soạn bài giảng một lần và mỗi người được AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
+      blocks:[
+        ['📚','Soạn bài giảng rồi cho AI tiêu hoá',
+         'Đưa vào tài liệu tập huấn dưới bất kỳ dạng nào — văn bản, slide, PDF, ảnh chụp tài liệu giấy. AI đọc kỹ, nắm chắc nội dung và ghi nhớ để làm nguồn kiến thức duy nhất khi giảng, không nói ra ngoài phạm vi bài.'],
+        ['🔗','Gửi bài giảng bằng một đường liên kết',
+         'Hội viên bấm vào liên kết là học được ngay, không cần cài phần mềm, không cần lập tài khoản. Gửi qua Zalo, tin nhắn hay dán vào nhóm đều được.'],
+        ['💬','Học bằng cách trò chuyện, không phải đọc suông',
+         'Người học hỏi, AI trả lời, giải thích lại chỗ chưa hiểu, cho ví dụ gần gũi với công việc nhà nông. Hỏi bao nhiêu lần cũng được, không ngại như giơ tay giữa hội trường đông người.'],
+        ['🎯','AI tự dò xem người học đang ở đâu',
+         'Qua vài câu trao đổi đầu, AI nhận ra người này đã biết gì và chưa biết gì, rồi bỏ qua phần họ đã nắm, đi sâu vào phần họ còn yếu. Người đã rành thì học nhanh, người mới thì được giảng kỹ.'],
+        ['🧪','Kiểm tra hiểu bài ngay trong lúc học',
+         'AI đặt câu hỏi ngược lại để chắc rằng người học thật sự hiểu chứ không phải gật cho xong, và quay lại giảng thêm chỗ nào còn lệch.'],
+        ['📈','Cán bộ Hội thấy được kết quả',
+         'Bao nhiêu người đã học, học đến đâu, chỗ nào nhiều người vướng nhất — từ đó biết cần bổ sung gì vào tài liệu cho đợt sau.'],
+      ],
+      note:['Bài toán thực tế','Tập huấn tập trung tốn thời gian đi lại của cả trăm người, mà mỗi người lại có trình độ và nhu cầu khác nhau. Cách này giữ được nội dung do chính cán bộ Hội biên soạn, nhưng cách truyền đạt thì tuỳ theo từng người nghe.'],
+    },
+    meeting: {
+      icon:'📋', eyebrow:'HỘI HỌP', title:'Phòng họp không giấy',
+      lead:'Mỗi cuộc họp là một thư mục tài liệu có đường liên kết riêng. Đại biểu quét mã là xem được toàn bộ tài liệu trên điện thoại — không in, không phát, không thừa giấy.',
+      blocks:[
+        ['📁','Mỗi cuộc họp một thư mục',
+         'Gom chương trình họp, báo cáo, tờ trình, dự thảo nghị quyết, phụ lục số liệu vào một chỗ, sắp theo đúng thứ tự chương trình để đại biểu dễ theo dõi.'],
+        ['🔗','Chia sẻ bằng liên kết chỉ xem',
+         'Người nhận chỉ xem được, không sửa và không xoá được gì. Tài liệu gốc của bạn an toàn tuyệt đối.'],
+        ['📱','Tự sinh mã QR để quét',
+         'Chiếu mã QR lên màn hình hội trường hoặc in nhỏ dán trên bàn, đại biểu đưa điện thoại lên quét là vào ngay — khỏi phải đọc địa chỉ dài cho cả phòng chép lại.'],
+        ['🔄','Sửa tài liệu phút chót vẫn kịp',
+         'Cập nhật tệp trong thư mục là mọi người mở lên đã thấy bản mới nhất. Không còn cảnh phát nhầm bản cũ rồi phải đính chính giữa cuộc họp.'],
+        ['⏱️','Đặt hạn cho liên kết',
+         'Hẹn ngày liên kết hết hiệu lực, hoặc đóng ngay sau khi họp xong, để tài liệu nội bộ không lưu hành mãi ngoài ý muốn.'],
+        ['🌱','Tiết kiệm thật sự',
+         'Một cuộc họp năm chục đại biểu, mỗi bộ tài liệu vài chục trang — mỗi năm vài chục cuộc họp là con số giấy mực và thời gian photo không hề nhỏ.'],
+      ],
+      note:['Đơn giản là điểm mạnh','Không cần đại biểu cài phần mềm, không cần đăng nhập, không cần tập huấn cách dùng. Ai biết quét mã QR là dùng được — kể cả các bác lớn tuổi.'],
+    },
+    fanpage: {
+      icon:'📣', eyebrow:'TRUYỀN THÔNG', title:'Quản lý Fanpage',
+      lead:'Hầu hết Hội Nông dân đều có trang Facebook, nhưng thường bỏ bẵng vì không ai có thời gian trực. Module này gom việc quản trị trang về một chỗ và để AI đỡ phần việc lặp đi lặp lại.',
+      blocks:[
+        ['📝','Đăng bài ngay trong Sổ tay',
+         'Soạn bài, chèn ảnh, hẹn giờ đăng — không phải chuyển qua lại giữa app và Facebook. Bài viết từ module Tạo bài Tuyên truyền đẩy thẳng sang đây được.'],
+        ['💬','Trả lời bình luận và tin nhắn dưới danh nghĩa Trang',
+         'Toàn bộ bình luận và tin nhắn của Trang hiện về một hộp chung, trả lời tại chỗ, không sót câu hỏi nào của bà con.'],
+        ['🤖','Giao bớt cho AI khi bạn cho phép',
+         'Bạn quyết định mức độ: AI chỉ soạn sẵn câu trả lời chờ bạn duyệt, hay được tự trả lời những câu hỏi thường gặp. Quyền cấp tới đâu AI làm tới đó, rút lại lúc nào cũng được.'],
+        ['📅','Lên lịch nội dung cả tháng',
+         'Dựng trước kế hoạch bài đăng theo tuần hoặc tháng, AI gợi ý chủ đề bám theo mùa vụ, ngày lễ và các đợt phát động phong trào của Hội.'],
+        ['📊','Xem bài nào bà con quan tâm',
+         'Thống kê lượt xem, lượt tương tác, khung giờ nhiều người đọc nhất — để lần sau đăng đúng lúc và đúng thứ bà con cần.'],
+        ['🛡️','Giữ chuẩn mực của trang chính thống',
+         'AI cảnh báo trước những nội dung nhạy cảm hoặc câu chữ chưa phù hợp với một trang của tổ chức chính trị - xã hội, trước khi bài được đăng ra.'],
+      ],
+      note:['Về quyền truy cập','Module chỉ hoạt động sau khi bạn chủ động kết nối và cấp quyền cho Trang của mình. Quyền cấp bao nhiêu dùng bấy nhiêu, và bạn thu hồi được bất cứ lúc nào.'],
+    },
+    carecare: {
+      icon:'💚', eyebrow:'CÔNG TÁC HỘI VIÊN', title:'Chăm sóc Hội viên',
+      lead:'Giữ liên lạc thường xuyên với hàng trăm hội viên là việc quá sức nếu nhắn tay từng người. Module này để AI nhắn thay, nhưng vẫn ra chất riêng cho từng người chứ không phải tin nhắn hàng loạt vô hồn.',
+      blocks:[
+        ['✉️','Nhắn hàng loạt mà vẫn như nhắn riêng',
+         'Gửi cho cả Hội, cho một chi hội, một tổ hội, hay một nhóm theo tiêu chí bất kỳ. AI điều chỉnh cách xưng hô và nội dung theo từng người, không phải một mẫu chung dán cho tất cả.'],
+        ['🎂','Tự động hỏi thăm đúng dịp',
+         'Chúc mừng sinh nhật, thăm hỏi lúc ốm đau hiếu hỉ, nhắc đến hạn đóng hội phí, báo lịch sinh hoạt chi hội — đặt một lần rồi chạy đều, khỏi lo quên ai.'],
+        ['📋','Lấy ý kiến hội viên',
+         'Gửi phiếu khảo sát hoặc chỉ vài câu hỏi mở, hội viên trả lời ngay trong tin nhắn. Không cần phát phiếu giấy rồi đi thu lại từng nhà.'],
+        ['🧾','AI tổng hợp khó khăn và đề xuất',
+         'Hàng trăm câu trả lời rời rạc được AI gom thành các nhóm vấn đề, chỉ ra điều gì nhiều người cùng nêu, điều gì chỉ cá biệt — thành bản tổng hợp dùng được ngay cho báo cáo hoặc kiến nghị lên cấp trên.'],
+        ['💙','Kết nối Zalo',
+         'Phần lớn bà con dùng Zalo hằng ngày, nên chăm sóc qua Zalo được gói gọn ngay trong module này, không phải mở thêm ứng dụng nào khác.'],
+        ['📇','Lịch sử liên lạc từng người',
+         'Xem lại đã trao đổi gì với hội viên nào, họ từng nêu khó khăn gì, đã được hỗ trợ ra sao — để lần sau tiếp xúc không hỏi lại từ đầu.'],
+      ],
+      note:['Giữ cái tình trong công việc','Công nghệ ở đây chỉ để cán bộ Hội có thời gian dành cho những cuộc gặp thật sự cần gặp. Những việc lặp đi lặp lại thì máy làm, còn thăm hỏi lúc bà con khó khăn vẫn phải là con người.'],
+    },
+    branch: {
+      icon:'🌾', eyebrow:'CẤP CHI HỘI', title:'Công tác Chi hội',
+      lead:'Chi hội khu dân cư và chi hội nghề nghiệp là cấp gần hội viên nhất, nhưng lại thiếu công cụ nhất — thường chỉ có cuốn sổ tay và vài tờ giấy. Module này dành riêng cho cán bộ chi hội.',
+      blocks:[
+        ['👥','Quản lý hội viên của chi hội mình',
+         'Danh sách hội viên trong chi hội, tổ hội trực thuộc, thông tin liên lạc, ngành nghề, hoàn cảnh cần lưu ý. Chi hội trưởng chỉ thấy phần của chi hội mình, không lẫn sang nơi khác.'],
+        ['📄','Kho mẫu văn bản của chi hội',
+         'Biên bản sinh hoạt chi hội, danh sách điểm danh, báo cáo tháng gửi lên Hội xã, đơn xin vào Hội, biên bản bình xét thi đua — có sẵn mẫu, chỉ việc điền.'],
+        ['📊','Thống kê tự động',
+         'Số hội viên tăng giảm trong kỳ, tỷ lệ tham gia sinh hoạt, tình hình đóng hội phí, kết quả các phong trào — tự tổng hợp thành số liệu để báo cáo, khỏi ngồi đếm tay.'],
+        ['🏡','Theo dõi tổ hội',
+         'Chi hội có nhiều tổ hội thì quản lý được từng tổ: ai làm tổ trưởng, bao nhiêu hội viên, sinh hoạt đến đâu.'],
+        ['💬','Chăm sóc hội viên trong chi hội',
+         'Nhắn tin, thông báo lịch sinh hoạt, hỏi thăm — dùng chung cơ chế với module Chăm sóc hội viên nhưng gói gọn trong phạm vi chi hội mình phụ trách.'],
+        ['🔄','Nối liền với Hội cấp xã',
+         'Số liệu chi hội báo lên tự động cộng vào số liệu chung của Hội xã/phường; chỉ đạo từ Hội xã cũng chuyển thẳng xuống chi hội, không còn tam sao thất bản qua nhiều khâu.'],
+      ],
+      note:['Vì sao tách riêng?','Cán bộ chi hội phần lớn kiêm nhiệm, làm ngoài giờ và không được đào tạo về phần mềm. Nên module này cố tình làm gọn, chỉ giữ đúng những việc chi hội thật sự cần, không bắt học cả hệ thống lớn.'],
+    },
+  };
 
   // =====================================================================
   // ĐIỂM KHỞI ĐỘNG ỨNG DỤNG — PHẢI LUÔN NẰM Ở CUỐI PHẦN CUỐI CÙNG trong

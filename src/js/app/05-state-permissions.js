@@ -140,6 +140,9 @@
     knowledgeEditingId:null,   // id file văn bản đang mở trong khung soạn thảo (null = không mở)
     knowledgeUploading:false,
     _systemKnowledgeCache:null, _systemKnowledgeCacheAt:0, // bộ nhớ đệm "Bối cảnh tri thức" cho AI
+    // ---- Công cụ văn phòng ----
+    _officeMenuOpen:false,  // menu thả xuống "Công cụ văn phòng" ở khung menu trái đang mở hay không
+    _officeAppOpen:null,    // null | 'Docs' | 'Sheets' | 'Slides' — overlay toàn màn hình đang mở
     // ---- Ghi chú nhanh (cá nhân hoá theo tài khoản) ----
     _quickNoteOpen:false,
     quickNotePendingAttachments:[], // [{name, mimeType, base64, file}] — tệp chờ AI tiêu hoá

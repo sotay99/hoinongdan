@@ -2630,6 +2630,8 @@
       if(peopleBtn) peopleBtn.remove();
       const peopleOverlay = document.getElementById('people-chat-overlay');
       if(peopleOverlay) peopleOverlay.remove();
+      const officeOverlay = document.getElementById('office-overlay');
+      if(officeOverlay){ officeOverlay.remove(); state._officeAppOpen = null; }
       return;
     }
     if(!btn){

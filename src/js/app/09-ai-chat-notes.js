@@ -721,9 +721,21 @@
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
     items.push({id:'drive', ico:'🗂️', label:'Trung tâm dữ liệu'});
-    items.push({id:'docs', ico:'📄', label:'Tài liệu'});
-    items.push({id:'sheets', ico:'📊', label:'Trang tính'});
-    items.push({id:'slides', ico:'📽️', label:'Trình bày'});
+    // Ba công cụ văn phòng gom vào MỘT mục có menu thả xuống, đứng đúng vị trí cũ của
+    // mục "Tài liệu". Bấm từng công cụ sẽ mở overlay TOÀN MÀN HÌNH (che cả khung menu),
+    // giống module Tạo bài Tuyên truyền — nên chúng không phải là tab nội dung.
+    items.push({id:'office', ico:'🧰', label:'Công cụ văn phòng', children:[
+      {id:'docs',   ico:'📄', label:'Tài liệu'},
+      {id:'sheets', ico:'📊', label:'Trang tính'},
+      {id:'slides', ico:'📽️', label:'Trình bày'},
+    ]});
+    items.push({id:'schedule', ico:'📅', label:'Lịch Công tác'});
+    items.push({id:'tasks',    ico:'✅', label:'Danh sách Công việc'});
+    items.push({id:'training', ico:'🎓', label:'Tập huấn bằng AI'});
+    items.push({id:'meeting',  ico:'📋', label:'Phòng họp không giấy'});
+    items.push({id:'fanpage',  ico:'📣', label:'Quản lý Fanpage'});
+    items.push({id:'carecare', ico:'💚', label:'Chăm sóc Hội viên'});
+    items.push({id:'branch',   ico:'🌾', label:'Công tác Chi hội'});
     // "Ghi chú nhanh" KHÔNG có mục riêng trong menu trái: lối vào duy nhất là nút nổi 🗒️ ở góc
     // phải màn hình (fab-notes-btn, dựng trong 07-core-modules.js). Trước đây có cả hai lối vào
     // cùng mở đúng một overlay nên bị trùng lặp; nay gom về một.
@@ -750,7 +762,10 @@
   function renderApp(){
     if(typeof driveRoute==='function' && driveRoute()) state.activeTab = 'drive';
     const nav = navItems();
-    if(!nav.some(n=>n.id===state.activeTab)) state.activeTab = nav.length? nav[0].id : 'guide';
+    // Mục có children (Công cụ văn phòng) chỉ là nhóm menu, không phải tab nội dung —
+    // loại nó ra khi chọn tab mặc định, nếu không sẽ rơi vào tab không có gì để vẽ.
+    const navTabs = nav.filter(n=> !n.children);
+    if(!navTabs.some(n=>n.id===state.activeTab)) state.activeTab = navTabs.length? navTabs[0].id : 'guide';
     const roleLabel = describeAccess();
     const alerts = wardId() ? computeAlerts() : [];
     const hasIdentityEmail = !!(state.identity && state.identity.email);
@@ -784,7 +799,15 @@
         <button type="button" class="sidebar-toggle-btn ${state.sidebarCollapsed?'collapsed':''}" id="sidebar-toggle-btn" title="${state.sidebarCollapsed?'Mở menu':'Thu gọn menu'}">${state.sidebarCollapsed?'▤':'▥'}</button>
         <div class="sidebar ${state.sidebarCollapsed?'collapsed':''}">
           <div class="brand"><div class="ico">🌾</div><div class="txt">${wardProvinceHeaderLine()||'Chưa chọn mã xã'}<small>Mã ${wardId()||''}</small></div></div>
-          ${nav.map(n=>`
+          ${nav.map(n=> n.children? `
+            <button class="nav-item nav-item-group ${state._officeMenuOpen?'expanded':''}" data-navgroup="${n.id}">
+              <span>${n.ico}</span><span>${n.label}</span>
+              <span class="nav-caret">${state._officeMenuOpen?'▾':'▸'}</span>
+            </button>
+            ${state._officeMenuOpen? n.children.map(c=>`
+              <button class="nav-item nav-subitem" data-navchild="${c.id}">
+                <span>${c.ico}</span><span>${c.label}</span>
+              </button>`).join('') : ''}` : `
             <button class="nav-item ${state.activeTab===n.id?'active':''}" data-tab="${n.id}">
               <span>${n.ico}</span><span>${n.label}</span>
               ${n.badge?`<span class="badge">${n.badge}</span>`:''}
@@ -802,7 +825,7 @@
         </div>
         <div class="main ${state.sidebarCollapsed?'sidebar-collapsed':''}">
           <div class="topbar">
-            <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : nav.find(n=>n.id===state.activeTab).label}</h2></div>
+            <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : (navTabs.find(n=>n.id===state.activeTab)||{label:''}).label}</h2></div>
             <div class="top-actions">
               <button class="bell-btn" id="bell-btn">🔔${alerts.length?`<span class="bell-dot"></span>`:''}</button>
               <div class="avatar" ${state.identity.photo?`style="background-image:url('${state.identity.photo}'); background-size:cover; background-position:center;"`:''}>${state.identity.photo?'':(state.identity.name||'?')[0].toUpperCase()}</div>
@@ -814,6 +837,19 @@
       </div>`;
     document.querySelectorAll('.nav-item').forEach(el=>{
       el.onclick = ()=>{
+        // Mục nhóm "Công cụ văn phòng": chỉ đóng/mở menu thả xuống, không đổi tab.
+        if(el.dataset.navgroup){
+          state._officeMenuOpen = !state._officeMenuOpen;
+          render();
+          return;
+        }
+        // Một trong ba công cụ văn phòng: mở overlay TOÀN MÀN HÌNH, giữ nguyên tab đang xem
+        // để khi thoát ra người dùng quay lại đúng chỗ cũ.
+        if(el.dataset.navchild){
+          openOfficeModule({docs:'Docs', sheets:'Sheets', slides:'Slides'}[el.dataset.navchild]);
+          state.bellOpen=false;
+          return;
+        }
         const clickedTab = el.dataset.tab;
         // "Tạo bài Tuyên truyền" giờ là overlay toàn màn hình (y hệt Chat AI/Ghi chú nhanh) — KHÔNG đổi
         // state.activeTab, chỉ mở overlay lên; khi thoát ra vẫn ở đúng module trước đó, không bị chuyển tab.
@@ -877,9 +913,8 @@
     else if(state.activeTab==='members') renderMembersTab(content);
     else if(state.activeTab==='strength') renderStrengthTab(content);
     else if(state.activeTab==='drive') renderDriveHubTab(content);
-     else if(state.activeTab==='docs') renderOfficeModule(content,'Docs');
-     else if(state.activeTab==='sheets') renderOfficeModule(content,'Sheets');
-     else if(state.activeTab==='slides') renderOfficeModule(content,'Slides');
+    // docs/sheets/slides KHÔNG còn là tab: chúng mở overlay toàn màn hình từ menu thả xuống.
+    else if(UPCOMING_MODULES[state.activeTab]) renderUpcomingModule(content, UPCOMING_MODULES[state.activeTab]);
     else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
@@ -938,12 +973,11 @@
     document.body.appendChild(wrap);
     const close = ()=>{ state._showPreviewWelcome = false; state.sidebarCollapsed = false; wrap.remove(); applySidebarCollapsedVisual(false); };
     wrap.querySelector('#pw-skip').onclick = close;
+    // App còn đang xây dựng nên chưa có hướng dẫn cụ thể — chỉ báo nhanh bằng toast
+    // (dùng đúng cơ chế showToast sẵn có: hiện vài giây rồi tự biến mất).
     wrap.querySelector('#pw-guide').onclick = ()=>{
-      state._showPreviewWelcome = false;
-      state.sidebarCollapsed = false;
-      wrap.remove();
-      state.activeTab = 'guide';
-      render();
+      close();
+      showToast('Xin lỗi! App đang xây dựng nên chưa có hướng dẫn cụ thể');
     };
   }
 

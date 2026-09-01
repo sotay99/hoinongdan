@@ -943,3 +943,45 @@
   .qn-target-row.selected{background:var(--rice-dark); color:#fff; font-weight:700;}
   .qn-target-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .qn-target-error{padding:9px 11px; margin-bottom:9px; border-radius:9px; font-size:12.5px; background:rgba(180,44,44,.1); color:#8b1e1e;}
+
+  /* ---- Menu thả xuống "Công cụ văn phòng" trong khung menu trái ---- */
+  .nav-item-group .nav-caret{margin-left:auto; opacity:.75; font-size:11px;}
+  .nav-item-group.expanded{background:rgba(255,255,255,.10);}
+  .nav-subitem{padding-left:34px !important; font-size:13px; opacity:.92;}
+  .nav-subitem:hover{opacity:1;}
+
+  /* ---- Overlay toàn màn hình của 3 công cụ văn phòng ---- */
+  .office-overlay{overflow:auto; background:var(--paper);}
+  .office-doc{max-width:1000px; margin:0 auto; padding:24px 20px 56px;}
+  .office-doc-head{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:18px;}
+  .office-doc-head h2{margin:4px 0 0; font-size:clamp(24px,4vw,34px); color:var(--ink);}
+  .office-badge{display:inline-block; padding:7px 13px; border-radius:999px; font-size:13px; font-weight:700;
+    background:rgba(199,154,43,.16); color:#7a5b00; border:1px solid rgba(199,154,43,.4); margin-bottom:14px;}
+  .office-lead{font-size:16.5px; line-height:1.7; color:var(--ink); margin:0 0 24px; max-width:78ch;}
+  .office-grid,.upcoming-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:14px;}
+  .office-feature,.upcoming-feature{display:flex; gap:12px; padding:16px; border:1px solid var(--line);
+    border-radius:13px; background:var(--paper-2);}
+  .office-feature-ico,.upcoming-feature-ico{font-size:24px; line-height:1; flex-shrink:0;}
+  .office-feature h4,.upcoming-feature h4{margin:0 0 6px; font-size:14.5px; color:var(--ink);}
+  .office-feature p,.upcoming-feature p{margin:0; font-size:13.5px; line-height:1.65; color:#5f5a4e;}
+  .office-foot-note,.upcoming-note{margin-top:22px; padding:16px 18px; border-radius:13px;
+    background:rgba(47,74,60,.07); border-left:4px solid var(--rice-dark); display:flex; flex-direction:column; gap:6px;}
+  .office-foot-note b,.upcoming-note b{color:var(--ink); font-size:14.5px;}
+  .office-foot-note span,.upcoming-note span{font-size:13.5px; line-height:1.7; color:#5f5a4e;}
+  .office-doc-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:24px;}
+
+  /* ---- Trang giới thiệu của 7 module đang nâng cấp ---- */
+  .upcoming-page{padding:6px 0 30px;}
+  .upcoming-card{background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:26px 24px; box-shadow:var(--shadow);}
+  .upcoming-head{display:flex; align-items:center; gap:15px; margin-bottom:15px;}
+  .upcoming-ico{font-size:44px; line-height:1;}
+  .upcoming-head h3{margin:3px 0 0; font-size:clamp(21px,3.4vw,28px); color:var(--ink);}
+  .upcoming-badge{display:inline-block; padding:7px 13px; border-radius:999px; font-size:13px; font-weight:700;
+    background:rgba(199,154,43,.16); color:#7a5b00; border:1px solid rgba(199,154,43,.4); margin-bottom:14px;}
+  .upcoming-lead{font-size:15.5px; line-height:1.72; color:var(--ink); margin:0 0 22px; max-width:80ch;}
+
+  @media (max-width:640px){
+    .office-doc{padding:16px 13px 44px;}
+    .upcoming-card{padding:18px 15px;}
+    .office-grid,.upcoming-grid{grid-template-columns:1fr;}
+  }
