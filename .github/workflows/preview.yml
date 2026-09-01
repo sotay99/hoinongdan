@@ -61,18 +61,30 @@ jobs:
         id: deploy
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-key.json
+        shell: bash
         run: |
+          set -o pipefail
+          # KHÔNG dùng --json: cờ đó nuốt sạch mọi thông báo, kể cả thông báo lỗi,
+          # khiến lần chạy hỏng mà không để lại dấu vết nào để lần ra nguyên nhân.
+          # Giữ đầu ra người-đọc-được, gộp stderr vào, rồi bóc địa chỉ ra bằng regex.
+          set +e
           firebase hosting:channel:deploy "${{ steps.channel.outputs.name }}" \
             --project congtachoinongdan \
-            --expires 7d \
-            --json > /tmp/channel.json
-          url="$(python3 -c "
-          import json
-          d = json.load(open('/tmp/channel.json'))
-          r = d.get('result', d)
-          site = next(iter(r.values())) if isinstance(r, dict) and r else {}
-          print(site.get('url', ''))
-          ")"
+            --expires 7d 2>&1 | tee /tmp/channel.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          echo "───── firebase thoát với mã: $status ─────"
+          if [[ $status -ne 0 ]]; then
+            echo "::error::firebase hosting:channel:deploy thất bại (mã $status). Xem log phía trên."
+            exit $status
+          fi
+
+          url="$(grep -oE 'https://[A-Za-z0-9._-]+\.web\.app' /tmp/channel.log | head -1)"
+          if [[ -z "$url" ]]; then
+            echo "::error::firebase báo thành công nhưng không tìm thấy địa chỉ xem trước trong đầu ra."
+            exit 1
+          fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: In địa chỉ xem trước
