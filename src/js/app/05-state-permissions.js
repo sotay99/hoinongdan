@@ -192,7 +192,7 @@
   }
   function blockTourMutation(message){
     if(!isTourMode()) return false;
-    alert(message || 'Bạn đang ở môi trường tham quan. Thao tác này không tạo dữ liệu thật.');
+    alert(message || 'Đồng chí đang ở môi trường tham quan. Thao tác này không tạo dữ liệu thật.');
     return true;
   }
 
@@ -531,7 +531,7 @@
       wrap.querySelector('#upl-close2').onclick = close;
       const deleteBtn = wrap.querySelector('#upl-delete');
       if(deleteBtn) deleteBtn.onclick = async ()=>{
-        if(!confirm('Bạn có CHẮC CHẮN muốn xoá Biên lai chưa thanh toán này không? Khi xoá thì đường link Biên lai sẽ MẤT LUÔN và KHÔNG THỂ khôi phục lại được.')) return;
+        if(!confirm('Đồng chí có CHẮC CHẮN muốn xoá Biên lai chưa thanh toán này không? Khi xoá thì đường link Biên lai sẽ MẤT LUÔN và KHÔNG THỂ khôi phục lại được.')) return;
         try{ await rtdb.ref('receipts/'+code).remove(); }
         catch(e){ console.error('Không xoá được:', e); alert('Có lỗi khi xoá: '+(e&&e.message||e)); return; }
         wrap.remove();
@@ -540,9 +540,9 @@
       };
     const markPaidBtn = wrap.querySelector('#upl-markpaid');
     if(markPaidBtn) markPaidBtn.onclick = async ()=>{
-      if(!confirm('Bạn có CHẮC CHẮN Biên lai này đã được Thanh toán xong không? Sau khi xác nhận, Biên lai sẽ chuyển sang trạng thái Đã thanh toán, giữ nguyên mã và đường link như cũ. Biên lai đã Thanh toán thì không thể Xoá/sửa được bởi bất kỳ ai.')) return;
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-      if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+      if(!confirm('Đồng chí có CHẮC CHẮN Biên lai này đã được Thanh toán xong không? Sau khi xác nhận, Biên lai sẽ chuyển sang trạng thái Đã thanh toán, giữ nguyên mã và đường link như cũ. Biên lai đã Thanh toán thì không thể Xoá/sửa được bởi bất kỳ ai.')) return;
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+      if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
       showProcessingToast();
       try{
         const snap = await rtdb.ref('receipts/'+code).get();
@@ -570,7 +570,7 @@
           // KHÔNG thể tự áp dụng giao dịch thật. Báo rõ cho người dùng biết, tránh hiểu lầm là mọi
           // việc đã xong trong khi thực ra Hộp lãi/Sổ vay vốn của người vay CHƯA hề được cập nhật gì.
           hideProcessingToast();
-          if(!confirm('⚠️ Biên lai này KHÔNG có đủ dữ liệu để tự động áp dụng giao dịch (có thể do được tạo từ phiên bản cũ). Nếu tiếp tục, Biên lai sẽ CHỈ chuyển trạng thái hiển thị thành "Đã thanh toán" — bạn cần TỰ vào Sổ vay vốn để ghi nhận thủ công giao dịch này. Bạn có chắc chắn muốn tiếp tục không?')) return;
+          if(!confirm('⚠️ Biên lai này KHÔNG có đủ dữ liệu để tự động áp dụng giao dịch (có thể do được tạo từ phiên bản cũ). Nếu tiếp tục, Biên lai sẽ CHỈ chuyển trạng thái hiển thị thành "Đã thanh toán" — đồng chí cần TỰ vào Sổ vay vốn để ghi nhận thủ công giao dịch này. Đồng chí có chắc chắn muốn tiếp tục không?')) return;
           showProcessingToast();
         }
         await rtdb.ref('receipts/'+code).update({ status:'paid', createdAt: new Date().toISOString() });
@@ -600,8 +600,8 @@
     if(btn) btn.onclick = async ()=>{
       // Các điều kiện PHỔ QUÁT — áp dụng cho MỌI loại biên lai, khớp đúng y hệt điều kiện đầu tiên
       // của nút "Xác nhận..." bên cạnh.
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể gửi đường link thanh toán thật.'); return; }
-      if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn nên không thể gửi đường link thanh toán. Vui lòng liên hệ Chủ mã định danh.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể gửi đường link thanh toán thật.'); return; }
+      if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn nên không thể gửi đường link thanh toán. Vui lòng liên hệ Chủ mã định danh.'); return; }
       const ctx = getCtx();
       if(!ctx || !ctx.amount || ctx.amount<=0){ alert('Chưa xác định được số tiền — vui lòng chọn đủ thông tin trước khi gửi đường link thanh toán.'); return; }
       const rp = ctx.replay||{};

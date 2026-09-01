@@ -423,12 +423,12 @@
     wrap.querySelector('#epp-cancel').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
     wrap.querySelector('#epp-word').onclick = ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — chỉ xem trước được, chưa thể tải file thật.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan — chỉ xem trước được, chưa thể tải file thật.'); return; }
       const safeTitle = title.replace(/[^\w\u00C0-\u1EF9 ]/g,'').trim().replace(/\s+/g,'-');
       downloadBlob(`${safeTitle}_${todayStr()}.doc`, htmlToWordDoc(title, fullBodyHtml), 'application/msword');
     };
     wrap.querySelector('#epp-print').onclick = ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — chỉ xem trước được, chưa thể in thật.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan — chỉ xem trước được, chưa thể in thật.'); return; }
       const area = document.getElementById('print-area');
       if(!area) return;
       area.classList.remove('landscape');
@@ -554,7 +554,7 @@
               }
               return `<label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><input type="checkbox" class="preview-allow exs-item" data-key="${sec.key}" ${selected.has(sec.key)?'checked':''}><span>${sec.label} (${sec.list.length})</span></label>`;
             }).join('')}
-            <p class="sub" style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line); line-height:1.6;">📐 Các danh sách khoản vay bên trên sẽ được ${mode==='excel'?'xuất':'in'} đúng theo bộ cột đang hiển thị hiện tại (theo "Tuỳ chỉnh cột" hoặc "Chế độ xem cột" bạn vừa chọn): <b>${visibleCols.map(c=>plainLabel(c.label)).join(', ')}</b>.</p>
+            <p class="sub" style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line); line-height:1.6;">📐 Các danh sách khoản vay bên trên sẽ được ${mode==='excel'?'xuất':'in'} đúng theo bộ cột đang hiển thị hiện tại (theo "Tuỳ chỉnh cột" hoặc "Chế độ xem cột" đồng chí vừa chọn): <b>${visibleCols.map(c=>plainLabel(c.label)).join(', ')}</b>.</p>
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost preview-allow" id="exs-cancel">Đóng bảng</button>
@@ -785,7 +785,7 @@
     wrap.querySelector('#bvx-zoom-in').onclick = ()=>{ zoom = Math.min(2, Math.round((zoom+0.1)*10)/10); applyZoom(); };
     wrap.querySelector('#bvx-zoom-out').onclick = ()=>{ zoom = Math.max(0.4, Math.round((zoom-0.1)*10)/10); applyZoom(); };
     wrap.querySelector('#bvx-confirm').onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
       try{ await exportBorrowersExcel(list, visibleCols); close(); }
       catch(e){ console.error('[Xuất Excel Sổ vay vốn] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
     };
@@ -821,7 +821,7 @@
     wrap.querySelector('#bvx-cancel').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
     wrap.querySelector('#bvx-confirm').onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan — đây chỉ là bản xem trước, chưa thể tải file Excel thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng.'); return; }
       try{ await exportBorrowersExcelMultiSection(sections, visibleCols); close(); }
       catch(e){ console.error('[Xuất Excel Sổ vay vốn] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
     };
@@ -864,7 +864,7 @@
           <div class="modal-head"><h3>🖨️ Xem trước bản in — Sổ vay vốn</h3><button class="modal-close" id="bvp-close">✕</button></div>
           <div class="modal-body" style="max-height:70vh; overflow:auto; background:#fff;">${printInnerHtml}</div>
           <div class="modal-foot">
-            <span class="sub" style="margin-right:auto;">Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, không thể in thật.</span>
+            <span class="sub" style="margin-right:auto;">Đồng chí đang ở chế độ tham quan — đây chỉ là bản xem trước, không thể in thật.</span>
             <button class="btn btn-primary" id="bvp-close2">Đóng</button>
           </div>
         </div>`;
@@ -922,7 +922,7 @@
           <div class="modal-head"><h3>🖨️ Xem trước bản in — Sổ vay vốn</h3><button class="modal-close" id="bvp-close">✕</button></div>
           <div class="modal-body" style="max-height:70vh; overflow:auto; background:#fff;">${printInnerHtml}</div>
           <div class="modal-foot">
-            <span class="sub" style="margin-right:auto;">Bạn đang ở chế độ tham quan — đây chỉ là bản xem trước, không thể in thật.</span>
+            <span class="sub" style="margin-right:auto;">Đồng chí đang ở chế độ tham quan — đây chỉ là bản xem trước, không thể in thật.</span>
             <button class="btn btn-primary" id="bvp-close2">Đóng</button>
           </div>
         </div>`;
@@ -1036,7 +1036,7 @@
       const text = await file.text();
       const data = JSON.parse(text);
       if(!data || !data.config || !Array.isArray(data.borrowers)){ alert('File sao lưu không hợp lệ hoặc không đúng định dạng.'); return; }
-      if(!confirm(`Khôi phục sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại của ${adminLevelLabel()} "${wardId()}" trên đám mây (hộ vay, chi tiêu, cấu hình, nhật ký, thùng rác) bằng dữ liệu trong file sao lưu. Bạn có chắc chắn muốn tiếp tục?`)) return;
+      if(!confirm(`Khôi phục sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại của ${adminLevelLabel()} "${wardId()}" trên đám mây (hộ vay, chi tiêu, cấu hình, nhật ký, thùng rác) bằng dữ liệu trong file sao lưu. Đồng chí có chắc chắn muốn tiếp tục?`)) return;
       // "Mã ẩn" (secretId) và Chủ mã (ownerEmail) thuộc về "con trỏ" ĐANG active — TUYỆT ĐỐI không
       // để file sao lưu (vốn có thể được xuất ra từ một mã KHÁC, mang secretId khác) ghi đè mất,
       // nếu không dữ liệu vừa nhập (borrowers/expenses...) sẽ bị lưu lệch sang đúng secretId cũ chứ

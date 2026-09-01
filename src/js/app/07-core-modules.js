@@ -559,13 +559,13 @@
         <div class="modal" style="max-width:96vw; width:480px;">
           <div class="modal-head"><h3>Danh sách Nguồn vay</h3><button class="modal-close" id="fsm-close">✕</button></div>
           <div class="modal-body">
-            <p class="sub" style="margin:0 0 12px;">4 nguồn vay cố định bên dưới luôn có sẵn cho mọi xã/phường, không sửa/xoá được. Nếu nguồn vay của địa phương bạn không nằm trong 4 nguồn này, hãy thêm vào danh sách "Nguồn vay tuỳ chỉnh" phía dưới.</p>
+            <p class="sub" style="margin:0 0 12px;">4 nguồn vay cố định bên dưới luôn có sẵn cho mọi xã/phường, không sửa/xoá được. Nếu nguồn vay của địa phương đồng chí không nằm trong 4 nguồn này, hãy thêm vào danh sách "Nguồn vay tuỳ chỉnh" phía dưới.</p>
             <div class="divider-lbl">4 nguồn vay cố định (chỉ xem)</div>
             ${FUND_SOURCE_OPTIONS.filter(o=>o!=='Nguồn khác').map(name=>`
               <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
                 <input value="${escapeHtml(name)}" disabled style="flex:1; opacity:.7;">
               </div>`).join('')}
-            <div class="divider-lbl" style="margin-top:14px;">Nguồn vay tuỳ chỉnh (của riêng địa phương bạn)</div>
+            <div class="divider-lbl" style="margin-top:14px;">Nguồn vay tuỳ chỉnh (của riêng địa phương đồng chí)</div>
             ${items.map((name,i)=>`
               <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
                 <button type="button" data-fsm-del="${i}" style="border:1px solid var(--line); border-radius:50%; width:24px; height:24px; color:#c00; background:#fff; cursor:pointer;">✕</button>
@@ -641,7 +641,7 @@
         <div class="modal" style="max-width:96vw; width:520px;">
           <div class="modal-head"><h3>Danh sách địa chỉ trước sáp nhập</h3><button class="modal-close" id="lam-close">✕</button></div>
           <div class="modal-body">
-            <p class="sub" style="margin:0 0 12px;">Đây là các địa bàn dân cư CŨ, trước khi sáp nhập vào địa bàn dân cư hiện hành. Chỉ cần nhập đúng tên khu dân cư cũ — hệ thống sẽ tự động thêm chữ "(cũ)" vào cuối, bạn không cần gõ thêm.</p>
+            <p class="sub" style="margin:0 0 12px;">Đây là các địa bàn dân cư CŨ, trước khi sáp nhập vào địa bàn dân cư hiện hành. Chỉ cần nhập đúng tên khu dân cư cũ — hệ thống sẽ tự động thêm chữ "(cũ)" vào cuối, đồng chí không cần gõ thêm.</p>
             ${items.map((name,i)=>`
               <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
                 <button type="button" data-lam-del="${i}" style="border:1px solid var(--line); border-radius:50%; width:24px; height:24px; color:#c00; background:#fff; cursor:pointer;">✕</button>
@@ -742,7 +742,7 @@
             </div>
             <div class="field" style="margin-top:10px;">
               <label>Mã ẩn cố định bên trong là: <span class="mono">${escapeHtml((cfgW&&cfgW.secretId)||'')}</span></label>
-              <p class="sub" style="margin:4px 0 0;">Bạn có thể không cần quan tâm đến mã ẩn bên trong này, đây chỉ là định danh cố định vĩnh viễn của tên mã định danh phía trên.</p>
+              <p class="sub" style="margin:4px 0 0;">Đồng chí có thể không cần quan tâm đến mã ẩn bên trong này, đây chỉ là định danh cố định vĩnh viễn của tên mã định danh phía trên.</p>
             </div>
           </div>
           <div class="modal-foot">
@@ -784,7 +784,7 @@
       const saveBtn = wrap.querySelector('#wim-pw-save');
       if(saveBtn) saveBtn.onclick = async ()=>{
         const newPass = wrap.querySelector('#wim-pw').value;
-        if(!confirm('Bạn có chắc chắn muốn đổi mật khẩu mã định danh này? Các Khách đang dùng ké mã cũ sẽ bị yêu cầu nhập lại mật khẩu mới ngay lập tức.')) return;
+        if(!confirm('Đồng chí có chắc chắn muốn đổi mật khẩu mã định danh này? Các Khách đang dùng ké mã cũ sẽ bị yêu cầu nhập lại mật khẩu mới ngay lập tức.')) return;
         const newCfg = {...cfgW, accessCode: newPass||'', accessVersion: (cfgW.accessVersion||0)+1};
         await wrefFor(wid, 'config').set(newCfg);
         cfgW.accessCode = newCfg.accessCode; cfgW.accessVersion = newCfg.accessVersion;
@@ -1387,7 +1387,7 @@
     wrap.querySelector('#ert-save').onclick = async ()=>{
       const newVal = (wrap.querySelector('#ert-input').value||'').trim();
       if(newVal===currentValue) { close(); return; }
-      if(!confirm('Bạn có CHẮC CHẮN muốn lưu nội dung mới này không?')) return;
+      if(!confirm('Đồng chí có CHẮC CHẮN muốn lưu nội dung mới này không?')) return;
       close();
       await onSave(newVal);
     };
@@ -1424,7 +1424,7 @@
         const sel = wrap.querySelector('input[name="erc-cat"]:checked');
         const newId = sel && sel.value ? sel.value : null;
         if(newId===currentLabelId){ close(); return; }
-        if(!confirm('Bạn có CHẮC CHẮN muốn đổi Phân loại biên lai này không?')) return;
+        if(!confirm('Đồng chí có CHẮC CHẮN muốn đổi Phân loại biên lai này không?')) return;
         close();
         await onSave(newId);
       };
@@ -1579,7 +1579,7 @@
   async function removeAdminEmail(email){
     if(!isSuperAdmin()){ alert('Chỉ Admin tối cao mới có quyền gỡ quyền Admin.'); return; }
     if(SUPER_ADMIN_EMAILS.includes(email)){ alert('Không thể gỡ quyền của Admin tối cao.'); return; }
-    if(!confirm(`Gỡ quyền Admin của "${email}"? Bạn có chắc chắn?`)) return;
+    if(!confirm(`Gỡ quyền Admin của "${email}"? Đồng chí có chắc chắn?`)) return;
     await rtdb.ref(`admins/${emailToKey(email)}`).remove();
     await loadAdmins();
   }
@@ -1970,7 +1970,7 @@
     if(!newWid || newWid.length<3){ alert('Vui lòng nhập Mã định danh hợp lệ (tối thiểu 3 ký tự, chỉ gồm chữ thường/số/gạch dưới/gạch ngang).'); return false; }
     if(newWid === oldWid){ alert('Mã mới trùng với mã hiện tại, không có gì để đổi.'); return false; }
     if(await isWardIdTaken(newWid)){ alert('Mã này đã bị trùng với mã hiện có, hoặc trong thùng rác của ai đó, vui lòng thay đổi ký tự!'); return false; }
-    if(!confirm(`Đổi tên mã định danh từ "${oldWid}" sang "${newWid}"?\n\nDữ liệu (hộ vay, chi tiêu, nhật ký...) hoàn toàn KHÔNG bị ảnh hưởng — luôn được "Mã ẩn" cố định phía sau bảo lãnh nguyên vẹn. Các Khách đang dùng mã cũ để tham gia sẽ cần được bạn cung cấp lại mã mới "${newWid}" để tiếp tục truy cập. Bạn có chắc chắn?`)) return false;
+    if(!confirm(`Đổi tên mã định danh từ "${oldWid}" sang "${newWid}"?\n\nDữ liệu (hộ vay, chi tiêu, nhật ký...) hoàn toàn KHÔNG bị ảnh hưởng — luôn được "Mã ẩn" cố định phía sau bảo lãnh nguyên vẹn. Các Khách đang dùng mã cũ để tham gia sẽ cần được đồng chí cung cấp lại mã mới "${newWid}" để tiếp tục truy cập. Đồng chí có chắc chắn?`)) return false;
     const movedCfg = { ...cfgSnapshot }; // chỉ copy "con trỏ" — secretId bên trong giữ nguyên, không đổi
     await rtdb.ref(`data/${newWid}/config`).set(movedCfg);
     syncWardIndex(newWid, movedCfg);
@@ -2014,7 +2014,7 @@
   // ---- Xoá / khôi phục mã xã (chuỗi 3 tầng: đang dùng -> thùng rác cá nhân -> thùng rác hệ thống) ----
   async function ownerDeleteWard(wid){
     const w = state.myWards.find(x=>x.wardId===wid);
-    if(!confirm(`Xoá mã xã "${wid}"${w&&w.wardName?` (${w.wardName})`:''}? Dữ liệu sẽ mất theo mã này khỏi giao diện làm việc (và văng toàn bộ Khách đang sài ké ra ngoài) — muốn khôi phục, vào mục "🗑️ Mã xã đã xoá của tôi" (Thùng rác chứa mã). Bạn có chắc chắn?`)) return;
+    if(!confirm(`Xoá mã xã "${wid}"${w&&w.wardName?` (${w.wardName})`:''}? Dữ liệu sẽ mất theo mã này khỏi giao diện làm việc (và văng toàn bộ Khách đang sài ké ra ngoài) — muốn khôi phục, vào mục "🗑️ Mã xã đã xoá của tôi" (Thùng rác chứa mã). Đồng chí có chắc chắn?`)) return;
     const cfg = await cGetOnceFor(wid, 'config', {});
     cfg.deleted = true; cfg.deletedAt = new Date().toISOString(); cfg.deletedBy = state.identity.email;
     await wrefFor(wid, 'config').set(cfg);
@@ -2031,13 +2031,13 @@
       detachRealtime();
       state._onboardingReturnView = 'wallet';
       await createRandomWardAndOnboard();
-      alert('Mã định danh ngẫu nhiên mới đã được tự động tạo để bạn lưu cơ sở dữ liệu hoàn toàn mới, bạn có thể đổi tên mã ngẫu nhiên này bất cứ lúc nào trong phần Cài đặt.');
+      alert('Mã định danh ngẫu nhiên mới đã được tự động tạo để đồng chí lưu cơ sở dữ liệu hoàn toàn mới, đồng chí có thể đổi tên mã ngẫu nhiên này bất cứ lúc nào trong phần Cài đặt.');
       return;
     }
     if(wasActive){ await kickToWalletSilent(); } else { render(); }
   }
   async function guestRemoveWard(wid){
-    if(!confirm('Xoá mã xã này khỏi danh sách của bạn? Bạn có thể tham gia lại bất cứ lúc nào bằng đúng mã xã (và mật khẩu, nếu có).')) return;
+    if(!confirm('Xoá mã xã này khỏi danh sách của đồng chí? Đồng chí có thể tham gia lại bất cứ lúc nào bằng đúng mã xã (và mật khẩu, nếu có).')) return;
     await rtdb.ref(`users/${emailToKey(state.identity.email)}/wards/${wid}`).remove();
     if(wardId()===wid){ await kickToWalletSilent(); } else { await loadWallet(); render(); }
   }
@@ -2058,7 +2058,7 @@
     await loadWallet(); render();
   }
   async function purgeDeletedWardToSuperadmin(wid){
-    if(!confirm('Xoá vĩnh viễn: mã này sẽ KHÔNG còn trong thùng rác của bạn nữa (chỉ Quản trị viên trang web mới khôi phục được cho bạn). Dữ liệu thật vẫn được "Mã ẩn" bảo lãnh an toàn tuyệt đối. Bạn có chắc chắn?')) return;
+    if(!confirm('Xoá vĩnh viễn: mã này sẽ KHÔNG còn trong thùng rác của đồng chí nữa (chỉ Quản trị viên trang web mới khôi phục được cho đồng chí). Dữ liệu thật vẫn được "Mã ẩn" bảo lãnh an toàn tuyệt đối. Đồng chí có chắc chắn?')) return;
     const entry = state.myDeletedWards.find(x=>x.wardId===wid);
     // Chụp lại TOÀN BỘ "con trỏ" config (bao gồm Mã ẩn/secretId) NGAY LÚC NÀY — vì kể từ khi vào
     // Thùng rác hệ thống, chuỗi wid này được coi là "thả tự do" nên CÓ THỂ bị người khác xin lại để
@@ -2112,7 +2112,7 @@
   }
   async function superPurgeForever(wid){
     if(!isAdmin()) return;
-    if(!confirm('XOÁ VĨNH VIỄN — TOÀN BỘ dữ liệu (hộ vay, chi tiêu, nhật ký, cộng tác viên...) của mã xã này trên đám mây sẽ bị xoá sạch, KHÔNG THỂ khôi phục. Bạn có chắc chắn tuyệt đối?')) return;
+    if(!confirm('XOÁ VĨNH VIỄN — TOÀN BỘ dữ liệu (hộ vay, chi tiêu, nhật ký, cộng tác viên...) của mã xã này trên đám mây sẽ bị xoá sạch, KHÔNG THỂ khôi phục. Đồng chí có chắc chắn tuyệt đối?')) return;
     try{
       // Dữ liệu thật nằm ở secretdata/{secretId}/... (không phải data/{wid}/...) — phải lấy đúng
       // Mã ẩn từ snapshot đã chụp lúc đưa vào Thùng rác hệ thống để xoá đúng chỗ.
@@ -3254,8 +3254,8 @@
   // PDF dùng hộp thoại in của trình duyệt.
   function fileGenerationTrainingText(){
     return `
-KHẢ NĂNG TẠO FILE THẬT (PowerPoint/Word/Excel/PDF) VÀ GIỌNG NÓI AI — RẤT QUAN TRỌNG, bạn THỰC SỰ làm được:
-Khi người dùng muốn có 1 file tải về máy (vd: "làm giúp tôi file PowerPoint", "xuất file Word", "làm file Excel", "tải về", "xuất file", "làm slide trình chiếu"...), hãy đặt ĐÚNG nội dung vào trong 1 khối mã (code fence) với "ngôn ngữ" tương ứng dưới đây — hệ thống sẽ TỰ ĐỘNG dựng thành file thật, hiện kèm nút "⬇️ Tải xuống" ngay dưới câu trả lời của bạn để người dùng tải về máy:
+KHẢ NĂNG TẠO FILE THẬT (PowerPoint/Word/Excel/PDF) VÀ GIỌNG NÓI AI — RẤT QUAN TRỌNG, đồng chí THỰC SỰ làm được:
+Khi người dùng muốn có 1 file tải về máy (vd: "làm giúp tôi file PowerPoint", "xuất file Word", "làm file Excel", "tải về", "xuất file", "làm slide trình chiếu"...), hãy đặt ĐÚNG nội dung vào trong 1 khối mã (code fence) với "ngôn ngữ" tương ứng dưới đây — hệ thống sẽ TỰ ĐỘNG dựng thành file thật, hiện kèm nút "⬇️ Tải xuống" ngay dưới câu trả lời của đồng chí để người dùng tải về máy:
 
 1) FILE POWERPOINT/SLIDE TRÌNH CHIẾU (.pptx) — dùng \`\`\`pptx : mỗi slide là 1 đoạn; dòng ĐẦU TIÊN của đoạn là tiêu đề slide; các dòng sau bắt đầu bằng "- " là gạch đầu dòng nội dung; các slide cách nhau bằng 1 dòng CHỈ có đúng 3 dấu gạch ngang "---". Ví dụ:
 \`\`\`pptx
@@ -3279,7 +3279,7 @@ Tiêu đề Slide 2
 Kính thưa bà con nhân dân! Hôm nay Hội Nông dân xã xin thông báo...
 \`\`\`
 
-Chỉ dùng các khối trên khi người dùng THỰC SỰ muốn 1 file tải về được hoặc muốn nghe giọng đọc AI. Nếu họ chỉ muốn xem/đọc ngay trong khung chat (không cần tải file) thì trả lời markdown bình thường, KHÔNG cần bọc trong các khối trên. Bạn cũng có thể dùng khối mã lập trình bình thường (\`\`\`js, \`\`\`python...) khi được yêu cầu viết code, và dùng bảng markdown (| cột | cột |) khi cần trình bày dạng bảng — cả hai đều tự có nút "Sao chép" riêng.`;
+Chỉ dùng các khối trên khi người dùng THỰC SỰ muốn 1 file tải về được hoặc muốn nghe giọng đọc AI. Nếu họ chỉ muốn xem/đọc ngay trong khung chat (không cần tải file) thì trả lời markdown bình thường, KHÔNG cần bọc trong các khối trên. Đồng chí cũng có thể dùng khối mã lập trình bình thường (\`\`\`js, \`\`\`python...) khi được yêu cầu viết code, và dùng bảng markdown (| cột | cột |) khi cần trình bày dạng bảng — cả hai đều tự có nút "Sao chép" riêng.`;
   }
 
   async function buildAiSystemPrompt(){
@@ -3322,7 +3322,7 @@ ${projectLines? projectLines+'\n' : ''}- Tổng số hộ đang vay: ${list.leng
       if(systemKnowledge) knowledgeBlock += `\n\n===== TÀI LIỆU TRI THỨC NỀN DO ADMIN CUNG CẤP (ưu tiên tham khảo khi trả lời nghiệp vụ/hướng dẫn sử dụng) =====\n${systemKnowledge}`;
       if(personalNotes) knowledgeBlock += `\n\n===== SIÊU GHI CHÚ CÁ NHÂN CỦA NGƯỜI ĐANG CHAT (ưu tiên cao nhất — đây là ghi chú riêng của chính họ) =====\n${personalNotes}`;
     }catch(e){ console.error('Nạp Bối cảnh tri thức lỗi:', e); }
-    return `Bạn tên là "Chàng Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Chàng" gọi người dùng là "bạn/đồng chí". Bạn đảm nhiệm 4 vai trò:
+    return `Bạn tên là "Chàng Nông dân Thông minh" — trợ lý AI thân thiện, gần gũi, nói năng như một cán bộ Hội Nông dân giàu kinh nghiệm, xưng "Chàng" và LUÔN gọi người dùng là "đồng chí" (tuyệt đối không gọi là "bạn" hay "anh/chị"). Bạn đảm nhiệm 4 vai trò:
 1) Trợ lý nghiệp vụ Hội Nông dân: giải đáp nhanh nghiệp vụ công tác hội, công tác hội viên, chính sách, quy chế cho vay, thủ tục gia hạn nợ, lãi suất, quỹ hỗ trợ nông dân.
 2) Hướng dẫn sử dụng phần mềm quản lý này: giải thích tính năng, cách nhập liệu, cách thao tác trên các Module (Tổng quan, Sổ vay vốn, Sổ Thu Chi Lãi Quỹ, Thùng rác, Thu-Chi nội bộ, Hồ sơ hội viên, Thực lực Hội, Biểu mẫu khảo sát, Cài đặt & Chia sẻ...).
 3) Trợ lý phân tích số liệu: khi được hỏi về dư nợ/hộ vay/thống kê, hãy dựa vào phần "DỮ LIỆU TÓM TẮT HIỆN TẠI" bên dưới (nếu có); nếu không có hoặc không đủ, hãy nói rõ là chưa có dữ liệu và hướng dẫn xem trong Module tương ứng, không được bịa số liệu.

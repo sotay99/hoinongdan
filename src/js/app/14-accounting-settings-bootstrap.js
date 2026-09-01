@@ -167,7 +167,7 @@
           <p>Khoản này được hệ thống tính từ các khoản vay trong <b>Sổ vay vốn Quỹ Hỗ trợ Nông dân</b>. Với mỗi khoản vay, hệ thống chỉ lấy những Quý đã thực sự đóng lãi và đã được ghi nhận/phê duyệt, sau đó phân bổ phần tiền lãi thuộc về ${level} theo tỷ lệ phân bổ riêng của khoản vay đó.</p>
           <p>Nói cách khác, đây là số tiền lãi ${level} <b>được nhận theo số liệu đã phát sinh</b>, không phải số tiền dự kiến, không phải tiền gốc đã giải ngân, cũng không phải toàn bộ số tiền người vay còn phải trả trong tương lai.</p>
           <div class="acct-info-box"><b>Công thức hiểu đơn giản</b><br>Tiền lãi đã đóng của từng khoản vay × tỷ lệ phân bổ về ${level} → cộng tất cả khoản trong ${periodHtml}.</div>
-          <p>Nếu bạn đổi bộ lọc <b>Quý/Năm</b> ở phía trên module rồi mở lại modal, số tiền sẽ được tính lại theo kỳ mới. Các khoản lãi chưa đóng, chưa được phê duyệt hoặc nằm ngoài kỳ đang xem sẽ không được cộng vào con số này.</p>
+          <p>Nếu đồng chí đổi bộ lọc <b>Quý/Năm</b> ở phía trên module rồi mở lại modal, số tiền sẽ được tính lại theo kỳ mới. Các khoản lãi chưa đóng, chưa được phê duyệt hoặc nằm ngoài kỳ đang xem sẽ không được cộng vào con số này.</p>
           <p>Ý nghĩa quản lý của chỉ tiêu này là cho biết trong kỳ, ${level} có bao nhiêu nguồn thu từ phần lãi được phân bổ để làm căn cứ đối chiếu với các khoản đã chi và tính số tồn quỹ.</p>`,
       },
       expense: {
@@ -178,7 +178,7 @@
           <p>Mỗi khoản chi có thể thuộc một mục đích khác nhau, chẳng hạn như chi hoạt động họp, chi bồi dưỡng cán bộ hoạt động quỹ, chi trích về khu dân cư/ấp hoặc mục đích khác. Hệ thống cộng số tiền thực tế đã nhập của từng bản ghi để tạo thành tổng này.</p>
           <div class="acct-info-box"><b>Số bản ghi đang được cộng</b><br>${acct.expenses.length ? `<b>${acct.expenses.length}</b> khoản chi hợp lệ trong kỳ.` : 'Chưa có khoản chi hợp lệ nào trong kỳ.'}</div>
           ${categoryRows ? `<p style="margin-bottom:6px;"><b>Phân bổ theo nội dung chi</b></p><div class="table-wrap acct-info-table"><table><thead><tr><th>Nội dung</th><th>Số tiền</th></tr></thead><tbody>${categoryRows}</tbody></table></div>` : ''}
-          <p>Ý nghĩa của chỉ tiêu này là cho biết nguồn thu của ${level} đã được sử dụng bao nhiêu trong kỳ. Muốn kiểm tra chi tiết, bạn có thể xem từng dòng ở bảng <b>Danh sách khoản chi</b> bên dưới.</p>`,
+          <p>Ý nghĩa của chỉ tiêu này là cho biết nguồn thu của ${level} đã được sử dụng bao nhiêu trong kỳ. Muốn kiểm tra chi tiết, đồng chí có thể xem từng dòng ở bảng <b>Danh sách khoản chi</b> bên dưới.</p>`,
       },
       balance: {
         title: `⚖️ Tồn quỹ ${level}: số dư sau thu và chi`,
@@ -708,7 +708,7 @@
 
     const delBtn = wrap.querySelector('#em-delete');
     if(delBtn) delBtn.onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
       if(!confirm('Chuyển khoản chi này vào thùng rác?')) return;
       state.expenses = state.expenses.filter(x=>x.id!==e0.id);
       const trashed = {...e0, _kind:'expense', deleted:true, deletedAt:new Date().toISOString(), deletedBy: state.identity.email, deletedByName: state.identity.name};
@@ -721,7 +721,7 @@
 
     const saveBtn = wrap.querySelector('#em-save');
     if(saveBtn) saveBtn.onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
       const date = wrap.querySelector('#em-date').value;
       const purpose = wrap.querySelector('#em-purpose').value;
       const purposeOther = wrap.querySelector('#em-other').value.trim();
@@ -919,10 +919,10 @@
   }
 
   function buildPropagandaHtml(chat, provider){
-    const welcomeHtml = `<div class="ai-bubble assistant">Chào bạn! Chàng là "Chàng Nông dân Thông minh" 📣 — hôm nay Chàng đóng vai <b>Biên tập viên Tuyên truyền</b>, sẵn sàng giúp bạn tạo:
+    const welcomeHtml = `<div class="ai-bubble assistant">Chào đồng chí! Chàng là "Chàng Nông dân Thông minh" 📣 — hôm nay Chàng đóng vai <b>Biên tập viên Tuyên truyền</b>, sẵn sàng giúp đồng chí tạo:
       <br>📱 Bài viết tuyên truyền mạng xã hội &nbsp; 💬 Tin nhắn Zalo/Messenger &nbsp; 🖼️ Hình ảnh & Poster &nbsp; 🎬 Video tuyên truyền
       <br>🪧 Banner &nbsp; 📢 Kịch bản loa truyền thanh &nbsp; 🖥️ Slide trình chiếu &nbsp; 💡 Khẩu hiệu/Slogan &nbsp; ❓ Hỏi-Đáp tuyên truyền
-      <br><br>Bấm nhanh 1 trong các nút bên dưới, hoặc cứ gõ thẳng ý bạn muốn tuyên truyền điều gì nhé!</div>`;
+      <br><br>Bấm nhanh 1 trong các nút bên dưới, hoặc cứ gõ thẳng ý đồng chí muốn tuyên truyền điều gì nhé!</div>`;
     const messagesHtml = (!chat || !chat.messages.length) ? welcomeHtml : chat.messages.map((m, idx)=> buildPropagandaBubbleHtml(m, idx)).join('');
     const historyHtml = state.propagandaChats.length ? state.propagandaChats.map(c=>`
         <div class="ai-hist-item ${c.id===state.propagandaActiveChatId?'active':''}" data-pg-hist="${c.id}">
@@ -969,14 +969,14 @@
         <button class="ai-newchat-btn" id="pg-newchat-btn">➕ Đoạn hội thoại mới</button>
         <div class="ai-hist-label">Lịch sử tuyên truyền</div>
         <div class="ai-hist-list">${historyHtml}</div>
-        ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Bạn đang dùng khách/tham quan — lịch sử chỉ lưu tạm trong phiên này.</div>' : ''}
+        ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Đồng chí đang dùng khách/tham quan — lịch sử chỉ lưu tạm trong phiên này.</div>' : ''}
       </div>
       <button class="ai-sidebar-toggle-btn preview-allow ${state._pgSidebarCollapsed?'collapsed':''}" id="pg-sidebar-toggle-btn" title="${state._pgSidebarCollapsed?'Mở khung lịch sử tuyên truyền':'Đóng khung lịch sử tuyên truyền'}">${state._pgSidebarCollapsed?'▶':'◀'}</button>
       <div class="ai-sidebar-scrim ${!state._pgSidebarCollapsed?'show':''}" id="pg-sidebar-scrim"></div>
       <button class="ai-close-fab preview-allow" id="pg-close-fab" title="Đóng Tạo bài Tuyên truyền">✕</button>
       <div class="ai-main ${state._pgSidebarCollapsed?'ai-sidebar-collapsed':''}" id="pg-main-panel">
         <div class="ai-header">📣 Biên tập viên Tuyên truyền - Chàng Nông dân Thông minh</div>
-        ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
+        ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
         <div class="ai-messages" id="pg-messages">${messagesHtml}</div>
         ${chat && chat.hasVideoRole? `<div style="background:#7a1414; color:#fff; text-align:center; font-weight:800; font-size:13px; padding:10px 14px; margin:0 10% 8px; border-radius:10px; letter-spacing:.2px;">⚠️ CHỨC NĂNG TẠO VIDEO AI LÀ MỘT CHỨC NĂNG CAO CẤP. CHỨC NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP TRONG TƯƠNG LAI. NÊN HIỆN TẠI CÓ THỂ SẼ CÓ LỖI KHI TẠO VIDEO AI.</div>` : ''}
         <div class="pg-roles" style="padding:8px 10% 0;">${rolesHtml}</div>
@@ -1066,7 +1066,7 @@
 
     el.querySelectorAll('[data-pg-role]').forEach(btn=>{
       btn.onclick = ()=>{
-        if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
         const role = PROPAGANDA_ROLES.find(r=>r.key===btn.dataset.pgRole);
         state._propagandaSuggestMenuOpen = false; // đóng menu gợi ý ngay sau khi đã chọn xong 1 lựa chọn
         if(role) sendPropagandaMessage(role.prompt, role.key==='video');
@@ -1167,7 +1167,7 @@
     }
     const confirmCreateBtn = document.getElementById('pg-confirm-create-btn');
     if(confirmCreateBtn) confirmCreateBtn.onclick = ()=>{
-      if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
       sendPropagandaMessage('Tôi không cần bổ sung gì thêm, hãy tạo bài tuyên truyền ngay theo đúng phương án Chàng vừa đề xuất!');
     };
 
@@ -1222,7 +1222,7 @@
     const doSend = ()=>{
       if(state.propagandaSending) return;
       const v = inputEl.value; inputEl.value = '';
-      if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
       sendPropagandaMessage(v);
     };
     if(sendBtn) sendBtn.onclick = doSend;
@@ -1390,7 +1390,7 @@
   }
 
   async function saveSurveyDraft(){
-    if(!surveyCanEdit()){ alert(state.surveySpace==='personal' ? 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : 'Bạn không có quyền sửa Biểu mẫu dùng chung này.'); return false; }
+    if(!surveyCanEdit()){ alert(state.surveySpace==='personal' ? 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : 'Đồng chí không có quyền sửa Biểu mẫu dùng chung này.'); return false; }
     const d = state.surveyDraft;
     if(!d.title || !d.title.trim()){ alert('Vui lòng nhập tiêu đề biểu mẫu.'); return false; }
     if(!d.questions.length){ alert('Vui lòng thêm ít nhất 1 câu hỏi.'); return false; }
@@ -1409,10 +1409,10 @@
     return true;
   }
   async function deleteSurvey(id){
-    if(!surveyCanEdit()){ alert(state.surveySpace==='personal' ? 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : 'Bạn không có quyền xoá Biểu mẫu dùng chung này.'); return; }
+    if(!surveyCanEdit()){ alert(state.surveySpace==='personal' ? 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : 'Đồng chí không có quyền xoá Biểu mẫu dùng chung này.'); return; }
     const s = state.surveys.find(x=>x.id===id);
     if(!s) return;
-    if(!confirm(`Xoá biểu mẫu "${s.title}"? Toàn bộ câu trả lời đã thu thập cũng sẽ bị xoá theo và KHÔNG THỂ khôi phục. Bạn có chắc chắn?`)) return;
+    if(!confirm(`Xoá biểu mẫu "${s.title}"? Toàn bộ câu trả lời đã thu thập cũng sẽ bị xoá theo và KHÔNG THỂ khôi phục. Đồng chí có chắc chắn?`)) return;
     await rtdb.ref(`surveys/${id}`).remove();
     await rtdb.ref(`survey_responses/${id}`).remove();
     await pushLog('xoá biểu mẫu', s.title);
@@ -1510,13 +1510,13 @@
       <div class="panel">
         <div class="panel-head"><h3>BIỂU MẪU/KHẢO SÁT/BÀI KIỂM TRA</h3></div>
         <div class="panel-body">
-          <p class="sub" style="margin-top:0;">Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người... người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ được tham gia khảo sát / làm bài kiểm tra bằng đường link do bạn cung cấp!</p>
+          <p class="sub" style="margin-top:0;">Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người... người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ được tham gia khảo sát / làm bài kiểm tra bằng đường link do đồng chí cung cấp!</p>
           <div class="toolbar" style="margin-bottom:14px;">
             <button class="btn ${isShared?'btn-primary':'btn-ghost'} btn-sm" id="sv-space-shared">🏛️ Biểu mẫu dùng chung xã/phường</button>
             <button class="btn ${!isShared?'btn-primary':'btn-ghost'} btn-sm" id="sv-space-personal">🔒 Biểu mẫu cá nhân</button>
           </div>
-          ${!canView? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared? 'Bạn không có quyền xem Biểu mẫu dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
-          ${canEdit? `<button class="btn btn-primary" id="sv-new-btn">➕ Tạo biểu mẫu mới</button>` : `<p class="sub">Bạn chỉ có quyền xem ở ${isShared?'Biểu mẫu dùng chung này':'đây'}.</p>`}
+          ${!canView? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared? 'Đồng chí không có quyền xem Biểu mẫu dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
+          ${canEdit? `<button class="btn btn-primary" id="sv-new-btn">➕ Tạo biểu mẫu mới</button>` : `<p class="sub">Đồng chí chỉ có quyền xem ở ${isShared?'Biểu mẫu dùng chung này':'đây'}.</p>`}
           <div class="table-wrap" style="margin-top:14px;">
             <table>
               <thead><tr><th>Tên biểu mẫu</th><th>Ngày tạo</th><th>Số người đã trả lời</th><th></th></tr></thead>
@@ -2007,13 +2007,13 @@
         root.innerHTML = `
           <div class="center-screen"><div class="auth-card" style="max-width:520px;">
             <div class="rice-badge">✅</div>
-            <h1>Bạn đã gửi câu trả lời thành công!</h1>
-            <p class="sub">Cảm ơn bạn đã tham gia ${survey.isQuiz? 'bài kiểm tra':'khảo sát'} "${escapeHtml(survey.title)}".</p>
+            <h1>Đồng chí đã gửi câu trả lời thành công!</h1>
+            <p class="sub">Cảm ơn đồng chí đã tham gia ${survey.isQuiz? 'bài kiểm tra':'khảo sát'} "${escapeHtml(survey.title)}".</p>
             ${survey.isQuiz? `<button class="btn btn-primary btn-block" id="ps-viewscore-btn" style="margin-top:14px;">Xem điểm số</button><div id="ps-score-area" style="margin-top:14px;"></div>` : ''}
           </div></div>`;
         const scoreBtn = document.getElementById('ps-viewscore-btn');
         if(scoreBtn) scoreBtn.onclick = ()=>{
-          document.getElementById('ps-score-area').innerHTML = `<div class="kv-row"><span>Điểm số của bạn</span><b>${lastResult.score||0} / ${lastResult.maxScore||0}</b></div>`;
+          document.getElementById('ps-score-area').innerHTML = `<div class="kv-row"><span>Điểm số của đồng chí</span><b>${lastResult.score||0} / ${lastResult.maxScore||0}</b></div>`;
           scoreBtn.remove();
         };
         return;
@@ -2334,7 +2334,7 @@
           <h3 style="margin-top:0;">${knFileIcon(node)} ${escapeHtml(node.name)}</h3>
           ${node.fileKind==='image' && node.storageUrl? `<img src="${node.storageUrl}" style="max-width:100%; max-height:240px; border-radius:10px; margin-bottom:10px; display:block;">` : ''}
           ${node.storageUrl && node.fileKind!=='image'? `<p class="sub"><a href="${node.storageUrl}" target="_blank" rel="noopener">📎 Xem/tải file gốc</a></p>` : ''}
-          <p class="sub" style="margin-top:0;">${node.fileKind==='text'? 'Nội dung này sẽ được AI đọc trực tiếp làm tri thức nền.' : 'Nội dung trích xuất bên dưới sẽ được AI đọc làm tri thức nền — bạn có thể chỉnh sửa lại cho chính xác/gọn gàng hơn nếu cần.'}</p>
+          <p class="sub" style="margin-top:0;">${node.fileKind==='text'? 'Nội dung này sẽ được AI đọc trực tiếp làm tri thức nền.' : 'Nội dung trích xuất bên dưới sẽ được AI đọc làm tri thức nền — đồng chí có thể chỉnh sửa lại cho chính xác/gọn gàng hơn nếu cần.'}</p>
           <textarea id="kn-editor-textarea" rows="16" style="width:100%; font-family:inherit; font-size:13.5px; padding:12px; border:1px solid var(--line); border-radius:10px; resize:vertical;">${escapeHtml(node.content||'')}</textarea>
           <div style="display:flex; gap:10px; margin-top:14px;">
             <button class="btn btn-ghost" id="kn-editor-close" style="flex:1;">Đóng</button>
@@ -2355,7 +2355,7 @@
   // Module [Huấn luyện AI (Admin)] — "Bàn làm việc" dạng cây thư mục
   // =====================================================================
   function renderAdminKnowledgeTab(el){
-    if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Bạn không có quyền truy cập mục này.</div>'; return; }
+    if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Đồng chí không có quyền truy cập mục này.</div>'; return; }
     attachKnowledgeRealtime();
     const curId = state.knowledgeCurrentFolder;
     const crumbs = knBreadcrumb(curId);
@@ -2553,7 +2553,7 @@
   async function digestNoteInput({ text, attachment, signal }){
     const provider = (state.aiProviders||[]).find(p=> p.apiKey && aiVendorOf(p)==='gemini');
     if(!provider){ throw new Error('Chưa có API Key Gemini nào được Admin cấu hình trong "CÀI ĐẶT ADMIN" — không thể xử lý AI tiêu hoá tri thức (cần model đọc file mạnh).'); }
-    const instruction = `Bạn là một trợ lý biên tập tri thức cho hệ thống ghi chú cá nhân. Nhiệm vụ:
+    const instruction = `Bạn là một trợ lý biên tập tri thức cho hệ thống ghi chú cá nhân. LUÔN gọi người dùng là "đồng chí", tuyệt đối không gọi là "bạn" hay "anh/chị". Nhiệm vụ:
 1) Nếu đầu vào có tệp ảnh/PDF đính kèm: hãy OCR toàn bộ nội dung (chữ, bảng biểu, mô tả sơ đồ nếu có) thành văn bản thuần, cố gắng giữ đúng bố cục/thứ tự gốc — gán vào "rawText".
    Nếu đầu vào CHỈ là văn bản gõ tay/nói (không có tệp đính kèm): "rawText" chính là NGUYÊN VĂN văn bản người dùng đã nhập, giữ nguyên không sửa gì.
 2) Từ rawText, biên tập lại thành "digestedText": sửa lỗi chính tả/ngữ pháp, sắp xếp mạch lạc rõ ràng, có thể suy luận/bổ sung giải thích thêm cho dễ hiểu hơn — nhưng KHÔNG bịa thông tin trái với nội dung gốc.
@@ -2604,7 +2604,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // cho Gemini OCR trực tiếp — TRỪ KHI vượt giới hạn dung lượng hoặc skipAI=true, khi đó bỏ qua
   // hẳn bước gọi AI, đưa thẳng vào cây thư mục.
   async function processSingleQuickNoteInput(rawFile, userText, parentId, signal, skipAI){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(state.previewMode){ alert('Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
     let storagePath = '', storageUrl = '';
     // Tệp gốc chỉ đẩy lên Firebase Storage khi Bộ cá nhân nằm trên đám mây; chưa đăng nhập
     // thì Bộ cá nhân là localStorage nên bỏ qua bước này.
@@ -2634,7 +2634,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       await driveSaveQuickNote({
         parentId: parentId||null,
         name: rawFile.name.slice(0,80),
-        content: `[TỆP GỐC ĐÍNH KÈM — VƯỢT GIỚI HẠN DUNG LƯỢNG ĐỂ AI TIÊU HOÁ]\nTên tệp: ${rawFile.name}\nDung lượng: ${sizeMb} MB (giới hạn cho phép AI tiêu hoá là ${(MAX_AI_DIGEST_BYTES/1024/1024).toFixed(0)}MB)\n\nFile/thư mục/ghi chú của bạn vượt quá giới hạn dung lượng để AI có thể tiêu hoá nên là tài liệu này sẽ được đưa thẳng vào cây thư mục mà không trải qua bước nào cả. Bạn có thể mở tệp gốc bên dưới để xem nội dung.`,
+        content: `[TỆP GỐC ĐÍNH KÈM — VƯỢT GIỚI HẠN DUNG LƯỢNG ĐỂ AI TIÊU HOÁ]\nTên tệp: ${rawFile.name}\nDung lượng: ${sizeMb} MB (giới hạn cho phép AI tiêu hoá là ${(MAX_AI_DIGEST_BYTES/1024/1024).toFixed(0)}MB)\n\nFile/thư mục/ghi chú của đồng chí vượt quá giới hạn dung lượng để AI có thể tiêu hoá nên là tài liệu này sẽ được đưa thẳng vào cây thư mục mà không trải qua bước nào cả. Đồng chí có thể mở tệp gốc bên dưới để xem nội dung.`,
         storagePath, storageUrl,
       });
       alert(`"${rawFile.name}" vượt quá giới hạn dung lượng để AI có thể tiêu hoá nên tài liệu này sẽ được đưa thẳng vào cây thư mục mà không trải qua bước nào cả.`);
@@ -2696,7 +2696,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   // CHỈ xoá nội dung ô nhập/danh sách tệp khi xử lý THÀNH CÔNG — nếu bị dừng giữa chừng hoặc lỗi,
   // giữ nguyên để người dùng sửa lại hoặc tự xoá.
   async function processQuickNoteInput(text, files, parentId, skipAI){
-    if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+    if(state.previewMode){ alert('Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
     if((!files || !files.length) && (!text || !text.trim())) return;
     state.quickNoteAbortController = new AbortController();
     const signal = state.quickNoteAbortController.signal;
@@ -2727,7 +2727,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       state._qnInFlightParentId = null;
       state.quickNoteJustCompleted = true;
       // Yêu cầu mới: dòng thông báo hoàn tất là do "AI nói" nên KHÔNG tự động biến mất nữa.
-      state.quickNoteJustCompletedMsg = 'Chàng đã tiêu hoá xong tài liệu và đã đưa vào cây thư mục, bạn hãy vào cây thư mục để xem tài liệu.';
+      state.quickNoteJustCompletedMsg = 'Chàng đã tiêu hoá xong tài liệu và đã đưa vào cây thư mục, đồng chí hãy vào cây thư mục để xem tài liệu.';
     }catch(e){
       if(e && e.name==='AbortError'){
         // Yêu cầu mới: hỏi người dùng có muốn đưa thẳng vào ghi chú mà không tiêu hoá không.
@@ -2739,7 +2739,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         state._qnInFlightText = '';
         state._qnInFlightFiles = [];
         state._qnInFlightParentId = null;
-        alert('Xử lý AI tiêu hoá thất bại: ' + e.message + '\n\nNội dung/tệp bạn đã nhập vẫn được giữ nguyên để bạn thử lại hoặc chỉnh sửa.');
+        alert('Xử lý AI tiêu hoá thất bại: ' + e.message + '\n\nNội dung/tệp đồng chí đã nhập vẫn được giữ nguyên để đồng chí thử lại hoặc chỉnh sửa.');
       }
     }finally{
       state.quickNoteProcessing = false;
@@ -2801,12 +2801,12 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   }
 
   function renderAdminSettingsTab(el){
-    if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Bạn không có quyền truy cập mục này.</div>'; return; }
+    if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Đồng chí không có quyền truy cập mục này.</div>'; return; }
     el.innerHTML = `
       <div class="panel">
         <div class="panel-head"><h3>👑 Quản lý Admin</h3></div>
         <div class="panel-body">
-          <p class="sub" style="margin-top:0;">2 Admin tối cao (cố định, không ai gỡ được): <b>${SUPER_ADMIN_EMAILS.join(', ')}</b>. ${isSuperAdmin()? 'Chỉ Admin tối cao mới có quyền thêm/gỡ các Admin khác.' : 'Chỉ Admin tối cao mới có quyền thêm/gỡ Admin — bạn chỉ xem được danh sách bên dưới.'}</p>
+          <p class="sub" style="margin-top:0;">2 Admin tối cao (cố định, không ai gỡ được): <b>${SUPER_ADMIN_EMAILS.join(', ')}</b>. ${isSuperAdmin()? 'Chỉ Admin tối cao mới có quyền thêm/gỡ các Admin khác.' : 'Chỉ Admin tối cao mới có quyền thêm/gỡ Admin — đồng chí chỉ xem được danh sách bên dưới.'}</p>
           ${isSuperAdmin()? `
           <div class="toolbar">
             <input id="adm-new-email" placeholder="email@gmail.com" style="min-width:260px;">
@@ -3338,7 +3338,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
               <button type="button" class="btn btn-ghost btn-sm" id="st-hamlets-manage-btn" style="margin-top:6px;">+ Thêm địa danh</button>
             </div>
           </div>
-          ${canEditCore? `<button class="btn btn-primary" id="st-save" style="margin-top:16px;">Lưu thay đổi</button>` : `<p class="sub" style="margin-top:12px;">Bạn chỉ được cấp quyền XEM cấu hình này — chỉ Chủ mã (hoặc người được Chủ mã cấp quyền Sửa "Cài đặt của mã định danh") mới lưu được thay đổi.</p>`}
+          ${canEditCore? `<button class="btn btn-primary" id="st-save" style="margin-top:16px;">Lưu thay đổi</button>` : `<p class="sub" style="margin-top:12px;">Đồng chí chỉ được cấp quyền XEM cấu hình này — chỉ Chủ mã (hoặc người được Chủ mã cấp quyền Sửa "Cài đặt của mã định danh") mới lưu được thay đổi.</p>`}
         </div>
       </div>
 
@@ -3419,7 +3419,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
             <input id="sec-wid" placeholder="Mã định danh mới (vd: xabinhminh)" style="min-width:240px; text-transform:lowercase;">
             <button class="btn btn-primary btn-sm" id="sec-wid-save">Đổi tên mã</button>
           </div>
-          <p class="sub" style="margin:6px 0 14px;">Ví dụ đang dùng mã ngẫu nhiên (4 ký tự) do hệ thống cấp, bạn có thể đổi sang tên mã dễ nhớ hơn bất cứ lúc nào. Sau khi đổi, hãy cung cấp lại mã mới cho các Khách đang tham gia để họ tiếp tục truy cập.</p>
+          <p class="sub" style="margin:6px 0 14px;">Ví dụ đang dùng mã ngẫu nhiên (4 ký tự) do hệ thống cấp, đồng chí có thể đổi sang tên mã dễ nhớ hơn bất cứ lúc nào. Sau khi đổi, hãy cung cấp lại mã mới cho các Khách đang tham gia để họ tiếp tục truy cập.</p>
 
           <div class="divider-lbl">Mật khẩu Mã định danh</div>
           <div class="kv-row"><span>Mật khẩu mã xã hiện tại</span><b>${cfg.accessCode? '•••••• (đã đặt)' : 'Chưa đặt (ai biết mã cũng nhập được)'}</b></div>
@@ -3518,7 +3518,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       const provinceNameVal = document.getElementById('st-provincename').value.trim();
       if(!wardNameVal){ alert(`Vui lòng nhập Tên riêng (${document.getElementById('st-adminlevel').value}).`); return; }
       if(!provinceNameVal){ alert('Vui lòng nhập Tên tỉnh/thành phố.'); return; }
-      if(!confirm('Bạn có chắc chắn muốn lưu thay đổi Thông tin địa phương / Loại hình hành chính không? Việc này sẽ ảnh hưởng tới toàn bộ dữ liệu đang có của xã/phường (cách tính lãi, tên gọi hiển thị...). Bạn có chắc chắn?')) return;
+      if(!confirm('Đồng chí có chắc chắn muốn lưu thay đổi Thông tin địa phương / Loại hình hành chính không? Việc này sẽ ảnh hưởng tới toàn bộ dữ liệu đang có của xã/phường (cách tính lãi, tên gọi hiển thị...). Đồng chí có chắc chắn?')) return;
       cfg.wardName = wardNameVal;
       cfg.adminLevel = document.getElementById('st-adminlevel').value;
       cfg.provinceType = document.getElementById('st-provincetype').value;
@@ -3923,7 +3923,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       const compareKeysB = ['projectId','name','hamlet','principal','birthYear','managerId','cccd','phone','address','preMergerAddress','industry','repayAbility','guarantor','note'];
       const hasChangedB = !isNew && compareKeysB.some(k=> String(b[k]??'') !== String(updated[k]??''));
       if(hasChangedB){
-        if(!confirm(`Bạn có chắc chắn muốn lưu thay đổi thông tin hộ vay "${name}" không? Hệ thống sẽ tự động lập 1 Giấy xác nhận cho hành động này và lưu vào kho Giấy xác nhận.`)) return;
+        if(!confirm(`Đồng chí có chắc chắn muốn lưu thay đổi thông tin hộ vay "${name}" không? Hệ thống sẽ tự động lập 1 Giấy xác nhận cho hành động này và lưu vào kho Giấy xác nhận.`)) return;
       }
       close(); // Bước 1
       showProcessingToast(); // Bước 2
@@ -4082,7 +4082,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           <p class="sub" style="line-height:1.7;">Việc chỉnh lại thời gian tính lãi suất hàng quý sẽ thay đổi toàn bộ các Quý của <b>tất cả người vay</b>, đồng thời ảnh hưởng tới cách tính tiền lãi mỗi Quý của từng người kể từ bây giờ (riêng <b>tiền lãi đã đóng sẽ không bao giờ bị thay đổi</b>).</p>
           <p class="sub" style="line-height:1.7;">Hệ thống sẽ tự động lập hàng loạt <b>Giấy xác nhận thay đổi mốc thời gian hàng quý</b> — mỗi người vay 1 giấy riêng, lưu vào Kho Giấy xác nhận. Giấy này <b>không thể xoá, không thể sửa thông tin bên trong</b>; mỗi lần đổi mốc thời gian hàng quý sẽ tạo ra 1 loạt giấy xác nhận hoàn toàn mới cho từng người vay.</p>
           <p class="sub" style="line-height:1.7;">Mốc thời gian hàng quý này sẽ không thể tác động đối với các khoản vay đã tất toán hoặc trả nợ trước hạn xong, trừ khi các khoản vay đó trở về trạng thái đang hoạt động.</p>
-          <p class="sub" style="line-height:1.7; font-weight:700;">Bạn có chắc chắn muốn đổi mốc thời gian hàng quý cho tất cả người vay hay không?</p>
+          <p class="sub" style="line-height:1.7; font-weight:700;">Đồng chí có chắc chắn muốn đổi mốc thời gian hàng quý cho tất cả người vay hay không?</p>
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost preview-allow" id="qcw-back">Quay lại (không xác nhận)</button>
@@ -4098,14 +4098,14 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         alert(`Chỉ có Chủ mã định danh xã/phường này mới có QUYỀN thay đổi Mốc thời gian hàng quý, vui lòng liên hệ chủ mã: ${ownerName} — ${state.config.ownerEmail||'(chưa rõ email)'}`);
         return;
       }
-      if(!confirm('Bạn có THẬT SỰ chắc chắn muốn đổi mốc thời gian hàng quý cho TẤT CẢ người vay không? Mỗi lần đổi sẽ tạo ra hàng loạt giấy xác nhận thay đổi thông tin cho từng người vay.')){
+      if(!confirm('Đồng chí có THẬT SỰ chắc chắn muốn đổi mốc thời gian hàng quý cho TẤT CẢ người vay không? Mỗi lần đổi sẽ tạo ra hàng loạt giấy xác nhận thay đổi thông tin cho từng người vay.')){
         // Bấm "Không" -> tắt HẾT mọi bảng đang hiển thị, kể cả bảng "Chỉnh thời gian tính lãi suất
         // hàng quý" phía sau.
         close();
         if(closeParentModal) closeParentModal();
         return;
       }
-      if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để lưu thay đổi.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để lưu thay đổi.'); return; }
       close(); // Bước 1
       if(closeParentModal) closeParentModal();
       showProcessingToast(); // Bước 2
@@ -4161,7 +4161,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         <div class="modal-head"><h3>🕘 Chi tiết lịch sử chỉnh mốc hàng quý</h3><button class="modal-close preview-allow" id="qhd-close">✕</button></div>
         <div class="modal-body">
           <p style="line-height:1.8;">Đây là lịch sử chỉnh mốc hằng quý được thiết lập vào lúc <b>${timeLbl}</b> bởi <b>${escapeHtml(h.byName||'(không rõ)')}</b>, email: <b>${escapeHtml(h.byEmail||'(không có)')}</b>, địa chỉ IP: <b>${escapeHtml(h.byIp||'(không lấy được)')}</b>.</p>
-          <p class="sub">Nếu bấm "Xem Nội dung cụ thể" bên dưới, các mốc Quý của lịch sử này sẽ được hiện ra ở khung nội dung chính — bạn vẫn cần bấm tiếp nút "Lưu thay đổi" để thực sự áp dụng. Nếu chỉ xem thì không cần bấm gì thêm, cứ bấm "Quay lại".</p>
+          <p class="sub">Nếu bấm "Xem Nội dung cụ thể" bên dưới, các mốc Quý của lịch sử này sẽ được hiện ra ở khung nội dung chính — đồng chí vẫn cần bấm tiếp nút "Lưu thay đổi" để thực sự áp dụng. Nếu chỉ xem thì không cần bấm gì thêm, cứ bấm "Quay lại".</p>
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost preview-allow" id="qhd-back">Quay lại</button>
@@ -4282,7 +4282,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         });
         const saveBtn = wrap.querySelector('#qim-save');
         if(saveBtn) saveBtn.onclick = async ()=>{
-          if(state.previewMode){ alert('Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để lưu thay đổi.'); return; }
+          if(state.previewMode){ alert('Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để lưu thay đổi.'); return; }
           if(!state.config) return;
           const summary = computeQuartersSummary(draft);
           if(summary.shortQuarters.length){
@@ -4304,7 +4304,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         };
         const restoreBtn = wrap.querySelector('#qim-restore-default');
         if(restoreBtn) restoreBtn.onclick = ()=>{
-          if(!confirm('Khôi phục tất cả thời gian 4 Quý về đúng mặc định ban đầu? (Chưa lưu ngay — bạn vẫn cần bấm "Lưu thay đổi" để áp dụng thật.)')) return;
+          if(!confirm('Khôi phục tất cả thời gian 4 Quý về đúng mặc định ban đầu? (Chưa lưu ngay — đồng chí vẫn cần bấm "Lưu thay đổi" để áp dụng thật.)')) return;
           Object.keys(DEFAULT_QUARTERS).forEach(qk=>{ draft[qk] = JSON.parse(JSON.stringify(DEFAULT_QUARTERS[qk])); });
           flashTargets = ['q1','q2','q3','q4'].flatMap(qk=>[{qk,part:'start'},{qk,part:'end'}]);
           renderBody();
@@ -4585,7 +4585,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       const hasChanged = !isNew && compareKeys.some(k=> String(p[k]??'') !== String(updated[k]??''));
       if(hasChanged){
         const memberCount = state.borrowers.filter(b=>!b.deleted && b.projectId===p.id).length;
-        if(!confirm(`Bạn có chắc chắn muốn lưu thay đổi thông tin phương án vay "${name}" không? Toàn bộ ${memberCount} người vay bên trong phương án này sẽ tự động được cập nhật theo đúng điều khoản mới (trừ Ngày vay của Người thừa kế, nếu có, sẽ không đổi). Hệ thống sẽ tự động lập 1 Giấy xác nhận cho hành động này và lưu vào kho Giấy xác nhận.`)) return;
+        if(!confirm(`Đồng chí có chắc chắn muốn lưu thay đổi thông tin phương án vay "${name}" không? Toàn bộ ${memberCount} người vay bên trong phương án này sẽ tự động được cập nhật theo đúng điều khoản mới (trừ Ngày vay của Người thừa kế, nếu có, sẽ không đổi). Hệ thống sẽ tự động lập 1 Giấy xác nhận cho hành động này và lưu vào kho Giấy xác nhận.`)) return;
       }
       close(); // Bước 1
       showProcessingToast(); // Bước 2

@@ -59,8 +59,8 @@
         return true;
       });
       wrap.querySelector('#fsm-confirm').onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         const payerName = (wrap.querySelector('#fsm-payer').value||'').trim();
         const collectorName = (wrap.querySelector('#fsm-collector').value||'').trim();
         if(!payerName || !collectorName){ alert('Vui lòng điền đầy đủ "Người trả nợ" và "Người nhận tiền" trước khi xác nhận.'); return; }
@@ -354,13 +354,13 @@
       const confirmBtn = wrap.querySelector('#sirc-confirm');
       wireConfirmBtnBehavior(wrap, confirmBtn, openedAt);
       confirmBtn.onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         const payerName = (wrap.querySelector('#sirc-payer').value||'').trim();
         const collectorName = (wrap.querySelector('#sirc-collector').value||'').trim();
         if(!payerName){ alert('Vui lòng điền "Người đóng tiền" trước khi xác nhận.'); return; }
         if(!collectorName){ alert('Vui lòng điền "Người thu tiền" trước khi xác nhận.'); return; }
-        if(!confirm(`Bạn có CHẮC CHẮN muốn xác nhận đóng lãi CHUNG cho ${groupList.length} hộ vay trong phương án "${projName}" không?`)) return;
+        if(!confirm(`Đồng chí có CHẮC CHẮN muốn xác nhận đóng lãi CHUNG cho ${groupList.length} hộ vay trong phương án "${projName}" không?`)) return;
         for(const b of groupList){
           if(!(await assertInterestBoxStillFresh(b, snapshotTotalPaidAtOpen[b.id]))) return;
         }
@@ -533,14 +533,14 @@
       const confirmBtn = wrap.querySelector('#srp-confirm');
       wireConfirmBtnBehavior(wrap, confirmBtn, openedAt);
       confirmBtn.onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         const { totalPrincipal, totalInterest, grandTotal, principalCount, interestCount } = totals();
         if(totalPrincipal<=0){ alert('Tổng tiền vay gốc phải lớn hơn 0 mới được lập biên lai này. Vui lòng tích chọn ít nhất 1 hộ vay có tiền gốc.'); return; }
         const payerName = (wrap.querySelector('#srp-payer').value||'').trim();
         const collectorName = (wrap.querySelector('#srp-collector').value||'').trim();
         if(!payerName || !collectorName){ alert('Vui lòng điền đầy đủ "Người trả nợ" và "Người nhận tiền" trước khi xác nhận.'); return; }
-        if(!confirm(`Bạn có CHẮC CHẮN muốn xác nhận tất toán khoản vay CHUNG cho ${principalCount} hộ vay trong phương án "${projName}" không?`)) return;
+        if(!confirm(`Đồng chí có CHẮC CHẮN muốn xác nhận tất toán khoản vay CHUNG cho ${principalCount} hộ vay trong phương án "${projName}" không?`)) return;
         for(const r of rows){
           if(!r.principalChecked || !r.interestChecked || r.interestAmt<=0) continue;
           if(!(await assertInterestBoxStillFresh(r.b, snapshotTotalPaidAtOpen[r.b.id]))) return;
@@ -685,8 +685,8 @@
         return true;
       });
       wrap.querySelector('#erm-confirm').onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         if(!mode){ alert(`Vui lòng chọn "${provinceModeLabel}" hoặc "Chọn người thừa kế".`); return; }
         if(mode==='heir' && !heir){ alert('Vui lòng thêm thông tin người thừa kế trước khi xác nhận.'); return; }
         const reason = (wrap.querySelector('#erm-reason').value||'').trim();
@@ -770,7 +770,7 @@
     return isNaN(num) ? null : num;
   }
   function renderInterestImpactReceiptsModal(b){
-    if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xem chi tiết này.'); return; }
+    if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xem chi tiết này.'); return; }
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
@@ -906,9 +906,9 @@
       wireAdvancedInfo(wrap, 'rrm', (open)=>{ advOpen = open; });
       wireConfirmBtnBehavior(wrap, wrap.querySelector('#rrm-confirm'), openedAt);
       wrap.querySelector('#rrm-confirm').onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
-        if(!confirm('Bạn có CHẮC CHẮN muốn trả lại số tiền và khôi phục khoản vay này không? Hành động này sẽ đưa hộ vay quay lại danh sách đang hoạt động.')) return;
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(!confirm('Đồng chí có CHẮC CHẮN muốn trả lại số tiền và khôi phục khoản vay này không? Hành động này sẽ đưa hộ vay quay lại danh sách đang hoạt động.')) return;
         close(); // Bước 1
         showProcessingToast(); // Bước 2
         const ok = await reverseSettlement(b);
@@ -1363,8 +1363,8 @@
       }
       wireConfirmBtnBehavior(wrap, wrap.querySelector('#rfq-confirm'), openedAt);
       wrap.querySelector('#rfq-confirm').onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         const payerName = (wrap.querySelector('#rcpt-refund-payer').value||'').trim();
         const collectorName = (wrap.querySelector('#rcpt-refund-collector').value||'').trim();
         const reason = (wrap.querySelector('#rcpt-refund-reason').value||'').trim();
@@ -1491,8 +1491,8 @@
         if(body) body.scrollTo({ top: body.scrollHeight, behavior:'smooth' });
       });
       confirmBtn.onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         let extra = { quarterCount };
         if(mode==='return'){
           const payerName = (wrap.querySelector('#ovf-payer').value||'').trim();
@@ -1629,8 +1629,8 @@
         if(body) body.scrollTo({ top: body.scrollHeight, behavior:'smooth' });
       });
       if(confirmBtn) confirmBtn.onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         if(amount<=0 || amount>lastMaxAllowed) return;
         const payerName = (wrap.querySelector('#rcpt-refund-payer').value||'').trim();
         const collectorName = (wrap.querySelector('#rcpt-refund-collector').value||'').trim();
@@ -2172,8 +2172,8 @@
       updateExplanation();
       checkTotalValid();
       wrap.querySelector('#rcpt-confirm').onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận đóng lãi thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn nên không thể xác nhận đóng lãi. Vui lòng liên hệ Chủ mã định danh.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận đóng lãi thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn nên không thể xác nhận đóng lãi. Vui lòng liên hệ Chủ mã định danh.'); return; }
         if(!checkTotalValid()) return;
         const payerName = (wrap.querySelector('#rcpt-payer').value||'').trim();
         const collectorName = (wrap.querySelector('#rcpt-collector').value||'').trim();

@@ -28,7 +28,7 @@
         <button class="ai-newchat-btn" id="qn-goto-drive-btn">🗂️ Mở Trung tâm dữ liệu</button>
         <div class="qn-side-note">
           <b>Ghi chú nhanh</b>
-          <span>Soạn nội dung ở khung bên phải. Xong, bạn chọn thư mục trong Trung tâm dữ liệu để lưu.</span>
+          <span>Soạn nội dung ở khung bên phải. Xong, đồng chí chọn thư mục trong Trung tâm dữ liệu để lưu.</span>
         </div>
       </div>
       <button class="ai-sidebar-toggle-btn preview-allow ${state._qnSidebarCollapsed?'collapsed':''}" id="qn-sidebar-toggle-btn" title="${state._qnSidebarCollapsed?'Mở khung thao tác':'Đóng khung thao tác'}">${state._qnSidebarCollapsed?'▶':'◀'}</button>
@@ -36,24 +36,24 @@
       <button class="ai-close-fab preview-allow" id="qn-close-fab" title="Đóng Ghi chú nhanh">✕</button>
       <div class="ai-main ${state._qnSidebarCollapsed?'ai-sidebar-collapsed':''}" id="qn-main-panel">
         <div class="ai-header">🗒️ Ghi chú nhanh</div>
-        ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Bạn đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
+        ${state.previewMode? `<div class="admin-view-banner" style="background:#7a5b00; color:#fff3cd;">⚠️ Đồng chí đang ở trạng thái tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.</div>` : ''}
         <div class="ai-messages" id="qn-content-area" style="align-items:stretch;">
-          <div class="ai-bubble assistant">Chào bạn! Đây là <b>Ghi chú nhanh</b> 📓 — gõ chữ, nói, hoặc tải ảnh/PDF/tài liệu vào khung bên dưới, AI sẽ đọc và biên tập sạch sẽ thành một ghi chú.<br><br>
-          Ghi chú tạo xong được lưu vào <b>Trung tâm dữ liệu</b> (Bộ cá nhân) — bạn chọn thư mục lúc lưu, hoặc bấm lưu nhanh vào thư mục “Ghi chú nhanh”.</div>
+          <div class="ai-bubble assistant">Chào đồng chí! Đây là <b>Ghi chú nhanh</b> 📓 — gõ chữ, nói, hoặc tải ảnh/PDF/tài liệu vào khung bên dưới, AI sẽ đọc và biên tập sạch sẽ thành một ghi chú.<br><br>
+          Ghi chú tạo xong được lưu vào <b>Trung tâm dữ liệu</b> (Bộ cá nhân) — đồng chí chọn thư mục lúc lưu, hoặc bấm lưu nhanh vào thư mục “Ghi chú nhanh”.</div>
           ${state.quickNoteJustCompletedMsg? `<div class="kn-done-banner">✅ ${escapeHtml(state.quickNoteJustCompletedMsg)}</div>` : ''}
           ${state.quickNoteReviewMode? `
             ${(state.quickNoteReviewTurns||[]).map(t=>`
               <div class="ai-bubble-wrap user">
                 <div class="ai-bubble user">${t.text? escapeHtml(t.text) : ''}${t.files&&t.files.length? `<div class="ai-bubble-attach">${t.files.map(f=>`<span class="ai-attach-chip">📎 ${escapeHtml(f.name)}</span>`).join('')}</div>` : ''}</div>
               </div>`).join('')}
-            <div class="ai-bubble assistant">Tôi đã xem tài liệu và ghi chú của bạn, bây giờ bạn hãy tiếp tục bổ sung thêm những thành phần tiếp theo ở khung chat bên dưới để hoàn thiện tệp ghi chú này. Nếu bạn không muốn bổ sung gì nữa, hãy chọn các phương án dưới đây:
+            <div class="ai-bubble assistant">Tôi đã xem tài liệu và ghi chú của đồng chí, bây giờ đồng chí hãy tiếp tục bổ sung thêm những thành phần tiếp theo ở khung chat bên dưới để hoàn thiện tệp ghi chú này. Nếu đồng chí không muốn bổ sung gì nữa, hãy chọn các phương án dưới đây:
               <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
                 <button class="btn btn-primary btn-sm" id="qn-review-digest">✅ Hãy tiêu hoá tài liệu bằng AI và tạo ghi chú thành công</button>
                 <button class="btn btn-ghost btn-sm" id="qn-review-skip">⏭️ Bỏ qua bước tiêu hoá tài liệu bằng AI và tạo ghi chú thành công luôn!</button>
               </div>
             </div>` : ''}
           ${state.quickNoteStoppedConfirm? `
-            <div class="ai-bubble assistant">Bạn đã bắt AI dừng tiêu hoá ghi chú và tài liệu của bạn, bạn có muốn đưa thẳng mọi thứ vào ghi chú mà không cần tiêu hoá không?
+            <div class="ai-bubble assistant">Đồng chí đã bắt AI dừng tiêu hoá ghi chú và tài liệu của đồng chí, đồng chí có muốn đưa thẳng mọi thứ vào ghi chú mà không cần tiêu hoá không?
               <div style="display:flex; gap:8px; margin-top:12px;">
                 <button class="btn btn-primary btn-sm" id="qn-stopped-yes">Có</button>
                 <button class="btn btn-ghost btn-sm" id="qn-stopped-no">Không</button>
@@ -297,11 +297,11 @@
             <button class="btn btn-ghost btn-block" id="wc-mode-random">🎲 Làm việc mà không cần mã (mã tạo ngẫu nhiên)</button>
           </div>
           <p class="sub" style="margin-top:10px; font-size:11.5px; text-align:left;">
-            Mã định danh cấp xã/phường là "chìa khoá" để kết nối dữ liệu chung của một địa phương. Nếu bạn <b>tạo mã mới</b>
-            (mã chưa từng tồn tại), bạn sẽ là <b>CHỦ MÃ</b> — người duy nhất có quyền cấu hình và cấp quyền cho người khác.
-            Nếu bạn <b>tham gia bằng mã đã có</b>, bạn sẽ là <b>KHÁCH</b> — chỉ thao tác được trong phạm vi Chủ mã cho phép.
-            Nếu chưa muốn nghĩ tên mã, hệ thống có thể <b>tự động cấp ngay một mã ngẫu nhiên 4 ký tự</b> để bạn có nơi lưu dữ
-            liệu ngay lập tức — bạn vẫn có toàn quyền sử dụng mọi công cụ như Chủ mã, và có thể đổi sang tên dễ nhớ hơn bất
+            Mã định danh cấp xã/phường là "chìa khoá" để kết nối dữ liệu chung của một địa phương. Nếu đồng chí <b>tạo mã mới</b>
+            (mã chưa từng tồn tại), đồng chí sẽ là <b>CHỦ MÃ</b> — người duy nhất có quyền cấu hình và cấp quyền cho người khác.
+            Nếu đồng chí <b>tham gia bằng mã đã có</b>, đồng chí sẽ là <b>KHÁCH</b> — chỉ thao tác được trong phạm vi Chủ mã cho phép.
+            Nếu chưa muốn nghĩ tên mã, hệ thống có thể <b>tự động cấp ngay một mã ngẫu nhiên 4 ký tự</b> để đồng chí có nơi lưu dữ
+            liệu ngay lập tức — đồng chí vẫn có toàn quyền sử dụng mọi công cụ như Chủ mã, và có thể đổi sang tên dễ nhớ hơn bất
             cứ lúc nào sau này trong mục "Cài đặt &amp; Chia sẻ".
           </p>
 
@@ -388,7 +388,7 @@
         <div class="auth-card">
           <div class="rice-badge">⏳</div>
           <h1>Quyền truy cập đang chờ duyệt</h1>
-          <p class="sub">Bạn đã tham gia mã xã <b>${wardId()}</b>${state.config&&state.config.wardName?` (${wardTitle()})`:''} với vai trò KHÁCH,
+          <p class="sub">Đồng chí đã tham gia mã xã <b>${wardId()}</b>${state.config&&state.config.wardName?` (${wardTitle()})`:''} với vai trò KHÁCH,
             nhưng Chủ mã chưa cấp quyền Xem/Sửa cho tài khoản <b>${state.identity.email}</b>.</p>
           <p class="sub">Vui lòng liên hệ Chủ mã để được cấp quyền tại mục "Cài đặt &amp; Chia sẻ" của họ.</p>
           <button class="btn btn-primary btn-block" id="pd-wallet">↩ Quay lại Ví mã xã</button>
@@ -422,7 +422,7 @@
     };
     mountEl.innerHTML = `
       <div class="divider-lbl">Các mã xã của tôi (${rows.length})</div>
-      ${rows.length? rows.map(rowHtml).join('') : '<div class="empty-state" style="padding:14px 0;">Bạn chưa sở hữu hoặc tham gia mã xã nào.</div>'}
+      ${rows.length? rows.map(rowHtml).join('') : '<div class="empty-state" style="padding:14px 0;">Đồng chí chưa sở hữu hoặc tham gia mã xã nào.</div>'}
 
       <button class="btn btn-gold ${embedded?'':'btn-block'}" id="ww-random" style="margin-top:4px;">🎲 Làm việc mà không cần mã (mã tạo ngẫu nhiên)</button>
 
@@ -444,7 +444,7 @@
           <b>tham gia bằng mã đã có</b> (đúng mã + mật khẩu, nếu có) sẽ là <b>KHÁCH</b> — chỉ thao tác trong phạm vi được Chủ mã cho phép.
           Một tài khoản Google có thể sở hữu/tham gia <b>nhiều mã</b> cùng lúc và chuyển qua lại thoải mái ở Ví mã xã này.
           Nếu chưa muốn nghĩ tên mã, hãy dùng nút <b>"🎲 Làm việc mà không cần mã"</b> ở trên — hệ thống sẽ tự cấp ngay một mã
-          ngẫu nhiên để bạn có nơi lưu dữ liệu ngay lập tức, và có thể đổi sang tên dễ nhớ hơn bất cứ lúc nào sau này trong Cài đặt.
+          ngẫu nhiên để đồng chí có nơi lưu dữ liệu ngay lập tức, và có thể đổi sang tên dễ nhớ hơn bất cứ lúc nào sau này trong Cài đặt.
         </p>
       </div>
 
@@ -573,7 +573,7 @@
             <label>Mã định danh cấp Xã/Phường (bản nháp — chưa chính thức tạo)</label>
             <input value="${state.identity.wardId||''}" disabled style="text-transform:lowercase; opacity:.75;">
             <p class="sub" style="margin:4px 0 0; font-size:11.5px;">
-              Mã này <b>chưa được tạo thật</b> — chỉ khi bấm "Lưu và tiếp tục" bên dưới thành công thì mã định danh mới chính thức được tạo trên Firebase tại <span class="mono">data/${state.identity.wardId||'...'}/...</span>. Nếu bấm "Quay lại trang trước", mã nháp này sẽ biến mất hoàn toàn, không để lại dấu vết gì. Hãy cung cấp đúng mã này (và mật khẩu, nếu bạn đặt) cho các cán bộ khác để họ tham gia chung dữ liệu sau khi tạo xong. Bạn có thể đổi sang tên khác bất cứ lúc nào trong mục Cài đặt.
+              Mã này <b>chưa được tạo thật</b> — chỉ khi bấm "Lưu và tiếp tục" bên dưới thành công thì mã định danh mới chính thức được tạo trên Firebase tại <span class="mono">data/${state.identity.wardId||'...'}/...</span>. Nếu bấm "Quay lại trang trước", mã nháp này sẽ biến mất hoàn toàn, không để lại dấu vết gì. Hãy cung cấp đúng mã này (và mật khẩu, nếu đồng chí đặt) cho các cán bộ khác để họ tham gia chung dữ liệu sau khi tạo xong. Đồng chí có thể đổi sang tên khác bất cứ lúc nào trong mục Cài đặt.
             </p>
           </div>
 
@@ -759,6 +759,23 @@
     return 'Khách — đã được cấp quyền';
   }
 
+  // Cuộn mục menu vừa bấm vào GIỮA khung menu và cho tên module nhảy múa vài nhịp rồi đứng
+  // im — dùng lại đúng hiệu ứng nameDance sẵn có của app (phóng to 1,1 lần), chỉ khác là chạy
+  // hữu hạn 3 nhịp thay vì lặp vô hạn. Gọi sau render() vì render() dựng lại toàn bộ DOM menu.
+  function focusNavItem(selector){
+    setTimeout(()=>{
+      const el = document.querySelector(selector);
+      if(!el) return;
+      try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }
+      catch(e){ el.scrollIntoView(); } // trình duyệt cũ không nhận tham số dạng object
+      const label = el.querySelector('.nav-label');
+      if(!label) return;
+      label.classList.remove('nav-label-dance');
+      void label.offsetWidth; // ép trình duyệt tính lại, nếu không animation sẽ không chạy lại
+      label.classList.add('nav-label-dance');
+    }, 0);
+  }
+
   function renderApp(){
     if(typeof driveRoute==='function' && driveRoute()) state.activeTab = 'drive';
     const nav = navItems();
@@ -785,23 +802,23 @@
       <div class="app-title-banner"><span>Sổ tay Công tác Hội Nông dân cấp xã/phường</span></div>
       ${isTourMode()? `
       <div class="preview-banner">
-        ⚠️ Bạn đang ở môi trường tham quan. Hãy chọn <button class="link-btn" id="pv-login">Đăng nhập hoặc Tham gia bằng mã</button> để sử dụng;
+        ⚠️ Đồng chí đang ở môi trường tham quan. Hãy chọn <button class="link-btn" id="pv-login">Đăng nhập hoặc Tham gia bằng mã</button> để sử dụng;
         hoặc <button class="link-btn" id="pv-guide">Xem hướng dẫn sử dụng website</button>.
       </div>` : ''}
       ${isWardGuestAccess()? `
       <div class="access-mode-banner access-mode-banner-guest">
-        <span>👤 Bạn đang dùng app bằng mã xã/phường, chưa đăng nhập Google. Bộ nhớ riêng chỉ lưu trên thiết bị này; muốn đồng bộ, chia sẻ và lưu lâu dài hãy đăng nhập.</span>
+        <span>👤 Đồng chí đang dùng app bằng mã xã/phường, chưa đăng nhập Google. Bộ nhớ riêng chỉ lưu trên thiết bị này; muốn đồng bộ, chia sẻ và lưu lâu dài hãy đăng nhập.</span>
         <button class="link-btn" id="guest-login">Đăng nhập Google</button>
       </div>` : ''}
       ${state._adminViewingWard? `
-      <div class="admin-view-banner">🛡️ ADMIN đang XEM THỬ (chỉ đọc, không sửa được) dữ liệu của mã "${wardId()}". Bấm "Thoát khỏi mã định danh" để quay về mã của bạn.</div>` : ''}
+      <div class="admin-view-banner">🛡️ ADMIN đang XEM THỬ (chỉ đọc, không sửa được) dữ liệu của mã "${wardId()}". Bấm "Thoát khỏi mã định danh" để quay về mã của đồng chí.</div>` : ''}
       <div class="app-shell">
         <button type="button" class="sidebar-toggle-btn ${state.sidebarCollapsed?'collapsed':''}" id="sidebar-toggle-btn" title="${state.sidebarCollapsed?'Mở menu':'Thu gọn menu'}">${state.sidebarCollapsed?'▤':'▥'}</button>
         <div class="sidebar ${state.sidebarCollapsed?'collapsed':''}">
           <div class="brand"><div class="ico">🌾</div><div class="txt">${wardProvinceHeaderLine()||'Chưa chọn mã xã'}<small>Mã ${wardId()||''}</small></div></div>
           ${nav.map(n=> n.children? `
             <button class="nav-item nav-item-group ${state._officeMenuOpen?'expanded':''}" data-navgroup="${n.id}">
-              <span>${n.ico}</span><span>${n.label}</span>
+              <span>${n.ico}</span><span class="nav-label">${n.label}</span>
               <span class="nav-caret">${state._officeMenuOpen?'▾':'▸'}</span>
             </button>
             ${state._officeMenuOpen? n.children.map(c=>`
@@ -809,7 +826,7 @@
                 <span>${c.ico}</span><span>${c.label}</span>
               </button>`).join('') : ''}` : `
             <button class="nav-item ${state.activeTab===n.id?'active':''}" data-tab="${n.id}">
-              <span>${n.ico}</span><span>${n.label}</span>
+              <span>${n.ico}</span><span class="nav-label">${n.label}</span>
               ${n.badge?`<span class="badge">${n.badge}</span>`:''}
             </button>`).join('')}
           <div class="foot">${state.identity.email?`Đăng nhập: ${state.identity.email}`:'Chưa đăng nhập Google'}<br>Vai trò: ${roleLabel}
@@ -820,6 +837,15 @@
               ${state.previewMode
                 ? `<button class="btn btn-ghost btn-sm" id="logout-btn" style="color:#fff; border-color:rgba(255,255,255,.3);">Thoát môi trường tham quan</button>`
                 : hasIdentityEmail? `<button class="btn btn-ghost btn-sm" id="logout-btn" style="color:#fff; border-color:rgba(255,255,255,.3);">Đăng xuất tài khoản Google</button>` : ''}
+            </div>
+          </div>
+          <div class="sidebar-legal">
+            <button class="sidebar-legal-link" data-legal="terms">Điều khoản sử dụng</button>
+            <button class="sidebar-legal-link" data-legal="privacy">Chính sách bảo mật và quyền riêng tư</button>
+            <div class="sidebar-copyright">
+              <span class="sidebar-copyright-brand">sotay.org</span>
+              <span>© ${new Date().getFullYear()} Sổ tay Công tác Hội Nông dân</span>
+              <span>Sản phẩm thuộc bản quyền của sotay.org</span>
             </div>
           </div>
         </div>
@@ -839,12 +865,15 @@
       el.onclick = ()=>{
         // Mục nhóm "Công cụ văn phòng": chỉ đóng/mở menu thả xuống, không đổi tab.
         if(el.dataset.navgroup){
+          const gid = el.dataset.navgroup;
           state._officeMenuOpen = !state._officeMenuOpen;
           render();
+          focusNavItem(`.nav-item[data-navgroup="${gid}"]`);
           return;
         }
         // Một trong ba công cụ văn phòng: mở overlay TOÀN MÀN HÌNH, giữ nguyên tab đang xem
-        // để khi thoát ra người dùng quay lại đúng chỗ cũ.
+        // để khi thoát ra người dùng quay lại đúng chỗ cũ. KHÔNG cuộn/nhảy múa ở mục menu vì
+        // overlay che kín màn hình, người dùng không nhìn thấy khung menu nữa.
         if(el.dataset.navchild){
           openOfficeModule({docs:'Docs', sheets:'Sheets', slides:'Slides'}[el.dataset.navchild]);
           state.bellOpen=false;
@@ -853,14 +882,18 @@
         const clickedTab = el.dataset.tab;
         // "Tạo bài Tuyên truyền" giờ là overlay toàn màn hình (y hệt Chat AI/Ghi chú nhanh) — KHÔNG đổi
         // state.activeTab, chỉ mở overlay lên; khi thoát ra vẫn ở đúng module trước đó, không bị chuyển tab.
+        // Cũng không cuộn/nhảy múa, vì lý do như ba công cụ văn phòng ở trên.
         if(clickedTab==='propaganda'){ openPropagandaModule(); state.bellOpen=false; render(); return; }
         state.activeTab = clickedTab;
         state.bellOpen=false;
         render();
-        setTimeout(()=>{
-          const clickedEl = document.querySelector(`.nav-item[data-tab="${clickedTab}"]`);
-          if(clickedEl) clickedEl.scrollIntoView({behavior:'auto', block:'nearest'});
-        }, 0);
+        focusNavItem(`.nav-item[data-tab="${clickedTab}"]`);
+      };
+    });
+    document.querySelectorAll('[data-legal]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const label = btn.dataset.legal==='terms' ? 'Điều khoản sử dụng' : 'Chính sách bảo mật và quyền riêng tư';
+        showBigToast(`${label} sẽ sớm ra mắt`);
       };
     });
     const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
@@ -977,7 +1010,9 @@
     // (dùng đúng cơ chế showToast sẵn có: hiện vài giây rồi tự biến mất).
     wrap.querySelector('#pw-guide').onclick = ()=>{
       close();
-      showToast('Xin lỗi! App đang xây dựng nên chưa có hướng dẫn cụ thể');
+      // Dùng showBigToast (nhảy sổ ra GIỮA màn hình rồi tự mờ đi) chứ không phải showToast
+      // vốn hiện ở góc — thông báo này cần đập vào mắt ngay giữa màn hình.
+      showBigToast('Xin lỗi! App đang xây dựng nên chưa có hướng dẫn cụ thể');
     };
   }
 
@@ -1352,7 +1387,7 @@
   async function deleteLoanProjectCascade(p, closeFn){
     const activeMembers = state.borrowers.filter(b=>!b.deleted && !b.settled && b.projectId===p.id);
     const msg = activeMembers.length>0
-      ? `Xoá phương án "${p.name}" sẽ chuyển vào Thùng rác CẢ phương án LẪN toàn bộ ${activeMembers.length} người vay đang ở trong đó (không tách riêng được). Sau này chỉ có thể khôi phục lại NGUYÊN CẢ phương án kèm những người vay này, không khôi phục được từng người riêng lẻ. Bạn có chắc chắn muốn xoá?`
+      ? `Xoá phương án "${p.name}" sẽ chuyển vào Thùng rác CẢ phương án LẪN toàn bộ ${activeMembers.length} người vay đang ở trong đó (không tách riêng được). Sau này chỉ có thể khôi phục lại NGUYÊN CẢ phương án kèm những người vay này, không khôi phục được từng người riêng lẻ. Đồng chí có chắc chắn muốn xoá?`
       : `Xoá phương án "${p.name}" vào thùng rác?`;
     if(!confirm(msg)) return;
     if(closeFn) closeFn(); // Bước 1: đóng ngay bảng đang thao tác
@@ -1448,7 +1483,7 @@
     const idx = state.trash.findIndex(x=>x.id===trashId);
     const item = state.trash[idx];
     if(!item) return false;
-    if(!confirm(`Bạn có CHẮC CHẮN muốn khôi phục hộ vay "${item.name}" khỏi Thùng rác không? Hộ vay này sẽ trở lại danh sách khoản vay đang hoạt động.`)) return false;
+    if(!confirm(`Đồng chí có CHẮC CHẮN muốn khôi phục hộ vay "${item.name}" khỏi Thùng rác không? Hộ vay này sẽ trở lại danh sách khoản vay đang hoạt động.`)) return false;
     const restored = {...item};
     delete restored._kind; delete restored.deleted; delete restored.deletedAt; delete restored.deletedBy; delete restored.deletedByName;
     const proj = state.loanProjects.find(p=>p.id===restored.projectId);
@@ -1873,7 +1908,7 @@
             <b style="font-size:12.5px; color:var(--rice-dark);">🧩 Tích chọn các cột muốn hiển thị / in / xuất Excel (mặc định ẩn nhóm "nâng cao"):</b>
             ${editingPreset? `<p class="sub" style="color:#0d47a1; font-weight:700;">${waveTextHtmlSlow(`✏️ Đang chỉnh sửa Bộ xem cột "${editingPreset.name}"`)}</p>` : ''}
             <p class="sub" style="margin-top:10px;">💡 Để thay đổi vị trí cột: nhấn giữ vào biểu tượng ⠿ ở đầu mỗi dòng, kéo lên/xuống rồi thả vào đúng vị trí mong muốn.</p>
-            ${!canEdit? `<p class="sub">Bạn không có quyền Sửa ở Sổ vay vốn — "Lưu tuỳ chỉnh" chỉ áp dụng cho lượt xem của riêng bạn, không lưu lại.</p>` : ''}
+            ${!canEdit? `<p class="sub">Đồng chí không có quyền Sửa ở Sổ vay vốn — "Lưu tuỳ chỉnh" chỉ áp dụng cho lượt xem của riêng đồng chí, không lưu lại.</p>` : ''}
             <div id="col-picker-list" style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
               ${pickerOrder.map(key=>{
                 const c = colsByKey[key]; if(!c || c.hidden) return '';
@@ -1940,7 +1975,7 @@
       if(deletePresetBtn) deletePresetBtn.onclick = async ()=>{
         const preset = state.colViewSetEditingPreset;
         if(!preset) return;
-        if(!confirm(`Bạn có CHẮC CHẮN muốn xoá vĩnh viễn Bộ xem cột "${preset.name}" không? Không thể khôi phục.`)) return;
+        if(!confirm(`Đồng chí có CHẮC CHẮN muốn xoá vĩnh viễn Bộ xem cột "${preset.name}" không? Không thể khôi phục.`)) return;
         try{ await deleteColumnViewSetEntry(preset); }
         catch(err){ console.error('Lỗi khi xoá Bộ xem cột:', err); alert(`Có lỗi khi xoá Bộ xem cột "${preset.name}": ${err && err.message ? err.message : err}`); return; }
         state.colViewSetEditingPreset = null;
@@ -2132,7 +2167,7 @@
         <div class="modal-head"><h3>💾 Lưu Bộ xem cột</h3><button class="modal-close preview-allow" id="svs-close">✕</button></div>
         <div class="modal-body">
           <div class="field"><label>Đặt tên cho Bộ xem cột này (không cần ghi chữ "Bộ xem cột")</label><input id="svs-name" maxlength="30" class="preview-allow" placeholder="VD: Theo dõi phân bổ lãi suất..."></div>
-          <p class="sub">Bạn muốn lưu bộ tuỳ chỉnh cột này vào Nhóm nào?</p>
+          <p class="sub">Đồng chí muốn lưu bộ tuỳ chỉnh cột này vào Nhóm nào?</p>
         </div>
         <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
           <button class="btn btn-ghost preview-allow" id="svs-back">Quay lại</button>
@@ -2188,7 +2223,7 @@
     wrap.querySelector('#rvs-save').onclick = async ()=>{
       const newName = (wrap.querySelector('#rvs-name').value||'').trim();
       if(!newName){ alert('Vui lòng nhập tên mới trước khi lưu.'); return; }
-      if(!confirm(`Bạn có CHẮC CHẮN muốn đổi tên Bộ xem cột "${vs.name}" thành "${newName}" không?`)) return;
+      if(!confirm(`Đồng chí có CHẮC CHẮN muốn đổi tên Bộ xem cột "${vs.name}" thành "${newName}" không?`)) return;
       close();
       await renameColumnViewSetEntry(vs, newName);
       showBigToast(`Đã đổi tên thành công thành "${newName}"!`);
@@ -2335,7 +2370,7 @@
                 </div>`).join('')}
             </div>
             <p class="sub" style="margin-top:10px; line-height:1.7;">Đây là màu áp dụng cho các dòng chứa thông tin của khoản vay. Riêng màu nền của khung tiêu đề Phương án vay sẽ KHÔNG chọn trực tiếp được — nó luôn tự động lấy theo đúng màu đang chiếm SỐ ĐÔNG trong số các khoản vay đang nằm bên trong phương án đó.</p>
-            ${tab==='canhan'? `<p style="color:#b71c1c; line-height:1.7; margin-top:8px;">"Bộ màu cá nhân" chỉ áp dụng cho lượt xem CỦA RIÊNG BẠN — không ảnh hưởng tới người khác. Nếu bạn đã đăng nhập bằng tài khoản Google, bộ màu này được lưu theo tài khoản của bạn (dùng lại được ở bất kỳ thiết bị hay mã xã nào). Nếu chưa đăng nhập, bộ màu chỉ được lưu tạm trên chính trình duyệt đang dùng.</p>`
+            ${tab==='canhan'? `<p style="color:#b71c1c; line-height:1.7; margin-top:8px;">"Bộ màu cá nhân" chỉ áp dụng cho lượt xem CỦA RIÊNG BẠN — không ảnh hưởng tới người khác. Nếu đồng chí đã đăng nhập bằng tài khoản Google, bộ màu này được lưu theo tài khoản của đồng chí (dùng lại được ở bất kỳ thiết bị hay mã xã nào). Nếu chưa đăng nhập, bộ màu chỉ được lưu tạm trên chính trình duyệt đang dùng.</p>`
               : `<p style="color:#b71c1c; line-height:1.7; margin-top:8px;">"Bộ màu xã phường" áp dụng cho TẤT CẢ mọi người đang xem mã xã này. Chỉ người có quyền Sửa ở Sổ vay vốn mới lưu và áp dụng được bộ màu này cho cả xã.</p>`}
           </div>
           <div class="modal-foot" style="flex-wrap:wrap; gap:8px; justify-content:space-between;">
@@ -2375,8 +2410,8 @@
       };
       const saveApplyBtn = wrap.querySelector('#lc-save-apply');
       if(saveApplyBtn) saveApplyBtn.onclick = async ()=>{
-        if(tab==='xaphuong' && !canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn nên không thể lưu Bộ màu xã phường.'); return; }
-        if(!confirm(`Bạn có CHẮC CHẮN muốn lưu và áp dụng ${TAB_LABELS3[tab]} này không?`)) return;
+        if(tab==='xaphuong' && !canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn nên không thể lưu Bộ màu xã phường.'); return; }
+        if(!confirm(`Đồng chí có CHẮC CHẮN muốn lưu và áp dụng ${TAB_LABELS3[tab]} này không?`)) return;
         close();
         const hadSavedBefore = tab==='canhan' ? !!personalSaved : !!wardSaved;
         if(tab==='canhan') await savePersonalLoanColors(draft);
@@ -2433,7 +2468,7 @@
     const colLettersInfo = QUICKADD_PREVIEW_COLS.map(([,label],i)=> `${String.fromCharCode(65+i)}=${label}`).join(', ');
     const subAdminUnit = subAdminLabel(); // "Ấp"/"Khu phố"/"Thôn"/...
     const adminUnit = adminLevelLabel(); // "Xã"/"Phường"/"Thị trấn"
-    return `Bạn là trợ lý AI giúp NHẬP NHANH dữ liệu vào "Sổ vay vốn" của Hội Nông dân xã/phường. Đọc tin nhắn văn bản + tài liệu đính kèm (ảnh CCCD, đơn xin vay, sổ ghi chép tay, ảnh scan...) người dùng cung cấp qua nhiều lượt trò chuyện, trích xuất đúng thông tin để THÊM MỚI Người vay (và Phương án vay nếu cần) vào Sổ vay vốn.
+    return `Bạn là trợ lý AI giúp NHẬP NHANH dữ liệu vào "Sổ vay vốn" của Hội Nông dân xã/phường. LUÔN gọi người dùng là "đồng chí", tuyệt đối không gọi là "bạn" hay "anh/chị". Đọc tin nhắn văn bản + tài liệu đính kèm (ảnh CCCD, đơn xin vay, sổ ghi chép tay, ảnh scan...) người dùng cung cấp qua nhiều lượt trò chuyện, trích xuất đúng thông tin để THÊM MỚI Người vay (và Phương án vay nếu cần) vào Sổ vay vốn.
 CÁCH LÀM VIỆC CỐT LÕI — "1 HỒ SƠ DUY NHẤT": người dùng luôn có sẵn 1 "Hồ sơ đang soạn" duy nhất (ban đầu RỖNG, chưa có gì cả) — đây là hồ sơ DUY NHẤT bạn và người dùng cùng làm việc trên đó, KHÔNG có hồ sơ/file nào khác. Ở CUỐI mỗi tin nhắn của người dùng, bạn LUÔN được cung cấp đúng nội dung Hồ sơ đang soạn HIỆN TẠI (xem phần cuối cuộc trò chuyện) — bạn PHẢI đọc kỹ hồ sơ đó TRƯỚC khi trả lời hoặc bắt đầu làm việc, rồi CHỈNH SỬA TRỰC TIẾP lên đúng hồ sơ đó (thêm/sửa/xoá Phương án vay hoặc Người vay tuỳ theo yêu cầu của người dùng lượt này) — LUÔN trả về ĐẦY ĐỦ toàn bộ hồ sơ đã cập nhật (không chỉ phần vừa thay đổi) trong khối \`\`\`quickadd-result\`\`\` mỗi khi có điều gì thay đổi.
 
 QUY TẮC BẮT BUỘC — PHẢI TUÂN THỦ TUYỆT ĐỐI:
@@ -2451,7 +2486,7 @@ ${existingProjectsDetail}
    - "address" — địa chỉ CHI TIẾT hơn ${subAdminUnit} (số nhà, tên đường, tên xóm nhỏ...), KHÔNG lặp lại tên ${subAdminUnit} đã điền ở trên.
    CÁCH XỬ LÝ:
    a. Nếu người dùng cho 1 địa chỉ ĐẦY ĐỦ dạng "[chi tiết], [tên ${subAdminUnit}]" (VD: "57, ấp Bù Tam" hoặc "Số 12 Bù Tam"), PHẢI tự động TÁCH ra: phần chi tiết (VD: "57") điền vào "address", phần tên ${subAdminUnit} (VD: "Bù Tam" — bỏ chữ "ấp"/"thôn"/"khu phố" phía trước vì đã là mặc định) điền vào "hamletDisplay" hoặc "hamletOld" tuỳ trường hợp.
-   b. Nếu người dùng CHỈ cho tên ${subAdminUnit} và tên đó KHÔNG khớp với cả 2 danh sách trên, BẮT BUỘC hỏi lại: "Đây là ${subAdminUnit} hiện nay (chưa có trong hệ thống) hay là ${subAdminUnit} trước sáp nhập vậy bạn?" trước khi xếp vào đúng trường.
+   b. Nếu người dùng CHỈ cho tên ${subAdminUnit} và tên đó KHÔNG khớp với cả 2 danh sách trên, BẮT BUỘC hỏi lại: "Đây là ${subAdminUnit} hiện nay (chưa có trong hệ thống) hay là ${subAdminUnit} trước sáp nhập vậy đồng chí?" trước khi xếp vào đúng trường.
    c. Nếu người dùng xác nhận đây là ${subAdminUnit} MỚI (chưa từng có), chủ động thêm vào "newHamlets" (nếu là hiện nay) hoặc "newHamletsOld" (nếu là trước sáp nhập, không kèm chữ "(cũ)") để hệ thống lưu lại cho lần sau.
    d. TUYỆT ĐỐI không được để trống "address" nếu người dùng đã cung cấp địa chỉ chi tiết — cũng không được nhét cả cụm địa chỉ dài vào "hamletDisplay" (chỉ chứa đúng tên ${subAdminUnit} ngắn gọn).
 3) Nếu người vay chưa rõ thuộc Phương án vay nào, hãy gợi ý 1 phương án PHÙ HỢP trong danh sách đã liệt kê ở mục 1b (nếu hợp lý dựa theo nguồn vay/thời gian), hoặc hỏi người dùng có muốn tạo Phương án vay MỚI hay không (nếu muốn tạo mới, thu thập đủ: tên phương án, ngày giải ngân, ngày đến hạn, lãi suất chung, tỷ lệ phân bổ Trung ương/Tỉnh/Xã sao cho tổng bằng đúng lãi suất chung).
@@ -2578,7 +2613,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
           <div class="modal-head"><h3>✨ Thêm nhanh Người vay (Phương án vay) bằng chat với AI</h3><button class="modal-close preview-allow" id="qai-close">✕</button></div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column;" id="qai-thread">
-            ${messages.length? messages.map(bubbleHtml).join('') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh CCCD, đơn xin vay, sổ ghi chép cũ...) — AI sẽ đợi đến khi bạn bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc.</p>`}
+            ${messages.length? messages.map(bubbleHtml).join('') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh CCCD, đơn xin vay, sổ ghi chép cũ...) — AI sẽ đợi đến khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc.</p>`}
           </div>
           <div style="padding:8px 16px 0; background:var(--paper-2);">
             <div style="text-align:center; margin-bottom:8px;">
@@ -2701,7 +2736,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     }
 
     async function runAiTurn(){
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, vui lòng đăng nhập hoặc tham gia bằng mã định danh để sử dụng tính năng này.'); return; }
       if(busy) return;
       busy = true;
       const streamMsg = { role:'ai', text:'', streaming:true };
@@ -2721,7 +2756,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         // nhiều ô, để AI hiểu đúng và không ghi đè ngược lại những gì người dùng vừa chỉnh sửa. AI PHẢI
         // luôn đọc đúng hồ sơ NÀY trước khi trả lời, và chỉnh sửa TRỰC TIẾP lên đúng hồ sơ này — không
         // có hồ sơ/file nào khác.
-        aiMessages.push({ role:'user', text: `[Đây là "Hồ sơ đang soạn" ĐANG CÓ hiện tại (${resultIsEmpty()? 'hiện đang RỖNG, chưa có thông tin gì cả — đây là hồ sơ khởi đầu' : (latestResult._manuallyEdited? 'người dùng đã TỰ SỬA THỦ CÔNG 1 số ô, hãy coi đây là sự thật mới nhất, đừng ghi đè lại theo suy đoán cũ của bạn' : 'do bạn trích xuất ở lượt trước')}), đây là hồ sơ DUY NHẤT — bạn PHẢI đọc kỹ hồ sơ này trước khi trả lời, và luôn chỉnh sửa TRỰC TIẾP lên đúng hồ sơ này (thêm/sửa/xoá tuỳ theo yêu cầu người dùng), không tạo ra 1 bản riêng biệt nào khác]:\n${JSON.stringify(latestResult)}` });
+        aiMessages.push({ role:'user', text: `[Đây là "Hồ sơ đang soạn" ĐANG CÓ hiện tại (${resultIsEmpty()? 'hiện đang RỖNG, chưa có thông tin gì cả — đây là hồ sơ khởi đầu' : (latestResult._manuallyEdited? 'người dùng đã TỰ SỬA THỦ CÔNG 1 số ô, hãy coi đây là sự thật mới nhất, đừng ghi đè lại theo suy đoán cũ của đồng chí' : 'do đồng chí trích xuất ở lượt trước')}), đây là hồ sơ DUY NHẤT — đồng chí PHẢI đọc kỹ hồ sơ này trước khi trả lời, và luôn chỉnh sửa TRỰC TIẾP lên đúng hồ sơ này (thêm/sửa/xoá tuỳ theo yêu cầu người dùng), không tạo ra 1 bản riêng biệt nào khác]:\n${JSON.stringify(latestResult)}` });
         aiMessages.push({ role:'assistant', text:'Đã ghi nhận Hồ sơ đang soạn hiện tại, tôi sẽ dựa vào đây để tiếp tục thêm/sửa/xoá theo đúng yêu cầu.' });
         const allAttachments = messages.filter(m=>m.role==='user').flatMap(m=>m.attachments||[]);
         const opts = allAttachments.length? { attachments: allAttachments } : {};
@@ -2765,7 +2800,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       }catch(err){
         messages.pop(); // bỏ tin nhắn streaming tạm nếu có lỗi
         console.error('Lỗi khi tiêu hoá tài liệu bằng AI:', err);
-        messages.push({ role:'ai', text:`Xin lỗi, có lỗi xảy ra khi xử lý: ${err && err.message ? err.message : err}. Bạn thử lại nhé.` });
+        messages.push({ role:'ai', text:`Xin lỗi, có lỗi xảy ra khi xử lý: ${err && err.message ? err.message : err}. Đồng chí thử lại nhé.` });
       }
       busy = false; render();
     }
@@ -2849,7 +2884,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         return false;
       }
       if(invalidOptional.length){
-        const ok = confirm(`⚠️ Phát hiện ${invalidOptional.length} trường KHÔNG bắt buộc đang chứa dữ liệu vô lý:\n\n${invalidOptional.join('\n')}\n\nNếu bấm "Có", hệ thống sẽ THÊM bình thường nhưng LOẠI BỎ (để trống) các trường vô lý này. Bấm "Huỷ" nếu bạn muốn quay lại sửa trước.`);
+        const ok = confirm(`⚠️ Phát hiện ${invalidOptional.length} trường KHÔNG bắt buộc đang chứa dữ liệu vô lý:\n\n${invalidOptional.join('\n')}\n\nNếu bấm "Có", hệ thống sẽ THÊM bình thường nhưng LOẠI BỎ (để trống) các trường vô lý này. Bấm "Huỷ" nếu đồng chí muốn quay lại sửa trước.`);
         if(!ok) return false;
         clearFns.forEach(fn=> fn());
       }
@@ -2904,7 +2939,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         const ok = confirm(`⚠️ Có ai đó đã thao tác làm thay đổi trạng thái của 1 số Phương án vay đang được tham chiếu tới trong file này (có thể đã tất toán/trả nợ trước hạn xong/bị xoá):\n\n${invalidProjectRefs.join('\n')}\n\nVui lòng kiểm tra lại, hoặc bấm "Có" để hệ thống BỎ QUA những người vay thuộc các phương án không còn hợp lệ này, chỉ thêm những người còn lại. Bấm "Huỷ" để dừng lại kiểm tra kỹ hơn.`);
         if(!ok) return;
       }
-      if(!confirm(`Bạn có CHẮC CHẮN muốn thêm ${(latestResult.projects||[]).length} Phương án vay mới và ${(latestResult.borrowers||[]).length} Người vay mới này vào Sổ vay vốn không?`)) return;
+      if(!confirm(`Đồng chí có CHẮC CHẮN muốn thêm ${(latestResult.projects||[]).length} Phương án vay mới và ${(latestResult.borrowers||[]).length} Người vay mới này vào Sổ vay vốn không?`)) return;
       // BƯỚC MỚI: kiểm tra TỔNG tiền vay của người vay trong CÙNG 1 phương án không được vượt quá Tổng
       // vốn của phương án đó — với phương án ĐÃ CÓ SẴN thì phải cộng thêm số tiền ĐÃ giải ngân sẵn có
       // (những người vay cũ đang có trong Sổ vay vốn), không chỉ tính riêng người vay MỚI trong file này.
@@ -3235,7 +3270,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           }).join('');
           })() : `<div style="text-align:center; padding:30px 16px;">
             <p style="font-size:15px; font-weight:700; margin-bottom:8px;">📋 Hồ sơ này hiện đang RỖNG</p>
-            <p class="sub" style="max-width:420px; margin:0 auto;">Hãy tiếp tục trò chuyện với AI ở khung chat để AI tự động điền thông tin đầy đủ vào đây, hoặc bấm nút "✏️ Sửa thủ công" bên dưới để tự thêm Phương án vay/Người vay theo ý bạn.</p>
+            <p class="sub" style="max-width:420px; margin:0 auto;">Hãy tiếp tục trò chuyện với AI ở khung chat để AI tự động điền thông tin đầy đủ vào đây, hoặc bấm nút "✏️ Sửa thủ công" bên dưới để tự thêm Phương án vay/Người vay theo ý đồng chí.</p>
           </div>`}
           ${editMode? `<div style="text-align:center; margin-top:6px;"><button type="button" class="btn btn-primary preview-allow" id="qfp-add-project">➕ Thêm phương án vay</button></div>` : ''}
           </div>
@@ -3788,8 +3823,8 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const TAB_COLORS2 = { mau:'#8d6e63', canhan:'#2e7d32', xaphuong:'#1565c0' };
     const TAB_LABELS2 = { mau:'Nhóm mẫu', canhan:'Nhóm cá nhân', xaphuong:'Nhóm xã phường' };
     const VS_TAB_EXPLAIN = {
-      mau: `"Chế độ xem cột" là nơi lưu lại sẵn nhiều "Bộ xem cột" khác nhau — mỗi Bộ xem cột gồm 1 danh sách các cột đang hiển thị và đúng thứ tự của chúng. Thay vì phải vào "Tuỳ chỉnh cột" chỉnh lại từng cột mỗi lần, bạn chỉ cần bấm "Áp dụng" là bảng danh sách đổi ngay theo đúng bộ đã lưu. "Nhóm mẫu" chứa các Bộ xem cột có sẵn của hệ thống, không thể chỉnh sửa hay xoá.`,
-      canhan: `"Nhóm cá nhân" chứa các Bộ xem cột do CHÍNH BẠN tạo ra, chỉ riêng bạn nhìn thấy và sử dụng được (người khác xem cùng mã xã sẽ không thấy các bộ này). Nếu bạn đã đăng nhập bằng tài khoản Google, các bộ này được lưu theo tài khoản của bạn — dù đăng nhập ở thiết bị nào hay vào mã xã nào khác cũng thấy lại được. Nếu chưa đăng nhập, các bộ này chỉ được lưu tạm trên chính trình duyệt đang dùng.`,
+      mau: `"Chế độ xem cột" là nơi lưu lại sẵn nhiều "Bộ xem cột" khác nhau — mỗi Bộ xem cột gồm 1 danh sách các cột đang hiển thị và đúng thứ tự của chúng. Thay vì phải vào "Tuỳ chỉnh cột" chỉnh lại từng cột mỗi lần, đồng chí chỉ cần bấm "Áp dụng" là bảng danh sách đổi ngay theo đúng bộ đã lưu. "Nhóm mẫu" chứa các Bộ xem cột có sẵn của hệ thống, không thể chỉnh sửa hay xoá.`,
+      canhan: `"Nhóm cá nhân" chứa các Bộ xem cột do CHÍNH BẠN tạo ra, chỉ riêng đồng chí nhìn thấy và sử dụng được (người khác xem cùng mã xã sẽ không thấy các bộ này). Nếu đồng chí đã đăng nhập bằng tài khoản Google, các bộ này được lưu theo tài khoản của đồng chí — dù đăng nhập ở thiết bị nào hay vào mã xã nào khác cũng thấy lại được. Nếu chưa đăng nhập, các bộ này chỉ được lưu tạm trên chính trình duyệt đang dùng.`,
       xaphuong: `"Nhóm xã phường" chứa các Bộ xem cột dùng CHUNG cho TẤT CẢ mọi người đang xem mã xã này — ai cũng thấy và áp dụng được, nhưng chỉ người có quyền Sửa ở Sổ vay vốn mới được tạo mới, chỉnh sửa, đổi tên hay xoá.`,
     };
     let lastToastTab = null;

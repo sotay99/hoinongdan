@@ -51,9 +51,9 @@
         await cSet('interestApprovalColumnPrefs', { visible: state.iaVisibleCols, order: state.iaColumnOrder });
         showToast('Đã lưu tuỳ chỉnh cho cả xã!');
       } else if(state.previewMode){
-        showToast('Bạn đang ở chế độ tham quan — chỉ áp dụng cho lượt xem này, không lưu lại được.');
+        showToast('Đồng chí đang ở chế độ tham quan — chỉ áp dụng cho lượt xem này, không lưu lại được.');
       } else {
-        showToast('Đã áp dụng cho lượt xem này (bạn không có quyền Sửa nên không lưu lại được).');
+        showToast('Đã áp dụng cho lượt xem này (đồng chí không có quyền Sửa nên không lưu lại được).');
       }
     } else if(mode==='view'){
       showToast('Đã áp dụng tạm thời cho lượt xem này, chưa lưu lại.');
@@ -95,8 +95,8 @@
     groupList.forEach(b=>{ if(checked) draft.add(b.id); else draft.delete(b.id); });
   }
   async function saveInterestApprovalDraft(){
-    if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể lưu phê duyệt thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh.'); return; }
-    if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn nên không thể phê duyệt/lưu. Vui lòng liên hệ Chủ mã định danh để được cấp quyền Sửa trước.'); return; }
+    if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể lưu phê duyệt thật. Vui lòng đăng nhập hoặc tham gia bằng mã định danh.'); return; }
+    if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn nên không thể phê duyệt/lưu. Vui lòng liên hệ Chủ mã định danh để được cấp quyền Sửa trước.'); return; }
     const draft = ensureInterestApprovalDraft();
     const key = state.interestApprovalDraftKey;
     const obj = {}; draft.forEach(id=> obj[id]=true);
@@ -845,8 +845,8 @@
       bindEnterTriggersBlur(allTiersHamletInput);
 
       wrap.querySelector('#ext-save').onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể lưu phê duyệt gia hạn thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn nên không thể phê duyệt gia hạn. Vui lòng liên hệ Chủ mã định danh.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể lưu phê duyệt gia hạn thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn nên không thể phê duyệt gia hạn. Vui lòng liên hệ Chủ mã định danh.'); return; }
         if(extLevel > MAX_LOAN_EXTENSIONS){ alert(`Không thể lưu! Hệ thống chỉ cho phép gia hạn tối đa ${MAX_LOAN_EXTENSIONS} lần cho 1 khoản vay.`); return; }
         if(!draft.to){ alert('Vui lòng chọn "Gia hạn đến ngày".'); return; }
         if(draft.allocMode==='allTiers'){
@@ -1181,9 +1181,9 @@
     wrap.querySelector('#exr-back').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
     wrap.querySelector('#exr-confirm').onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-      if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
-      if(!confirm(`Bạn có CHẮC CHẮN muốn thu hồi quyết định gia hạn lần ${N} của hộ vay "${b.name}" không? Hành động này không thể hoàn tác.`)) return;
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+      if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
+      if(!confirm(`Đồng chí có CHẮC CHẮN muốn thu hồi quyết định gia hạn lần ${N} của hộ vay "${b.name}" không? Hành động này không thể hoàn tác.`)) return;
       close(); // Bước 1
       showProcessingToast(); // Bước 2
       const arr = getBorrowerExtensions(b.id).slice();
@@ -1359,7 +1359,7 @@
   function renderRiskDebtTablesHtml(list, projectsRaw, isConfirmedList){
     state._svRiskDebtCache = state._svRiskDebtCache || {};
     state._svRiskDebtCache[isConfirmedList?'confirmed':'candidates'] = { list, isConfirmedList };
-    if(!list.length) return `<div class="empty-state"><div class="e-ico">🌾</div>${isConfirmedList? 'Chưa có hộ vay nào trong Danh sách Nợ rủi ro.' : 'Chưa có người vay nào theo bộ lọc hiện tại, hoặc không có khoản vay nào hợp lý về thời điểm để chuyển thành Nợ rủi ro, <b style="color:#b71c1c;">bạn có thể lướt xuống dưới để xem danh sách các hộ đang trong diện nợ rủi ro (nếu có)</b>'}</div>`;
+    if(!list.length) return `<div class="empty-state"><div class="e-ico">🌾</div>${isConfirmedList? 'Chưa có hộ vay nào trong Danh sách Nợ rủi ro.' : 'Chưa có người vay nào theo bộ lọc hiện tại, hoặc không có khoản vay nào hợp lý về thời điểm để chuyển thành Nợ rủi ro, <b style="color:#b71c1c;">đồng chí có thể lướt xuống dưới để xem danh sách các hộ đang trong diện nợ rủi ro (nếu có)</b>'}</div>`;
     const projects = sortedActiveProjects(projectsRaw);
     function renderOneGroup(gid, groupListRaw, isOverdueBox){
       const groupList = isOverdueBox ? groupListRaw : sortedBorrowerGroup(groupListRaw, gid);
@@ -1654,8 +1654,8 @@
       // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
       wrap.querySelector('#rdc-date').addEventListener('change', render);
       wrap.querySelector('#rdc-confirm').onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
         const reason = (wrap.querySelector('#rdc-reason').value||'').trim();
         if(!reason){ alert('Vui lòng điền lý do trước khi xác nhận.'); return; }
         const date = wrap.querySelector('#rdc-date').value;
@@ -1663,7 +1663,7 @@
         if(date <= dueRef){ alert(`Ngày xác nhận phải SAU ngày ${fmtDate(dueRef)} (Ngày đến hạn hoặc Ngày gia hạn gần nhất) — không được trùng hoặc trước ngày đó.`); return; }
         if(date > maxDate){ alert(`Ngày xác nhận không được vượt quá 60 ngày trong tương lai so với hôm nay (chậm nhất là ${fmtDate(maxDate)}).`); return; }
         const keepInterest = wrap.querySelector('#rdc-keep-interest').checked;
-        if(!confirm(`Bạn có CHẮC CHẮN muốn xác nhận hộ vay "${b.name}" là Nợ rủi ro không?`)) return;
+        if(!confirm(`Đồng chí có CHẮC CHẮN muốn xác nhận hộ vay "${b.name}" là Nợ rủi ro không?`)) return;
         close(); // Bước 1
         showProcessingToast(); // Bước 2
         try{
@@ -1767,8 +1767,8 @@
     wrap.querySelector('#bdc-back').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
     wrap.querySelector('#bdc-confirm').onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-      if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+      if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
       const reason = (wrap.querySelector('#bdc-reason').value||'').trim();
       if(!reason){ alert('Vui lòng điền lý do trước khi xác nhận.'); return; }
       const noInterestTooEl = wrap.querySelector('#bdc-no-interest-too');
@@ -1786,7 +1786,7 @@
         renderMoneyBasedReceiptModal(b, backToHistory, backToHistory);
         return;
       }
-      if(!confirm(`Bạn có CHẮC CHẮN muốn phê duyệt hộ vay "${b.name}" là KHÔNG CÓ KHẢ NĂNG TRẢ NỢ không?`)) return;
+      if(!confirm(`Đồng chí có CHẮC CHẮN muốn phê duyệt hộ vay "${b.name}" là KHÔNG CÓ KHẢ NĂNG TRẢ NỢ không?`)) return;
       close(); // Bước 1
       showProcessingToast(); // Bước 2
       try{
@@ -1864,9 +1864,9 @@
     wrap.querySelector('#bdr-back').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
     wrap.querySelector('#bdr-confirm').onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-      if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
-      if(!confirm(`Bạn có CHẮC CHẮN muốn khôi phục hộ vay "${b.name}" về lại trạng thái Đang xử lý Nợ rủi ro không?`)) return;
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+      if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
+      if(!confirm(`Đồng chí có CHẮC CHẮN muốn khôi phục hộ vay "${b.name}" về lại trạng thái Đang xử lý Nợ rủi ro không?`)) return;
       close(); // Bước 1
       showProcessingToast(); // Bước 2
       await restoreBorrowerFromBadDebt(b);
@@ -1901,9 +1901,9 @@
     wrap.querySelector('#rdrs-back').onclick = close;
     // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
     wrap.querySelector('#rdrs-confirm').onclick = async ()=>{
-      if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
-      if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn.'); return; }
-      if(!confirm(`Bạn có CHẮC CHẮN muốn thu hồi quyết định Nợ rủi ro của hộ vay "${b.name}" không?`)) return;
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận thật.'); return; }
+      if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn.'); return; }
+      if(!confirm(`Đồng chí có CHẮC CHẮN muốn thu hồi quyết định Nợ rủi ro của hộ vay "${b.name}" không?`)) return;
       // Đóng HẾT mọi bảng đang mở (bảng "Lịch sử Nợ rủi ro" phía sau, bảng xác nhận này...), CHỈ
       // CHỪA LẠI đúng modal "⚠️ Thêm, xoá, quản lý Nợ rủi ro" — tránh người dùng lỡ tay bấm tiếp vào
       // các bảng phụ đã hết tác dụng. (Bước 1)

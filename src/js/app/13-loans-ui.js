@@ -155,8 +155,8 @@
         if(body) body.scrollTo({ top: body.scrollHeight, behavior:'smooth' });
       });
       if(confirmBtn) confirmBtn.onclick = async ()=>{
-        if(state.previewMode){ alert('Bạn đang ở chế độ tham quan, không thể xác nhận đóng lãi thật.'); return; }
-        if(!canEditModule('data')){ alert('Bạn không có quyền Sửa ở Sổ vay vốn nên không thể xác nhận đóng lãi. Vui lòng liên hệ Chủ mã định danh.'); return; }
+        if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, không thể xác nhận đóng lãi thật.'); return; }
+        if(!canEditModule('data')){ alert('Đồng chí không có quyền Sửa ở Sổ vay vốn nên không thể xác nhận đóng lãi. Vui lòng liên hệ Chủ mã định danh.'); return; }
         if(lastFinalAmount<=0 || lastFinalAmount>lastMaxAllowed) return;
         const payerName = (wrap.querySelector('#rcpt-payer').value||'').trim();
         const collectorName = (wrap.querySelector('#rcpt-collector').value||'').trim();

@@ -1146,7 +1146,7 @@
       const snap = await wref('interestPaymentBoxes/'+b.id).once('value');
       const fresh = snap.val() || { totalPaid:0 };
       if((fresh.totalPaid||0) !== (expectedTotalPaid||0)){
-        alert(`⚠️ Không thể lưu biên lai này — đã có người khác VỪA lập một biên lai liên quan đến tiền lãi của hộ vay "${b.name}" cùng lúc với bạn, khiến số liệu bạn đang xem đã bị lỗi thời.\n\nVui lòng thoát bảng này ra và lập lại 1 biên lai MỚI (hệ thống sẽ tự cập nhật đúng số liệu mới nhất), hoặc vào Kho biên lai để xem biên lai mới nhất vừa được lập.`);
+        alert(`⚠️ Không thể lưu biên lai này — đã có người khác VỪA lập một biên lai liên quan đến tiền lãi của hộ vay "${b.name}" cùng lúc với đồng chí, khiến số liệu đồng chí đang xem đã bị lỗi thời.\n\nVui lòng thoát bảng này ra và lập lại 1 biên lai MỚI (hệ thống sẽ tự cập nhật đúng số liệu mới nhất), hoặc vào Kho biên lai để xem biên lai mới nhất vừa được lập.`);
         return false;
       }
       return true;
@@ -1335,7 +1335,7 @@
       const conflict = Object.values(val).some(r=> r.status==='unpaid' && r.wardId===myWardId && r.borrowerIds && r.borrowerIds[borrowerId]
         && (Date.now() - new Date(r.createdAt).getTime()) < UNPAID_RECEIPT_LIFETIME_MS);
       if(conflict){
-        alert(`⚠️ Không thể lưu biên lai này — đã có 1 Biên lai CHƯA THANH TOÁN liên quan đến tiền lãi của hộ vay "${borrowerName}", khiến số liệu bạn đang xem có thể đã lỗi thời.\n\nVui lòng vào "Hộp Biên lai chưa thanh toán" (trong Kho biên lai) để xem Biên lai đó, hoặc xoá Biên lai đó đi (nếu không còn cần dùng) để có thể tiếp tục lập biên lai mới cho hộ vay này.`);
+        alert(`⚠️ Không thể lưu biên lai này — đã có 1 Biên lai CHƯA THANH TOÁN liên quan đến tiền lãi của hộ vay "${borrowerName}", khiến số liệu đồng chí đang xem có thể đã lỗi thời.\n\nVui lòng vào "Hộp Biên lai chưa thanh toán" (trong Kho biên lai) để xem Biên lai đó, hoặc xoá Biên lai đó đi (nếu không còn cần dùng) để có thể tiếp tục lập biên lai mới cho hộ vay này.`);
         return false;
       }
       return true;

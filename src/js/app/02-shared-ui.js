@@ -960,7 +960,7 @@
     input.addEventListener('keypress', (e)=>{
       if(e.key.length===1 && !/[\d]/.test(e.key)){
         e.preventDefault();
-        alert('Chỉ được nhập chữ số cho ô này. Hệ thống sẽ tự động tách cụm 3 số giúp bạn.');
+        alert('Chỉ được nhập chữ số cho ô này. Hệ thống sẽ tự động tách cụm 3 số giúp đồng chí.');
       }
     });
   }
@@ -1242,7 +1242,7 @@
   // phí, hoạt động ngay lập tức). Bấm lần nữa để dừng đọc giữa chừng.
   let _currentSpeechUtterance = null;
   function speakTextAsAiVoice(text, btn){
-    if(!window.speechSynthesis){ alert('Rất tiếc, trình duyệt của bạn không hỗ trợ giọng nói AI (Web Speech API). Vui lòng thử trên Chrome/Edge/Safari bản mới.'); return; }
+    if(!window.speechSynthesis){ alert('Rất tiếc, trình duyệt của đồng chí không hỗ trợ giọng nói AI (Web Speech API). Vui lòng thử trên Chrome/Edge/Safari bản mới.'); return; }
     if(window.speechSynthesis.speaking){
       window.speechSynthesis.cancel();
       _currentSpeechUtterance = null;

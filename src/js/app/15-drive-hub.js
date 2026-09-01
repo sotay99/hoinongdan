@@ -115,14 +115,14 @@
   const OFFICE_APPS = {
     Docs: {
       icon:'📄', label:'Tài liệu', eyebrow:'SOẠN THẢO VĂN BẢN',
-      tagline:'Một trình soạn thảo văn bản đầy đủ ngay trong Sổ tay — làm được mọi việc như Word, cộng thêm một trợ lý AI ngồi cạnh bạn suốt quá trình soạn thảo.',
+      tagline:'Một trình soạn thảo văn bản đầy đủ ngay trong Sổ tay — làm được mọi việc như Word, cộng thêm một trợ lý AI ngồi cạnh đồng chí suốt quá trình soạn thảo.',
       blocks:[
         ['✍️','Soạn thảo đầy đủ như phần mềm Word thật',
          'Định dạng chữ, căn lề, giãn dòng, đánh số trang, chèn bảng biểu, chèn ảnh, tạo mục lục tự động, đánh số đề mục nhiều cấp, chèn chú thích chân trang, header và footer. Hỗ trợ đúng thể thức văn bản hành chính Việt Nam: quốc hiệu tiêu ngữ, số ký hiệu, nơi nhận, chữ ký và dấu.'],
         ['🤖','Trợ lý AI ngồi ngay trong trang soạn thảo',
-         'Bôi đen một đoạn rồi bảo AI viết lại cho gọn, đổi giọng văn cho trang trọng hơn, tóm tắt thành vài gạch đầu dòng, hay mở rộng một ý thành đoạn hoàn chỉnh. Bạn cũng có thể mô tả bằng lời — "soạn giúp tôi báo cáo tổng kết công tác Hội quý III" — và AI dựng sẵn khung văn bản đúng thể thức để bạn chỉnh sửa tiếp.'],
+         'Bôi đen một đoạn rồi bảo AI viết lại cho gọn, đổi giọng văn cho trang trọng hơn, tóm tắt thành vài gạch đầu dòng, hay mở rộng một ý thành đoạn hoàn chỉnh. Đồng chí cũng có thể mô tả bằng lời — "soạn giúp tôi báo cáo tổng kết công tác Hội quý III" — và AI dựng sẵn khung văn bản đúng thể thức để đồng chí chỉnh sửa tiếp.'],
         ['🗂️','Lấy dữ liệu thẳng từ Trung tâm dữ liệu',
-         'AI đọc được các tệp bạn đã lưu trong Trung tâm dữ liệu, nên khi soạn báo cáo nó có thể trích số liệu từ chính tài liệu của xã/phường mình thay vì bịa ra. Văn bản soạn xong cũng lưu ngược lại vào đúng thư mục bạn chọn.'],
+         'AI đọc được các tệp đồng chí đã lưu trong Trung tâm dữ liệu, nên khi soạn báo cáo nó có thể trích số liệu từ chính tài liệu của xã/phường mình thay vì bịa ra. Văn bản soạn xong cũng lưu ngược lại vào đúng thư mục đồng chí chọn.'],
         ['📋','Kho mẫu văn bản dùng sẵn',
          'Nghị quyết, kế hoạch, báo cáo tháng/quý/năm, tờ trình, giấy mời họp, biên bản, thông báo, quyết định... chọn mẫu là có ngay khung sườn, chỉ việc điền nội dung của địa phương mình.'],
         ['👥','Nhiều người cùng làm trên một văn bản',
@@ -133,16 +133,16 @@
     },
     Sheets: {
       icon:'📊', label:'Trang tính', eyebrow:'BẢNG TÍNH VÀ SỐ LIỆU',
-      tagline:'Bảng tính làm được mọi việc như Excel, nhưng bạn có thể ra lệnh bằng tiếng Việt thay vì phải nhớ công thức.',
+      tagline:'Bảng tính làm được mọi việc như Excel, nhưng đồng chí có thể ra lệnh bằng tiếng Việt thay vì phải nhớ công thức.',
       blocks:[
         ['🧮','Bảng tính đầy đủ như Excel',
          'Công thức, hàm tính toán, định dạng theo điều kiện, lọc và sắp xếp, gộp ô, cố định dòng tiêu đề, nhiều trang tính trong một tệp, bảng tổng hợp. Nhập được tệp .xlsx sẵn có và xuất ra đúng định dạng đó.'],
-        ['🗣️','Ra lệnh bằng tiếng Việt, AI viết công thức thay bạn',
-         'Không cần nhớ cú pháp hàm. Chỉ cần gõ "tính tổng số hội viên từng ấp rồi sắp xếp giảm dần" hoặc "tô đỏ những dòng quá hạn đóng lãi" — AI hiểu và làm ngay trên bảng của bạn, đồng thời giải thích nó vừa làm gì để bạn kiểm tra lại.'],
+        ['🗣️','Ra lệnh bằng tiếng Việt, AI viết công thức thay đồng chí',
+         'Không cần nhớ cú pháp hàm. Chỉ cần gõ "tính tổng số hội viên từng ấp rồi sắp xếp giảm dần" hoặc "tô đỏ những dòng quá hạn đóng lãi" — AI hiểu và làm ngay trên bảng của đồng chí, đồng thời giải thích nó vừa làm gì để đồng chí kiểm tra lại.'],
         ['🧹','AI dọn dữ liệu lộn xộn',
          'Danh sách gõ tay thường sai chính tả tên, lệch định dạng ngày tháng, trùng lặp dòng, họ tên viết hoa không đồng nhất. AI rà soát, chỉ ra chỗ nghi ngờ và đề xuất cách sửa hàng loạt — việc trước đây phải ngồi sửa tay cả buổi.'],
         ['📈','Dựng biểu đồ và bảng tổng hợp trong một câu',
-         'Mô tả điều bạn muốn thấy, AI chọn giúp loại biểu đồ phù hợp và dựng luôn. Thích hợp cho báo cáo thực lực Hội, tiến độ thu lãi, cơ cấu hội viên theo độ tuổi hay ngành nghề.'],
+         'Mô tả điều đồng chí muốn thấy, AI chọn giúp loại biểu đồ phù hợp và dựng luôn. Thích hợp cho báo cáo thực lực Hội, tiến độ thu lãi, cơ cấu hội viên theo độ tuổi hay ngành nghề.'],
         ['🔗','Nối với số liệu sẵn có trong app',
          'Kéo thẳng số liệu từ Sổ vay vốn, Sổ Thu Chi Lãi Quỹ hay Hồ sơ hội viên sang bảng tính để tự tổng hợp, khỏi phải chép tay và khỏi sai sót.'],
         ['📤','Xuất và chia sẻ',
@@ -160,9 +160,9 @@
         ['🎨','Giao diện thống nhất, đúng phong cách của Hội',
          'Bộ màu và kiểu chữ đồng bộ cho cả bài, không còn cảnh mỗi slide một kiểu. Có sẵn các mẫu phù hợp với hội nghị, sơ kết, tổng kết, tập huấn và tuyên truyền.'],
         ['🗣️','Luyện trước khi lên trình bày',
-         'AI ước lượng thời lượng từng slide, cảnh báo chỗ quá nhiều chữ, và gợi ý những câu hỏi mà người nghe nhiều khả năng sẽ hỏi để bạn chuẩn bị trước.'],
+         'AI ước lượng thời lượng từng slide, cảnh báo chỗ quá nhiều chữ, và gợi ý những câu hỏi mà người nghe nhiều khả năng sẽ hỏi để đồng chí chuẩn bị trước.'],
         ['🗂️','Nối với Trung tâm dữ liệu',
-         'Lấy ảnh, biểu đồ và số liệu thẳng từ kho tài liệu của xã/phường; bài trình chiếu làm xong lưu lại đúng thư mục bạn chọn.'],
+         'Lấy ảnh, biểu đồ và số liệu thẳng từ kho tài liệu của xã/phường; bài trình chiếu làm xong lưu lại đúng thư mục đồng chí chọn.'],
         ['📤','Trình chiếu và chia sẻ',
          'Chiếu trực tiếp trong app, tải về .pptx hoặc PDF, hoặc gửi liên kết cho người khác xem trước.'],
       ],
@@ -222,7 +222,7 @@
           </div>
           <div class="office-foot-note">
             <b>Vì sao gắn liền với Trung tâm dữ liệu?</b>
-            <span>Mọi tệp bạn tạo ra ở đây đều nằm trong Trung tâm dữ liệu — cùng một kho, cùng một cách phân quyền, cùng một chỗ tìm kiếm. Không còn cảnh mỗi tài liệu một nơi, cũng không phải nhớ mình đã lưu ở đâu.</span>
+            <span>Mọi tệp đồng chí tạo ra ở đây đều nằm trong Trung tâm dữ liệu — cùng một kho, cùng một cách phân quyền, cùng một chỗ tìm kiếm. Không còn cảnh mỗi tài liệu một nơi, cũng không phải nhớ mình đã lưu ở đâu.</span>
           </div>
           <div class="office-doc-actions">
             <button class="btn btn-primary" id="office-goto-drive">🗂️ Mở Trung tâm dữ liệu</button>
@@ -449,7 +449,7 @@
   }
   async function driveAddComment(resourceId,text){
     const node=state.driveResources[resourceId];
-    if(!driveCanComment(node)){ alert('Bạn không có quyền bình luận tài nguyên này.'); return false; }
+    if(!driveCanComment(node)){ alert('Đồng chí không có quyền bình luận tài nguyên này.'); return false; }
     const value=(text||'').trim();
     if(!value){ alert('Vui lòng nhập nội dung bình luận.'); return false; }
     const ref=driveCommentRef(resourceId);
@@ -478,7 +478,7 @@
   async function driveDeleteComment(resourceId,commentId){
     const node=state.driveResources[resourceId];
     const comment=node && node.comments && node.comments[commentId];
-    if(!driveCanDeleteComment(comment)){ alert('Bạn chỉ có thể xoá bình luận của mình.'); return false; }
+    if(!driveCanDeleteComment(comment)){ alert('Đồng chí chỉ có thể xoá bình luận của mình.'); return false; }
     const ref=driveCommentRef(resourceId);
     if(!ref) return false;
     try{
@@ -589,9 +589,9 @@
     });
   }
   async function driveWriteNode(id, node){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan. Tài nguyên demo không được lưu.')) return false;
+    if(blockTourMutation('Đồng chí đang ở môi trường tham quan. Tài nguyên demo không được lưu.')) return false;
     const parent = state.driveCurrentFolder ? state.driveResources[state.driveCurrentFolder] : null;
-    if(!driveCanEdit(parent)){ alert('Bạn không có quyền tạo tài nguyên trong thư mục này.'); return false; }
+    if(!driveCanEdit(parent)){ alert('Đồng chí không có quyền tạo tài nguyên trong thư mục này.'); return false; }
     if(driveIsLocalPersonal()){
       const tree = driveLocalTree();
       tree[id] = {...node, storageScope:'local'};
@@ -665,7 +665,7 @@
   }
   // Lưu MỘT ghi chú vào Bộ cá nhân. parentId = null nghĩa là để ở gốc.
   async function driveSaveQuickNote({ name, content, parentId=null, storagePath='', storageUrl='' }){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan, ghi chú không được lưu lại.')) return null;
+    if(blockTourMutation('Đồng chí đang ở môi trường tham quan, ghi chú không được lưu lại.')) return null;
     const id = driveNodeId();
     const now = new Date().toISOString();
     const ok = await drivePersonalWriteNode(id, {
@@ -694,7 +694,7 @@
       let tree = {};
       let loadError = '';
       try{ tree = await drivePersonalTree(); }
-      catch(e){ loadError = 'Không đọc được danh sách thư mục. Bạn vẫn có thể lưu vào gốc.'; }
+      catch(e){ loadError = 'Không đọc được danh sách thư mục. Đồng chí vẫn có thể lưu vào gốc.'; }
 
       const close = (result)=>{ wrap.remove(); resolve(result); };
 
@@ -755,9 +755,9 @@
   }
 
   async function driveUpdateNode(id, partial){
-    if(blockTourMutation('Bạn đang ở môi trường tham quan. Tài nguyên demo không được lưu.')) return false;
+    if(blockTourMutation('Đồng chí đang ở môi trường tham quan. Tài nguyên demo không được lưu.')) return false;
     const current = state.driveResources[id];
-    if(!driveCanEdit(current)){ alert('Bạn không có quyền chỉnh sửa tài nguyên này.'); return false; }
+    if(!driveCanEdit(current)){ alert('Đồng chí không có quyền chỉnh sửa tài nguyên này.'); return false; }
     if(driveIsLocalPersonal()){
       const tree = driveLocalTree();
       tree[id] = {...(tree[id]||current||{}), ...partial};
@@ -826,7 +826,7 @@
           }
         }catch(e){
           console.error('Lưu tệp vào kho dữ liệu lỗi:',e);
-          alert(`Không thể lưu "${file.name}". Tệp vẫn còn nguyên trên thiết bị của bạn.\n\n${e&&e.message?e.message:'Lỗi không xác định'}`);
+          alert(`Không thể lưu "${file.name}". Tệp vẫn còn nguyên trên thiết bị của đồng chí.\n\n${e&&e.message?e.message:'Lỗi không xác định'}`);
         }
       }
       driveAttach(); renderDriveHubTab(document.getElementById('content'));
@@ -1042,7 +1042,7 @@
     const permission = node ? drivePermissionForNode(node,tree,route.space) : 'none';
     const visible = node && !node.deleted && node.type===route.kind && permission!=='none';
     if(!visible){
-      el.innerHTML = `<div class="drive-route-card"><div class="drive-route-actions">${driveRouteBackButton()}</div><div class="drive-route-denied"><div>🔒</div><h3>Không tìm thấy tài nguyên</h3><p>Tài nguyên không tồn tại hoặc bạn không có quyền xem tài nguyên này.</p></div></div>`;
+      el.innerHTML = `<div class="drive-route-card"><div class="drive-route-actions">${driveRouteBackButton()}</div><div class="drive-route-denied"><div>🔒</div><h3>Không tìm thấy tài nguyên</h3><p>Tài nguyên không tồn tại hoặc đồng chí không có quyền xem tài nguyên này.</p></div></div>`;
       const back=document.getElementById('drive-route-back'); if(back) back.onclick=driveGoHub;
       return;
     }
@@ -1065,7 +1065,7 @@
           <div class="drive-route-section"><b>Liên kết gốc</b><a class="btn btn-primary" href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer">Mở tài liệu gốc ↗</a></div>`}
         ${route.space==='shared' ? `<div class="drive-route-section drive-comments"><div class="drive-comments-head"><b>💬 Bình luận (${comments.length})</b><span class="sub">Viewer có thể đọc · Commenter/Editor có thể thêm</span></div>
           ${comments.length ? `<div class="drive-comment-list">${comments.map(comment=>`<article class="drive-comment"><div class="drive-comment-head"><b>${escapeHtml(comment.authorName||comment.authorEmail||'Người dùng')}</b><time>${escapeHtml(comment.createdAt ? new Date(comment.createdAt).toLocaleString('vi-VN') : '')}</time></div><p>${escapeHtml(comment.text||'')}</p>${driveCanDeleteComment(comment)?`<button class="btn btn-ghost btn-sm" data-drive-comment-delete="${comment.id}">Xoá</button>`:''}</article>`).join('')}</div>` : `<div class="drive-route-empty">Chưa có bình luận.</div>`}
-          ${canComment && !isTourMode() ? `<div class="drive-comment-compose"><textarea id="drive-comment-input" rows="3" placeholder="Viết bình luận cho tài nguyên này…"></textarea><div><button class="btn btn-primary btn-sm" id="drive-comment-send">Gửi bình luận</button></div></div>` : `<div class="drive-comment-note">${isTourMode()?'Bình luận bị tắt trong môi trường tham quan.':permission==='viewer'?'Bạn đang ở chế độ chỉ xem.':''}</div>`}
+          ${canComment && !isTourMode() ? `<div class="drive-comment-compose"><textarea id="drive-comment-input" rows="3" placeholder="Viết bình luận cho tài nguyên này…"></textarea><div><button class="btn btn-primary btn-sm" id="drive-comment-send">Gửi bình luận</button></div></div>` : `<div class="drive-comment-note">${isTourMode()?'Bình luận bị tắt trong môi trường tham quan.':permission==='viewer'?'Đồng chí đang ở chế độ chỉ xem.':''}</div>`}
         </div>` : ''}
          <div class="drive-route-footer"><span class="sub">Resource ID: <code>${escapeHtml(node.id)}</code>${node.storageScope==='local'?' · Chỉ lưu trên thiết bị này':''}</span>${node.storageScope==='local'?'':'<button class="btn btn-ghost btn-sm" id="drive-copy-route">Sao chép URL</button>'}</div>
       </div>`;
@@ -1122,9 +1122,9 @@
           <button class="btn btn-ghost btn-sm" id="drive-trash">${state.driveTrashOpen?'◀ Kho dữ liệu':'🗑️ Thùng rác'}</button>
         </div>
         ${isTourMode()? `<div class="drive-notice drive-notice-tour">⚠️ CHẾ ĐỘ THAM QUAN — tài liệu dưới đây là dữ liệu demo, không lưu và không chia sẻ thật.</div>` : ''}
-        ${driveIsLocalPersonal()? `<div class="drive-notice drive-notice-local">💾 Kho cá nhân đang lưu trên thiết bị này. Bạn có thể tạo thư mục, ghi chú và tải tệp; đăng nhập Google sau đó để đồng bộ sang Firebase. Tài nguyên local không tạo URL chia sẻ dùng chung.</div>` : ''}
+        ${driveIsLocalPersonal()? `<div class="drive-notice drive-notice-local">💾 Kho cá nhân đang lưu trên thiết bị này. Đồng chí có thể tạo thư mục, ghi chú và tải tệp; đăng nhập Google sau đó để đồng bộ sang Firebase. Tài nguyên local không tạo URL chia sẻ dùng chung.</div>` : ''}
         ${!isShared && hasAuthenticatedIdentity() && driveHasLocalResources()? `<div class="drive-notice drive-notice-migration">📦 Phát hiện tài nguyên đang chờ chuyển từ trình duyệt lên kho cá nhân Firebase. <button class="btn btn-ghost btn-sm" id="drive-migrate-local">Chuyển lên Firebase</button></div>` : ''}
-        ${isShared && !canEdit? `<div class="drive-notice">Bạn đang ở chế độ xem. Chỉ Chủ mã mới được tạo, đổi tên hoặc đưa tài liệu vào thùng rác.</div>` : ''}
+        ${isShared && !canEdit? `<div class="drive-notice">Đồng chí đang ở chế độ xem. Chỉ Chủ mã mới được tạo, đổi tên hoặc đưa tài liệu vào thùng rác.</div>` : ''}
         <div class="drive-office-grid" aria-label="Ứng dụng văn phòng">
           <button class="drive-office-card" data-drive-office="Docs" title="Xem trạng thái Docs"><span>📄</span><b>Docs</b><small>Đang thiết kế — sẽ sớm ra mắt</small></button>
           <button class="drive-office-card" data-drive-office="Sheets" title="Xem trạng thái Sheets"><span>📊</span><b>Sheets</b><small>Đang thiết kế — sẽ sớm ra mắt</small></button>
@@ -1244,18 +1244,18 @@
   const UPCOMING_MODULES = {
     schedule: {
       icon:'📅', eyebrow:'QUẢN LÝ THỜI GIAN', title:'Lịch Công tác',
-      lead:'Lịch công tác của xã/phường thường phát ra dưới dạng một tệp chung cho tất cả cán bộ, mỗi người phải tự dò xem dòng nào là của mình. Module này để AI làm việc dò ấy thay bạn.',
+      lead:'Lịch công tác của xã/phường thường phát ra dưới dạng một tệp chung cho tất cả cán bộ, mỗi người phải tự dò xem dòng nào là của mình. Module này để AI làm việc dò ấy thay đồng chí.',
       blocks:[
         ['📤','Tải tệp lịch chung lên là xong',
-         'Nhận tệp Word, Excel, PDF hay kể cả ảnh chụp bảng lịch dán ở cơ quan. AI đọc hiểu nội dung, không cần bạn phải nhập lại từng dòng.'],
-        ['🔍','AI tách riêng phần việc của bạn',
-         'Từ lịch chung của cả cơ quan, AI lọc ra đúng những buổi có tên bạn hoặc thuộc mảng bạn phụ trách, rồi ghi vào lịch riêng: làm việc gì, ở đâu, lúc mấy giờ, đi cùng ai, cần chuẩn bị gì.'],
+         'Nhận tệp Word, Excel, PDF hay kể cả ảnh chụp bảng lịch dán ở cơ quan. AI đọc hiểu nội dung, không cần đồng chí phải nhập lại từng dòng.'],
+        ['🔍','AI tách riêng phần việc của đồng chí',
+         'Từ lịch chung của cả cơ quan, AI lọc ra đúng những buổi có tên đồng chí hoặc thuộc mảng đồng chí phụ trách, rồi ghi vào lịch riêng: làm việc gì, ở đâu, lúc mấy giờ, đi cùng ai, cần chuẩn bị gì.'],
         ['🔔','Nhắc hẹn như Lịch Google',
-         'Báo trước theo mốc bạn đặt — một ngày trước, một giờ trước, mười lăm phút trước. Nhắc qua thông báo trên điện thoại và máy tính, hoặc gửi email cho những việc quan trọng.'],
+         'Báo trước theo mốc đồng chí đặt — một ngày trước, một giờ trước, mười lăm phút trước. Nhắc qua thông báo trên điện thoại và máy tính, hoặc gửi email cho những việc quan trọng.'],
         ['🗓️','Nhìn được cả tuần, cả tháng, cả quý',
          'Xem theo ngày, tuần, tháng hoặc dạng danh sách. Thấy ngay chỗ trùng lịch, chỗ hai cuộc họp sát nhau không kịp di chuyển, hay tuần nào đang quá tải.'],
         ['🤝','Chia sẻ lịch trong cơ quan',
-         'Cho phép đồng nghiệp xem lịch của bạn khi cần xếp họp, hoặc xem lịch chung của cả Ban Thường vụ để chọn khung giờ mọi người đều rảnh.'],
+         'Cho phép đồng nghiệp xem lịch của đồng chí khi cần xếp họp, hoặc xem lịch chung của cả Ban Thường vụ để chọn khung giờ mọi người đều rảnh.'],
         ['🔗','Nối với các phần khác của Sổ tay',
          'Buổi họp có tài liệu kèm theo thì mở thẳng từ Trung tâm dữ liệu; việc phát sinh sau cuộc họp đẩy sang Danh sách công việc.'],
       ],
@@ -1263,10 +1263,10 @@
     },
     tasks: {
       icon:'✅', eyebrow:'THEO DÕI TIẾN ĐỘ', title:'Danh sách Công việc',
-      lead:'Nơi tập hợp tất cả đầu việc của bạn — dù nó đến từ một văn bản chỉ đạo, một cuộc họp, hay chỉ là câu dặn dò trong nhóm chat — rồi theo dõi đến khi xong.',
+      lead:'Nơi tập hợp tất cả đầu việc của đồng chí — dù nó đến từ một văn bản chỉ đạo, một cuộc họp, hay chỉ là câu dặn dò trong nhóm chat — rồi theo dõi đến khi xong.',
       blocks:[
-        ['🧠','AI đọc mọi thứ bạn đưa vào và tự rút ra đầu việc',
-         'Dán một đoạn tin nhắn, tải lên một công văn, hay đưa biên bản cuộc họp — AI nhặt ra các việc cần làm, đoán thời hạn từ nội dung, xếp mức độ ưu tiên và hỏi lại bạn những chỗ chưa rõ.'],
+        ['🧠','AI đọc mọi thứ đồng chí đưa vào và tự rút ra đầu việc',
+         'Dán một đoạn tin nhắn, tải lên một công văn, hay đưa biên bản cuộc họp — AI nhặt ra các việc cần làm, đoán thời hạn từ nội dung, xếp mức độ ưu tiên và hỏi lại đồng chí những chỗ chưa rõ.'],
         ['🗺️','Bản đồ công việc theo tuần, tháng, năm',
          'Nhìn thấy toàn cảnh chặng đường: việc nào phải xong trước để việc sau chạy được, giai đoạn nào dồn việc, mốc nào là hạn cuối không lùi được.'],
         ['📊','Theo dõi tiến độ và chấm KPI',
@@ -1274,15 +1274,15 @@
         ['📎','Đính kèm bằng chứng cho từng việc',
          'Gắn tệp, ảnh chụp hoặc liên kết làm minh chứng cho việc đã hoàn thành — lúc chấm KPI hay bị hỏi lại thì có ngay, khỏi đi tìm.'],
         ['📝','AI soạn báo cáo tiến độ để nộp cấp trên',
-         'Đến kỳ báo cáo, AI tổng hợp những việc đã làm trong kỳ, kết quả đạt được, việc còn dở và lý do, rồi dựng thành bản báo cáo đúng thể thức để bạn rà lại và nộp.'],
+         'Đến kỳ báo cáo, AI tổng hợp những việc đã làm trong kỳ, kết quả đạt được, việc còn dở và lý do, rồi dựng thành bản báo cáo đúng thể thức để đồng chí rà lại và nộp.'],
         ['👥','Giao việc và theo dõi người khác',
          'Cán bộ phụ trách giao việc cho từng người, thấy được ai đang làm đến đâu, việc nào sắp trễ hạn để nhắc trước khi muộn.'],
       ],
-      note:['Điều khác biệt','Phần mềm quản lý công việc thông thường bắt bạn ngồi nhập từng đầu việc — mà chính việc nhập ấy đã đủ mất công để người ta bỏ dùng. Ở đây bạn chỉ cần ném nguyên tài liệu hoặc đoạn chat vào, phần bóc tách để AI lo.'],
+      note:['Điều khác biệt','Phần mềm quản lý công việc thông thường bắt đồng chí ngồi nhập từng đầu việc — mà chính việc nhập ấy đã đủ mất công để người ta bỏ dùng. Ở đây đồng chí chỉ cần ném nguyên tài liệu hoặc đoạn chat vào, phần bóc tách để AI lo.'],
     },
     training: {
       icon:'🎓', eyebrow:'ĐÀO TẠO', title:'Tập huấn bằng AI',
-      lead:'Thay vì tập trung hàng trăm hội viên vào hội trường rồi giảng một lượt cho tất cả, bạn soạn bài giảng một lần và mỗi người được AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
+      lead:'Thay vì tập trung hàng trăm hội viên vào hội trường rồi giảng một lượt cho tất cả, đồng chí soạn bài giảng một lần và mỗi người được AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
       blocks:[
         ['📚','Soạn bài giảng rồi cho AI tiêu hoá',
          'Đưa vào tài liệu tập huấn dưới bất kỳ dạng nào — văn bản, slide, PDF, ảnh chụp tài liệu giấy. AI đọc kỹ, nắm chắc nội dung và ghi nhớ để làm nguồn kiến thức duy nhất khi giảng, không nói ra ngoài phạm vi bài.'],
@@ -1306,7 +1306,7 @@
         ['📁','Mỗi cuộc họp một thư mục',
          'Gom chương trình họp, báo cáo, tờ trình, dự thảo nghị quyết, phụ lục số liệu vào một chỗ, sắp theo đúng thứ tự chương trình để đại biểu dễ theo dõi.'],
         ['🔗','Chia sẻ bằng liên kết chỉ xem',
-         'Người nhận chỉ xem được, không sửa và không xoá được gì. Tài liệu gốc của bạn an toàn tuyệt đối.'],
+         'Người nhận chỉ xem được, không sửa và không xoá được gì. Tài liệu gốc của đồng chí an toàn tuyệt đối.'],
         ['📱','Tự sinh mã QR để quét',
          'Chiếu mã QR lên màn hình hội trường hoặc in nhỏ dán trên bàn, đại biểu đưa điện thoại lên quét là vào ngay — khỏi phải đọc địa chỉ dài cho cả phòng chép lại.'],
         ['🔄','Sửa tài liệu phút chót vẫn kịp',
@@ -1326,8 +1326,8 @@
          'Soạn bài, chèn ảnh, hẹn giờ đăng — không phải chuyển qua lại giữa app và Facebook. Bài viết từ module Tạo bài Tuyên truyền đẩy thẳng sang đây được.'],
         ['💬','Trả lời bình luận và tin nhắn dưới danh nghĩa Trang',
          'Toàn bộ bình luận và tin nhắn của Trang hiện về một hộp chung, trả lời tại chỗ, không sót câu hỏi nào của bà con.'],
-        ['🤖','Giao bớt cho AI khi bạn cho phép',
-         'Bạn quyết định mức độ: AI chỉ soạn sẵn câu trả lời chờ bạn duyệt, hay được tự trả lời những câu hỏi thường gặp. Quyền cấp tới đâu AI làm tới đó, rút lại lúc nào cũng được.'],
+        ['🤖','Giao bớt cho AI khi đồng chí cho phép',
+         'Đồng chí quyết định mức độ: AI chỉ soạn sẵn câu trả lời chờ đồng chí duyệt, hay được tự trả lời những câu hỏi thường gặp. Quyền cấp tới đâu AI làm tới đó, rút lại lúc nào cũng được.'],
         ['📅','Lên lịch nội dung cả tháng',
          'Dựng trước kế hoạch bài đăng theo tuần hoặc tháng, AI gợi ý chủ đề bám theo mùa vụ, ngày lễ và các đợt phát động phong trào của Hội.'],
         ['📊','Xem bài nào bà con quan tâm',
@@ -1335,7 +1335,7 @@
         ['🛡️','Giữ chuẩn mực của trang chính thống',
          'AI cảnh báo trước những nội dung nhạy cảm hoặc câu chữ chưa phù hợp với một trang của tổ chức chính trị - xã hội, trước khi bài được đăng ra.'],
       ],
-      note:['Về quyền truy cập','Module chỉ hoạt động sau khi bạn chủ động kết nối và cấp quyền cho Trang của mình. Quyền cấp bao nhiêu dùng bấy nhiêu, và bạn thu hồi được bất cứ lúc nào.'],
+      note:['Về quyền truy cập','Module chỉ hoạt động sau khi đồng chí chủ động kết nối và cấp quyền cho Trang của mình. Quyền cấp bao nhiêu dùng bấy nhiêu, và đồng chí thu hồi được bất cứ lúc nào.'],
     },
     carecare: {
       icon:'💚', eyebrow:'CÔNG TÁC HỘI VIÊN', title:'Chăm sóc Hội viên',

@@ -12,7 +12,7 @@
       const knowledge = await getSystemKnowledgeCached();
       if(knowledge) knowledgeBlock = `\n\n===== TÀI LIỆU TRI THỨC DO ADMIN CUNG CẤP (ưu tiên đặc biệt các phần liên quan tới "tuyên truyền", chính sách, pháp luật, quy định, phong trào nếu có) =====\n${knowledge}`;
     }catch(e){ console.error('Nạp Bối cảnh tri thức (Tuyên truyền) lỗi:', e); }
-    return `Bạn tên là "Chàng Nông dân Thông minh". Trong không gian làm việc NÀY — Module "Tạo bài Tuyên truyền" — bạn đóng vai một BIÊN TẬP VIÊN TUYÊN TRUYỀN chuyên nghiệp, đồng hành cùng cán bộ Hội Nông dân cấp xã/phường để tạo ra các sản phẩm truyền thông, tuyên truyền chính sách, pháp luật, quy định, chủ trương, phong trào thi đua... tới hội viên nông dân và mọi tầng lớp nhân dân.
+    return `Bạn tên là "Chàng Nông dân Thông minh". LUÔN gọi người dùng là "đồng chí", tuyệt đối không gọi là "bạn" hay "anh/chị". Trong không gian làm việc NÀY — Module "Tạo bài Tuyên truyền" — bạn đóng vai một BIÊN TẬP VIÊN TUYÊN TRUYỀN chuyên nghiệp, đồng hành cùng cán bộ Hội Nông dân cấp xã/phường để tạo ra các sản phẩm truyền thông, tuyên truyền chính sách, pháp luật, quy định, chủ trương, phong trào thi đua... tới hội viên nông dân và mọi tầng lớp nhân dân.
 
 CÁC LOẠI SẢN PHẨM BẠN CÓ THỂ GIÚP TẠO RA — chia làm 2 NHÓM với cách làm việc KHÁC NHAU:
 
@@ -34,7 +34,7 @@ QUY TRÌNH LÀM VIỆC — NHÓM A (dạng chữ): KHÔNG cần bước rào c�
 
 QUY TRÌNH LÀM VIỆC — NHÓM B (Ảnh/Poster, Video, Banner, Loa truyền thanh, Slide, Giọng nói AI) — RẤT QUAN TRỌNG, tuân thủ đúng theo thứ tự:
 - Nếu người dùng ra lệnh còn NGẮN GỌN/MƠ HỒ (ví dụ vừa bấm nút gợi ý, hoặc chỉ gõ "tạo banner tuyên truyền" mà chưa mô tả gì thêm) — chưa được tạo sản phẩm ngay. Thay vào đó, hãy tự đưa ra MỘT PHƯƠNG ÁN CỤ THỂ do chính bạn đề xuất: mô tả THẬT ĐẦY ĐỦ, THẬT CHI TIẾT mọi khía cạnh của sản phẩm sắp tạo (chủ đề, đối tượng, phong cách, bối cảnh/hình ảnh/âm thanh/lời thoại tương ứng theo đúng loại sản phẩm — tự suy luận hợp lý các phần người dùng chưa nói rõ, đừng hỏi ngược lại bằng một loạt câu hỏi). Sau phần mô tả kế hoạch đó, LUÔN kết thúc bằng đúng tinh thần câu sau:
-  "Bạn có muốn bổ sung gì nữa không? Nếu muốn bổ sung, bạn cứ thoải mái nhập tin nhắn ở khung chat bên dưới. Nếu không cần bổ sung gì thêm, bạn chỉ cần bấm vào nút '🚀 Tạo bài Tuyên truyền ngay!' bên dưới khung chat nhé."
+  "Đồng chí có muốn bổ sung gì nữa không? Nếu muốn bổ sung, đồng chí cứ thoải mái nhập tin nhắn ở khung chat bên dưới. Nếu không cần bổ sung gì thêm, đồng chí chỉ cần bấm vào nút '🚀 Tạo bài Tuyên truyền ngay!' bên dưới khung chat nhé."
 - Nếu người dùng đã tự mô tả SẴN đầy đủ chi tiết ngay từ tin nhắn đầu (không cần bạn phải đoán/đề xuất thay họ), thì cứ tạo sản phẩm hoàn chỉnh luôn, không cần qua bước đề xuất kế hoạch này.
 - Khi nhận được tin nhắn xác nhận "tạo ngay" (do người dùng tự gõ thêm, hoặc do họ bấm nút "🚀 Tạo bài Tuyên truyền ngay!" mà hệ thống tự động gửi giùm) — hãy bắt đầu soạn thảo sản phẩm hoàn chỉnh dựa trên đúng phương án bạn vừa đề xuất (kết hợp thêm bất kỳ điều gì người dùng có bổ sung thêm trước đó).
 
@@ -47,7 +47,7 @@ VÍ DỤ CẤU TRÚC TRẢ LỜI MẪU khi người dùng VỪA chọn 1 vai tr�
 - Đối tượng: ...
 - Phong cách: ...
 - [Các chi tiết đặc thù theo loại sản phẩm: bối cảnh/hình ảnh/âm thanh/lời thoại...]: ...
-Bạn có muốn bổ sung gì nữa không? Nếu muốn bổ sung, bạn cứ thoải mái nhập tin nhắn ở khung chat bên dưới. Nếu không cần bổ sung gì thêm, bạn chỉ cần bấm vào nút '🚀 Tạo bài Tuyên truyền ngay!' bên dưới khung chat nhé."
+Đồng chí có muốn bổ sung gì nữa không? Nếu muốn bổ sung, đồng chí cứ thoải mái nhập tin nhắn ở khung chat bên dưới. Nếu không cần bổ sung gì thêm, đồng chí chỉ cần bấm vào nút '🚀 Tạo bài Tuyên truyền ngay!' bên dưới khung chat nhé."
 
 GỢI Ý CÁC KHÍA CẠNH CẦN ĐỀ CẬP KHI ĐỀ XUẤT PHƯƠNG ÁN (NHÓM B) HOẶC KHI SOẠN THẢO (NHÓM A) THEO TỪNG LOẠI SẢN PHẨM — đây là những điều bạn nên TỰ SUY LUẬN và đưa vào phương án đề xuất (NHÓM B) hoặc tự cân nhắc khi viết (NHÓM A), không phải danh sách câu hỏi để hỏi ngược người dùng:
 - Bài viết MXH / Tin nhắn Zalo: chủ đề chính sách/nội dung cần truyền tải, độ dài mong muốn (ngắn/vừa/dài), có cần kèm ảnh minh hoạ không.
@@ -163,7 +163,7 @@ ${fileGenerationTrainingText()}`;
       });
       assistantMsg.text = result.text;
     }catch(e){
-      assistantMsg.text = (e && e.name==='AbortError') ? 'Bạn đã dừng câu trả lời này.' : 'Xin lỗi, đã có lỗi xảy ra khi trả lời. Bạn thử lại nhé.';
+      assistantMsg.text = (e && e.name==='AbortError') ? 'Đồng chí đã dừng câu trả lời này.' : 'Xin lỗi, đã có lỗi xảy ra khi trả lời. Đồng chí thử lại nhé.';
     }
     delete assistantMsg.streaming;
     chat.updatedAt = new Date().toISOString();
@@ -486,7 +486,7 @@ ${fileGenerationTrainingText()}`;
       }catch(e){
         if(e && e.name==='AbortError') throw e; // người dùng chủ động dừng -> KHÔNG dò tầng khác
         console.error('[AI] Model đang chọn gặp lỗi:', e);
-        return { text:'Xin lỗi, hệ thống AI đang gặp sự cố với model đang chọn. Bạn thử lại sau ít phút hoặc đổi sang model khác ở thanh chọn model phía trên nhé.' };
+        return { text:'Xin lỗi, hệ thống AI đang gặp sự cố với model đang chọn. Đồng chí thử lại sau ít phút hoặc đổi sang model khác ở thanh chọn model phía trên nhé.' };
       }
     }
 
@@ -528,7 +528,7 @@ ${fileGenerationTrainingText()}`;
       return { text:'Admin chưa cấu hình API AI Gemini hợp lệ. Vui lòng vào Module "CÀI ĐẶT ADMIN → Cấu hình AI" để thêm API Key.' };
     }
     // Chỉ có ĐÚNG 1 API Key Gemini (không có hãng nào khác để cứu nguy) và cả 2 tầng Gemini đều lỗi.
-    return { text:'Xin lỗi, hệ thống AI hiện đang quá tải, chưa thể trả lời ngay lúc này. Bạn vui lòng thử lại sau ít phút nhé!' };
+    return { text:'Xin lỗi, hệ thống AI hiện đang quá tải, chưa thể trả lời ngay lúc này. Đồng chí vui lòng thử lại sau ít phút nhé!' };
   }
   // Thực hiện 1 lượt gọi AI trả lời cho đúng trạng thái `chat.messages` HIỆN TẠI (không tự thêm
   // tin nhắn người dùng nào) — dùng chung cho: gửi tin nhắn mới, gửi lại sau khi sửa, và "Tải lại"
@@ -557,7 +557,7 @@ ${fileGenerationTrainingText()}`;
       });
       assistantMsg.text = result.text;
     }catch(e){
-      assistantMsg.text = (e && e.name==='AbortError') ? 'Bạn đã dừng câu trả lời này.' : 'Xin lỗi, đã có lỗi xảy ra khi trả lời. Bạn thử lại nhé.';
+      assistantMsg.text = (e && e.name==='AbortError') ? 'Đồng chí đã dừng câu trả lời này.' : 'Xin lỗi, đã có lỗi xảy ra khi trả lời. Đồng chí thử lại nhé.';
     }
     delete assistantMsg.streaming;
     chat.updatedAt = new Date().toISOString();
@@ -743,7 +743,7 @@ ${fileGenerationTrainingText()}`;
 
   // Xoá HẲN 1 tin nhắn bất kỳ (của người dùng hoặc AI) khỏi đoạn chat — không thể hoàn tác.
   function deleteMessageAt(idx){
-    if(!confirm('Xoá tin nhắn này? Thao tác này KHÔNG THỂ hoàn tác, không thể khôi phục lại. Bạn có chắc chắn?')) return;
+    if(!confirm('Xoá tin nhắn này? Thao tác này KHÔNG THỂ hoàn tác, không thể khôi phục lại. Đồng chí có chắc chắn?')) return;
     const chat = state.aiChats.find(c=>c.id===state.aiActiveChatId);
     if(!chat || !chat.messages[idx]) return;
     chat.messages.splice(idx, 1);
@@ -856,7 +856,7 @@ ${fileGenerationTrainingText()}`;
               <button class="ai-hist-del" data-ai-hist-del="${c.id}" title="Xoá đoạn chat">🗑️</button>
             </div>`).join('') : '<div class="sub" style="color:rgba(255,255,255,.6); padding:6px 10px;">Chưa có đoạn chat nào.</div>'}
         </div>
-        ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Bạn đang dùng khách/tham quan — lịch sử chat chỉ lưu tạm trong phiên này.</div>' : ''}
+        ${!state.identity || !state.identity.email? '<div class="sub" style="color:rgba(255,255,255,.6); padding:8px 10px; font-size:11px;">Đồng chí đang dùng khách/tham quan — lịch sử chat chỉ lưu tạm trong phiên này.</div>' : ''}
       </div>
       <button class="ai-sidebar-toggle-btn preview-allow ${state._aiSidebarCollapsed?'collapsed':''}" id="ai-sidebar-toggle-btn" title="${state._aiSidebarCollapsed?'Mở khung lịch sử chat':'Đóng khung lịch sử chat'}">${state._aiSidebarCollapsed?'▶':'◀'}</button>
       <div class="ai-sidebar-scrim ${!state._aiSidebarCollapsed?'show':''}" id="ai-sidebar-scrim"></div>
@@ -865,7 +865,7 @@ ${fileGenerationTrainingText()}`;
         <div class="ai-header">🤖 Chàng Nông dân Thông minh</div>
         <div class="ai-messages" id="ai-messages">
           ${!chat || !chat.messages.length? `
-            <div class="ai-bubble assistant">Chào bạn! Chàng là "Chàng Nông dân Thông minh" 🌾 — sẵn sàng hỗ trợ nghiệp vụ Hội Nông dân, hướng dẫn sử dụng phần mềm, phân tích số liệu hộ vay, hoặc trò chuyện bất cứ điều gì bạn cần. Bạn muốn hỏi gì nào?</div>`
+            <div class="ai-bubble assistant">Chào đồng chí! Chàng là "Chàng Nông dân Thông minh" 🌾 — sẵn sàng hỗ trợ nghiệp vụ Hội Nông dân, hướng dẫn sử dụng phần mềm, phân tích số liệu hộ vay, hoặc trò chuyện bất cứ điều gì đồng chí cần. Đồng chí muốn hỏi gì nào?</div>`
             : chat.messages.map((m, idx)=>{
                 if(m.streaming){
                   return `<div class="ai-bubble assistant ${m.text? '' : 'thinking'}" id="ai-streaming-bubble">${m.text? escapeHtml(m.text) : waveTextHtml('Chàng đang suy nghĩ…')}</div>`;
