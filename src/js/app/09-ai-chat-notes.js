@@ -903,7 +903,9 @@
     items.push({id:'docs', ico:'📄', label:'Tài liệu'});
     items.push({id:'sheets', ico:'📊', label:'Trang tính'});
     items.push({id:'slides', ico:'📽️', label:'Trình bày'});
-    items.push({id:'superNotes', ico:'🗒️', label:'Siêu ghi chú'});
+    // "Siêu ghi chú" KHÔNG có mục riêng trong menu trái: lối vào duy nhất là nút nổi 🗒️ ở góc
+    // phải màn hình (fab-notes-btn, dựng trong 07-core-modules.js). Trước đây có cả hai lối vào
+    // cùng mở đúng một overlay nên bị trùng lặp; nay gom về một.
     // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — nằm ngay phía trên "Cài đặt & Chia sẻ"
     items.push({id:'survey', ico:'📝', label:'Biểu mẫu khảo sát'});
     if(isOwner() || settingsPerm()!=='none') items.push({id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'});
@@ -995,7 +997,6 @@
         // "Tạo bài Tuyên truyền" giờ là overlay toàn màn hình (y hệt Chat AI/Siêu ghi chú) — KHÔNG đổi
         // state.activeTab, chỉ mở overlay lên; khi thoát ra vẫn ở đúng module trước đó, không bị chuyển tab.
         if(clickedTab==='propaganda'){ openPropagandaModule(); state.bellOpen=false; render(); return; }
-        if(clickedTab==='superNotes'){ state.bellOpen=false; openSuperNotes(); return; }
         state.activeTab = clickedTab;
         state.bellOpen=false;
         render();
