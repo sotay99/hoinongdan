@@ -120,6 +120,31 @@
     wrap.querySelector('#drive-office-placeholder-close').onclick=close;
     wrap.querySelector('#drive-office-placeholder-ok').onclick=close;
   }
+  function renderOfficeModule(el, appName){
+    if(!el) return;
+    const labels={Docs:'Tài liệu',Sheets:'Trang tính',Slides:'Trình bày'};
+    const icons={Docs:'📄',Sheets:'📊',Slides:'📽️'};
+    const label=labels[appName]||appName;
+    const icon=icons[appName]||'🛠️';
+    el.innerHTML=`
+      <div class="office-module-page">
+        <div class="office-module-card">
+          <div class="office-module-icon">${icon}</div>
+          <div class="eyebrow">MODULE ${escapeHtml(label.toUpperCase())}</div>
+          <h3>${escapeHtml(label)}</h3>
+          <p class="sub">Module đã có vị trí riêng trong menu. Phần tạo và chỉnh sửa trực tiếp đang được xây dựng; hiện tại bạn có thể quản lý file, link và bản xem trước trong Trung tâm tài liệu.</p>
+          <div class="office-module-status"><b>🚧 Đang xây dựng</b><span>Chưa kết nối Google Drive và chưa mở trình chỉnh sửa văn phòng bên ngoài.</span></div>
+          <div class="office-module-actions">
+            <button class="btn btn-primary" id="office-module-drive">Mở Trung tâm tài liệu</button>
+            <button class="btn btn-ghost" id="office-module-info">Xem thông báo chi tiết</button>
+          </div>
+        </div>
+      </div>`;
+    const driveBtn=document.getElementById('office-module-drive');
+    if(driveBtn) driveBtn.onclick=()=>{ state.activeTab='drive'; render(); };
+    const infoBtn=document.getElementById('office-module-info');
+    if(infoBtn) infoBtn.onclick=()=>driveOpenOfficeApp(appName);
+  }
   function driveDecodeDataUrl(dataUrl){
     const comma = String(dataUrl||'').indexOf(',');
     if(comma<0) return '';
@@ -925,7 +950,7 @@
           </div>
         </div>
         <div class="drive-items ${state.driveListMode==='list'?'is-list':''}">
-          ${state.driveLoading ? `<div class="drive-state"><div class="drive-state-icon">⏳</div><b>Đang tải kho tài liệu…</b><span>Đang đồng bộ dữ liệu, vui lòng chờ một chút.</span></div>` :
+           ${state.driveLoading ? `<div class="drive-state"><div class="drive-state-icon">⏳</div><b>Đang tải kho tài liệu…</b><span>Đang đồng bộ dữ liệu, vui lòng chờ một chút.</span></div>` :
             state.driveLoadError ? `<div class="drive-state drive-state-error"><div class="drive-state-icon">⚠️</div><b>Không thể tải kho tài liệu</b><span>${escapeHtml(state.driveLoadError)}</span><button class="btn btn-primary btn-sm" id="drive-retry">↻ Thử lại</button></div>` :
           items.length ? items.map(n=>{
             const itemCanEdit=driveCanEdit(n);
@@ -940,7 +965,7 @@
                   ${state.driveTrashOpen ? (itemCanEdit?`<button data-drive-restore="${n.id}" title="Khôi phục">♻️</button>`:'') : (itemCanEdit?`<button data-drive-move="${n.id}" title="Di chuyển">↔️</button><button data-drive-rename="${n.id}" title="Đổi tên">✏️</button><button data-drive-trash="${n.id}" title="Đưa vào thùng rác">🗑️</button>`:'')}
                 </div>
               </article>`;
-          }).join('') : `<div class="drive-empty"><div>🗂️</div><b>${state.driveTrashOpen?'Thùng rác trống':'Chưa có tài liệu trong thư mục này'}</b><span>${canEdit&&!state.driveTrashOpen?'Tạo thư mục hoặc thêm liên kết để bắt đầu.':'Không có nội dung phù hợp.'}</span></div>`}
+           }).join('') : `<div class="drive-empty"><div>🗂️</div><b>${state.driveTrashOpen?'Thùng rác trống':state.driveSearch?'Không tìm thấy tài liệu phù hợp':'Kho tài liệu đã sẵn sàng'}</b><span>${state.driveTrashOpen?'Các tài liệu đã xoá sẽ xuất hiện ở đây.':state.driveSearch?'Thử từ khoá khác hoặc xoá bộ lọc tìm kiếm.':'Chưa có tài liệu trong thư mục này. Hãy tạo mục đầu tiên để bắt đầu.'}</span>${canEdit&&!state.driveTrashOpen&&!state.driveSearch?`<div class="drive-empty-actions"><button class="btn btn-primary btn-sm" id="drive-empty-new-folder">＋ Tạo thư mục</button><button class="btn btn-primary btn-sm" id="drive-empty-new-file">＋ Tải tệp</button><button class="btn btn-primary btn-sm" id="drive-empty-new-link">＋ Thêm liên kết</button></div>`:''}</div>`}
         </div>
       </div>`;
     const bind = (id, event, fn)=>{ const node=document.getElementById(id); if(node) node.addEventListener(event, fn); };
@@ -953,6 +978,9 @@
     bind('drive-new-folder','click',driveCreateFolder);
      bind('drive-new-file','click',driveCreateFile);
     bind('drive-new-link','click',driveCreateLink);
+     bind('drive-empty-new-folder','click',driveCreateFolder);
+     bind('drive-empty-new-file','click',driveCreateFile);
+     bind('drive-empty-new-link','click',driveCreateLink);
     bind('drive-toggle-view','click',()=>{ state.driveListMode=state.driveListMode==='grid'?'list':'grid'; renderDriveHubTab(el); });
     const search=document.getElementById('drive-search');
     if(search) search.addEventListener('input', e=>{
