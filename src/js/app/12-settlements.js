@@ -1695,7 +1695,10 @@
           if(bx) needsEstimate.push(bx);
         }
       });
-      if(needsEstimate.length && !wrap._estimatingInProgress){
+      // Bảng này CHỈ ĐỂ XEM; việc ghi bù ở đây là thao tác nền, không phải do người dùng yêu cầu.
+      // Ở môi trường tham quan thì không ghi được gì lên Firebase, nên bỏ qua hẳn thay vì gọi ghi
+      // rồi nhận về một hộp thoại cảnh báo cho MỖI Quý cần ghi bù.
+      if(needsEstimate.length && !wrap._estimatingInProgress && !isTourMode()){
         wrap._estimatingInProgress = true;
         // Có Quý mới cần ước tính thời điểm -> LƯU NGAY 1 LẦN (không lặp lại ở các lần vẽ sau, vì lúc
         // đó latestByKey[key] sẽ tìm thấy đúng bản ghi vừa lưu này rồi).

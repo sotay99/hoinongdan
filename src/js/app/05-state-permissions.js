@@ -194,9 +194,23 @@
     if(isGoogleAccess()) return isOwner() ? 'Chủ mã' : 'Tài khoản Google';
     return 'Chưa đăng nhập';
   }
+  // Ghi nhớ hộp thoại tham quan vừa hiện, để không lặp lại cùng một lời nhắn nhiều lần liền nhau.
+  let _tourAlertLastMsg = null, _tourAlertClosedAt = 0;
   function blockTourMutation(message){
     if(!isTourMode()) return false;
-    alert(message || 'Đồng chí đang ở môi trường tham quan. Thao tác này không tạo dữ liệu thật.');
+    const msg = message || 'Đồng chí đang ở môi trường tham quan. Thao tác này không tạo dữ liệu thật.';
+    // MỘT thao tác của người dùng có thể ghi NHIỀU bản ghi liên tiếp (VD: mở bảng Lịch sử trạng thái
+    // các Quý thì ghi bù cho từng Quý, xoá cả một phương án vay thì xoá từng người vay trong đó...).
+    // Mỗi lần ghi lại bật một hộp thoại, khiến người xem phải bấm OK ba bốn lần cho đúng một việc.
+    // Vì vậy: lời nhắn GIỐNG HỆT lời nhắn vừa hiện, lại đến trong vòng 1 giây kể từ lúc người dùng
+    // bấm OK, thì bỏ qua — đó chắc chắn là các lần ghi còn lại của cùng một thao tác, chứ con người
+    // không kịp bấm nút lần nữa nhanh tới vậy.
+    if(msg === _tourAlertLastMsg && Date.now() - _tourAlertClosedAt < 1000) return true;
+    _tourAlertLastMsg = msg;
+    alert(msg);
+    // Tính mốc thời gian từ lúc hộp thoại ĐÓNG LẠI, không phải lúc mở ra — alert() chặn luồng chạy,
+    // người dùng có thể để đó hồi lâu mới bấm OK, nếu tính từ lúc mở thì cửa sổ 1 giây đã trôi qua hết.
+    _tourAlertClosedAt = Date.now();
     return true;
   }
 

@@ -456,6 +456,15 @@
     document.addEventListener('click', (e)=>{
       if(!isNarrowScreenForSidebar()) return;
       if(state.sidebarCollapsed) return;
+      // CHỈ can thiệp khi khung menu bên trái THẬT SỰ đang hiện trên màn hình.
+      // Các màn hình đăng nhập / ví mã xã / thiết lập ban đầu KHÔNG hề có khung menu nào,
+      // nhưng state.sidebarCollapsed vẫn giữ nguyên giá trị mặc định là false — trước đây
+      // điều đó khiến cú bấm ĐẦU TIÊN ở những màn hình ấy bị nuốt mất trên điện thoại: nút
+      // chỉ sáng/đậm lên rồi thôi, phải bấm lần thứ hai mới chạy (cú bấm đầu chỉ để "đóng"
+      // một khung menu không hề tồn tại). Màn hình rộng không dính lỗi vì hàm này đã thoát
+      // ngay ở dòng isNarrowScreenForSidebar() phía trên.
+      const sidebarEl = document.querySelector('.sidebar');
+      if(!sidebarEl || sidebarEl.classList.contains('collapsed')) return;
       if(e.target.closest('.sidebar-toggle-btn')) return; // nút nổi tự xử lý riêng, tránh đóng/mở trùng
       if(e.target.closest('.sidebar')) return; // bấm bên trong khung menu (kể cả đổi module) -> giữ nguyên, không tự đóng
       if(e.target.closest('.modal-bg')) return; // bấm bên trong 1 bảng/popup (VD: bảng chào mừng tham quan) -> không tính là bấm vào module hiện hành
