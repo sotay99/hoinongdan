@@ -628,7 +628,7 @@
       if(!provinceType){ alert('Vui lòng chọn Loại tỉnh/thành phố.'); return null; }
       if(!subAdminType){ alert('Vui lòng chọn Loại khu dân cư cấp dưới.'); return null; }
       if(!wardNameVal){ alert(`Vui lòng nhập Tên riêng (${adminLevel}).`); document.getElementById('ob-ward').focus(); return null; }
-      if(!provinceNameVal){ alert('Vui lòng nhập Tên tỉnh/thành phố.'); document.getElementById('ob-provincename').focus(); return null; }
+      if(!provinceNameVal){ alert(`Vui lòng nhập Tên ${provinceType.toLowerCase()}.`); document.getElementById('ob-provincename').focus(); return null; }
       return { wardNameVal, provinceNameVal, subAdminType };
     }
 
@@ -1070,7 +1070,7 @@
     const cfg = state.config || {};
     const wardName = (cfg.wardName||'').trim();
     const adminLower = adminLevelLabelLower(); // "xã"/"phường"/"thị trấn"
-    const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType.toLowerCase() : 'tỉnh/thành phố';
+    const provType = provinceLevelLabelLower();
     const provName = (cfg.provinceName||'').trim();
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg welcome-popup-bg welcome-popup-bottom';
@@ -1760,11 +1760,11 @@
       { key:'allQuartersDue', label:'Tất cả quý của món vay', advanced:true, hidden:true, get:b=> borrowerQuarterBoxes(b).map(formatTimelineQuarterLabel).join(', ') },
       { key:'splitCentralPct', label:'Phân bổ Trung ương (%)', advanced:true, get:b=> formatRateWithOverdueHtml(b,'splitCentralPct','%'), getPlain:b=> formatRateWithOverduePlain(b,'splitCentralPct','%') },
       { key:'splitCentralAmt', label:'Số tiền về<br>Trung ương (đ)', advanced:true, align:'right', get:b=> moneySpaced(computeBorrowerAllocations(b).central) },
-      { key:'splitProvincePct', label:'Phân bổ Cấp Tỉnh (%)', advanced:false, get:b=> formatRateWithOverdueHtml(b,'splitProvincePct','%'), getPlain:b=> formatRateWithOverduePlain(b,'splitProvincePct','%') },
-      { key:'splitProvinceAmt', label:'Số tiền về<br>Cấp Tỉnh (đ)', advanced:false, align:'right', get:b=> moneySpaced(computeBorrowerAllocations(b).province) },
-      { key:'splitWardPct', label:'Phân bổ Cấp Xã (%)', advanced:false, get:b=> formatRateWithOverdueHtml(b,'splitWardPct','%'), getPlain:b=> formatRateWithOverduePlain(b,'splitWardPct','%') },
-      { key:'splitWardAmt', label:'Số tiền về<br>Cấp Xã (đ)', advanced:false, align:'right', get:b=> moneySpaced(computeBorrowerAllocations(b).ward) },
-      { key:'hamletAllocPct', label:`% Xã phân bổ<br>về ${subAdminLabel()}`, advanced:false, get:b=> formatRateWithOverdueHtml(b,'hamletAllocPct','%'), getPlain:b=> formatRateWithOverduePlain(b,'hamletAllocPct','%') },
+      { key:'splitProvincePct', label:`Phân bổ Cấp ${provinceLevelLabel()} (%)`, advanced:false, get:b=> formatRateWithOverdueHtml(b,'splitProvincePct','%'), getPlain:b=> formatRateWithOverduePlain(b,'splitProvincePct','%') },
+      { key:'splitProvinceAmt', label:`Số tiền về<br>Cấp ${provinceLevelLabel()} (đ)`, advanced:false, align:'right', get:b=> moneySpaced(computeBorrowerAllocations(b).province) },
+      { key:'splitWardPct', label:`Phân bổ Cấp ${adminLevelLabel()} (%)`, advanced:false, get:b=> formatRateWithOverdueHtml(b,'splitWardPct','%'), getPlain:b=> formatRateWithOverduePlain(b,'splitWardPct','%') },
+      { key:'splitWardAmt', label:`Số tiền về<br>Cấp ${adminLevelLabel()} (đ)`, advanced:false, align:'right', get:b=> moneySpaced(computeBorrowerAllocations(b).ward) },
+      { key:'hamletAllocPct', label:`% ${adminLevelLabel()} phân bổ<br>về ${subAdminLabel()}`, advanced:false, get:b=> formatRateWithOverdueHtml(b,'hamletAllocPct','%'), getPlain:b=> formatRateWithOverduePlain(b,'hamletAllocPct','%') },
       { key:'hamletAllocAmt', label:`Số tiền về<br>${subAdminLabel()} (đ)`, advanced:false, align:'right', get:b=> moneySpaced(computeBorrowerAllocations(b).hamlet) },
       { key:'extensionHistory', label:'Các lần gia hạn', advanced:true, get:b=> getBorrowerExtensions(b.id).map((e,i)=>`Lần ${i+1} (hạn ${fmtDate(e.to)})`).join(', ') },
       { key:'overdueRateApplied', label:'Lãi suất quá hạn<br>đang áp dụng', advanced:true, get:b=>{ const e = latestBorrowerExtension(b.id); return e? `${String(e.ratePct).replace('.',',')}%/năm` : ''; } },
@@ -1806,11 +1806,11 @@
       { key:'inTerm_amount', label:'Số tiền lãi<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'interestAmount')) },
       { key:'inTerm_splitCentralPct', label:'Phân bổ Trung ương (%)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitCentralPct')) },
       { key:'inTerm_splitCentralAmt', label:'Số tiền về Trung ương (đ)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitCentralAmt')) },
-      { key:'inTerm_splitProvincePct', label:'Phân bổ Cấp Tỉnh (%)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitProvincePct')) },
-      { key:'inTerm_splitProvinceAmt', label:'Số tiền về Cấp Tỉnh (đ)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitProvinceAmt')) },
-      { key:'inTerm_splitWardPct', label:'Phân bổ Cấp Xã (%)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitWardPct')) },
-      { key:'inTerm_splitWardAmt', label:'Số tiền về Cấp Xã (đ)<br>(trong hạn)', advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitWardAmt')) },
-      { key:'inTerm_hamletPct', label:`% Xã phân bổ về ${subAdminLabel()}<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'hamletAllocPct')) },
+      { key:'inTerm_splitProvincePct', label:`Phân bổ Cấp ${provinceLevelLabel()} (%)<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitProvincePct')) },
+      { key:'inTerm_splitProvinceAmt', label:`Số tiền về Cấp ${provinceLevelLabel()} (đ)<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitProvinceAmt')) },
+      { key:'inTerm_splitWardPct', label:`Phân bổ Cấp ${adminLevelLabel()} (%)<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'splitWardPct')) },
+      { key:'inTerm_splitWardAmt', label:`Số tiền về Cấp ${adminLevelLabel()} (đ)<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'splitWardAmt')) },
+      { key:'inTerm_hamletPct', label:`% ${adminLevelLabel()} phân bổ về ${subAdminLabel()}<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> pct(getInTermColumnValue(b,'hamletAllocPct')) },
       { key:'inTerm_hamletAmt', label:`Số tiền về ${subAdminLabel()} (đ)<br>(trong hạn)`, advanced:true, hidden:true, align:'right', get:b=> money(getInTermColumnValue(b,'hamletAllocAmt')) },
     ];
     const extLevels = [];
@@ -1823,11 +1823,11 @@
         { key:`ext${lvl}_amount`, label:`Số tiền lãi<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'interestAmount')) },
         { key:`ext${lvl}_splitCentralPct`, label:`Phân bổ Trung ương (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitCentralPct')) },
         { key:`ext${lvl}_splitCentralAmt`, label:`Số tiền về Trung ương (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitCentralAmt')) },
-        { key:`ext${lvl}_splitProvincePct`, label:`Phân bổ Cấp Tỉnh (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitProvincePct')) },
-        { key:`ext${lvl}_splitProvinceAmt`, label:`Số tiền về Cấp Tỉnh (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitProvinceAmt')) },
-        { key:`ext${lvl}_splitWardPct`, label:`Phân bổ Cấp Xã (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitWardPct')) },
-        { key:`ext${lvl}_splitWardAmt`, label:`Số tiền về Cấp Xã (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitWardAmt')) },
-        { key:`ext${lvl}_hamletPct`, label:`% Xã phân bổ về ${subAdminLabel()}<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'hamletAllocPct')) },
+        { key:`ext${lvl}_splitProvincePct`, label:`Phân bổ Cấp ${provinceLevelLabel()} (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitProvincePct')) },
+        { key:`ext${lvl}_splitProvinceAmt`, label:`Số tiền về Cấp ${provinceLevelLabel()} (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitProvinceAmt')) },
+        { key:`ext${lvl}_splitWardPct`, label:`Phân bổ Cấp ${adminLevelLabel()} (%)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'splitWardPct')) },
+        { key:`ext${lvl}_splitWardAmt`, label:`Số tiền về Cấp ${adminLevelLabel()} (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'splitWardAmt')) },
+        { key:`ext${lvl}_hamletPct`, label:`% ${adminLevelLabel()} phân bổ về ${subAdminLabel()}<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> pct(getExtensionLevelColumnValue(b,lvl,'hamletAllocPct')) },
         { key:`ext${lvl}_hamletAmt`, label:`Số tiền về ${subAdminLabel()} (đ)<br>(gia hạn lần ${lvl})`, advanced:true, hidden:true, align:'right', get:b=> money(getExtensionLevelColumnValue(b,lvl,'hamletAllocAmt')) },
       );
     }
@@ -2494,8 +2494,8 @@
   // lại ở từng dòng người vay nữa) ngay phía trên bảng danh sách người vay của phương án đó.
   const QUICKADD_PROJECT_FIELDS = [
     ['name','Tên phương án'], ['totalCapital','Tổng số tiền nguồn vốn (đ)'], ['disburseDate','Ngày giải ngân (ngày vay)'], ['dueDate','Ngày đến hạn trả'],
-    ['fundSourceType','Nguồn vay'], ['interestRate','Lãi suất (%/năm)'], ['splitCentral','Phân bổ Cấp TW (%)'], ['splitProvince','Phân bổ Cấp Tỉnh (%)'],
-    ['splitWard','Phân bổ Cấp Xã (%)'], ['hamletAllocPercent','% Xã chia Ấp'],
+    ['fundSourceType','Nguồn vay'], ['interestRate','Lãi suất (%/năm)'], ['splitCentral','Phân bổ Cấp TW (%)'], ['splitProvince',`Phân bổ Cấp ${provinceLevelLabel()} (%)`],
+    ['splitWard',`Phân bổ Cấp ${adminLevelLabel()} (%)`], ['hamletAllocPercent',`% ${adminLevelLabel()} chia ${subAdminLabel()}`],
   ];
   // Các cột (trong QUICKADD_PREVIEW_COLS) mà giá trị của nó ĐÃ được thể hiện ở dòng Phương án vay riêng
   // rồi (projectName/loanDate/dueDate/fundSource/rate) — KHÔNG hiện lặp lại ở từng dòng người vay nữa.
@@ -2512,11 +2512,12 @@
     // mới có thể LUÔN tôn trọng đúng thông tin đã có sẵn trong hệ thống (không bịa, không để người
     // dùng "ép" đổi thông tin phương án vay đã tồn tại).
     const existingProjectsDetail = eligibleProjectsForBorrowerAssignment().map(p=>
-      `- "${p.name}": Tổng vốn=${p.totalCapital||0}đ, Ngày giải ngân=${p.disburseDate||''}, Ngày đến hạn=${p.dueDate||''}, Nguồn vay=${p.fundSourceType||''}, Lãi suất=${p.interestRate||0}%/năm, Phân bổ TW=${p.splitCentral||0}%, Phân bổ Tỉnh=${p.splitProvince||0}%, Phân bổ Xã=${p.splitWard||0}%, %Xã chia Ấp=${p.hamletAllocPercent||0}%`
+      `- "${p.name}": Tổng vốn=${p.totalCapital||0}đ, Ngày giải ngân=${p.disburseDate||''}, Ngày đến hạn=${p.dueDate||''}, Nguồn vay=${p.fundSourceType||''}, Lãi suất=${p.interestRate||0}%/năm, Phân bổ TW=${p.splitCentral||0}%, Phân bổ ${provinceLevelLabel()}=${p.splitProvince||0}%, Phân bổ ${adminLevelLabel()}=${p.splitWard||0}%, %${adminLevelLabel()} chia ${subAdminLabel()}=${p.hamletAllocPercent||0}%`
     ).join('\n') || '(chưa có phương án vay nào trong hệ thống)';
     const colLettersInfo = QUICKADD_PREVIEW_COLS.map(([,label],i)=> `${String.fromCharCode(65+i)}=${label}`).join(', ');
     const subAdminUnit = subAdminLabel(); // "Ấp"/"Khu phố"/"Thôn"/...
     const adminUnit = adminLevelLabel(); // "Xã"/"Phường"/"Thị trấn"
+    const provinceUnit = provinceLevelLabel(); // "Tỉnh"/"Thành phố" — địa danh động của đúng mã xã này
     return `Bạn là trợ lý AI giúp NHẬP NHANH dữ liệu vào "Sổ vay vốn" của Hội Nông dân xã/phường. LUÔN gọi người dùng là "đồng chí", tuyệt đối không gọi là "bạn" hay "anh/chị". Đọc tin nhắn văn bản + tài liệu đính kèm (ảnh CCCD, đơn xin vay, sổ ghi chép tay, ảnh scan...) người dùng cung cấp qua nhiều lượt trò chuyện, trích xuất đúng thông tin để THÊM MỚI Người vay (và Phương án vay nếu cần) vào Sổ vay vốn.
 CÁCH LÀM VIỆC CỐT LÕI — "1 HỒ SƠ DUY NHẤT": người dùng luôn có sẵn 1 "Hồ sơ đang soạn" duy nhất (ban đầu RỖNG, chưa có gì cả) — đây là hồ sơ DUY NHẤT bạn và người dùng cùng làm việc trên đó, KHÔNG có hồ sơ/file nào khác. Ở CUỐI mỗi tin nhắn của người dùng, bạn LUÔN được cung cấp đúng nội dung Hồ sơ đang soạn HIỆN TẠI (xem phần cuối cuộc trò chuyện) — bạn PHẢI đọc kỹ hồ sơ đó TRƯỚC khi trả lời hoặc bắt đầu làm việc, rồi CHỈNH SỬA TRỰC TIẾP lên đúng hồ sơ đó (thêm/sửa/xoá Phương án vay hoặc Người vay tuỳ theo yêu cầu của người dùng lượt này) — LUÔN trả về ĐẦY ĐỦ toàn bộ hồ sơ đã cập nhật (không chỉ phần vừa thay đổi) trong khối \`\`\`quickadd-result\`\`\` mỗi khi có điều gì thay đổi.
 
@@ -2542,18 +2543,18 @@ ${existingProjectsDetail}
 3b) QUY TẮC VỀ LÃI SUẤT VÀ TỶ LỆ PHÂN BỔ khi tạo Phương án vay MỚI (CHỈ áp dụng cho phương án MỚI — với phương án ĐÃ CÓ SẴN trong hệ thống thì LUÔN dùng đúng số liệu gốc đã liệt kê ở mục 1b, KHÔNG áp dụng các quy tắc dưới đây):
    - "fundSourceType" (Nguồn vay): nếu người dùng KHÔNG nói rõ nguồn vay là gì, mặc định chọn "Cấp tỉnh/thành phố" (không tự hỏi lại, không để trống).
    - RÀNG BUỘC TOÁN HỌC BẮT BUỘC — TUYỆT ĐỐI KHÔNG ĐƯỢC VI PHẠM, DÙ NGƯỜI DÙNG CÓ YÊU CẦU THẾ NÀO:
-     a. Phân bổ Trung ương (splitCentral) + Phân bổ Tỉnh (splitProvince) + Phân bổ Xã (splitWard) LUÔN LUÔN PHẢI BẰNG ĐÚNG lãi suất chung (interestRate). VD: lãi suất 8.4% thì TW 3.5% + Tỉnh 2% + Xã 2.9% = 8.4% (đúng); TW 3% + Tỉnh 2% + Xã 2.9% = 7.9% (SAI, không khớp 8.4%).
-     b. % Xã chia Ấp (hamletAllocPercent) KHÔNG ĐƯỢC vượt quá 100.
-     Nếu người dùng cung cấp số liệu VI PHẠM 1 trong 2 ràng buộc trên (VD: tự đưa ra 3 tỷ lệ phân bổ mà cộng lại không khớp lãi suất chung, hoặc yêu cầu % Ấp là 150%), bạn PHẢI:
+     a. Phân bổ Trung ương (splitCentral) + Phân bổ ${provinceUnit} (splitProvince) + Phân bổ ${adminUnit} (splitWard) LUÔN LUÔN PHẢI BẰNG ĐÚNG lãi suất chung (interestRate). VD: lãi suất 8.4% thì TW 3.5% + ${provinceUnit} 2% + ${adminUnit} 2.9% = 8.4% (đúng); TW 3% + ${provinceUnit} 2% + ${adminUnit} 2.9% = 7.9% (SAI, không khớp 8.4%).
+     b. % ${adminUnit} chia ${subAdminUnit} (hamletAllocPercent) KHÔNG ĐƯỢC vượt quá 100.
+     Nếu người dùng cung cấp số liệu VI PHẠM 1 trong 2 ràng buộc trên (VD: tự đưa ra 3 tỷ lệ phân bổ mà cộng lại không khớp lãi suất chung, hoặc yêu cầu % ${subAdminUnit} là 150%), bạn PHẢI:
        - TỪ CHỐI điền đúng như yêu cầu sai đó — KHÔNG được điền số liệu vô lý vào kết quả.
        - Giải thích RÕ RÀNG, LỊCH SỰ cho người dùng biết vì sao số liệu đó vô lý (nêu rõ phép tính, chỉ ra chỗ sai).
        - Hỏi lại người dùng số liệu ĐÚNG là gì, HOẶC nếu người dùng không có ý kiến gì thêm, để TRỐNG các trường liên quan (không tự bịa số cho khớp).
-   - QUY TẮC ĐIỀN/ĐỂ TRỐNG (áp dụng cho nhóm 5 trường: lãi suất chung, Phân bổ TW, Phân bổ Tỉnh, Phân bổ Xã, % Xã chia Ấp):
-     a. Nếu người dùng CHỈ cung cấp MỘT VÀI (không phải tất cả) trong 5 trường này, bạn CHỈ điền đúng đúng những gì người dùng đã cung cấp — các trường CÒN LẠI (người dùng KHÔNG nhắc tới) PHẢI ĐỂ TRỐNG (không tự động điền mặc định, không tự bịa số cho "khớp" phép tính ở trên — trừ khi người dùng đã cung cấp ĐỦ dữ liệu để tự suy ra được 1 trường còn thiếu duy nhất, VD: đã biết lãi suất chung + Phân bổ TW + Phân bổ Tỉnh thì CÓ THỂ tự tính ra Phân bổ Xã còn thiếu bằng phép trừ, hãy làm vậy thay vì để trống một cách máy móc).
-     b. Điều kiện để áp dụng bộ mặc định đầy đủ: người dùng KHÔNG cung cấp BẤT KỲ trường nào trong 4 TRƯỜNG CỐT LÕI (lãi suất chung, Phân bổ TW, Phân bổ Tỉnh, Phân bổ Xã) — hoàn toàn không nhắc tới lãi suất/phân bổ 3 cấp. Điều kiện này CHỈ phụ thuộc vào 4 trường cốt lõi này, KHÔNG phụ thuộc vào việc "% Xã chia Ấp" có được người dùng nhắc tới hay không (dù người dùng CÓ nói tới "% Xã chia Ấp" cụ thể hay KHÔNG nói gì tới nó, chỉ cần 4 trường cốt lõi kia đều trống thì vẫn áp dụng mặc định đầy đủ cho CẢ 5 trường theo đúng bộ số bên dưới — nếu người dùng CÓ tự nói rõ "% Xã chia Ấp" là bao nhiêu thì vẫn ưu tiên dùng đúng số đó thay vì mặc định 45).
+   - QUY TẮC ĐIỀN/ĐỂ TRỐNG (áp dụng cho nhóm 5 trường: lãi suất chung, Phân bổ TW, Phân bổ ${provinceUnit}, Phân bổ ${adminUnit}, % ${adminUnit} chia ${subAdminUnit}):
+     a. Nếu người dùng CHỈ cung cấp MỘT VÀI (không phải tất cả) trong 5 trường này, bạn CHỈ điền đúng đúng những gì người dùng đã cung cấp — các trường CÒN LẠI (người dùng KHÔNG nhắc tới) PHẢI ĐỂ TRỐNG (không tự động điền mặc định, không tự bịa số cho "khớp" phép tính ở trên — trừ khi người dùng đã cung cấp ĐỦ dữ liệu để tự suy ra được 1 trường còn thiếu duy nhất, VD: đã biết lãi suất chung + Phân bổ TW + Phân bổ ${provinceUnit} thì CÓ THỂ tự tính ra Phân bổ ${adminUnit} còn thiếu bằng phép trừ, hãy làm vậy thay vì để trống một cách máy móc).
+     b. Điều kiện để áp dụng bộ mặc định đầy đủ: người dùng KHÔNG cung cấp BẤT KỲ trường nào trong 4 TRƯỜNG CỐT LÕI (lãi suất chung, Phân bổ TW, Phân bổ ${provinceUnit}, Phân bổ ${adminUnit}) — hoàn toàn không nhắc tới lãi suất/phân bổ 3 cấp. Điều kiện này CHỈ phụ thuộc vào 4 trường cốt lõi này, KHÔNG phụ thuộc vào việc "% ${adminUnit} chia ${subAdminUnit}" có được người dùng nhắc tới hay không (dù người dùng CÓ nói tới "% ${adminUnit} chia ${subAdminUnit}" cụ thể hay KHÔNG nói gì tới nó, chỉ cần 4 trường cốt lõi kia đều trống thì vẫn áp dụng mặc định đầy đủ cho CẢ 5 trường theo đúng bộ số bên dưới — nếu người dùng CÓ tự nói rõ "% ${adminUnit} chia ${subAdminUnit}" là bao nhiêu thì vẫn ưu tiên dùng đúng số đó thay vì mặc định 45).
         Khi đủ điều kiện, áp dụng bộ mặc định đầy đủ theo đúng "fundSourceType" đã xác định:
-        * Nguồn vay là "Cấp trung ương": lãi suất (interestRate) = 8.4, Phân bổ Trung ương (splitCentral) = 3.5, Phân bổ Tỉnh (splitProvince) = 2, Phân bổ Xã (splitWard) = 2.9, % Xã chia Ấp (hamletAllocPercent) = 45.
-        * Nguồn vay KHÁC "Cấp trung ương": lãi suất (interestRate) = 6.6, Phân bổ Trung ương (splitCentral) = 0, Phân bổ Tỉnh (splitProvince) = 4.32, Phân bổ Xã (splitWard) = 2.28, % Xã chia Ấp (hamletAllocPercent) = 45.
+        * Nguồn vay là "Cấp trung ương": lãi suất (interestRate) = 8.4, Phân bổ Trung ương (splitCentral) = 3.5, Phân bổ ${provinceUnit} (splitProvince) = 2, Phân bổ ${adminUnit} (splitWard) = 2.9, % ${adminUnit} chia ${subAdminUnit} (hamletAllocPercent) = 45.
+        * Nguồn vay KHÁC "Cấp trung ương": lãi suất (interestRate) = 6.6, Phân bổ Trung ương (splitCentral) = 0, Phân bổ ${provinceUnit} (splitProvince) = 4.32, Phân bổ ${adminUnit} (splitWard) = 2.28, % ${adminUnit} chia ${subAdminUnit} (hamletAllocPercent) = 45.
         Đây CHÍNH LÀ bộ mặc định giống hệt khi người dùng tự bấm "Tạo phương án vay mới" ngoài giao diện — người dùng vẫn có thể tự sửa lại các số này sau khi xem kết quả.
 3c) RÀNG BUỘC BẮT BUỘC VỀ NGÀY THÁNG khi tạo Phương án vay MỚI (CHỈ áp dụng cho phương án MỚI — phương án ĐÃ CÓ SẴN thì luôn tôn trọng ngày tháng gốc đã liệt kê ở mục 1b, KHÔNG áp dụng ràng buộc này):
    a. "Ngày giải ngân" (disburseDate) KHÔNG ĐƯỢC là ngày trong TƯƠNG LAI so với ngày hiện tại thật (hôm nay).
@@ -2896,12 +2897,12 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
           const sum = (parseFloat(String(p.splitCentral).replace(',','.'))||0) + (parseFloat(String(p.splitProvince).replace(',','.'))||0) + (parseFloat(String(p.splitWard).replace(',','.'))||0);
           const rate = parseFloat(String(p.interestRate).replace(',','.'))||0;
           if(Math.abs(sum-rate) > 0.01){
-            invalidRequired.push(`Phương án vay #${i+1} "${p.name||''}": Phân bổ TW (${p.splitCentral}) + Tỉnh (${p.splitProvince}) + Xã (${p.splitWard}) = ${sum} — KHÔNG khớp với Lãi suất chung (${p.interestRate}). Tổng 3 cấp phải bằng đúng lãi suất chung.`);
+            invalidRequired.push(`Phương án vay #${i+1} "${p.name||''}": Phân bổ TW (${p.splitCentral}) + ${provinceLevelLabel()} (${p.splitProvince}) + ${adminLevelLabel()} (${p.splitWard}) = ${sum} — KHÔNG khớp với Lãi suất chung (${p.interestRate}). Tổng 3 cấp phải bằng đúng lãi suất chung.`);
           }
         }
         const hamletAllocNum = parseFloat(String(p.hamletAllocPercent).replace(',','.'));
         if(!isNaN(hamletAllocNum) && hamletAllocNum > 100){
-          invalidRequired.push(`Phương án vay #${i+1} "${p.name||''}": "% Xã chia Ấp" = ${p.hamletAllocPercent} — KHÔNG được vượt quá 100.`);
+          invalidRequired.push(`Phương án vay #${i+1} "${p.name||''}": "% ${adminLevelLabel()} chia ${subAdminLabel()}" = ${p.hamletAllocPercent} — KHÔNG được vượt quá 100.`);
         }
         // Ràng buộc BẮT BUỘC về ngày tháng: Ngày giải ngân không được ở tương lai, và Ngày đến hạn trừ
         // Ngày giải ngân phải LỚN HƠN 15 ngày (không được bằng 15, nhỏ hơn 15, bằng 0, hay âm).

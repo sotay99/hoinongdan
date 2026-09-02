@@ -563,7 +563,7 @@
             <div class="divider-lbl">4 nguồn vay cố định (chỉ xem)</div>
             ${FUND_SOURCE_OPTIONS.filter(o=>o!=='Nguồn khác').map(name=>`
               <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-                <input value="${escapeHtml(name)}" disabled style="flex:1; opacity:.7;">
+                <input value="${escapeHtml(fundSourceDisplay(name))}" disabled style="flex:1; opacity:.7;">
               </div>`).join('')}
             <div class="divider-lbl" style="margin-top:14px;">Nguồn vay tuỳ chỉnh (của riêng địa phương đồng chí)</div>
             ${items.map((name,i)=>`
@@ -712,14 +712,18 @@
     let editingName = false;
     function render(){
       const isCurrent = wid === wardId();
+      // Địa danh động lấy theo cấu hình của CHÍNH mã đang xem (cfgW), không lấy theo mã đang mở —
+      // bảng này hiện được cả những mã khác trong Ví mã định danh.
+      const wLevel = ADMIN_LEVEL_OPTIONS.includes(cfgW&&cfgW.adminLevel) ? cfgW.adminLevel : 'Xã';
+      const wProv = PROVINCE_TYPE_OPTIONS.includes(cfgW&&cfgW.provinceType) ? cfgW.provinceType : 'Tỉnh';
       const isRealOwner = !!(cfgW && state.identity && state.identity.email && cfgW.ownerEmail===state.identity.email);
       const isMineOwner = allowEdit && isRealOwner;
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:420px;">
           <div class="modal-head"><h3>Thông tin mã định danh</h3><button class="modal-close" id="wim-close">✕</button></div>
           <div class="modal-body">
-            <div class="kv-row"><span>Tên xã/phường</span><b>${escapeHtml((cfgW&&cfgW.wardName)||'')}</b></div>
-            <div class="kv-row"><span>Tên tỉnh/thành phố</span><b>${escapeHtml((cfgW&&cfgW.provinceName)||'')}</b></div>
+            <div class="kv-row"><span>Tên ${escapeHtml(wLevel.toLowerCase())}</span><b>${escapeHtml((cfgW&&cfgW.wardName)||'')}</b></div>
+            <div class="kv-row"><span>Tên ${escapeHtml(wProv.toLowerCase())}</span><b>${escapeHtml((cfgW&&cfgW.provinceName)||'')}</b></div>
             <div class="field" style="margin-top:10px;">
               <label>Mã định danh</label>
               <div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px; background:var(--white);">
@@ -1105,8 +1109,8 @@
     const custom = state.config.customFundSources||[];
     const all = [...fixed, ...custom];
     let extra = '';
-    if(currentVal && !all.includes(currentVal)) extra = `<option value="${escapeHtml(currentVal)}" selected>${escapeHtml(currentVal)}</option>`;
-    return extra + all.map(o=>`<option value="${escapeHtml(o)}" ${currentVal===o?'selected':''}>${escapeHtml(o)}</option>`).join('') + `<option value="__add_fundsource__">+ Thêm nguồn khác</option>`;
+    if(currentVal && !all.includes(currentVal)) extra = `<option value="${escapeHtml(currentVal)}" selected>${escapeHtml(fundSourceDisplay(currentVal))}</option>`;
+    return extra + all.map(o=>`<option value="${escapeHtml(o)}" ${currentVal===o?'selected':''}>${escapeHtml(fundSourceDisplay(o))}</option>`).join('') + `<option value="__add_fundsource__">+ Thêm nguồn khác</option>`;
   }
   // ---------------------------------------------------------------------
   // Khi Admin thêm/sửa người vay mà gõ tên 1 địa bàn (ấp/thôn/khu phố) chưa từng có trong danh
@@ -1128,7 +1132,7 @@
   function projectFundSourceLabel(p){
     if(!p) return '';
     if(p.fundSourceType==='Nguồn khác') return (p.fundSourceOther||'').trim() || 'Nguồn khác';
-    return p.fundSourceType || '';
+    return fundSourceDisplay(p.fundSourceType);
   }
   function provinceTitle(){
     const cfg = state.config||{};
@@ -1137,6 +1141,22 @@
     return name ? `${t} ${name}`.trim() : '';
   }
 
+  // Cấp trên trực tiếp của xã/phường: "Tỉnh" hoặc "Thành phố" — lấy đúng loại địa danh mà Chủ mã
+  // đã chọn lúc tạo mã định danh (màn hình thiết lập ban đầu BẮT BUỘC chọn, nên mọi mã đang dùng
+  // đều có giá trị này). Cả app phải gọi hàm này thay vì viết chết chữ "Tỉnh" hay "Tỉnh/Thành phố".
+  function provinceLevelLabel(){
+    const v = state.config && state.config.provinceType;
+    return PROVINCE_TYPE_OPTIONS.includes(v) ? v : 'Tỉnh';
+  }
+  function provinceLevelLabelLower(){ return provinceLevelLabel().toLowerCase(); }
+  // Nhãn HIỂN THỊ của một Nguồn vay.
+  // LƯU Ý QUAN TRỌNG: giá trị LƯU trong Firebase vẫn giữ nguyên chuỗi gốc 'Cấp tỉnh/thành phố'
+  // — đổi giá trị lưu sẽ làm hỏng dữ liệu cũ và mọi phép so khớp chuỗi đang có (VD kiểm tra
+  // p.fundSourceType==='Cấp trung ương'). Chỉ phần hiện ra màn hình mới đổi theo địa danh động.
+  const PROVINCE_FUND_SOURCE = 'Cấp tỉnh/thành phố';
+  function fundSourceDisplay(value){
+    return value === PROVINCE_FUND_SOURCE ? `Cấp ${provinceLevelLabelLower()}` : (value || '');
+  }
   // Cấp quản lý: "Xã" hoặc "Phường" (mặc định "Xã" nếu chưa cấu hình)
   function adminLevelLabel(){
     const v = state.config && state.config.adminLevel;

@@ -1370,7 +1370,7 @@
          'Chi hội có nhiều tổ hội thì quản lý được từng tổ: ai làm tổ trưởng, bao nhiêu hội viên, sinh hoạt đến đâu.'],
         ['💬','Chăm sóc hội viên trong chi hội',
          'Nhắn tin, thông báo lịch sinh hoạt, hỏi thăm — dùng chung cơ chế với module Chăm sóc hội viên nhưng gói gọn trong phạm vi chi hội mình phụ trách.'],
-        ['🔄','Nối liền với Hội cấp xã',
+        [`🔄`,`Nối liền với Hội cấp ${adminLevelLabelLower()}`,
          'Số liệu chi hội báo lên tự động cộng vào số liệu chung của Hội xã/phường; chỉ đạo từ Hội xã cũng chuyển thẳng xuống chi hội, không còn tam sao thất bản qua nhiều khâu.'],
       ],
       note:['Vì sao tách riêng?','Cán bộ chi hội phần lớn kiêm nhiệm, làm ngoài giờ và không được đào tạo về phần mềm. Nên module này cố tình làm gọn, chỉ giữ đúng những việc chi hội thật sự cần, không bắt học cả hệ thống lớn.'],

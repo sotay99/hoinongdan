@@ -306,12 +306,12 @@
         </div>`;
       }
       const groupsHtml = [
-        group('🏛️ Tất cả 3 cấp (TW; tỉnh/Tp; xã/phường)', LC.total, 'total'),
+        group(`🏛️ Tất cả 3 cấp (TW; ${provinceLevelLabelLower()}; ${adminLevelLabelLower()})`, LC.total, 'total'),
         group('🏙️ Cấp Trung ương', LC.central, 'central'),
-        group('🏢 Cấp Tỉnh/Thành phố', LC.province, 'province'),
-        group('🏘️ Cấp xã/phường', LC.ward, 'ward'),
-        group('🏠 Cấp Khu dân cư trực thuộc', LC.hamlet, 'hamlet',
-          `<span class="sub" style="font-style:italic;">Ghi chú: Số tiền của cấp Khu dân cư trực thuộc KHÔNG phải nhận trực tiếp từ việc phân bổ lãi suất của các cấp, mà được cấp xã/phường CHIA LẠI từ chính số tiền lãi cấp xã/phường đã nhận được, theo đúng tỷ lệ quy định chung của xã/phường hoặc quy định riêng của từng khoản vay.</span>`),
+        group(`🏢 Cấp ${provinceLevelLabel()}`, LC.province, 'province'),
+        group(`🏘️ Cấp ${adminLevelLabel()}`, LC.ward, 'ward'),
+        group(`🏠 Cấp ${subAdminLabel()}`, LC.hamlet, 'hamlet',
+          `<span class="sub" style="font-style:italic;">Ghi chú: Số tiền của cấp ${subAdminLabelLower()} KHÔNG phải nhận trực tiếp từ việc phân bổ lãi suất của các cấp, mà được cấp ${adminLevelLabelLower()} CHIA LẠI từ chính số tiền lãi cấp ${adminLevelLabelLower()} đã nhận được, theo đúng tỷ lệ quy định chung của xã/phường hoặc quy định riêng của từng khoản vay.</span>`),
       ].join('');
       const now = new Date();
       const dateLbl = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
@@ -342,7 +342,7 @@
             ${managerDropdown}
             <button type="button" class="btn btn-ghost btn-sm preview-allow ${(!hamletAllSel || !managerAllSel || !projectAllSel || !fundSourceAllSel)?'reset-filter-active':''}" id="lvlalloc-reset-btn">↺ Khôi phục bộ lọc gốc</button>${exportPrintButtonsHtml('lvlalloc-ep')}
           </div>
-          <p style="font-weight:700; margin:0 0 14px;"><span style="color:#1565c0;">${hamletAllSel? 'Đang chọn tất cả địa phương' : (state.levelAllocFilterHamlets.length? `Đang chọn ${state.levelAllocFilterHamlets.length} địa phương: ${state.levelAllocFilterHamlets.map(escapeHtml).join(', ')}` : 'Đang KHÔNG chọn địa phương nào cả (0 địa phương)')}</span> — <span style="color:#6a1b9a;">${managerAllSel? 'Đang chọn tất cả người quản lý' : (state.levelAllocFilterManagers.length? `Đang chọn ${state.levelAllocFilterManagers.length} người quản lý: ${state.levelAllocFilterManagers.map(id=>{ const m=managers.find(x=>x.id===id); return escapeHtml(m? m.name : id); }).join(', ')}` : 'Đang KHÔNG chọn người quản lý nào cả (0 người)')}</span>${svProjectFundSourceSummaryText(state.levelAllocFilterProjectIds, allProjectsForFilter, state.levelAllocFilterFundSources, allFundSourcesForFilter)}${isFiltered? ' — vì vậy chỉ Nhóm V (Khu dân cư trực thuộc) còn hợp lý để hiển thị, các nhóm còn lại đã tự ẩn.' : ''}</p>
+          <p style="font-weight:700; margin:0 0 14px;"><span style="color:#1565c0;">${hamletAllSel? 'Đang chọn tất cả địa phương' : (state.levelAllocFilterHamlets.length? `Đang chọn ${state.levelAllocFilterHamlets.length} địa phương: ${state.levelAllocFilterHamlets.map(escapeHtml).join(', ')}` : 'Đang KHÔNG chọn địa phương nào cả (0 địa phương)')}</span> — <span style="color:#6a1b9a;">${managerAllSel? 'Đang chọn tất cả người quản lý' : (state.levelAllocFilterManagers.length? `Đang chọn ${state.levelAllocFilterManagers.length} người quản lý: ${state.levelAllocFilterManagers.map(id=>{ const m=managers.find(x=>x.id===id); return escapeHtml(m? m.name : id); }).join(', ')}` : 'Đang KHÔNG chọn người quản lý nào cả (0 người)')}</span>${svProjectFundSourceSummaryText(state.levelAllocFilterProjectIds, allProjectsForFilter, state.levelAllocFilterFundSources, allFundSourcesForFilter)}${isFiltered? ' — vì vậy chỉ Nhóm V (${subAdminLabel()}) còn hợp lý để hiển thị, các nhóm còn lại đã tự ẩn.' : ''}</p>
           ${groupsHtml}`;
       function wireFilters(container){
         const hb = container.querySelector('#lvlalloc-hamlet-btn'); if(hb) hb.onclick=(e)=>{ e.stopPropagation(); state.openFilterDropdown = state.openFilterDropdown==='lvlalloc-hamlet'?null:'lvlalloc-hamlet'; render(); };
@@ -541,7 +541,7 @@
           `Tổng số tiền cộng vào (${auditReceipt()} cộng tiền) trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.sumReceiptPlusLastYear)}`,
           `Tổng số tiền trừ ra (${auditReceipt()} trừ tiền) trong ${auditYearCur(s.curYear)} là ${auditMoney(s.sumReceiptMinusYear)}`,
           `Tổng số tiền trừ ra (${auditReceipt()} trừ tiền) trong ${auditYearLast(s.lastYear)} là ${auditMoney(s.sumReceiptMinusLastYear)}`,
-          `<span class="sub" style="font-style:italic;">Ghi chú: Nhóm này luôn luôn tính toán dựa trên số liệu của TOÀN XÃ, không dựa vào bất cứ một Khu dân cư trực thuộc nào cả (không bị ảnh hưởng bởi bộ lọc Địa phương phía trên).</span>`,
+          `<span class="sub" style="font-style:italic;">Ghi chú: Nhóm này luôn luôn tính toán dựa trên số liệu của TOÀN ${adminLevelLabel().toUpperCase()}, không dựa vào bất cứ một ${subAdminLabel()} nào cả (không bị ảnh hưởng bởi bộ lọc Địa phương phía trên).</span>`,
         ]),
       ].join('');
       const now = new Date();
@@ -889,7 +889,7 @@
         <div class="kv-row big-money-row" style="border-top:2px solid var(--line); margin-top:10px; padding-top:8px;"><span>Số tiền thực tế nhận được</span><b>= ${moneySpaced(r.amount)}</b></div>
         ${(r.quarterLines&&r.quarterLines.length)? r.quarterLines.map(q=>{ const qd = resolveQuarterDatesForYear(q.qk, q.year); return `<p class="sub" style="margin:4px 0 0;">${quarterLbl(q.qk)}/${q.year} bắt đầu từ ngày ${fmtDate(qd.from)} đến ngày ${fmtDate(qd.to)}</p>`; }).join('') : ''}
         ${extra.heirName? `<div class="kv-row heir-info-block" style="margin-top:8px;"><span>Người thừa kế</span><b>${escapeHtml(extra.heirName)}</b></div>` : ''}
-        ${extra.isLocalOrOtherFund!=null? `<div class="kv-row"><span>Hình thức</span><b>${extra.isLocalOrOtherFund?'Trả lại cho cấp quản lý vốn vay':'Trả lại cấp Tỉnh/Thành phố hoặc Trung ương'}</b></div>` : ''}
+        ${extra.isLocalOrOtherFund!=null? `<div class="kv-row"><span>Hình thức</span><b>${extra.isLocalOrOtherFund?'Trả lại cho cấp quản lý vốn vay':`Trả lại cấp ${provinceLevelLabel()} hoặc Trung ương`}</b></div>` : ''}
         <div class="kv-row"><span>Lý do trả nợ trước hạn</span><b>${escapeHtml(extra.reason||'(không có)')}${extra.reasonEdited?editedMarkHtml:''} <button type="button" class="btn btn-ghost btn-sm preview-allow" data-edit-field="reason" style="padding:2px 8px;">✏️ Sửa</button></b></div>
         <div class="divider-lbl" style="margin-top:14px;">Người trả / Người nhận</div>
         <div class="kv-row"><span>Người trả nợ</span><b>${escapeHtml(extra.payerName||'')}</b></div>

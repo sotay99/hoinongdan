@@ -739,19 +739,19 @@
             <div class="divider-lbl">Chọn phương án phân bổ lãi</div>
             <p class="sub" style="margin-top:-4px;">Số tiền lãi thu về trong đợt gia hạn này được phân bổ về đâu?</p>
             <div style="display:flex; flex-direction:column; gap:8px;">
-              <label class="sv-filter-item" style="border:1px solid var(--line); border-radius:8px;"><input type="radio" name="ext-alloc" class="preview-allow" id="ext-alloc-wardOnly" ${draft.allocMode==='wardOnly'?'checked':''}> Phân bổ hết 100% về cấp xã</label>
-              <label class="sv-filter-item" style="border:1px solid var(--line); border-radius:8px;"><input type="radio" name="ext-alloc" class="preview-allow" id="ext-alloc-wardHamlet" ${draft.allocMode==='wardHamlet'?'checked':''}> Phân bổ về cấp xã và cấp ${subAdminLabelLower()}</label>
-              ${draft.allocMode==='wardHamlet'? `<div class="field" style="margin-left:24px; max-width:260px;"><label>Cấp xã phân bổ tiền lãi xuống cấp ${subAdminLabelLower()} với tỷ lệ:</label><input id="ext-hamlet-pct" class="preview-allow" value="${String(draft.hamletAllocPercent).replace('.',',')}" maxlength="5"></div>` : ''}
+              <label class="sv-filter-item" style="border:1px solid var(--line); border-radius:8px;"><input type="radio" name="ext-alloc" class="preview-allow" id="ext-alloc-wardOnly" ${draft.allocMode==='wardOnly'?'checked':''}> Phân bổ hết 100% về cấp ${adminLevelLabelLower()}</label>
+              <label class="sv-filter-item" style="border:1px solid var(--line); border-radius:8px;"><input type="radio" name="ext-alloc" class="preview-allow" id="ext-alloc-wardHamlet" ${draft.allocMode==='wardHamlet'?'checked':''}> Phân bổ về cấp ${adminLevelLabelLower()} và cấp ${subAdminLabelLower()}</label>
+              ${draft.allocMode==='wardHamlet'? `<div class="field" style="margin-left:24px; max-width:260px;"><label>Cấp ${adminLevelLabelLower()} phân bổ tiền lãi xuống cấp ${subAdminLabelLower()} với tỷ lệ:</label><input id="ext-hamlet-pct" class="preview-allow" value="${String(draft.hamletAllocPercent).replace('.',',')}" maxlength="5"></div>` : ''}
               <label class="sv-filter-item" style="border:1px solid var(--line); border-radius:8px;"><input type="radio" name="ext-alloc" class="preview-allow" id="ext-alloc-allTiers" ${draft.allocMode==='allTiers'?'checked':''}> Phân bổ về Tất cả các cấp (trung ương, tỉnh, xã, ${subAdminLabelLower()})</label>
               ${draft.allocMode==='allTiers'? `
                 <div style="margin-left:24px;">
-                  <p class="sub">Lãi suất của tất cả các cấp cộng lại (Trung ương, tỉnh, xã) phải luôn bằng ${String(draft.ratePct).replace('.',',')}%/năm</p>
+                  <p class="sub">Lãi suất của tất cả các cấp cộng lại (Trung ương, ${provinceLevelLabelLower()}, ${adminLevelLabelLower()}) phải luôn bằng ${String(draft.ratePct).replace('.',',')}%/năm</p>
                   <div class="form-grid">
                     <div class="field"><label>Cấp trung ương (%)</label><input id="ext-central" class="preview-allow" value="${String(draft.splitCentral).replace('.',',')}" maxlength="5"></div>
-                    <div class="field"><label>Cấp tỉnh/thành phố (%)</label><input id="ext-province" class="preview-allow" value="${String(draft.splitProvince).replace('.',',')}" maxlength="5"></div>
-                    <div class="field"><label>Cấp xã/phường (%)</label><input id="ext-ward" class="preview-allow" value="${String(draft.splitWard).replace('.',',')}" maxlength="5"></div>
+                    <div class="field"><label>Cấp ${provinceLevelLabelLower()} (%)</label><input id="ext-province" class="preview-allow" value="${String(draft.splitProvince).replace('.',',')}" maxlength="5"></div>
+                    <div class="field"><label>Cấp ${adminLevelLabelLower()} (%)</label><input id="ext-ward" class="preview-allow" value="${String(draft.splitWard).replace('.',',')}" maxlength="5"></div>
                   </div>
-                  <p class="sub">Tổng số tiền lãi cấp xã/phường nhận được, tiếp tục phân bổ số tiền đó về cấp ${subAdminLabelLower()} là (tỷ lệ %, không nhập quá 100):</p>
+                  <p class="sub">Tổng số tiền lãi cấp ${adminLevelLabelLower()} nhận được, tiếp tục phân bổ số tiền đó về cấp ${subAdminLabelLower()} là (tỷ lệ %, không nhập quá 100):</p>
                   <div class="field" style="max-width:200px;"><input id="ext-alltiers-hamlet-pct" class="preview-allow" value="${String(draft.allTiersHamletPercent).replace('.',',')}" maxlength="5"></div>
                 </div>` : ''}
             </div>` : ''}
@@ -872,8 +872,8 @@
           state.loanExtensions = state.loanExtensions || {};
           state.loanExtensions[b.id] = arr;
           const allocLabel = record.allocMode==='allTiers'
-            ? `Chia 4 cấp — Trung ương ${record.splitCentral}%, Tỉnh ${record.splitProvince}%, Xã ${record.splitWard}%, ${subAdminLabel()} ${record.hamletAllocPercent}%`
-            : record.allocMode==='wardHamlet' ? `Trích ${record.hamletAllocPercent}% xuống ${subAdminLabelLower()}, còn lại giữ ở cấp xã` : `Phân bổ hết 100% về cấp xã`;
+            ? `Chia 4 cấp — Trung ương ${record.splitCentral}%, ${provinceLevelLabel()} ${record.splitProvince}%, ${adminLevelLabel()} ${record.splitWard}%, ${subAdminLabel()} ${record.hamletAllocPercent}%`
+            : record.allocMode==='wardHamlet' ? `Trích ${record.hamletAllocPercent}% xuống ${subAdminLabelLower()}, còn lại giữ ở cấp ${adminLevelLabelLower()}` : `Phân bổ hết 100% về cấp ${adminLevelLabelLower()}`;
           await pushConfirmationDocument('extension_confirm', `Giấy xác nhận Gia hạn lần ${extLevel} đối với hộ vay "${b.name}"`,
             [
               `Hộ vay "${b.name}" đã được phê duyệt gia hạn nợ lần ${extLevel} vào ngày ${fmtDate(todayStr())}.`,
@@ -1132,10 +1132,10 @@
       const e = exts[N-1];
       const hamletLbl = subAdminLabel();
       const allocLabel = e.allocMode==='allTiers'
-        ? `Chia 4 cấp — Trung ương ${String(e.splitCentral||0).replace('.',',')}%, Cấp Tỉnh ${String(e.splitProvince||0).replace('.',',')}%, Cấp Xã ${String(e.splitWard||0).replace('.',',')}%, Cấp ${hamletLbl} ${String(e.allTiersHamletPercent||e.hamletAllocPercent||0).replace('.',',')}%`
+        ? `Chia 4 cấp — Trung ương ${String(e.splitCentral||0).replace('.',',')}%, Cấp ${provinceLevelLabel()} ${String(e.splitProvince||0).replace('.',',')}%, Cấp ${adminLevelLabel()} ${String(e.splitWard||0).replace('.',',')}%, Cấp ${hamletLbl} ${String(e.allTiersHamletPercent||e.hamletAllocPercent||0).replace('.',',')}%`
         : e.allocMode==='wardHamlet'
-          ? `Phân bổ về cấp xã và cấp ${hamletLbl} — trích ${String(e.hamletAllocPercent||0).replace('.',',')}% xuống cấp ${hamletLbl}, phần còn lại giữ ở cấp xã`
-          : `Phân bổ hết 100% về cấp xã (không trích về cấp ${hamletLbl})`;
+          ? `Phân bổ về cấp ${adminLevelLabelLower()} và cấp ${hamletLbl} — trích ${String(e.hamletAllocPercent||0).replace('.',',')}% xuống cấp ${hamletLbl}, phần còn lại giữ ở cấp ${adminLevelLabelLower()}`
+          : `Phân bổ hết 100% về cấp ${adminLevelLabelLower()} (không trích về cấp ${hamletLbl})`;
       const approverLabel = e.savedByName ? `${escapeHtml(e.savedByName)} (${escapeHtml(e.savedBy||'')})` : escapeHtml(e.savedBy||'');
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:560px;">

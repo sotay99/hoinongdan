@@ -1315,11 +1315,11 @@
 
   const STRENGTH_INTRO = {
     icon:'💪', eyebrow:'THỐNG KÊ TỔ CHỨC', title:'Thực lực Hội',
-    lead:'Thực lực Hội là bức chân dung bằng con số của tổ chức: có bao nhiêu hộ nông dân, bao nhiêu hộ đã có hội viên, hội viên là dân tộc thiểu số và người có đạo bao nhiêu, bộ máy chi hội — tổ hội ra sao, bao nhiêu người đạt danh hiệu sản xuất kinh doanh giỏi. Module này dựng sẵn các bảng ấy và tự tính từ hồ sơ hội viên, ở cả cấp xã lẫn từng chi hội thôn/ấp.',
+    lead:`Thực lực Hội là bức chân dung bằng con số của tổ chức: có bao nhiêu hộ nông dân, bao nhiêu hộ đã có hội viên, hội viên là dân tộc thiểu số và người có đạo bao nhiêu, bộ máy chi hội — tổ hội ra sao, bao nhiêu người đạt danh hiệu sản xuất kinh doanh giỏi. Module này dựng sẵn các bảng ấy và tự tính từ hồ sơ hội viên, ở cả cấp ${adminLevelLabelLower()} lẫn từng chi hội ${subAdminLabelLower()}.`,
     blocks:[
       ['📊','Các bảng thực lực dựng sẵn đúng mẫu đang dùng',
-       'Bảng tổng hợp rà soát số lượng hội viên; bảng hội viên là đồng bào dân tộc thiểu số; bảng hội viên là người có đạo; bảng chi hội khu dân cư và chi — tổ hội nghề nghiệp; bảng thống kê Nông dân sản xuất kinh doanh giỏi theo cấp xã, cấp tỉnh, cấp trung ương. Đúng những bảng cấp trên vẫn yêu cầu, không phải dựng lại từ đầu mỗi kỳ báo cáo.'],
-      ['🏘️','Cấp xã hay cấp chi hội thôn/ấp, chỉ khác một cú bấm',
+       `Bảng tổng hợp rà soát số lượng hội viên; bảng hội viên là đồng bào dân tộc thiểu số; bảng hội viên là người có đạo; bảng chi hội khu dân cư và chi — tổ hội nghề nghiệp; bảng thống kê Nông dân sản xuất kinh doanh giỏi theo cấp ${adminLevelLabelLower()}, cấp ${provinceLevelLabelLower()}, cấp trung ương. Đúng những bảng cấp trên vẫn yêu cầu, không phải dựng lại từ đầu mỗi kỳ báo cáo.`],
+      ['🏘️',`Cấp ${adminLevelLabelLower()} hay cấp chi hội ${subAdminLabelLower()}, chỉ khác một cú bấm`,
        'Cùng một bộ bảng, đổi đơn vị là toàn bộ số liệu tính lại cho đúng chi hội đó. Không cần mỗi ấp một trang tính riêng, không cần nhớ ô nào đang trỏ tới ấp nào — và thêm một ấp mới cũng không phải đi dựng thêm bảng.'],
       ['⚡','Số liệu đúng ngay lúc nhìn, không cần bấm tính lại',
        'Thêm một hội viên, sửa nơi ở, xoá tên một người — mọi bảng thực lực đổi theo tức thì. Các tỉ lệ phần trăm cũng tự tính: tỉ lệ hộ nông dân đã có hội viên, tỉ lệ hội viên sinh hoạt thường xuyên, tỉ lệ hội viên nòng cốt. Không còn cảnh bấm F9 rồi đóng mở lại tệp mà vẫn ngờ ngợ không biết số đã đúng chưa.'],
@@ -3366,7 +3366,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
             <div class="field"><label>Loại tỉnh/thành phố *</label>
               <select id="st-provincetype" ${canEditCore?'':'disabled'}>${PROVINCE_TYPE_OPTIONS.map(o=>`<option value="${o}" ${(PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType)?cfg.provinceType:'Tỉnh')===o?'selected':''}>${o}</option>`).join('')}</select>
             </div>
-            <div class="field"><label>Tên tỉnh/thành phố *</label><input id="st-provincename" value="${cfg.provinceName||''}" ${canEditCore?'':'disabled'}></div>
+            <div class="field"><label>Tên ${provinceLevelLabelLower()} *</label><input id="st-provincename" value="${cfg.provinceName||''}" ${canEditCore?'':'disabled'}></div>
             <div class="field"><label>Loại hình khu dân cư trực thuộc *</label>
               <select id="st-subadmin" ${canEditCore?'':'disabled'}>${SUB_ADMIN_OPTIONS.map(o=>`<option value="${o}" ${(SUB_ADMIN_OPTIONS.includes(cfg.subAdminType)?cfg.subAdminType:'Khu dân cư')===o?'selected':''}>${o}</option>`).join('')}</select>
             </div>
@@ -3559,7 +3559,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       const wardNameVal = document.getElementById('st-ward').value.trim();
       const provinceNameVal = document.getElementById('st-provincename').value.trim();
       if(!wardNameVal){ alert(`Vui lòng nhập Tên riêng (${document.getElementById('st-adminlevel').value}).`); return; }
-      if(!provinceNameVal){ alert('Vui lòng nhập Tên tỉnh/thành phố.'); return; }
+      if(!provinceNameVal){ alert(`Vui lòng nhập Tên ${provinceLevelLabelLower()}.`); return; }
       if(!confirm('Đồng chí có chắc chắn muốn lưu thay đổi Thông tin địa phương / Loại hình hành chính không? Việc này sẽ ảnh hưởng tới toàn bộ dữ liệu đang có của xã/phường (cách tính lãi, tên gọi hiển thị...). Đồng chí có chắc chắn?')) return;
       cfg.wardName = wardNameVal;
       cfg.adminLevel = document.getElementById('st-adminlevel').value;
@@ -4441,16 +4441,16 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           <div class="divider-lbl">Tỷ lệ cấu hình trích chia lãi suất theo cấp (%) — cắt khúc dòng tiền</div>
           <div class="form-grid">
             <div class="field"><label>Trung ương</label><input type="text" inputmode="decimal" id="lpm-central" value="${String(p.splitCentral||0).replace('.',',')}"></div>
-            <div class="field"><label>Cấp Tỉnh</label><input type="text" inputmode="decimal" id="lpm-province" value="${String(p.splitProvince||0).replace('.',',')}"></div>
-            <div class="field"><label>Cấp Xã</label><input type="text" inputmode="decimal" id="lpm-ward" value="${String(p.splitWard||0).replace('.',',')}"></div>
+            <div class="field"><label>Cấp ${provinceLevelLabel()}</label><input type="text" inputmode="decimal" id="lpm-province" value="${String(p.splitProvince||0).replace('.',',')}"></div>
+            <div class="field"><label>Cấp ${adminLevelLabel()}</label><input type="text" inputmode="decimal" id="lpm-ward" value="${String(p.splitWard||0).replace('.',',')}"></div>
           </div>
-          <p class="sub" style="margin-top:-4px;">⚠️ Tổng 3 tỷ lệ Trung ương + Cấp Tỉnh + Cấp Xã phải LUÔN BẰNG đúng "Lãi suất người vay phải trả" ở trên (vd: 0% + 4,32% + 2,28% = 6,6%).</p>
+          <p class="sub" style="margin-top:-4px;">⚠️ Tổng 3 tỷ lệ Trung ương + Cấp ${provinceLevelLabel()} + Cấp ${adminLevelLabel()} phải LUÔN BẰNG đúng "Lãi suất người vay phải trả" ở trên (vd: 0% + 4,32% + 2,28% = 6,6%).</p>
 
           <div class="divider-lbl">% của ${adminLevelLabelLower()} phân bổ về ${curSubLower}</div>
           <div class="form-grid">
             <div class="field"><label>% của ${adminLevelLabelLower()} phân bổ về ${curSubLower}</label><input type="text" inputmode="decimal" id="lpm-hamlet-alloc" value="${String(p.hamletAllocPercent!=null? p.hamletAllocPercent : 45).replace('.',',')}"></div>
           </div>
-          <p class="sub" style="margin-top:-4px;">💡 Đây KHÔNG phải là tỷ lệ trích trực tiếp từ tổng lãi suất, mà là tỷ lệ mà ${adminLevelLabelLower()} tiếp tục PHÂN BỔ XUỐNG cho ${curSubLower} TỪ chính phần tiền lãi mà ${adminLevelLabelLower()} đã nhận được (theo tỷ lệ "Cấp Xã" ở trên). Ví dụ: nếu 1 người vay đóng lãi và phần về ${adminLevelLabelLower()} là 100.000đ, với tỷ lệ mặc định 45% thì ${curSubLower} nơi người đó cư trú sẽ được phân bổ 45.000đ trong số đó. (Không được vượt quá 100%.)</p>
+          <p class="sub" style="margin-top:-4px;">💡 Đây KHÔNG phải là tỷ lệ trích trực tiếp từ tổng lãi suất, mà là tỷ lệ mà cấp ${adminLevelLabelLower()} tiếp tục PHÂN BỔ XUỐNG cho ${curSubLower} TỪ chính phần tiền lãi mà ${adminLevelLabelLower()} đã nhận được (theo tỷ lệ "Cấp ${adminLevelLabel()}" ở trên). Ví dụ: nếu 1 người vay đóng lãi và phần về ${adminLevelLabelLower()} là 100.000đ, với tỷ lệ mặc định 45% thì ${curSubLower} nơi người đó cư trú sẽ được phân bổ 45.000đ trong số đó. (Không được vượt quá 100%.)</p>
 
           <p class="sub">Có thể để trống/0 nếu chưa cấu hình. Người vay được thêm vào phương án này sẽ TỰ ĐỘNG kế thừa toàn bộ thiết lập trên — không cần nhập lại cho từng người.</p>
           ${(forceReadOnly && !isNew)? (function(){
@@ -4602,7 +4602,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       const sumSplit = splitCentral + splitProvince + splitWard;
       // Yêu cầu: Trung ương + Cấp Tỉnh + Cấp Xã LUÔN phải bằng đúng lãi suất chung của phương án.
       if(Math.abs(sumSplit - interestRate) > 0.01){
-        alert(`Tổng tỷ lệ trích chia (Trung ương ${splitCentral}% + Cấp Tỉnh ${splitProvince}% + Cấp Xã ${splitWard}% = ${sumSplit.toFixed(2)}%) KHÔNG bằng với Lãi suất chung của phương án (${interestRate}%). Vui lòng kiểm tra lại cho đúng công thức: Trung ương + Cấp Tỉnh + Cấp Xã = Lãi suất chung.`);
+        alert(`Tổng tỷ lệ trích chia (Trung ương ${splitCentral}% + Cấp ${provinceLevelLabel()} ${splitProvince}% + Cấp ${adminLevelLabel()} ${splitWard}% = ${sumSplit.toFixed(2)}%) KHÔNG bằng với Lãi suất chung của phương án (${interestRate}%). Vui lòng kiểm tra lại cho đúng công thức: Trung ương + Cấp ${provinceLevelLabel()} + Cấp ${adminLevelLabel()} = Lãi suất chung.`);
         return;
       }
       const hamletAllocPercent = parseVNPercent(wrap.querySelector('#lpm-hamlet-alloc').value);
@@ -4647,7 +4647,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         }
         // GIẤY XÁC NHẬN CHUNG — chỉ lập đúng 1 bản ghi duy nhất cho cả phương án, nối link vào Hộp
         // giấy xác nhận của TẤT CẢ người vay bị ảnh hưởng (thay vì lập hàng loạt giấy trùng lặp).
-        const FIELD_LABELS_P = { name:'Tên phương án', totalCapital:'Tổng vốn', interestRate:'Lãi suất', disburseDate:'Ngày giải ngân', dueDate:'Ngày đến hạn', fundSourceType:'Nguồn vay', splitCentral:'Tỷ lệ phân bổ Trung ương', splitProvince:'Tỷ lệ phân bổ Tỉnh', splitWard:'Tỷ lệ phân bổ Xã', hamletAllocPercent:`Tỷ lệ phân bổ ${subAdminLabel()}` };
+        const FIELD_LABELS_P = { name:'Tên phương án', totalCapital:'Tổng vốn', interestRate:'Lãi suất', disburseDate:'Ngày giải ngân', dueDate:'Ngày đến hạn', fundSourceType:'Nguồn vay', splitCentral:'Tỷ lệ phân bổ Trung ương', splitProvince:`Tỷ lệ phân bổ ${provinceLevelLabel()}`, splitWard:`Tỷ lệ phân bổ ${adminLevelLabel()}`, hamletAllocPercent:`Tỷ lệ phân bổ ${subAdminLabel()}` };
         const changedFieldKeys = compareKeys.filter(k=> String(p[k]??'') !== String(updated[k]??''));
         const MONEY_FIELDS_P = ['totalCapital'];
         const changedFieldLines = changedFieldKeys.map(k=>{

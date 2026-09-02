@@ -63,7 +63,7 @@
     try{
       const cfg = state.config||{};
       const wardLabel = `${adminLevelLabel()} ${(cfg.wardName||'').trim()}`.trim();
-      const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType : 'Tỉnh/Thành phố';
+      const provType = provinceLevelLabel();
       const provinceLabel = (cfg.provinceName||'').trim() ? `${provType} ${(cfg.provinceName||'').trim()}` : '';
       // Dùng update() (GỘP thêm/ghi đè từng trường) thay vì set() (THAY THẾ TOÀN BỘ) — vì biên lai này
       // có thể đang dùng CHUNG đúng 1 mã với 1 Biên lai chưa thanh toán cũ đã chuyển trạng thái (để giữ
@@ -489,9 +489,9 @@
     { label:'Ngày đến hạn', get: p=> fmtDate(p.dueDate), getPlain: p=> p.dueDate||'' },
     { label:'Nguồn vay', get: p=> escapeHtml(p.fundSourceType||''), getPlain: p=> p.fundSourceType||'' },
     { label:'Phân bổ Cấp Trung ương (%)', get: p=> String(parseFloat(p.splitCentral)||0).replace('.',','), getPlain: p=> parseFloat(p.splitCentral)||0 },
-    { label:'Phân bổ Cấp Tỉnh (%)', get: p=> String(parseFloat(p.splitProvince)||0).replace('.',','), getPlain: p=> parseFloat(p.splitProvince)||0 },
-    { label:'Phân bổ Cấp Xã (%)', get: p=> String(parseFloat(p.splitWard)||0).replace('.',','), getPlain: p=> parseFloat(p.splitWard)||0 },
-    { label:'% Xã phân bổ về cấp dưới', get: p=> String(parseFloat(p.hamletAllocPercent)||0).replace('.',','), getPlain: p=> parseFloat(p.hamletAllocPercent)||0 },
+    { label:`Phân bổ Cấp ${provinceLevelLabel()} (%)`, get: p=> String(parseFloat(p.splitProvince)||0).replace('.',','), getPlain: p=> parseFloat(p.splitProvince)||0 },
+    { label:`Phân bổ Cấp ${adminLevelLabel()} (%)`, get: p=> String(parseFloat(p.splitWard)||0).replace('.',','), getPlain: p=> parseFloat(p.splitWard)||0 },
+    { label:`% ${adminLevelLabel()} phân bổ về cấp dưới`, get: p=> String(parseFloat(p.hamletAllocPercent)||0).replace('.',','), getPlain: p=> parseFloat(p.hamletAllocPercent)||0 },
     { label:'Thời gian còn lại', get: p=> daysRemainingLabel(p.dueDate), getPlain: p=> daysRemainingLabel(p.dueDate) },
     { label:'Số tiền còn lại không hoạt động (đ)', get: p=> moneySpaced(projectInactiveAmountRaw(p)), getPlain: p=> projectInactiveAmountRaw(p) },
   ];

@@ -11,6 +11,27 @@ xuống cuối phần đó. Bỏ qua bước này thì phần mới không truy 
 
 Thư mục `public/` do build sinh ra, không được theo dõi trong git.
 
+## Giữ index.html mỏng
+
+Mỗi lần thêm/sửa/xoá tính năng, hạn chế tối đa việc làm `index.html` phình ra.
+Dồn thay đổi vào `src/css/`, `src/js/` và các tệp liên quan. Tệp gốc chỉ nên đổi
+khi thật sự cần (vân tay tài nguyên do build sinh, thẻ meta, thẻ script/link).
+Giữ nó mỏng thì dễ soát lỗi và an toàn hơn.
+
+## Danh xưng hành chính là ĐỘNG
+
+Màn hình thiết lập ban đầu BẮT BUỘC chọn ba loại địa danh, nên không mã xã nào
+thiếu chúng. Tuyệt đối không viết chết chữ "Tỉnh", "Xã", "Ấp" trong giao diện —
+luôn gọi hàm:
+
+- `provinceLevelLabel()` / `provinceLevelLabelLower()` — Tỉnh hoặc Thành phố
+- `adminLevelLabel()` / `adminLevelLabelLower()` — Xã hoặc Phường
+- `subAdminLabel()` / `subAdminLabelLower()` — Ấp/Khu phố/Thôn/...
+
+Riêng "Nguồn vay": giá trị LƯU trong Firebase vẫn là chuỗi gốc
+`'Cấp tỉnh/thành phố'`; chỉ phần hiển thị mới đổi, qua `fundSourceDisplay()`.
+Đổi giá trị lưu sẽ phá dữ liệu cũ và các phép so khớp chuỗi.
+
 ## Trước khi đẩy code
 
 Chạy đủ và phải xanh hết:

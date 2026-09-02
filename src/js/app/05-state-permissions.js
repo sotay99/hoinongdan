@@ -345,7 +345,7 @@
     const code = uid();
     const cfg = state.config||{};
     const wardLabel = `${adminLevelLabel()} ${(cfg.wardName||'').trim()}`.trim();
-    const provType = PROVINCE_TYPE_OPTIONS.includes(cfg.provinceType) ? cfg.provinceType : 'Tỉnh/Thành phố';
+    const provType = provinceLevelLabel();
     const provinceLabel = (cfg.provinceName||'').trim() ? `${provType} ${(cfg.provinceName||'').trim()}` : '';
     // Chụp lại ĐÚNG nội dung đang lập (các quý/tiền lãi/người đóng-thu...) — y hệt cách "Đường link"
     // của biên lai đã lập thành công chụp lại nội dung modal, để không bị sơ sài chỉ có tổng tiền.
@@ -400,7 +400,7 @@
     // Hình thức trả nợ trước hạn (radio "Trả lại cấp.../Chọn người thừa kế" đã bị xoá ở
     // cleanReceiptContentClone) — chèn lại đúng 1 dòng text tĩnh khớp với lựa chọn thật.
     if(rp.applyFn==='early_repayment' && rp.mode){
-      const modeLabel = rp.mode==='heir' ? 'Chọn người thừa kế' : (rp.isLocalOrOtherFund ? 'Trả lại cho cấp quản lý vốn vay' : 'Trả lại cấp Tỉnh/Thành phố hoặc Trung ương');
+      const modeLabel = rp.mode==='heir' ? 'Chọn người thừa kế' : (rp.isLocalOrOtherFund ? 'Trả lại cho cấp quản lý vốn vay' : `Trả lại cấp ${provinceLevelLabel()} hoặc Trung ương`);
       bodyHtml += `<div class="kv-row${rp.mode==='heir'?' heir-info-block':''}"><span>Hình thức</span><b>${escapeHtml(modeLabel)}</b></div>`;
     }
     // "Người thừa kế" — thông tin nhập tay trong 1 bảng con riêng, cũng bị bóc mất tương tự.

@@ -707,9 +707,9 @@
           { key:'dueDate', label:'Đến hạn', get:p=> fmtDate(p.dueDate) },
           { label:'Nguồn vay', width:140, get:p=> escapeHtml(p.fundSourceType||'') },
           { align:'right', label:'Phân bổ Cấp Trung ương (%)', width:110, get:p=> String(parseFloat(p.splitCentral)||0).replace('.',',')+'%' },
-          { align:'right', label:'Phân bổ Cấp Tỉnh (%)', width:100, get:p=> String(parseFloat(p.splitProvince)||0).replace('.',',')+'%' },
-          { align:'right', label:'Phân bổ Cấp Xã (%)', width:100, get:p=> String(parseFloat(p.splitWard)||0).replace('.',',')+'%' },
-          { align:'right', label:`% Xã phân bổ về ${subAdminLabelLower()}`, width:120, get:p=> String(parseFloat(p.hamletAllocPercent)||0).replace('.',',')+'%' },
+          { align:'right', label:`Phân bổ Cấp ${provinceLevelLabel()} (%)`, width:100, get:p=> String(parseFloat(p.splitProvince)||0).replace('.',',')+'%' },
+          { align:'right', label:`Phân bổ Cấp ${adminLevelLabel()} (%)`, width:100, get:p=> String(parseFloat(p.splitWard)||0).replace('.',',')+'%' },
+          { align:'right', label:`% ${adminLevelLabel()} phân bổ về ${subAdminLabelLower()}`, width:120, get:p=> String(parseFloat(p.hamletAllocPercent)||0).replace('.',',')+'%' },
           { key:'daysRemaining', label:'Thời gian còn lại', get:p=> daysRemainingLabel(p.dueDate) },
           { align:'right', label:'Số tiền còn lại không hoạt động (đ)', width:140, get:p=> moneySpaced(projectInactiveAmountRaw(p)) },
         ];

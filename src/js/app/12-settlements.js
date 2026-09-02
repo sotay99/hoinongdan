@@ -601,7 +601,7 @@
     // vốn vay" (chỉ đổi chữ hiển thị, logic bên trong hoàn toàn không đổi).
     const fundSourceLower = (b.fundSource||'').toLowerCase();
     const isLocalOrOtherFund = fundSourceLower.includes('địa phương') || fundSourceLower.includes('khác');
-    const provinceModeLabel = isLocalOrOtherFund ? 'Trả lại cho cấp quản lý vốn vay' : 'Trả lại cấp Tỉnh/Thành phố hoặc Trung ương';
+    const provinceModeLabel = isLocalOrOtherFund ? 'Trả lại cho cấp quản lý vốn vay' : `Trả lại cấp ${provinceLevelLabel()} hoặc Trung ương`;
     let mode = canChooseProvince ? 'province' : 'heir'; // mặc định đúng theo điều kiện
     let includeInterest = true;
     let heir = null;
@@ -837,7 +837,7 @@
             ${heir? `<div class="kv-row"><span>Người thừa kế</span><b>${escapeHtml(heir.name)}</b></div>
             <div class="kv-row"><span>Địa bàn dân cư (${subAdminLabel()}) của người thừa kế</span><b>${escapeHtml(heir.hamlet||'')}</b></div>
             <div class="kv-row"><span>Người quản lý hộ vay (người thừa kế)</span><b>${escapeHtml((ensureDefaultManagers().find(m=>m.id===(heir.managerId||'chihoitruong'))||{}).name||'')}</b></div>` : (b.heirName? `<div class="kv-row"><span>Người thừa kế</span><b>${escapeHtml(b.heirName)} (đã bị xoá/khôi phục trước đó)</b></div>` : '')}
-            ${!isFinal && !b.heirName? `<div class="kv-row"><span>Hình thức</span><b>${((b.fundSource||'').toLowerCase().includes('địa phương')||(b.fundSource||'').toLowerCase().includes('khác'))?'Trả lại cho cấp quản lý vốn vay':'Trả lại cấp Tỉnh/Thành phố hoặc Trung ương'}</b></div>` : ''}
+            ${!isFinal && !b.heirName? `<div class="kv-row"><span>Hình thức</span><b>${((b.fundSource||'').toLowerCase().includes('địa phương')||(b.fundSource||'').toLowerCase().includes('khác'))?'Trả lại cho cấp quản lý vốn vay':`Trả lại cấp ${provinceLevelLabel()} hoặc Trung ương`}</b></div>` : ''}
             ${settlementAdvancedInfoHtml(b, {lines:[],total:0}, false, heir, 'shm', advOpen, b.settledSnapshot)}
           </div>
           <div class="modal-foot">
@@ -1782,11 +1782,11 @@
         <div class="modal-head"><h3>Thông tin chi tiết ${escapeHtml(qName)} của hộ vay ${escapeHtml(b.name)}</h3><button class="modal-close" id="qbi-close">✕</button></div>
         <div class="modal-body">
           ${lines.map(l=>`<p style="margin:0 0 8px;">${escapeHtml(l)}</p>`).join('')}
-          <p style="margin:12px 0 4px; font-weight:700;">Thông tin phân bổ lãi suất (về Trung ương, cấp tỉnh, cấp xã) trong tổng số lãi suất ${fmtPct(box.rate)}%/năm và chia % của xã đối với cấp ${subAdminLabelLower()}:</p>
+          <p style="margin:12px 0 4px; font-weight:700;">Thông tin phân bổ lãi suất (về Trung ương, cấp ${provinceLevelLabelLower()}, cấp ${adminLevelLabelLower()}) trong tổng số lãi suất ${fmtPct(box.rate)}%/năm và chia % của xã đối với cấp ${subAdminLabelLower()}:</p>
           <div class="kv-row"><span>Trung ương</span><b>${fmtPct(centralPct)}%/năm</b></div>
-          <div class="kv-row"><span>Cấp tỉnh</span><b>${fmtPct(provincePct)}%/năm</b></div>
-          <div class="kv-row"><span>Cấp xã</span><b>${fmtPct(wardPct)}%/năm</b></div>
-          <div class="kv-row"><span>% tiền cấp xã phân bổ về cấp ${subAdminLabelLower()}</span><b>${fmtPct(hamletPct)}%</b></div>
+          <div class="kv-row"><span>Cấp ${provinceLevelLabelLower()}</span><b>${fmtPct(provincePct)}%/năm</b></div>
+          <div class="kv-row"><span>Cấp ${adminLevelLabelLower()}</span><b>${fmtPct(wardPct)}%/năm</b></div>
+          <div class="kv-row"><span>% tiền cấp ${adminLevelLabelLower()} phân bổ về cấp ${subAdminLabelLower()}</span><b>${fmtPct(hamletPct)}%</b></div>
         </div>
         <div class="modal-foot"><button class="btn btn-primary" id="qbi-close2">Đóng bảng</button></div>
       </div>`;
