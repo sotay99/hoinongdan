@@ -722,6 +722,8 @@
     if(canViewModule('internal')) items.push({id:'internal', ico:'🔒', label:'Thu – Chi nội bộ'});
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
+    items.push({id:'tasks',    ico:'✅', label:'Danh sách Công việc'});
+    items.push({id:'schedule', ico:'📅', label:'Lịch Công tác'});
     items.push({id:'drive', ico:'🗂️', label:'Trung tâm dữ liệu'});
     // Ba công cụ văn phòng gom vào MỘT mục có menu thả xuống, đứng đúng vị trí cũ của
     // mục "Tài liệu". Bấm từng công cụ sẽ mở overlay TOÀN MÀN HÌNH (che cả khung menu),
@@ -739,11 +741,9 @@
       {id:'survey',   ico:'📝', label:'Biểu mẫu khảo sát'},
       {id:'training', ico:'🎓', label:'Tập huấn bằng AI'},
     ]});
-    items.push({id:'schedule', ico:'📅', label:'Lịch Công tác'});
-    items.push({id:'tasks',    ico:'✅', label:'Danh sách Công việc'});
+    items.push({id:'carecare', ico:'💚', label:'Chăm sóc Hội viên'});
     items.push({id:'propaganda', ico:'📣', label:'Tạo bài Tuyên truyền'});
     items.push({id:'fanpage',  ico:'📣', label:'Quản lý Fanpage'});
-    items.push({id:'carecare', ico:'💚', label:'Chăm sóc Hội viên'});
     items.push({id:'branch',   ico:'🌾', label:'Công tác Chi hội'});
     // "Ghi chú nhanh" KHÔNG có mục riêng trong menu trái: lối vào duy nhất là nút nổi 🗒️ ở góc
     // phải màn hình (fab-notes-btn, dựng trong 07-core-modules.js). Trước đây có cả hai lối vào
@@ -853,10 +853,19 @@
     if(!box) return;
     const btn = document.getElementById('module-learn-btn');
     if(btn) btn.onclick = (e)=>{ e.stopPropagation(); box.classList.toggle('open'); };
-    // Rê chuột vào thì mở, rê ra ngoài thì đóng. Thiết bị cảm ứng không có "rê chuột" nên vẫn
-    // dùng cách bấm ở trên — hai cách cùng tồn tại, không xung đột.
-    box.addEventListener('mouseenter', ()=> box.classList.add('open'));
-    box.addEventListener('mouseleave', ()=> box.classList.remove('open'));
+    // Rê chuột vào thì mở, rê ra ngoài thì đóng — CHỈ gắn trên thiết bị THẬT SỰ có con trỏ chuột.
+    //
+    // Vì sao phải chặn ở thiết bị cảm ứng: khi chạm ngón tay, trình duyệt bắn ra một chuỗi sự kiện
+    // GIẢ theo thứ tự mouseenter -> ... -> click. Nếu gắn mouseenter thì cú chạm đầu tiên sẽ MỞ menu
+    // (do mouseenter) rồi ĐÓNG ngay lại (do click ở trên gọi toggle) — nhìn như bấm mà không có gì
+    // xảy ra, phải chạm lần thứ hai mới được. Lần thứ hai chạy đúng vì "hover giả" vẫn còn dính trên
+    // phần tử nên không có mouseenter mới, chỉ còn mỗi click. Đổi module xong thì giao diện được dựng
+    // lại, phần tử mới hoàn toàn nên hover giả mất, lỗi lặp lại — đúng như người dùng mô tả.
+    const canHover = !!(window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches);
+    if(canHover){
+      box.addEventListener('mouseenter', ()=> box.classList.add('open'));
+      box.addEventListener('mouseleave', ()=> box.classList.remove('open'));
+    }
     const closeBtn = box.querySelector('[data-learn-close]');
     if(closeBtn) closeBtn.onclick = (e)=>{ e.stopPropagation(); closeModuleLearnMenu(); };
     box.querySelectorAll('[data-learn-opt]').forEach(opt=> opt.onclick = (e)=>{
@@ -934,8 +943,12 @@
           <div class="brand"><div class="ico">🌾</div><div class="txt">${wardProvinceHeaderLine()||'Chưa chọn mã xã'}<small>Mã ${wardId()||''}</small></div></div>
           ${nav.map(n=> n.children? (function(){
             const open = !!(state._navGroupOpen||{})[n.id];
+            // Menu ĐANG THU GỌN mà ta lại đang ở một module con của nhóm này -> tô sáng chính nút
+            // nhóm, vì lúc đó không nhìn thấy mục con nào cả. Khi menu bung ra thì thôi, để mục con
+            // tự sáng, tránh hai chỗ cùng sáng một lúc.
+            const hasActiveChild = n.children.some(c=> !c.overlay && state.activeTab===c.id);
             return `
-            <button class="nav-item nav-item-group ${open?'expanded':''}" data-navgroup="${n.id}">
+            <button class="nav-item nav-item-group ${open?'expanded':''} ${(!open && hasActiveChild)?'active':''}" data-navgroup="${n.id}">
               <span>${n.ico}</span><span class="nav-label">${n.label}</span>
               <span class="nav-caret">${open?'▾':'▸'}</span>
             </button>
