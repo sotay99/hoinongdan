@@ -467,6 +467,7 @@
       if(!sidebarEl || sidebarEl.classList.contains('collapsed')) return;
       if(e.target.closest('.sidebar-toggle-btn')) return; // nút nổi tự xử lý riêng, tránh đóng/mở trùng
       if(e.target.closest('.sidebar')) return; // bấm bên trong khung menu (kể cả đổi module) -> giữ nguyên, không tự đóng
+      if(e.target.closest('#module-learn')) return; // menu "Tìm hiểu thêm về module này" nằm ngoài khung menu nhưng tự quản lý đóng/mở của nó — không được nuốt cú bấm đầu (nếu không, màn hình cảm ứng phải bấm 2 lần menu mới bung ra)
       if(e.target.closest('.modal-bg')) return; // bấm bên trong 1 bảng/popup (VD: bảng chào mừng tham quan) -> không tính là bấm vào module hiện hành
       if(e.target.closest('.ai-overlay')) return; // bấm bên trong 1 module overlay toàn màn hình (Chat AI/Ghi chú nhanh/Tuyên truyền/Chat với Mọi người) -> module đó tự quản lý hoàn toàn tương tác của riêng nó, không để cơ chế này can thiệp (tránh "nuốt" mất click đầu tiên nhắm vào nút của module, khiến phải bấm 2 lần mới có tác dụng)
       // Ngoại lệ: bấm vào 1 trong 3 nút nổi (Chat AI / Ghi chú nhanh / Chat với Mọi người) — KHÔNG đóng

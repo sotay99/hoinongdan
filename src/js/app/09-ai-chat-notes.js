@@ -720,7 +720,6 @@
       items.push({id:'expenses', ico:'💰', label:`Sổ Thu Chi Lãi Quỹ`});
     }
     if(canViewModule('internal')) items.push({id:'internal', ico:'🔒', label:'Thu – Chi nội bộ'});
-    items.push({id:'propaganda', ico:'📣', label:'Tạo bài Tuyên truyền'});
     if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
     items.push({id:'drive', ico:'🗂️', label:'Trung tâm dữ liệu'});
@@ -728,22 +727,27 @@
     // mục "Tài liệu". Bấm từng công cụ sẽ mở overlay TOÀN MÀN HÌNH (che cả khung menu),
     // giống module Tạo bài Tuyên truyền — nên chúng không phải là tab nội dung.
     items.push({id:'office', ico:'🧰', label:'Công cụ văn phòng', children:[
-      {id:'docs',   ico:'📄', label:'Tài liệu'},
-      {id:'sheets', ico:'📊', label:'Trang tính'},
-      {id:'slides', ico:'📽️', label:'Trình bày'},
+      {id:'docs',   ico:'📄', label:'Tài liệu',   overlay:true},
+      {id:'sheets', ico:'📊', label:'Trang tính', overlay:true},
+      {id:'slides', ico:'📽️', label:'Trình bày',  overlay:true},
+    ]});
+    // Ba module "nâng cao" gom vào MỘT mục có menu thả xuống, hoạt động y hệt nhóm Công cụ
+    // văn phòng. Khác một điểm: ba mục con này là TAB nội dung bình thường (không phải overlay),
+    // nên bấm vào thì đổi tab chứ không mở overlay — xem cách phân nhánh ở handler bên dưới.
+    items.push({id:'advanced', ico:'🚀', label:'Công cụ nâng cao', children:[
+      {id:'meeting',  ico:'📋', label:'Phòng họp không giấy'},
+      {id:'survey',   ico:'📝', label:'Biểu mẫu khảo sát'},
+      {id:'training', ico:'🎓', label:'Tập huấn bằng AI'},
     ]});
     items.push({id:'schedule', ico:'📅', label:'Lịch Công tác'});
     items.push({id:'tasks',    ico:'✅', label:'Danh sách Công việc'});
-    items.push({id:'training', ico:'🎓', label:'Tập huấn bằng AI'});
-    items.push({id:'meeting',  ico:'📋', label:'Phòng họp không giấy'});
+    items.push({id:'propaganda', ico:'📣', label:'Tạo bài Tuyên truyền'});
     items.push({id:'fanpage',  ico:'📣', label:'Quản lý Fanpage'});
     items.push({id:'carecare', ico:'💚', label:'Chăm sóc Hội viên'});
     items.push({id:'branch',   ico:'🌾', label:'Công tác Chi hội'});
     // "Ghi chú nhanh" KHÔNG có mục riêng trong menu trái: lối vào duy nhất là nút nổi 🗒️ ở góc
     // phải màn hình (fab-notes-btn, dựng trong 07-core-modules.js). Trước đây có cả hai lối vào
     // cùng mở đúng một overlay nên bị trùng lặp; nay gom về một.
-    // Yêu cầu 7: Module mới "Biểu mẫu khảo sát" — nằm ngay phía trên "Cài đặt & Chia sẻ"
-    items.push({id:'survey', ico:'📝', label:'Biểu mẫu khảo sát'});
     if(isOwner() || settingsPerm()!=='none') items.push({id:'settings', ico:'⚙️', label:'Cài đặt & Chia sẻ'});
     items.push({id:'guide', ico:'📖', label:'Hướng dẫn sử dụng'});
     items.push({id:'about', ico:'ℹ️', label:'Thông tin phần mềm'});
@@ -886,7 +890,10 @@
     const nav = navItems();
     // Mục có children (Công cụ văn phòng) chỉ là nhóm menu, không phải tab nội dung —
     // loại nó ra khi chọn tab mặc định, nếu không sẽ rơi vào tab không có gì để vẽ.
-    const navTabs = nav.filter(n=> !n.children);
+    // Mục con của nhóm cũng có thể là TAB THẬT (nhóm Công cụ nâng cao) — phải đưa vào danh sách
+    // này, nếu không dòng kiểm tra ngay bên dưới sẽ coi tab đó là không hợp lệ và đá người dùng
+    // về mục đầu tiên. Riêng ba công cụ văn phòng chỉ mở overlay nên đánh dấu overlay:true và loại ra.
+    const navTabs = nav.flatMap(n=> n.children ? n.children.filter(c=> !c.overlay) : [n]);
     if(!navTabs.some(n=>n.id===state.activeTab)) state.activeTab = navTabs.length? navTabs[0].id : 'guide';
     const roleLabel = describeAccess();
     const alerts = wardId() ? computeAlerts() : [];
@@ -925,15 +932,18 @@
         <button type="button" class="sidebar-toggle-btn ${state.sidebarCollapsed?'collapsed':''}" id="sidebar-toggle-btn" title="${state.sidebarCollapsed?'Mở menu':'Thu gọn menu'}">${state.sidebarCollapsed?'▤':'▥'}</button>
         <div class="sidebar ${state.sidebarCollapsed?'collapsed':''}">
           <div class="brand"><div class="ico">🌾</div><div class="txt">${wardProvinceHeaderLine()||'Chưa chọn mã xã'}<small>Mã ${wardId()||''}</small></div></div>
-          ${nav.map(n=> n.children? `
-            <button class="nav-item nav-item-group ${state._officeMenuOpen?'expanded':''}" data-navgroup="${n.id}">
+          ${nav.map(n=> n.children? (function(){
+            const open = !!(state._navGroupOpen||{})[n.id];
+            return `
+            <button class="nav-item nav-item-group ${open?'expanded':''}" data-navgroup="${n.id}">
               <span>${n.ico}</span><span class="nav-label">${n.label}</span>
-              <span class="nav-caret">${state._officeMenuOpen?'▾':'▸'}</span>
+              <span class="nav-caret">${open?'▾':'▸'}</span>
             </button>
-            ${state._officeMenuOpen? n.children.map(c=>`
-              <button class="nav-item nav-subitem" data-navchild="${c.id}">
+            ${open? n.children.map(c=>`
+              <button class="nav-item nav-subitem ${state.activeTab===c.id?'active':''}" data-navchild="${c.id}">
                 <span>${c.ico}</span><span>${c.label}</span>
-              </button>`).join('') : ''}` : `
+              </button>`).join('') : ''}`;
+          })() : `
             <button class="nav-item ${state.activeTab===n.id?'active':''}" data-tab="${n.id}">
               <span>${n.ico}</span><span class="nav-label">${n.label}</span>
               ${n.badge?`<span class="badge">${n.badge}</span>`:''}
@@ -977,7 +987,8 @@
         // Mục nhóm "Công cụ văn phòng": chỉ đóng/mở menu thả xuống, không đổi tab.
         if(el.dataset.navgroup){
           const gid = el.dataset.navgroup;
-          state._officeMenuOpen = !state._officeMenuOpen;
+          if(!state._navGroupOpen) state._navGroupOpen = {};
+          state._navGroupOpen[gid] = !state._navGroupOpen[gid];
           render();
           focusNavItem(`.nav-item[data-navgroup="${gid}"]`);
           return;
@@ -986,8 +997,14 @@
         // để khi thoát ra người dùng quay lại đúng chỗ cũ. KHÔNG cuộn/nhảy múa ở mục menu vì
         // overlay che kín màn hình, người dùng không nhìn thấy khung menu nữa.
         if(el.dataset.navchild){
-          openOfficeModule({docs:'Docs', sheets:'Sheets', slides:'Slides'}[el.dataset.navchild]);
-          state.bellOpen=false;
+          const childId = el.dataset.navchild;
+          const OFFICE = {docs:'Docs', sheets:'Sheets', slides:'Slides'};
+          if(OFFICE[childId]){ openOfficeModule(OFFICE[childId]); state.bellOpen=false; return; }
+          // (mọi mục con còn lại là tab nội dung bình thường)
+          // Mục con của "Công cụ nâng cao" là TAB nội dung bình thường -> đổi tab như mọi mục khác,
+          // kèm cuộn + nhảy múa đúng mục vừa bấm (nhóm vẫn mở nguyên để thấy mình đang ở đâu).
+          switchTab(childId);
+          focusNavItem(`.nav-item[data-navchild="${childId}"]`);
           return;
         }
         const clickedTab = el.dataset.tab;
