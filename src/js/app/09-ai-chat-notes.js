@@ -813,6 +813,60 @@
     else restoreTabScroll(tabId);
   }
 
+  // =====================================================================
+  // THANH "TÌM HIỂU THÊM VỀ MODULE NÀY" — nằm ngay dưới tiêu đề module, áp dụng cho MỌI module
+  // vẽ trong khung nội dung. Đặt ở đây (giữa .topbar và #content) nên chỉ cần dựng MỘT lần là
+  // module nào cũng có, không phải sửa từng hàm render riêng.
+  // Menu thả xuống mở bằng cách bấm HOẶC rê chuột vào; đóng khi rê ra ngoài, bấm ra ngoài, hoặc
+  // bấm nút ✕ ở góc.
+  // =====================================================================
+  const MODULE_LEARN_OPTS = [
+    ['overview', '📊', 'Đánh giá tổng quan về dữ liệu trong module'],
+    ['guide',    '💬', 'Hướng dẫn sử dụng module'],
+    ['intro',    '📖', 'Đọc Bản giới thiệu về module'],
+  ];
+  function moduleLearnBarHtml(moduleTitle){
+    const name = escapeHtml(moduleTitle || 'này');
+    const tail = { overview:'này.', guide:'này bằng cách chat với AI.', intro:'này.' };
+    return `
+      <div class="module-learn-bar">
+        <div class="module-learn" id="module-learn">
+          <button type="button" class="module-learn-btn preview-allow" id="module-learn-btn">💡 Tìm hiểu thêm về module này</button>
+          <div class="module-learn-menu" id="module-learn-menu">
+            <button type="button" class="module-learn-close preview-allow" data-learn-close title="Đóng">✕</button>
+            ${MODULE_LEARN_OPTS.map(([key,ico,text])=>`
+              <button type="button" class="module-learn-opt preview-allow" data-learn-opt="${key}">${ico} ${text} "${name}" ${tail[key]}</button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  }
+  function closeModuleLearnMenu(){
+    const box = document.getElementById('module-learn');
+    if(box) box.classList.remove('open');
+  }
+  function wireModuleLearnBar(){
+    const box = document.getElementById('module-learn');
+    if(!box) return;
+    const btn = document.getElementById('module-learn-btn');
+    if(btn) btn.onclick = (e)=>{ e.stopPropagation(); box.classList.toggle('open'); };
+    // Rê chuột vào thì mở, rê ra ngoài thì đóng. Thiết bị cảm ứng không có "rê chuột" nên vẫn
+    // dùng cách bấm ở trên — hai cách cùng tồn tại, không xung đột.
+    box.addEventListener('mouseenter', ()=> box.classList.add('open'));
+    box.addEventListener('mouseleave', ()=> box.classList.remove('open'));
+    const closeBtn = box.querySelector('[data-learn-close]');
+    if(closeBtn) closeBtn.onclick = (e)=>{ e.stopPropagation(); closeModuleLearnMenu(); };
+    box.querySelectorAll('[data-learn-opt]').forEach(opt=> opt.onclick = (e)=>{
+      e.stopPropagation();
+      closeModuleLearnMenu();
+      showBigToast('Tính năng này đang được thiết kế, sẽ sớm ra mắt.');
+    });
+  }
+  // Bấm ra ngoài thì đóng — uỷ quyền MỘT lần cho cả app, không gắn lại sau mỗi lần vẽ.
+  if(!window.__moduleLearnOutsideDelegated){
+    window.__moduleLearnOutsideDelegated = true;
+    document.addEventListener('click', (e)=>{ if(!e.target.closest('#module-learn')) closeModuleLearnMenu(); });
+  }
+
   function focusNavItem(selector){
     setTimeout(()=>{
       const el = document.querySelector(selector);
@@ -849,6 +903,10 @@
         });
       }catch(e){ console.error('Không lắng nghe được thông báo cá nhân:', e); }
     }
+    // Tên module đang xem — dùng chung cho tiêu đề trên cùng và cho menu "Tìm hiểu thêm".
+    const moduleTitle = state.activeTab==='data'
+      ? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân'
+      : ((navTabs.find(n=>n.id===state.activeTab)||{label:''}).label || '');
     root.innerHTML = `
       <div class="app-title-banner"><span>Sổ tay Công tác Hội Nông dân cấp xã/phường</span></div>
       ${isTourMode()? `
@@ -902,16 +960,18 @@
         </div>
         <div class="main ${state.sidebarCollapsed?'sidebar-collapsed':''}">
           <div class="topbar">
-            <div><h2>${state.activeTab==='data'? 'Sổ vay vốn Quỹ Hỗ trợ Nông dân' : (navTabs.find(n=>n.id===state.activeTab)||{label:''}).label}</h2></div>
+            <div><h2>${escapeHtml(moduleTitle)}</h2></div>
             <div class="top-actions">
               <button class="bell-btn" id="bell-btn">🔔${alerts.length?`<span class="bell-dot"></span>`:''}</button>
               <div class="avatar" ${state.identity.photo?`style="background-image:url('${state.identity.photo}'); background-size:cover; background-position:center;"`:''}>${state.identity.photo?'':(state.identity.name||'?')[0].toUpperCase()}</div>
               ${state.bellOpen? renderBellPanel() : ''}
             </div>
           </div>
+          ${moduleLearnBarHtml(moduleTitle)}
           <div class="content" id="content"></div>
         </div>
       </div>`;
+    wireModuleLearnBar();
     document.querySelectorAll('.nav-item').forEach(el=>{
       el.onclick = ()=>{
         // Mục nhóm "Công cụ văn phòng": chỉ đóng/mở menu thả xuống, không đổi tab.
