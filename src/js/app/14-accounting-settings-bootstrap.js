@@ -965,6 +965,7 @@
       </div>` : '';
     return `
       <div class="ai-sidebar ${state._pgSidebarCollapsed?'collapsed':''}" id="pg-sidebar">
+        <div class="ai-side-title">${waveTextHtmlSlow('Tạo bài Tuyên truyền')}</div>
         <button class="ai-exit-btn" id="pg-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="pg-newchat-btn">➕ Đoạn hội thoại mới</button>
         <div class="ai-hist-label">Lịch sử tuyên truyền</div>

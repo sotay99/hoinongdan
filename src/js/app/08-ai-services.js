@@ -844,6 +844,7 @@ ${fileGenerationTrainingText()}`;
     const prevScrollTop = prevMsgBox ? prevMsgBox.scrollTop : 0;
     overlay.innerHTML = `
       <div class="ai-sidebar ${state._aiSidebarCollapsed?'collapsed':''}" id="ai-sidebar">
+        <div class="ai-side-title">${waveTextHtmlSlow('Chàng Nông dân Thông minh')}</div>
         <button class="ai-exit-btn" id="ai-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="ai-newchat-btn">➕ Đoạn chat mới</button>
         <button class="ai-newchat-btn" id="ai-goto-notes-btn">🗒️ Mở Ghi chú nhanh</button>

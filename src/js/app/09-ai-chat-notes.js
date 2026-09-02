@@ -23,6 +23,7 @@
 
     overlay.innerHTML = `
       <div class="ai-sidebar ${state._qnSidebarCollapsed?'collapsed':''}" id="qn-sidebar" style="display:flex; flex-direction:column;">
+        <div class="ai-side-title">${waveTextHtmlSlow('Ghi chú nhanh')}</div>
         <button class="ai-exit-btn" id="qn-exit-btn">✕ THOÁT</button>
         <button class="ai-newchat-btn" id="qn-goto-chat-btn">💬 Chat với AI Chàng Nông dân Thông minh</button>
         <button class="ai-newchat-btn" id="qn-goto-drive-btn">🗂️ Mở Trung tâm dữ liệu</button>
