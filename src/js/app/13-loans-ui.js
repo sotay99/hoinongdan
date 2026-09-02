@@ -404,7 +404,7 @@
                 <td style="${svColStyle({label:'Lãi suất %', width:96})}">${p.interestRate||0}%/năm</td>
                 <td style="${svColStyle({key:'loanDate',label:'Ngày vay'})}">${fmtDate(p.disburseDate)}</td>
                 <td style="${svColStyle({key:'dueDate',label:'Đến hạn'})}">${fmtDate(p.dueDate)}</td>
-                <td class="sv-col-wrap-check" style="${svColStyle({label:'Nguồn vay', width:140})}">${escapeHtml(p.fundSourceType||'')}</td>
+                <td class="sv-col-wrap-check" style="${svColStyle({label:'Nguồn vay', width:140})}">${escapeHtml(fundSourceDisplay(p.fundSourceType))}</td>
                 <td style="${svColStyle({align:'right',label:'Phân bổ Cấp Trung ương (%)', width:110})}">${String(parseFloat(p.splitCentral)||0).replace('.',',')}%</td>
                 <td style="${svColStyle({align:'right',label:`Phân bổ Cấp ${provinceLevelLabel()} (%)`, width:100})}">${String(parseFloat(p.splitProvince)||0).replace('.',',')}%</td>
                 <td style="${svColStyle({align:'right',label:`Phân bổ Cấp ${adminLevelLabel()} (%)`, width:100})}">${String(parseFloat(p.splitWard)||0).replace('.',',')}%</td>

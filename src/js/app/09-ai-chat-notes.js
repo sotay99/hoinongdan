@@ -995,7 +995,7 @@
     else if(state.activeTab==='strength') renderStrengthTab(content);
     else if(state.activeTab==='drive') renderDriveHubTab(content);
     // docs/sheets/slides KHÔNG còn là tab: chúng mở overlay toàn màn hình từ menu thả xuống.
-    else if(UPCOMING_MODULES[state.activeTab]) renderUpcomingModule(content, UPCOMING_MODULES[state.activeTab]);
+    else if(upcomingModules()[state.activeTab]) renderUpcomingModule(content, upcomingModules()[state.activeTab]);
     else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
@@ -1747,7 +1747,7 @@
       { key:'principal', label:'Số tiền gốc (đ)', advanced:false, align:'right', get:b=> moneySpaced(b.principal) },
       { key:'loanDate', label:'Ngày vay', advanced:false, get:b=> fmtDate(b.loanDate) },
       { key:'dueDate', label:'Ngày đến hạn', advanced:false, get:b=> fmtDate(b.dueDate) },
-      { key:'fundSource', label:'Nguồn vay', advanced:false, userInput:true, get:b=> b.fundSource||'' },
+      { key:'fundSource', label:'Nguồn vay', advanced:false, userInput:true, get:b=> fundSourceDisplay(b.fundSource) },
       { key:'rate', label:'Lãi suất (%/năm)', advanced:false, align:'right', get:b=> formatRateWithOverdueHtml(b,'rate','%/năm'), getPlain:b=> formatRateWithOverduePlain(b,'rate','%/năm') },
       { key:'interestFromDate', label:'Tính lãi từ ngày', advanced:false, get:b=> fmtDate(borrowerCurrentQuarterRange(b).from) },
       { key:'interestToDate', label:'đến ngày', advanced:false, get:b=> fmtDate(borrowerCurrentQuarterRange(b).to) },
@@ -2492,11 +2492,14 @@
   // TOÀN BỘ các trường BẮT BUỘC dùng CHUNG của 1 Phương án vay — đúng theo yêu cầu: mọi người vay
   // trong CÙNG phương án đều phải giống hệt nhau ở các trường này. Hiện thành 1 DÒNG RIÊNG (không lặp
   // lại ở từng dòng người vay nữa) ngay phía trên bảng danh sách người vay của phương án đó.
-  const QUICKADD_PROJECT_FIELDS = [
+  // LƯU Ý: phải là HÀM, không được là hằng ở tầng ngoài cùng. Nhãn bên trong gọi tới
+  // danh xưng động (đọc state.config), mà hằng tầng ngoài chạy NGAY lúc nạp tệp — lúc đó
+  // `state` chưa khởi tạo, sẽ ném ReferenceError và làm trắng cả trang.
+  function quickAddProjectFields(){ return [
     ['name','Tên phương án'], ['totalCapital','Tổng số tiền nguồn vốn (đ)'], ['disburseDate','Ngày giải ngân (ngày vay)'], ['dueDate','Ngày đến hạn trả'],
     ['fundSourceType','Nguồn vay'], ['interestRate','Lãi suất (%/năm)'], ['splitCentral','Phân bổ Cấp TW (%)'], ['splitProvince',`Phân bổ Cấp ${provinceLevelLabel()} (%)`],
     ['splitWard',`Phân bổ Cấp ${adminLevelLabel()} (%)`], ['hamletAllocPercent',`% ${adminLevelLabel()} chia ${subAdminLabel()}`],
-  ];
+  ]; }
   // Các cột (trong QUICKADD_PREVIEW_COLS) mà giá trị của nó ĐÃ được thể hiện ở dòng Phương án vay riêng
   // rồi (projectName/loanDate/dueDate/fundSource/rate) — KHÔNG hiện lặp lại ở từng dòng người vay nữa.
   const QUICKADD_PROJECT_LEVEL_BORROWER_KEYS = new Set(['projectName','loanDate','dueDate','fundSource','rate']);
@@ -3158,10 +3161,10 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       const stickyHeaderStyle = 'position:sticky; left:0; z-index:3; background:#1565c0; color:#fff;';
       const stickyCellStyle = 'position:sticky; left:0; z-index:1; background:#eeeeee;';
       return `<table style="border-collapse:collapse; width:max-content; margin-bottom:6px;">
-        <thead><tr><th colspan="${QUICKADD_PROJECT_FIELDS.length}" style="background:${isExisting?'#e0e0e0':'#ffe0b2'}; border:1px solid var(--line); padding:4px 8px; font-size:11px; text-align:left; font-weight:800;">${isExisting? '🔒 Thông tin Phương án vay (đã có sẵn — chỉ xem, không thể sửa)' : '✏️ Thông tin Phương án vay (mới — có thể sửa)'}</th></tr>
-        <tr>${QUICKADD_PROJECT_FIELDS.map(([k,label],ci)=>`<th style="${ci===0?stickyHeaderStyle:`background:${isExisting?'#eeeeee':'#fff3e0'};`} border:1px solid var(--line); padding:5px 8px; font-size:11px; white-space:nowrap;">${htmlLabel(label)}</th>`).join('')}</tr></thead>
+        <thead><tr><th colspan="${quickAddProjectFields().length}" style="background:${isExisting?'#e0e0e0':'#ffe0b2'}; border:1px solid var(--line); padding:4px 8px; font-size:11px; text-align:left; font-weight:800;">${isExisting? '🔒 Thông tin Phương án vay (đã có sẵn — chỉ xem, không thể sửa)' : '✏️ Thông tin Phương án vay (mới — có thể sửa)'}</th></tr>
+        <tr>${quickAddProjectFields().map(([k,label],ci)=>`<th style="${ci===0?stickyHeaderStyle:`background:${isExisting?'#eeeeee':'#fff3e0'};`} border:1px solid var(--line); padding:5px 8px; font-size:11px; white-space:nowrap;">${htmlLabel(label)}</th>`).join('')}</tr></thead>
         <tbody><tr>
-          ${QUICKADD_PROJECT_FIELDS.map(([k],ci)=>{
+          ${quickAddProjectFields().map(([k],ci)=>{
             const isDateField = k==='disburseDate' || k==='dueDate';
             const rawVal = src[k]!=null? String(src[k]) : '';
             const displayVal = isDateField ? (rawVal? fmtDate(rawVal) : '') : rawVal;

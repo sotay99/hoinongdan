@@ -958,7 +958,7 @@
             <div class="field"><label>Lãi suất (%/năm)</label><input value="${h.rate}%/năm" disabled></div>
             <div class="field"><label>Ngày vay</label><input value="${fmtDate(h.loanDate)}" disabled></div>
             <div class="field"><label>Ngày đến hạn</label><input value="${fmtDate(h.dueDate)}" disabled></div>
-            <div class="field"><label>Nguồn vay</label><input value="${escapeHtml(h.fundSource||'')}" disabled></div>
+            <div class="field"><label>Nguồn vay</label><input value="${escapeHtml(fundSourceDisplay(h.fundSource))}" disabled></div>
           </div>
           <div class="divider-lbl">💡 Thông tin nâng cao (không bắt buộc — có thể để trống)</div>
           <div class="form-grid">

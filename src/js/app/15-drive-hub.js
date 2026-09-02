@@ -1241,7 +1241,10 @@
       </div>`;
   }
 
-  const UPCOMING_MODULES = {
+  // LƯU Ý: phải là HÀM, không được là hằng ở tầng ngoài cùng. Nhãn bên trong gọi tới
+  // danh xưng động (đọc state.config), mà hằng tầng ngoài chạy NGAY lúc nạp tệp — lúc đó
+  // `state` chưa khởi tạo, sẽ ném ReferenceError và làm trắng cả trang.
+  function upcomingModules(){ return {
     schedule: {
       icon:'📅', eyebrow:'QUẢN LÝ THỜI GIAN', title:'Lịch Công tác',
       lead:'Lịch công tác của xã/phường thường phát ra dưới dạng một tệp chung cho tất cả cán bộ, mỗi người phải tự dò xem dòng nào là của mình. Module này để AI làm việc dò ấy thay đồng chí.',
@@ -1375,7 +1378,7 @@
       ],
       note:['Vì sao tách riêng?','Cán bộ chi hội phần lớn kiêm nhiệm, làm ngoài giờ và không được đào tạo về phần mềm. Nên module này cố tình làm gọn, chỉ giữ đúng những việc chi hội thật sự cần, không bắt học cả hệ thống lớn.'],
     },
-  };
+  }; }
 
   // =====================================================================
   // ĐIỂM KHỞI ĐỘNG ỨNG DỤNG — PHẢI LUÔN NẰM Ở CUỐI PHẦN CUỐI CÙNG trong

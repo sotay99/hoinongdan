@@ -64,7 +64,7 @@
       <button type="button" class="btn btn-ghost btn-sm preview-allow" id="${idPrefix}-fundsource-btn" style="${!allSel?'border:2px solid #b71c1c;':''}">💰 Nguồn vay (${selectedList.length})</button>
       ${state.openFilterDropdown===idPrefix+'-fundsource'? `<div class="sv-filter-panel">
         <label class="sv-filter-item"><input type="checkbox" id="${idPrefix}-fundsource-all" class="preview-allow" ${allSel?'checked':''}><span><b>Tất cả nguồn vay</b></span></label>
-        ${allFundSources.map(fs=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow ${idPrefix}-fundsource-item" data-fs="${escapeHtml(fs)}" ${selectedList.includes(fs)?'checked':''}><span>${escapeHtml(fs)}</span></label>`).join('')}
+        ${allFundSources.map(fs=>`<label class="sv-filter-item"><input type="checkbox" class="preview-allow ${idPrefix}-fundsource-item" data-fs="${escapeHtml(fs)}" ${selectedList.includes(fs)?'checked':''}><span>${escapeHtml(fundSourceDisplay(fs))}</span></label>`).join('')}
       </div>` : ''}
     </div>`;
   }
@@ -126,7 +126,7 @@
     const sel = state.filterFundSources;
     if(sel.length===sources.length && sources.length>0) return 'Tất cả nguồn vay';
     if(sel.length===0) return '0 nguồn vay';
-    if(sel.length===1) return sel[0];
+    if(sel.length===1) return fundSourceDisplay(sel[0]);
     return `${sel.length} nguồn vay`;
   }
   function toggleFundSourceAll(sources, checked){ state.filterFundSources = checked ? sources.slice() : []; }
@@ -195,7 +195,7 @@
         ${sources.length? `
         <label class="sv-filter-item"><input type="checkbox" class="preview-allow" id="f-fundsource-all" ${allChecked?'checked':''}><span><b>Tất cả nguồn vay</b></span></label>
         <div class="sv-filter-divider"></div>
-        ${sources.map(s=>`<label class="sv-filter-item"><input type="checkbox" class="f-fundsource-item preview-allow" data-name="${escapeHtml(s)}" ${sel.includes(s)?'checked':''}><span>${escapeHtml(s)}</span></label>`).join('')}
+        ${sources.map(s=>`<label class="sv-filter-item"><input type="checkbox" class="f-fundsource-item preview-allow" data-name="${escapeHtml(s)}" ${sel.includes(s)?'checked':''}><span>${escapeHtml(fundSourceDisplay(s))}</span></label>`).join('')}
         ` : `<div class="sub" style="padding:6px 10px;">Chưa có Nguồn vay nào được nhập.</div>`}
       </div>` : ''}
     </div>`;

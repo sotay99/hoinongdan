@@ -967,7 +967,7 @@
     const lines = [];
     lines.push(`Địa chỉ: ${hamletName}`);
     lines.push(`Phương án vay: ${proj? proj.name : ''}`);
-    lines.push(`Nguồn vay: ${b.fundSource||''}`);
+    lines.push(`Nguồn vay: ${fundSourceDisplay(b.fundSource)}`);
     lines.push(`Số tiền vay gốc ${moneySpaced(b.principal)}`);
     lines.push(`Ngày vay ${fmtDate(b.loanDate)}`);
     lines.push(`Ngày đến hạn ${fmtDate(b.dueDate)}`);

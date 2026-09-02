@@ -705,7 +705,7 @@
           { label:'Lãi suất %', width:96, get:p=> (p.interestRate||0)+'%/năm' },
           { key:'loanDate', label:'Ngày vay', get:p=> fmtDate(p.disburseDate) },
           { key:'dueDate', label:'Đến hạn', get:p=> fmtDate(p.dueDate) },
-          { label:'Nguồn vay', width:140, get:p=> escapeHtml(p.fundSourceType||'') },
+          { label:'Nguồn vay', width:140, get:p=> escapeHtml(fundSourceDisplay(p.fundSourceType)) },
           { align:'right', label:'Phân bổ Cấp Trung ương (%)', width:110, get:p=> String(parseFloat(p.splitCentral)||0).replace('.',',')+'%' },
           { align:'right', label:`Phân bổ Cấp ${provinceLevelLabel()} (%)`, width:100, get:p=> String(parseFloat(p.splitProvince)||0).replace('.',',')+'%' },
           { align:'right', label:`Phân bổ Cấp ${adminLevelLabel()} (%)`, width:100, get:p=> String(parseFloat(p.splitWard)||0).replace('.',',')+'%' },

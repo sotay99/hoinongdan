@@ -479,7 +479,10 @@
   // Cột riêng cho Danh sách Phương án vay (khác hẳn cột người vay) khi xuất/in — PHẢI khớp CHÍNH XÁC
   // với đúng các cột đang hiển thị ở panel "Danh sách Phương án vay" ngoài giao diện (cùng thứ tự, cùng
   // số lượng) — tránh tình trạng thiếu/thừa cột giữa xem trước, panel và file xuất/in thật.
-  const PROJECT_EXPORT_COLS = [
+  // LƯU Ý: phải là HÀM, không được là hằng ở tầng ngoài cùng. Nhãn bên trong gọi tới
+  // danh xưng động (đọc state.config), mà hằng tầng ngoài chạy NGAY lúc nạp tệp — lúc đó
+  // `state` chưa khởi tạo, sẽ ném ReferenceError và làm trắng cả trang.
+  function projectExportCols(){ return [
     { label:'Tên phương án vay', get: p=> escapeHtml(p.name||''), getPlain: p=> p.name||'' },
     { label:'Tổng nguồn vốn (đ)', get: p=> moneySpaced(p.totalCapital||0), getPlain: p=> p.totalCapital||0 },
     { label:'Hộ tham gia', get: p=> String(projectParticipantCount(p.id)), getPlain: p=> projectParticipantCount(p.id) },
@@ -487,14 +490,14 @@
     { label:'Lãi suất (%/năm)', get: p=> String(parseFloat(p.interestRate)||0).replace('.',','), getPlain: p=> parseFloat(p.interestRate)||0 },
     { label:'Ngày vay', get: p=> fmtDate(p.disburseDate), getPlain: p=> p.disburseDate||'' },
     { label:'Ngày đến hạn', get: p=> fmtDate(p.dueDate), getPlain: p=> p.dueDate||'' },
-    { label:'Nguồn vay', get: p=> escapeHtml(p.fundSourceType||''), getPlain: p=> p.fundSourceType||'' },
+    { label:'Nguồn vay', get: p=> escapeHtml(fundSourceDisplay(p.fundSourceType)), getPlain: p=> fundSourceDisplay(p.fundSourceType) },
     { label:'Phân bổ Cấp Trung ương (%)', get: p=> String(parseFloat(p.splitCentral)||0).replace('.',','), getPlain: p=> parseFloat(p.splitCentral)||0 },
     { label:`Phân bổ Cấp ${provinceLevelLabel()} (%)`, get: p=> String(parseFloat(p.splitProvince)||0).replace('.',','), getPlain: p=> parseFloat(p.splitProvince)||0 },
     { label:`Phân bổ Cấp ${adminLevelLabel()} (%)`, get: p=> String(parseFloat(p.splitWard)||0).replace('.',','), getPlain: p=> parseFloat(p.splitWard)||0 },
     { label:`% ${adminLevelLabel()} phân bổ về cấp dưới`, get: p=> String(parseFloat(p.hamletAllocPercent)||0).replace('.',','), getPlain: p=> parseFloat(p.hamletAllocPercent)||0 },
     { label:'Thời gian còn lại', get: p=> daysRemainingLabel(p.dueDate), getPlain: p=> daysRemainingLabel(p.dueDate) },
     { label:'Số tiền còn lại không hoạt động (đ)', get: p=> moneySpaced(projectInactiveAmountRaw(p)), getPlain: p=> projectInactiveAmountRaw(p) },
-  ];
+  ]; }
   function quarterBoundariesLineHtml(){
     const q = (state.config && state.config.quarters) || DEFAULT_QUARTERS;
     const fmt = (m,d)=> `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`;
@@ -506,7 +509,7 @@
   }
   function buildLoanExportSections(){
     const sections = [];
-    sections.push({ key:'projects', label:'📋 Danh sách Phương án vay', list: sortedActiveProjects(state.loanProjects||[]), cols: PROJECT_EXPORT_COLS });
+    sections.push({ key:'projects', label:'📋 Danh sách Phương án vay', list: sortedActiveProjects(state.loanProjects||[]), cols: projectExportCols() });
     const baseList = state.borrowers.filter(b=>!b.deleted && !b.settled && !b.riskDebt);
     const overdueList = sortBorrowersForExport(baseList.filter(borrowerIsOverdueUnhandled));
     const activeList = sortBorrowersForExport(baseList.filter(b=>!borrowerIsOverdueUnhandled(b)));

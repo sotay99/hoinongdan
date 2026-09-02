@@ -124,13 +124,108 @@ if (bootMatches.length !== 1) {
   }
 }
 
-if (failures.length) {
-  console.error("Kiểm tra cấu trúc bản nối THẤT BẠI:");
-  failures.forEach((message) => console.error(`- ${message}`));
-  process.exit(1);
+// ---------------------------------------------------------------------------
+// 5) CHẠY THẬT bản nối trong một trình duyệt giả lập tối thiểu.
+//    Bốn mục trên chỉ ĐỌC mã: chúng xác nhận bản nối phân tích được cú pháp và
+//    boot() đứng đúng chỗ, nhưng KHÔNG phát hiện được lỗi chỉ lộ ra lúc chạy.
+//    Lỗi thật đã xảy ra: một hằng ở TẦNG NGOÀI CÙNG (VD PROJECT_EXPORT_COLS ở
+//    phần 04) gọi tới hàm đọc `state` — hằng tầng ngoài chạy NGAY khi nạp phần
+//    04, trong khi `state` mãi phần 05 mới khai báo. Kết quả là
+//    "Cannot access 'state' before initialization", hàm bọc chết ngay, trang
+//    trắng xoá — mà cả 4 mục trên vẫn báo xanh.
+//    Vì vậy: nạp bản nối một lần, nếu nó ném lỗi thì chặn ngay tại đây.
+// ---------------------------------------------------------------------------
+if (!failures.length) {
+  const vm = require("vm");
+  const noop = () => {};
+  const chainable = new Proxy(function () {}, {
+    get: (target, prop) => (prop === "then" ? undefined : chainable),
+    apply: () => chainable,
+    construct: () => chainable,
+  });
+  const el = () => ({
+    style: {}, dataset: {}, classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
+    appendChild: noop, removeChild: noop, remove: noop, addEventListener: noop, removeEventListener: noop,
+    setAttribute: noop, getAttribute: () => null, querySelector: () => null, querySelectorAll: () => [],
+    insertBefore: noop, focus: noop, click: noop, closest: () => null, getBoundingClientRect: () => ({}),
+    innerHTML: "", textContent: "", value: "", children: [],
+  });
+  const documentStub = {
+    ...el(), body: el(), documentElement: el(), head: el(),
+    getElementById: () => el(), createElement: el, createTextNode: el,
+    addEventListener: noop, removeEventListener: noop,
+    querySelector: () => null, querySelectorAll: () => [], scrollingElement: el(), activeElement: null,
+  };
+  const sandbox = {
+    console: { log: noop, warn: noop, error: noop, info: noop },
+    document: documentStub,
+    location: { href: "https://example.test/", pathname: "/", search: "", hash: "", origin: "https://example.test" },
+    history: { pushState: noop, replaceState: noop },
+    navigator: { userAgent: "node", language: "vi", clipboard: {} },
+    localStorage: { getItem: () => null, setItem: noop, removeItem: noop, clear: noop },
+    sessionStorage: { getItem: () => null, setItem: noop, removeItem: noop, clear: noop },
+    setTimeout: noop, clearTimeout: noop, setInterval: noop, clearInterval: noop,
+    requestAnimationFrame: noop, cancelAnimationFrame: noop,
+    fetch: () => new Promise(noop), alert: noop, confirm: () => false, prompt: () => null,
+    matchMedia: () => ({ matches: false, addEventListener: noop, addListener: noop }),
+    MutationObserver: function () { return { observe: noop, disconnect: noop, takeRecords: () => [] }; },
+    ResizeObserver: function () { return { observe: noop, disconnect: noop, unobserve: noop }; },
+    IntersectionObserver: function () { return { observe: noop, disconnect: noop, unobserve: noop }; },
+    URL: URL, URLSearchParams: URLSearchParams, Blob: function () {}, FileReader: function () { return { readAsText: noop }; },
+    Image: function () { return {}; }, Audio: function () { return { play: noop }; },
+    btoa: (x) => Buffer.from(String(x), 'binary').toString('base64'),
+    atob: (x) => Buffer.from(String(x), 'base64').toString('binary'),
+    crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000000', getRandomValues: (a) => a },
+    performance: { now: () => 0 },
+    Element: Object.assign(function () {}, { prototype: { remove: noop } }), HTMLElement: function () {}, Node: function () {}, Event: function () {},
+    CustomEvent: function () {}, DOMParser: function () { return { parseFromString: () => documentStub }; },
+    XMLHttpRequest: function () { return { open: noop, send: noop, setRequestHeader: noop }; },
+    speechSynthesis: { speak: noop, cancel: noop, getVoices: () => [] },
+    innerWidth: 1280, innerHeight: 800, pageYOffset: 0, scrollTo: noop, scrollBy: noop,
+    addEventListener: noop, removeEventListener: noop, getComputedStyle: () => ({}),
+    // Hạ tầng do các tệp KHÁC index.html cung cấp — bản nối chỉ dùng chứ không tạo ra.
+    rtdb: chainable, auth: chainable, storage: chainable, googleProvider: {},
+    firebase: chainable, authPersistenceReady: Promise.resolve(),
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  // boot() thường được gọi trong một microtask (authPersistenceReady.then / onAuthStateChanged)
+  // nên lỗi ở đó KHÔNG rơi vào try/catch đồng bộ — phải hứng riêng.
+  const asyncErrors = [];
+  const onUncaught = (e) => asyncErrors.push(e);
+  process.on("uncaughtException", onUncaught);
+  process.on("unhandledRejection", onUncaught);
+  try {
+    vm.runInNewContext(bundleText, vm.createContext(sandbox), { filename: "app.bundle.js", timeout: 15000 });
+  } catch (error) {
+    fail(
+      `Bản nối NÉM LỖI ngay khi nạp: ${error && error.message}\n` +
+        `  Đây đúng là lỗi làm TRẮNG TRANG. Hay gặp nhất: một hằng ở tầng ngoài cùng ` +
+        `(const/let thụt 2 dấu cách) gọi tới hàm có đọc \`state\` hoặc \`state.config\`. ` +
+        `Hằng tầng ngoài chạy ngay lúc nạp phần đó, còn \`state\` mãi phần 05 mới khai báo. ` +
+        `Cách sửa: đổi hằng ấy thành HÀM để nhãn được tính lúc gọi.`,
+    );
+  }
+  setTimeout(() => {
+    process.off("uncaughtException", onUncaught);
+    process.off("unhandledRejection", onUncaught);
+    for (const e of asyncErrors) {
+      fail(`Bản nối NÉM LỖI trong lúc khởi động (boot): ${(e && e.message) || e}`);
+    }
+  }, 20);
 }
 
-console.log(
-  `Kiểm tra cấu trúc bản nối ĐẠT: ${manifest.length} phần nằm trong 1 hàm bọc, ` +
-    `mở ở ${firstChunk}, đóng ở ${lastChunk}, boot() ở đúng vị trí cuối.`,
-);
+function report() {
+  if (failures.length) {
+    console.error("Kiểm tra cấu trúc bản nối THẤT BẠI:");
+    failures.forEach((message) => console.error(`- ${message}`));
+    process.exit(1);
+  }
+  console.log(
+    `Kiểm tra cấu trúc bản nối ĐẠT: ${manifest.length} phần nằm trong 1 hàm bọc, ` +
+      `mở ở ${firstChunk}, đóng ở ${lastChunk}, boot() ở đúng vị trí cuối, ` +
+      `và bản nối CHẠY được tới hết boot() mà không ném lỗi.`,
+  );
+}
+// Chờ vài nhịp cho microtask (boot chạy trong .then) rồi mới kết luận.
+setTimeout(report, 50);

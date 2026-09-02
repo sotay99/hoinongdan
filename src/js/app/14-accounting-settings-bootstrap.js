@@ -1291,7 +1291,10 @@
   // bảng gốc chứa toàn bộ hội viên, các bảng "để in" và "thực lực" theo xã và
   // theo từng chi hội thôn/ấp đều chạy bằng công thức tham chiếu sang bảng gốc.
   // =====================================================================
-  const MEMBERS_INTRO = {
+  // LƯU Ý: phải là HÀM, không được là hằng ở tầng ngoài cùng. Nhãn bên trong gọi tới
+  // danh xưng động (đọc state.config), mà hằng tầng ngoài chạy NGAY lúc nạp tệp — lúc đó
+  // `state` chưa khởi tạo, sẽ ném ReferenceError và làm trắng cả trang.
+  function membersIntro(){ return {
     icon:'🪪', eyebrow:'QUẢN LÝ HỘI VIÊN', title:'Hồ sơ hội viên',
     lead:'Danh sách hội viên của một xã thường là một tệp Excel nặng vài nghìn dòng, có một bảng gốc và cả chục bảng phụ chạy theo công thức. Sửa một chỗ ở bảng gốc thì mọi bảng khác đổi theo — nhưng chỉ cần gõ thừa một dấu cách là số liệu sai mà máy không hề báo lỗi. Module này thay cách làm ấy bằng một cơ sở dữ liệu hội viên đúng nghĩa.',
     blocks:[
@@ -1311,9 +1314,9 @@
        'Lọc theo chi hội thôn/ấp, giới tính, độ tuổi, dân tộc, tôn giáo, đảng viên, hội viên nòng cốt, đã cấp thẻ hay chưa, đạt danh hiệu cấp nào. Kết quả lọc in thẳng ra danh sách đúng thể thức báo cáo, đánh số thứ tự theo xã và theo ấp — và chỉ in đúng số hội viên đang có, không sinh ra hàng chục trang giấy trắng như khi in cả bảng Excel còn dư dòng trống.'],
     ],
     note:['Vì sao phải bỏ Excel','Không phải vì Excel kém — file Excel mà các cơ sở Hội đang dùng được dựng rất công phu. Vấn đề là nó mong manh: xoá nhầm một dòng, đổi tên một trang tính, hay copy sang tệp khác là công thức đứt, số liệu hiện #REF! hoặc lặng lẽ nhảy về 0. Dữ liệu hội viên của cả xã không nên phụ thuộc vào việc mọi người đều nhớ đủ ngần ấy điều cấm kỵ.'],
-  };
+  }; }
 
-  const STRENGTH_INTRO = {
+  function strengthIntro(){ return {
     icon:'💪', eyebrow:'THỐNG KÊ TỔ CHỨC', title:'Thực lực Hội',
     lead:`Thực lực Hội là bức chân dung bằng con số của tổ chức: có bao nhiêu hộ nông dân, bao nhiêu hộ đã có hội viên, hội viên là dân tộc thiểu số và người có đạo bao nhiêu, bộ máy chi hội — tổ hội ra sao, bao nhiêu người đạt danh hiệu sản xuất kinh doanh giỏi. Module này dựng sẵn các bảng ấy và tự tính từ hồ sơ hội viên, ở cả cấp ${adminLevelLabelLower()} lẫn từng chi hội ${subAdminLabelLower()}.`,
     blocks:[
@@ -1331,10 +1334,10 @@
        'Kết xuất Word, Excel hoặc PDF đúng thể thức văn bản của Hội, kèm phần tiêu đề và ngày tháng. Con số xuất ra là con số thật, không phải công thức tham chiếu — dán sang tệp khác hay gửi cho cấp trên đều giữ nguyên, không bao giờ hiện #REF! hay tự nhảy về 0.'],
     ],
     note:['Điều quan trọng nhất','Thực lực Hội không phải là một bảng để điền, mà là kết quả đọc ra từ hồ sơ hội viên. Chừng nào hồ sơ được giữ đúng và đủ thì báo cáo thực lực chỉ còn là việc mở ra xem rồi kết xuất — cán bộ Hội không phải ngồi đếm tay, cũng không phải chịu trách nhiệm cho một con số mà mình không biết nó ra từ đâu.'],
-  };
+  }; }
 
-  function renderMembersTab(el){ renderUpcomingModule(el, MEMBERS_INTRO); }
-  function renderStrengthTab(el){ renderUpcomingModule(el, STRENGTH_INTRO); }
+  function renderMembersTab(el){ renderUpcomingModule(el, membersIntro()); }
+  function renderStrengthTab(el){ renderUpcomingModule(el, strengthIntro()); }
 
   // =====================================================================
   // Module [BIỂU MẪU / KHẢO SÁT / BÀI KIỂM TRA] — kiểu Google Forms.
@@ -3692,7 +3695,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
             <div class="field"><label>Lãi suất (%/năm)</label><input value="${b.rate}%/năm" disabled></div>
             <div class="field"><label>Ngày vay</label><input value="${fmtDate(b.loanDate)}" disabled></div>
             <div class="field"><label>Ngày đến hạn (gốc)</label><input value="${fmtDate(b.dueDate)}" disabled></div>
-            <div class="field"><label>Nguồn vay</label><input value="${escapeHtml(b.fundSource||'')}" disabled></div>
+            <div class="field"><label>Nguồn vay</label><input value="${escapeHtml(fundSourceDisplay(b.fundSource))}" disabled></div>
           </div>
 
           <div class="divider-lbl" id="m-adv-toggle" style="cursor:pointer; user-select:none;">🔽 Thông tin nâng cao (không bắt buộc — có thể để trống)</div>
