@@ -829,14 +829,193 @@
     ['guide',    '💬', 'Hướng dẫn sử dụng module'],
     ['intro',    '📖', 'Đọc Bản giới thiệu về module'],
   ];
-  function moduleLearnBarHtml(moduleTitle){
+  // =====================================================================
+  // BẢN GIỚI THIỆU của từng module (lựa chọn "📖 Đọc Bản giới thiệu...").
+  // Đây là MỘT BẢN SAO ĐỘC LẬP của nội dung tĩnh/hướng dẫn đang hiển thị chính
+  // trong module đó tại thời điểm viết — cố ý chép lại chữ, KHÔNG gọi lại hàm
+  // hay hằng của nội dung chính (membersIntro(), upcomingModules(), OFFICE_APPS...).
+  // Vì vậy sau này sửa nội dung chính của module thì bản giới thiệu này không đổi
+  // theo, và sửa bản giới thiệu này cũng không ảnh hưởng tới nội dung chính.
+  // Module nào không có mặt trong danh sách này thì bấm "Đọc Bản giới thiệu" vẫn
+  // chỉ hiện thông báo "sắp ra mắt" như cũ.
+  // =====================================================================
+  const MODULE_INTRO_CONTENT = {
+    internal: { icon:'🔒', eyebrow:'QUẢN LÝ NỘI BỘ', title:'Thu – Chi nội bộ',
+      lead:'Dữ liệu của Thu – Chi nội bộ được lưu chỉ trên máy tính này (bằng bộ nhớ cục bộ của trình duyệt), không đưa lên cơ sở dữ liệu đám mây Firebase như các mục còn lại của phần mềm, đảm bảo tính riêng tư tuyệt đối và không đồng bộ giữa các thiết bị. Tính năng này đang được nâng cấp.',
+      blocks:[], note:null },
+    members: { icon:'🪪', eyebrow:'QUẢN LÝ HỘI VIÊN', title:'Hồ sơ hội viên',
+      lead:'Danh sách hội viên của một xã thường là một tệp Excel nặng vài nghìn dòng, có một bảng gốc và cả chục bảng phụ chạy theo công thức. Sửa một chỗ ở bảng gốc thì mọi bảng khác đổi theo — nhưng chỉ cần gõ thừa một dấu cách là số liệu sai mà máy không hề báo lỗi. Module này thay cách làm ấy bằng một cơ sở dữ liệu hội viên đúng nghĩa.',
+      blocks:[
+        ['✨','Thêm nhanh hồ sơ hội viên bằng cách trò chuyện với AI','Mở một khung chat toàn màn hình, đồng chí nhắn tin, đính kèm ảnh hoặc tài liệu, hoặc bấm micro nói cho máy tự gõ ra chữ — ảnh chụp CCCD, đơn xin vào Hội, sổ ghi chép tay, danh sách in sẵn của chi hội đều được. AI đọc hết và rót vào đúng từng trường của hồ sơ.'],
+        ['📇','Mỗi hội viên là một hồ sơ, không còn là một dòng trong bảng','Đầy đủ các trường mà cơ sở Hội vẫn phải khai: họ và tên, năm sinh, dân tộc, tôn giáo, số CCCD, trình độ văn hoá, năm vào Hội, nơi ở, chức vụ, số điện thoại, ghi chú...'],
+        ['🌾','Phần sản xuất — kinh doanh gắn liền với hồ sơ','Diện tích sản xuất, ngành nghề chính, mức thu nhập, số lao động, tổ hợp tác/hợp tác xã, cây trồng vật nuôi chính, danh hiệu Nông dân sản xuất kinh doanh giỏi...'],
+        ['🔤','Nhập bằng cách chọn, không phải gõ tay','Dân tộc, tôn giáo, chi hội thôn/ấp, danh hiệu đều chọn từ danh mục có sẵn, tránh lỗi gõ sai lệch số liệu như trên Excel.'],
+        ['📤','Mang nguyên tệp Excel đang dùng vào, không phải nhập lại','AI đọc hiểu bảng, tự khớp từng cột vào đúng trường hồ sơ rồi đưa lại cho đồng chí duyệt trước khi lưu.'],
+        ['🔎','Tìm, lọc, rồi in đúng mẫu báo cáo','Lọc theo chi hội, giới tính, độ tuổi, dân tộc, tôn giáo... rồi in thẳng ra danh sách đúng thể thức báo cáo.'],
+      ], note:['Vì sao phải bỏ Excel','Dữ liệu hội viên của cả xã không nên phụ thuộc vào việc mọi người đều nhớ đủ các điều cấm kỵ của công thức Excel.'] },
+    strength: { icon:'💪', eyebrow:'THỐNG KÊ TỔ CHỨC', title:'Thực lực Hội',
+      lead:'Thực lực Hội là bức chân dung bằng con số của tổ chức: có bao nhiêu hộ nông dân, bao nhiêu hộ đã có hội viên, hội viên là dân tộc thiểu số và người có đạo bao nhiêu, bộ máy chi hội — tổ hội ra sao, bao nhiêu người đạt danh hiệu sản xuất kinh doanh giỏi. Module này dựng sẵn các bảng ấy và tự tính từ hồ sơ hội viên.',
+      blocks:[
+        ['📊','Các bảng thực lực dựng sẵn đúng mẫu đang dùng','Bảng tổng hợp rà soát số lượng hội viên, bảng dân tộc thiểu số, bảng người có đạo, bảng chi — tổ hội, bảng Nông dân sản xuất kinh doanh giỏi theo từng cấp.'],
+        ['🏘️','Cấp xã hay cấp chi hội, chỉ khác một cú bấm','Cùng một bộ bảng, đổi đơn vị là toàn bộ số liệu tính lại cho đúng chi hội đó.'],
+        ['⚡','Số liệu đúng ngay lúc nhìn, không cần bấm tính lại','Thêm, sửa, xoá hội viên là mọi bảng thực lực và tỉ lệ phần trăm đổi theo tức thì.'],
+        ['✍️','Những số không nằm trong hồ sơ thì nhập tay, và app nhớ giúp','Tổng số hộ dân cư, số hộ nông dân, số lao động nông nghiệp... app tách riêng để đồng chí điền và nhắc khi số đã cũ.'],
+        ['📈','So sánh giữa các kỳ và giữa các chi hội','Mỗi lần chốt số là một mốc được lưu lại để thấy xu hướng tăng giảm.'],
+        ['📄','Xuất ra để nộp, dán đi đâu cũng không lỗi','Kết xuất Word, Excel hoặc PDF đúng thể thức, số liệu là số thật không phải công thức tham chiếu.'],
+      ], note:['Điều quan trọng nhất','Thực lực Hội không phải là một bảng để điền, mà là kết quả đọc ra từ hồ sơ hội viên.'] },
+    tasks: { icon:'✅', eyebrow:'THEO DÕI TIẾN ĐỘ', title:'Danh sách Công việc',
+      lead:'Nơi tập hợp tất cả đầu việc của đồng chí — dù nó đến từ một văn bản chỉ đạo, một cuộc họp, hay chỉ là câu dặn dò trong nhóm chat — rồi theo dõi đến khi xong.',
+      blocks:[
+        ['🧠','AI đọc mọi thứ đồng chí đưa vào và tự rút ra đầu việc','Dán tin nhắn, tải lên công văn hay biên bản họp — AI nhặt ra đầu việc, đoán thời hạn, xếp mức ưu tiên.'],
+        ['🗺️','Bản đồ công việc theo tuần, tháng, năm','Thấy toàn cảnh chặng đường, việc nào phải xong trước, giai đoạn nào dồn việc.'],
+        ['📊','Theo dõi tiến độ và chấm KPI','Mỗi đầu việc có phần trăm hoàn thành, hạn chót và trạng thái, tự tổng hợp thành điểm KPI theo kỳ.'],
+        ['📎','Đính kèm bằng chứng cho từng việc','Gắn tệp, ảnh chụp hoặc liên kết làm minh chứng đã hoàn thành.'],
+        ['📝','AI soạn báo cáo tiến độ để nộp cấp trên','Tổng hợp việc đã làm, kết quả đạt được, việc còn dở và lý do thành bản báo cáo đúng thể thức.'],
+        ['👥','Giao việc và theo dõi người khác','Thấy được ai đang làm đến đâu, việc nào sắp trễ hạn để nhắc trước khi muộn.'],
+      ], note:['Điều khác biệt','Đồng chí chỉ cần ném nguyên tài liệu hoặc đoạn chat vào, phần bóc tách để AI lo.'] },
+    schedule: { icon:'📅', eyebrow:'QUẢN LÝ THỜI GIAN', title:'Lịch Công tác',
+      lead:'Lịch công tác của xã/phường thường phát ra dưới dạng một tệp chung cho tất cả cán bộ, mỗi người phải tự dò xem dòng nào là của mình. Module này để AI làm việc dò ấy thay đồng chí.',
+      blocks:[
+        ['📤','Tải tệp lịch chung lên là xong','Nhận tệp Word, Excel, PDF hay kể cả ảnh chụp bảng lịch dán ở cơ quan.'],
+        ['🔍','AI tách riêng phần việc của đồng chí','Lọc ra đúng những buổi có tên đồng chí hoặc thuộc mảng đồng chí phụ trách.'],
+        ['🔔','Nhắc hẹn như Lịch Google','Báo trước theo mốc đồng chí đặt, qua thông báo trên điện thoại/máy tính hoặc email.'],
+        ['🗓️','Nhìn được cả tuần, cả tháng, cả quý','Thấy ngay chỗ trùng lịch hay tuần nào đang quá tải.'],
+        ['🤝','Chia sẻ lịch trong cơ quan','Cho phép đồng nghiệp xem lịch của đồng chí khi cần xếp họp.'],
+        ['🔗','Nối với các phần khác của Sổ tay','Buổi họp có tài liệu kèm theo thì mở thẳng từ Trung tâm dữ liệu; việc phát sinh đẩy sang Danh sách công việc.'],
+      ], note:['Vì sao cần AI ở đây?','Vì lịch công tác mỗi nơi trình bày một kiểu; AI đọc hiểu nội dung nên mẫu nào cũng dùng được.'] },
+    drive: { icon:'🗂️', eyebrow:'TRUNG TÂM DỮ LIỆU', title:'Trung tâm dữ liệu',
+      lead:'Nơi lưu và sắp xếp mọi thư mục, tệp và liên kết tài liệu của xã/phường, có cả kho dùng chung và kho cá nhân. Metadata canonical lưu trên Firebase; Google Drive chỉ dùng làm liên kết/import/export ở các bước tích hợp sau.',
+      blocks:[
+        ['🏛️','Kho dùng chung theo mã xã/phường','Mọi cán bộ được cấp quyền trong mã xã cùng thấy và dùng chung một kho tài liệu.'],
+        ['🔒','Kho cá nhân riêng của từng người','Chưa đăng nhập Google thì lưu tạm trên trình duyệt, đăng nhập rồi thì đồng bộ lên Firebase.'],
+        ['📁','Thư mục, tệp, liên kết','Tạo thư mục, tải tệp lên, hoặc chỉ lưu một liên kết tới tài liệu đã có sẵn ở nơi khác.'],
+        ['🔗','Chia sẻ theo quyền','Cấp quyền Viewer, Commenter hoặc Editor cho từng tài nguyên.'],
+        ['🗑️','Thùng rác','Xoá nhầm vẫn khôi phục lại được, không mất dữ liệu ngay.'],
+      ], note:null },
+    docs: { icon:'📄', eyebrow:'SOẠN THẢO VĂN BẢN', title:'Tài liệu',
+      lead:'Một trình soạn thảo văn bản đầy đủ ngay trong Sổ tay — làm được mọi việc như Word, cộng thêm một trợ lý AI ngồi cạnh đồng chí suốt quá trình soạn thảo.',
+      blocks:[
+        ['✍️','Soạn thảo đầy đủ như phần mềm Word thật','Định dạng chữ, căn lề, giãn dòng, chèn bảng biểu, chèn ảnh, mục lục tự động. Hỗ trợ đúng thể thức văn bản hành chính Việt Nam.'],
+        ['🤖','Trợ lý AI ngồi ngay trong trang soạn thảo','Bôi đen một đoạn rồi bảo AI viết lại cho gọn, đổi giọng văn, tóm tắt hay mở rộng thành đoạn hoàn chỉnh.'],
+        ['🗂️','Lấy dữ liệu thẳng từ Trung tâm dữ liệu','AI đọc được các tệp đồng chí đã lưu để trích số liệu thật khi soạn báo cáo.'],
+        ['📋','Kho mẫu văn bản dùng sẵn','Nghị quyết, kế hoạch, báo cáo, tờ trình, giấy mời họp, biên bản, thông báo, quyết định...'],
+        ['👥','Nhiều người cùng làm trên một văn bản','Chia sẻ theo quyền Xem, Góp ý hoặc Sửa, mọi sửa đổi đều có dấu vết.'],
+        ['📤','Xuất ra định dạng quen thuộc','Tải về .docx hoặc PDF để in, ký và đóng dấu.'],
+      ], note:null },
+    sheets: { icon:'📊', eyebrow:'BẢNG TÍNH VÀ SỐ LIỆU', title:'Trang tính',
+      lead:'Bảng tính làm được mọi việc như Excel, nhưng đồng chí có thể ra lệnh bằng tiếng Việt thay vì phải nhớ công thức.',
+      blocks:[
+        ['🧮','Bảng tính đầy đủ như Excel','Công thức, hàm tính toán, định dạng theo điều kiện, lọc và sắp xếp, nhiều trang tính trong một tệp.'],
+        ['🗣️','Ra lệnh bằng tiếng Việt, AI viết công thức thay đồng chí','Gõ "tính tổng số hội viên từng ấp rồi sắp xếp giảm dần" — AI hiểu và làm ngay.'],
+        ['🧹','AI dọn dữ liệu lộn xộn','Rà soát sai chính tả, lệch định dạng ngày tháng, trùng lặp dòng và đề xuất cách sửa hàng loạt.'],
+        ['📈','Dựng biểu đồ và bảng tổng hợp trong một câu','Mô tả điều đồng chí muốn thấy, AI chọn loại biểu đồ phù hợp và dựng luôn.'],
+        ['🔗','Nối với số liệu sẵn có trong app','Kéo thẳng số liệu từ Sổ vay vốn, Sổ Thu Chi Lãi Quỹ hay Hồ sơ hội viên sang bảng tính.'],
+        ['📤','Xuất và chia sẻ','Tải về .xlsx hoặc PDF, hoặc chia sẻ cho đồng nghiệp cùng làm.'],
+      ], note:null },
+    slides: { icon:'📽️', eyebrow:'BÀI TRÌNH CHIẾU', title:'Trình bày',
+      lead:'Dựng bài trình chiếu như PowerPoint, và để AI biến một bản báo cáo dài thành bộ slide gọn gàng chỉ trong ít phút.',
+      blocks:[
+        ['🎬','Đầy đủ như PowerPoint','Bố cục slide, chèn ảnh và biểu đồ, hiệu ứng chuyển slide, ghi chú cho người trình bày, chế độ trình chiếu toàn màn hình.'],
+        ['⚡','Từ báo cáo dài thành bộ slide trong ít phút','Đưa cho AI một bản báo cáo, AI rút ý chính, chia slide, viết tiêu đề và soạn sẵn lời dẫn.'],
+        ['🎨','Giao diện thống nhất, đúng phong cách của Hội','Bộ màu và kiểu chữ đồng bộ cho cả bài, có sẵn mẫu cho hội nghị, sơ kết, tổng kết, tập huấn.'],
+        ['🗣️','Luyện trước khi lên trình bày','AI ước lượng thời lượng từng slide, cảnh báo chỗ quá nhiều chữ, gợi ý câu hỏi người nghe có thể hỏi.'],
+        ['🗂️','Nối với Trung tâm dữ liệu','Lấy ảnh, biểu đồ và số liệu thẳng từ kho tài liệu của xã/phường.'],
+        ['📤','Trình chiếu và chia sẻ','Chiếu trực tiếp trong app, tải về .pptx hoặc PDF, hoặc gửi liên kết cho người khác xem trước.'],
+      ], note:null },
+    meeting: { icon:'📋', eyebrow:'HỘI HỌP', title:'Phòng họp không giấy',
+      lead:'Mỗi cuộc họp là một thư mục tài liệu có đường liên kết riêng. Đại biểu quét mã là xem được toàn bộ tài liệu trên điện thoại — không in, không phát, không thừa giấy.',
+      blocks:[
+        ['📁','Mỗi cuộc họp một thư mục','Gom chương trình họp, báo cáo, tờ trình, dự thảo nghị quyết, phụ lục số liệu vào một chỗ.'],
+        ['🔗','Chia sẻ bằng liên kết chỉ xem','Người nhận chỉ xem được, không sửa và không xoá được gì.'],
+        ['📱','Tự sinh mã QR để quét','Chiếu mã QR lên màn hình hội trường hoặc in nhỏ dán trên bàn, đại biểu quét là vào ngay.'],
+        ['🔄','Sửa tài liệu phút chót vẫn kịp','Cập nhật tệp trong thư mục là mọi người mở lên đã thấy bản mới nhất.'],
+        ['⏱️','Đặt hạn cho liên kết','Hẹn ngày liên kết hết hiệu lực, hoặc đóng ngay sau khi họp xong.'],
+        ['🌱','Tiết kiệm thật sự','Giảm giấy mực và thời gian photo cho mỗi cuộc họp.'],
+      ], note:['Đơn giản là điểm mạnh','Ai biết quét mã QR là dùng được — kể cả các bác lớn tuổi.'] },
+    survey: { icon:'📝', eyebrow:'BIỂU MẪU — KHẢO SÁT — KIỂM TRA', title:'Biểu mẫu khảo sát',
+      lead:'Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người, tạo cuộc thi trực tuyến và chấm điểm tự động. Người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ tham gia bằng đường link do đồng chí cung cấp!',
+      blocks:[], note:null },
+    training: { icon:'🎓', eyebrow:'ĐÀO TẠO', title:'Tập huấn bằng AI',
+      lead:'Thay vì tập trung hàng trăm hội viên vào hội trường rồi giảng một lượt cho tất cả, đồng chí soạn bài giảng một lần và mỗi người được AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
+      blocks:[
+        ['📚','Soạn bài giảng rồi cho AI tiêu hoá','Đưa vào tài liệu dưới bất kỳ dạng nào — văn bản, slide, PDF, ảnh chụp tài liệu giấy.'],
+        ['🔗','Gửi bài giảng bằng một đường liên kết','Hội viên bấm vào liên kết là học được ngay, không cần cài phần mềm hay lập tài khoản.'],
+        ['💬','Học bằng cách trò chuyện, không phải đọc suông','Người học hỏi, AI trả lời, giải thích lại chỗ chưa hiểu, cho ví dụ gần gũi với công việc nhà nông.'],
+        ['🎯','AI tự dò xem người học đang ở đâu','Nhận ra người này đã biết gì và chưa biết gì, đi sâu vào phần họ còn yếu.'],
+        ['🧪','Kiểm tra hiểu bài ngay trong lúc học','AI đặt câu hỏi ngược lại để chắc rằng người học thật sự hiểu.'],
+        ['📈','Cán bộ Hội thấy được kết quả','Bao nhiêu người đã học, học đến đâu, chỗ nào nhiều người vướng nhất.'],
+      ], note:['Bài toán thực tế','Cách này giữ được nội dung do chính cán bộ Hội biên soạn, nhưng cách truyền đạt thì tuỳ theo từng người nghe.'] },
+    carecare: { icon:'💚', eyebrow:'CÔNG TÁC HỘI VIÊN', title:'Chăm sóc Hội viên',
+      lead:'Giữ liên lạc thường xuyên với hàng trăm hội viên là việc quá sức nếu nhắn tay từng người. Module này để AI nhắn thay, nhưng vẫn ra chất riêng cho từng người chứ không phải tin nhắn hàng loạt vô hồn.',
+      blocks:[
+        ['✉️','Nhắn hàng loạt mà vẫn như nhắn riêng','AI điều chỉnh cách xưng hô và nội dung theo từng người, không phải một mẫu chung dán cho tất cả.'],
+        ['🎂','Tự động hỏi thăm đúng dịp','Chúc mừng sinh nhật, thăm hỏi hiếu hỉ, nhắc đến hạn đóng hội phí, báo lịch sinh hoạt chi hội.'],
+        ['📋','Lấy ý kiến hội viên','Gửi phiếu khảo sát hoặc vài câu hỏi mở, hội viên trả lời ngay trong tin nhắn.'],
+        ['🧾','AI tổng hợp khó khăn và đề xuất','Gom hàng trăm câu trả lời rời rạc thành các nhóm vấn đề, dùng được ngay cho báo cáo.'],
+        ['💙','Kết nối Zalo','Chăm sóc qua Zalo được gói gọn ngay trong module này.'],
+        ['📇','Lịch sử liên lạc từng người','Xem lại đã trao đổi gì với hội viên nào, họ từng nêu khó khăn gì.'],
+      ], note:['Giữ cái tình trong công việc','Những việc lặp đi lặp lại thì máy làm, còn thăm hỏi lúc bà con khó khăn vẫn phải là con người.'] },
+    fanpage: { icon:'📣', eyebrow:'TRUYỀN THÔNG', title:'Quản lý Fanpage',
+      lead:'Hầu hết Hội Nông dân đều có trang Facebook, nhưng thường bỏ bẵng vì không ai có thời gian trực. Module này gom việc quản trị trang về một chỗ và để AI đỡ phần việc lặp đi lặp lại.',
+      blocks:[
+        ['📝','Đăng bài ngay trong Sổ tay','Soạn bài, chèn ảnh, hẹn giờ đăng mà không phải chuyển qua lại giữa app và Facebook.'],
+        ['💬','Trả lời bình luận và tin nhắn dưới danh nghĩa Trang','Toàn bộ bình luận và tin nhắn của Trang hiện về một hộp chung.'],
+        ['🤖','Giao bớt cho AI khi đồng chí cho phép','AI chỉ soạn sẵn câu trả lời chờ duyệt, hay được tự trả lời những câu hỏi thường gặp — đồng chí quyết định mức độ.'],
+        ['📅','Lên lịch nội dung cả tháng','AI gợi ý chủ đề bám theo mùa vụ, ngày lễ và các đợt phát động phong trào của Hội.'],
+        ['📊','Xem bài nào bà con quan tâm','Thống kê lượt xem, lượt tương tác, khung giờ nhiều người đọc nhất.'],
+        ['🛡️','Giữ chuẩn mực của trang chính thống','AI cảnh báo trước nội dung nhạy cảm hoặc câu chữ chưa phù hợp.'],
+      ], note:['Về quyền truy cập','Module chỉ hoạt động sau khi đồng chí chủ động kết nối và cấp quyền cho Trang của mình.'] },
+    branch: { icon:'🌾', eyebrow:'CẤP CHI HỘI', title:'Công tác Chi hội',
+      lead:'Chi hội khu dân cư và chi hội nghề nghiệp là cấp gần hội viên nhất, nhưng lại thiếu công cụ nhất — thường chỉ có cuốn sổ tay và vài tờ giấy. Module này dành riêng cho cán bộ chi hội.',
+      blocks:[
+        ['👥','Quản lý hội viên của chi hội mình','Danh sách hội viên, tổ hội trực thuộc, thông tin liên lạc, ngành nghề, hoàn cảnh cần lưu ý.'],
+        ['📄','Kho mẫu văn bản của chi hội','Biên bản sinh hoạt, danh sách điểm danh, báo cáo tháng, đơn xin vào Hội, biên bản bình xét thi đua.'],
+        ['📊','Thống kê tự động','Số hội viên tăng giảm trong kỳ, tỷ lệ tham gia sinh hoạt, tình hình đóng hội phí.'],
+        ['🏡','Theo dõi tổ hội','Quản lý được từng tổ: ai làm tổ trưởng, bao nhiêu hội viên, sinh hoạt đến đâu.'],
+        ['💬','Chăm sóc hội viên trong chi hội','Nhắn tin, thông báo lịch sinh hoạt, hỏi thăm trong phạm vi chi hội mình phụ trách.'],
+        ['🔄','Nối liền với Hội cấp xã','Số liệu chi hội báo lên tự động cộng vào số liệu chung của Hội xã/phường.'],
+      ], note:['Vì sao tách riêng?','Cán bộ chi hội phần lớn kiêm nhiệm, nên module này cố tình làm gọn, chỉ giữ đúng những việc chi hội thật sự cần.'] },
+  };
+  function moduleIntroModalBodyHtml(cfg){
+    return `
+      <div class="upcoming-card" style="box-shadow:none; border:none; padding:0;">
+        <div class="upcoming-head">
+          <div class="upcoming-ico">${cfg.icon}</div>
+          <div><div class="eyebrow">${escapeHtml(cfg.eyebrow)}</div><h3>${escapeHtml(cfg.title)}</h3></div>
+        </div>
+        <p class="upcoming-lead">${escapeHtml(cfg.lead)}</p>
+        ${cfg.blocks && cfg.blocks.length? `<div class="upcoming-grid">
+          ${cfg.blocks.map(([ico,h,p])=>`
+            <div class="upcoming-feature">
+              <div class="upcoming-feature-ico">${ico}</div>
+              <div><h4>${escapeHtml(h)}</h4><p>${escapeHtml(p)}</p></div>
+            </div>`).join('')}
+        </div>` : ''}
+        ${cfg.note? `<div class="upcoming-note"><b>${escapeHtml(cfg.note[0])}</b><span>${escapeHtml(cfg.note[1])}</span></div>` : ''}
+      </div>`;
+  }
+  function openModuleIntroModal(cfg){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="module-intro-title">
+        <div class="modal-head"><h3 id="module-intro-title">📖 Bản giới thiệu — ${escapeHtml(cfg.title)}</h3><button class="modal-close" id="module-intro-close" aria-label="Đóng">✕</button></div>
+        <div class="modal-body">${moduleIntroModalBodyHtml(cfg)}</div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#module-intro-close').onclick = close;
+    wrap.addEventListener('click', (e)=>{ if(e.target===wrap) close(); });
+  }
+  function moduleLearnBarHtml(moduleTitle, idSuffix){
+    idSuffix = idSuffix || '';
     const name = escapeHtml(moduleTitle || 'này');
     const tail = { overview:'này.', guide:'này bằng cách chat với AI.', intro:'này.' };
     return `
       <div class="module-learn-bar">
-        <div class="module-learn" id="module-learn">
-          <button type="button" class="module-learn-btn preview-allow" id="module-learn-btn">💡 Tìm hiểu thêm về module này</button>
-          <div class="module-learn-menu" id="module-learn-menu">
+        <div class="module-learn" id="module-learn${idSuffix}">
+          <button type="button" class="module-learn-btn preview-allow" id="module-learn-btn${idSuffix}">💡 Tìm hiểu thêm về module này</button>
+          <div class="module-learn-menu" id="module-learn-menu${idSuffix}">
             <button type="button" class="module-learn-close preview-allow" data-learn-close title="Đóng">✕</button>
             ${MODULE_LEARN_OPTS.map(([key,ico,text])=>`
               <button type="button" class="module-learn-opt preview-allow" data-learn-opt="${key}">${ico} ${text} "${name}" ${tail[key]}</button>`).join('')}
@@ -845,13 +1024,13 @@
       </div>`;
   }
   function closeModuleLearnMenu(){
-    const box = document.getElementById('module-learn');
-    if(box) box.classList.remove('open');
+    document.querySelectorAll('.module-learn.open').forEach(box=> box.classList.remove('open'));
   }
-  function wireModuleLearnBar(){
-    const box = document.getElementById('module-learn');
+  function wireModuleLearnBar(idSuffix, introKey){
+    idSuffix = idSuffix || '';
+    const box = document.getElementById('module-learn'+idSuffix);
     if(!box) return;
-    const btn = document.getElementById('module-learn-btn');
+    const btn = document.getElementById('module-learn-btn'+idSuffix);
     if(btn) btn.onclick = (e)=>{ e.stopPropagation(); box.classList.toggle('open'); };
     // Rê chuột vào thì mở, rê ra ngoài thì đóng — CHỈ gắn trên thiết bị THẬT SỰ có con trỏ chuột.
     //
@@ -871,13 +1050,16 @@
     box.querySelectorAll('[data-learn-opt]').forEach(opt=> opt.onclick = (e)=>{
       e.stopPropagation();
       closeModuleLearnMenu();
-      showBigToast('Tính năng này đang được thiết kế, sẽ sớm ra mắt.');
+      const key = opt.dataset.learnOpt;
+      const cfg = key==='intro' ? MODULE_INTRO_CONTENT[introKey || state.activeTab] : null;
+      if(cfg) openModuleIntroModal(cfg);
+      else showBigToast('Tính năng này đang được thiết kế, sẽ sớm ra mắt.');
     });
   }
   // Bấm ra ngoài thì đóng — uỷ quyền MỘT lần cho cả app, không gắn lại sau mỗi lần vẽ.
   if(!window.__moduleLearnOutsideDelegated){
     window.__moduleLearnOutsideDelegated = true;
-    document.addEventListener('click', (e)=>{ if(!e.target.closest('#module-learn')) closeModuleLearnMenu(); });
+    document.addEventListener('click', (e)=>{ if(!e.target.closest('.module-learn')) closeModuleLearnMenu(); });
   }
 
   function focusNavItem(selector){
