@@ -904,19 +904,8 @@
     render();
   }
 
-  function renderInternalTab(el){
-    el.innerHTML = `
-      <div class="panel">
-        <div class="panel-head"><h3>🔒 Thu – Chi nội bộ</h3></div>
-        <div class="panel-body">
-          <div class="empty-state">
-            <div class="e-ico">🚧</div>
-            <p style="max-width:480px; margin:0 auto;">Dữ liệu của Thu – Chi nội bộ được lưu <b>chỉ trên máy tính này</b> (bằng bộ nhớ cục bộ của trình duyệt), <b>không</b> đưa lên cơ sở dữ liệu đám mây Firebase như các mục còn lại của phần mềm, đảm bảo tính riêng tư tuyệt đối và không đồng bộ giữa các thiết bị.</p>
-            <p style="font-weight:700; color:var(--rice-dark); margin-top:14px; letter-spacing:.02em;">TÍNH NĂNG NÀY ĐANG ĐƯỢC NÂNG CẤP</p>
-          </div>
-        </div>
-      </div>`;
-  }
+  // renderInternalTab() giờ nằm ở 14b-internal-ledger.js (gồm cổng "Chấp nhận và Bắt đầu
+  // mở sổ" + toàn bộ Sổ Thu - Chi nội bộ), không còn là trang "đang nâng cấp" tĩnh nữa.
 
   function buildPropagandaHtml(chat, provider){
     const welcomeHtml = `<div class="ai-bubble assistant">Chào đồng chí! Chàng là "Chàng Nông dân Thông minh" 📣 — hôm nay Chàng đóng vai <b>Biên tập viên Tuyên truyền</b>, sẵn sàng giúp đồng chí tạo:
