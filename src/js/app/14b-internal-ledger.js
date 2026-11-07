@@ -1,13 +1,14 @@
   // =====================================================================
-  // SỔ THU – CHI NỘI BỘ (module "internal") — bản 2: nhiều Sổ, phụ lục có công thức.
+  // SỔ THU – CHI NỘI BỘ (module "internal") — bản 3: sắp xếp dòng/cột, modal tiền có
+  // công thức nghiêm ngặt, xuất Excel giữ công thức thật, chọn kèm/không kèm tên Cơ quan.
   // Lưu CỤC BỘ trên thiết bị (localStorage) — xem internalLedgerLoadRaw()/
-  // internalLedgerSaveRaw(). Sau này muốn chuyển sang Firebase (cá nhân hoặc theo mã
-  // xã, nhiều người cùng sửa) thì chỉ cần đổi bên trong lớp lưu trữ này.
+  // internalLedgerSaveRaw(). Sau này muốn chuyển sang Firebase thì chỉ cần đổi bên trong
+  // lớp lưu trữ này.
   //
-  // Cấu trúc dữ liệu: { ledgers: [{ id, name, order, entries: [ {id, type:'thu'|'chi',
-  //   date, content, amountMode:'manual'|'appendix', amount, person, note,
-  //   appendix: null | { id, title, designatedKey, columns:[{key,label,type,showTotal}],
-  //   rows: [{ [colKey]: raw }] } } ] }] }
+  // Cấu trúc dữ liệu: { ledgers: [{ id, name, order, entryOrder:{thu:[ids],chi:[ids]},
+  //   entries: [ {id, type:'thu'|'chi', date, content, amountMode:'manual'|'appendix',
+  //   amount, person, note, appendix: null | { id, title, designatedKey,
+  //   columns:[{key,label,type:'text'|'money'|'date',showTotal}], rows:[{[colKey]:raw}] } } ] }] }
   // =====================================================================
   const INTERNAL_LEDGER_LOCAL_KEY = 'hnd_internal_ledger_v2';
   const INTERNAL_LEDGER_ACCEPT_KEY = 'hnd_internal_ledger_accepted_v1';
@@ -35,6 +36,7 @@
   }
   function ilPersist(){ internalLedgerSaveRaw(ilData()); }
   function ilNewId(prefix){ return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
+  function ilEnsureEntryOrder(ledger){ if(!ledger.entryOrder) ledger.entryOrder = {thu:[],chi:[]}; if(!ledger.entryOrder.thu) ledger.entryOrder.thu=[]; if(!ledger.entryOrder.chi) ledger.entryOrder.chi=[]; return ledger.entryOrder; }
 
   // =====================================================================
   // SỔ (ledger) — danh sách, tạo/đổi tên/xoá/sắp xếp.
@@ -49,7 +51,7 @@
   function ilCreateLedger(name){
     const d = ilData();
     const maxOrder = d.ledgers.reduce((m,l)=>Math.max(m, l.order||0), 0);
-    const ledger = { id: ilNewId('ldg'), name, order: maxOrder+1, entries: [] };
+    const ledger = { id: ilNewId('ldg'), name, order: maxOrder+1, entryOrder:{thu:[],chi:[]}, entries: [] };
     d.ledgers.push(ledger);
     ilPersist();
     return ledger;
@@ -185,10 +187,21 @@
   }
 
   // =====================================================================
-  // BÊN TRONG 1 SỔ — Sổ Thu + Sổ Chi.
+  // BÊN TRONG 1 SỔ — Sổ Thu + Sổ Chi, sắp xếp thứ tự dòng.
   // =====================================================================
   function ilEntriesOfType(ledger, type){
-    return ledger.entries.filter(e=>e.type===type).sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+    ilEnsureEntryOrder(ledger);
+    const list = ledger.entries.filter(e=>e.type===type);
+    const orderArr = ledger.entryOrder[type]||[];
+    if(!orderArr.length) return list.slice().sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+    const orderIndex = {}; orderArr.forEach((id,i)=> orderIndex[id]=i);
+    return list.slice().sort((a,b)=>{
+      const ai = orderIndex[a.id], bi = orderIndex[b.id];
+      if(ai!=null && bi!=null) return ai-bi;
+      if(ai!=null) return -1;
+      if(bi!=null) return 1;
+      return (a.date||'').localeCompare(b.date||'');
+    });
   }
   function ilFilteredEntriesOfType(ledger, type){
     let list = ilEntriesOfType(ledger, type);
@@ -207,6 +220,14 @@
     while(used.has(`Phụ lục ${type==='thu'?'Thu':'Chi'} ${n}`)) n++;
     return `Phụ lục ${type==='thu'?'Thu':'Chi'} ${n}`;
   }
+  // "Phụ lục Thu 1 (Rút kinh phí đại hội)" — nếu tên phụ lục đã có chữ "phụ lục" (không phân biệt
+  // hoa/thường) thì KHÔNG thêm tiền tố nữa, tránh lặp "Phụ lục Phụ lục ...".
+  function ilAppendixDisplayTitle(entry){
+    const raw = (entry.appendix && entry.appendix.title) || '';
+    const hasWord = /phụ lục/i.test(raw);
+    const title = hasWord ? raw : `Phụ lục ${raw}`;
+    return `${title} (${entry.content||''})`;
+  }
 
   function ilSummaryBarHtml(ledger){
     const totalThu = ilTotalOfType(ledger,'thu');
@@ -214,7 +235,6 @@
     return `
       <div class="panel" style="margin-bottom:14px;">
         <div class="panel-body" style="display:flex; flex-wrap:wrap; gap:18px; align-items:center;">
-          <button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-back-list">← Thoát ra danh sách Sổ</button>
           <div><span class="sub">Tổng Thu</span><br><b style="color:#1b5e20; font-size:17px;">${moneySpaced(totalThu)}</b></div>
           <div><span class="sub">Tổng Chi</span><br><b style="color:#b71c1c; font-size:17px;">${moneySpaced(totalChi)}</b></div>
           <div><span class="sub">Còn lại</span><br><b style="font-size:17px;">${moneySpaced(totalThu-totalChi)}</b></div>
@@ -241,23 +261,25 @@
     if(e.appendix) return `<button type="button" class="btn btn-sm preview-allow" data-il-appendix="${e.id}" title="${escapeHtml(e.appendix.title)}" style="background:#c8e6c9; border-color:#2e7d32; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;">📎 ${escapeHtml(e.appendix.title)}</button>`;
     return `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-il-appendix="${e.id}">+ Thêm phụ lục</button>`;
   }
-  function ilEntryRowHtml(e, canEdit){
-    return `<tr>
+  function ilEntryRowHtml(e, canEdit, sorting){
+    return `<tr${sorting? ` draggable="true" data-drag-entry="${e.id}"` : ''}>
+      ${sorting? `<td style="cursor:grab;"><span title="Kéo để đổi vị trí">☰</span></td>` : ''}
       <td>${fmtDate(e.date)}</td>
       <td>${escapeHtml(e.content||'')}</td>
-      <td class="money" style="text-align:right;">${moneySpaced(e.amount)}${e.amountMode==='appendix'? ' <span class="sub" title="Đồng bộ theo phụ lục">🔗</span>' : ''}</td>
+      <td class="money"><div style="display:flex; justify-content:flex-end; align-items:center; gap:4px;">${e.amountMode==='appendix'? '<span class="sub" title="Đồng bộ theo phụ lục">🔗</span>' : ''}<span>${moneySpaced(e.amount)}</span></div></td>
       <td>${escapeHtml(e.person||'')}</td>
       <td>${escapeHtml(e.note||'')}</td>
       <td style="white-space:nowrap;">${ilAppendixBtnHtml(e)}</td>
-      ${canEdit? `<td style="white-space:nowrap;"><button type="button" class="btn-plain-icon preview-allow" data-il-edit="${e.id}" title="Sửa" style="background:none; border:none; cursor:pointer;">✏️</button><button type="button" class="btn-plain-icon preview-allow" data-il-del="${e.id}" title="Xoá" style="background:none; border:none; cursor:pointer;">🗑️</button></td>` : ''}
+      ${canEdit && !sorting? `<td style="white-space:nowrap;"><button type="button" class="btn-plain-icon preview-allow" data-il-edit="${e.id}" title="Sửa" style="background:none; border:none; cursor:pointer;">✏️</button><button type="button" class="btn-plain-icon preview-allow" data-il-del="${e.id}" title="Xoá" style="background:none; border:none; cursor:pointer;">🗑️</button></td>` : ''}
     </tr>`;
   }
   function ilPanelHtml(ledger, type, canEdit){
     const isThu = type==='thu';
     const showKey = isThu ? '_ilShowThu' : '_ilShowChi';
     const open = state[showKey]!==false;
+    const sorting = state._ilSortingType===type;
     const rawCount = ilEntriesOfType(ledger, type).length;
-    const list = ilFilteredEntriesOfType(ledger, type);
+    const list = sorting ? ilEntriesOfType(ledger, type) : ilFilteredEntriesOfType(ledger, type);
     const label = isThu? 'Sổ Thu' : 'Sổ Chi';
     const personLabel = isThu? 'Người thu' : 'Người chi';
     const isFiltering = !!(state._ilSearch || state._ilDateFrom || state._ilDateTo);
@@ -268,14 +290,17 @@
       <div class="panel" style="margin-bottom:14px;">
         <div class="panel-head" style="cursor:pointer;" id="il-toggle-${type}"><h3>${isThu?'📥':'📤'} ${label} (${list.length}${isFiltering && rawCount!==list.length? `/${rawCount}` : ''}) ${open?'▴':'▾'}</h3>
           <div style="display:flex; gap:8px;">
-            ${canEdit? `<button type="button" class="btn btn-primary btn-sm preview-allow" id="il-add-${type}">➕ Thêm dòng ${isThu?'thu':'chi'}</button>` : ''}
-            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-excel-${type}">📊 Xem bảng Excel</button>
+            ${sorting? `<button type="button" class="btn btn-primary btn-sm preview-allow" id="il-sort-save-${type}">💾 Lưu thứ tự</button><button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-sort-cancel-${type}">Huỷ</button>` : `
+              ${canEdit? `<button type="button" class="btn btn-primary btn-sm preview-allow" id="il-add-${type}">➕ Thêm dòng ${isThu?'thu':'chi'}</button>` : ''}
+              ${canEdit && list.length>1? `<button type="button" class="btn-plain-icon preview-allow" id="il-sort-start-${type}" title="Sắp xếp thứ tự" style="background:none; border:none; cursor:pointer; font-size:16px;">☰</button>` : ''}
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-excel-${type}">📊 Xem bảng Excel</button>
+            `}
           </div>
         </div>
         ${open? `<div class="panel-body">
           ${list.length? `<div class="table-wrap"><table>
-            <thead><tr><th>Ngày</th><th>Nội dung ${isThu?'thu':'chi'}</th><th style="text-align:right;">Số tiền</th><th>${personLabel}</th><th>Ghi chú</th><th>Phụ lục</th>${canEdit? '<th></th>' : ''}</tr></thead>
-            <tbody>${list.map(e=>ilEntryRowHtml(e,canEdit)).join('')}</tbody>
+            <thead><tr>${sorting? '<th></th>' : ''}<th>Ngày</th><th>Nội dung ${isThu?'thu':'chi'}</th><th style="text-align:right;">Số tiền</th><th>${personLabel}</th><th>Ghi chú</th><th>Phụ lục</th>${canEdit && !sorting? '<th></th>' : ''}</tr></thead>
+            <tbody>${list.map(e=>ilEntryRowHtml(e,canEdit,sorting)).join('')}</tbody>
           </table></div>` : `<div class="empty-state"><div class="e-ico">${isThu?'📥':'📤'}</div>${emptyMsg}</div>`}
         </div>` : ''}
       </div>`;
@@ -285,7 +310,10 @@
     if(!ledger){ renderInternalLedgerListScreen(el); return; }
     const canEdit = canEditModule('internal');
     el.innerHTML = `
-      <h2 style="margin:0 0 10px;">📒 ${escapeHtml(ledger.name)}</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 10px; gap:10px; flex-wrap:wrap;">
+        <h2 style="margin:0;">📒 ${escapeHtml(ledger.name)}</h2>
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-back-list">← Thoát ra danh sách Sổ</button>
+      </div>
       ${ilSummaryBarHtml(ledger)}
       ${ilFilterBarHtml()}
       ${ilPanelHtml(ledger,'thu', canEdit)}
@@ -299,9 +327,9 @@
     const backBtn = document.getElementById('il-back-list');
     if(backBtn) backBtn.onclick = ()=>{ state._ilCurrentLedgerId = null; renderInternalLedgerListScreen(el); };
     const aiBtn = document.getElementById('il-ai-btn');
-    if(aiBtn) aiBtn.onclick = ()=> renderLedgerQuickAddModal(ledger);
+    if(aiBtn) aiBtn.onclick = ()=> renderLedgerQuickAddModal(ledger, el);
     const overviewBtn = document.getElementById('il-overview-excel-btn');
-    if(overviewBtn) overviewBtn.onclick = ()=> renderInternalExcelModal(ledger, 'all');
+    if(overviewBtn) overviewBtn.onclick = ()=> ilStartExport(ledger, 'all');
     const searchInput = document.getElementById('il-search');
     if(searchInput) searchInput.oninput = ()=>{ state._ilSearch = searchInput.value; rerenderKeepingFocus(()=>renderInternalLedgerMain(el)); };
     const fromInput = document.getElementById('il-date-from');
@@ -316,7 +344,19 @@
       const addBtn = document.getElementById('il-add-'+type);
       if(addBtn) addBtn.onclick = (e)=>{ e.stopPropagation(); renderInternalEntryModal(ledger, type, null, el); };
       const excelBtn = document.getElementById('il-excel-'+type);
-      if(excelBtn) excelBtn.onclick = (e)=>{ e.stopPropagation(); renderInternalExcelModal(ledger, type); };
+      if(excelBtn) excelBtn.onclick = (e)=>{ e.stopPropagation(); ilStartExport(ledger, type); };
+      const sortStartBtn = document.getElementById('il-sort-start-'+type);
+      if(sortStartBtn) sortStartBtn.onclick = (e)=>{ e.stopPropagation(); state._ilSortingType = type; renderInternalLedgerMain(el); };
+      const sortSaveBtn = document.getElementById('il-sort-save-'+type);
+      if(sortSaveBtn) sortSaveBtn.onclick = (e)=>{
+        e.stopPropagation();
+        ilEnsureEntryOrder(ledger);
+        ledger.entryOrder[type] = ilEntriesOfType(ledger, type).map(x=>x.id);
+        ilPersist();
+        state._ilSortingType = null; renderInternalLedgerMain(el);
+      };
+      const sortCancelBtn = document.getElementById('il-sort-cancel-'+type);
+      if(sortCancelBtn) sortCancelBtn.onclick = (e)=>{ e.stopPropagation(); state._ilSortingType = null; renderInternalLedgerMain(el); };
     });
     el.querySelectorAll('[data-il-edit]').forEach(btn=> btn.onclick = ()=>{
       const entry = ilFindEntry(ledger, btn.dataset.ilEdit);
@@ -330,6 +370,23 @@
       const entry = ilFindEntry(ledger, btn.dataset.ilAppendix);
       if(entry) renderInternalAppendixEditorModal(ledger, entry, el);
     });
+    if(state._ilSortingType){
+      const type = state._ilSortingType;
+      wireDragReorderWithIndicator(
+        Array.from(el.querySelectorAll('[data-drag-entry]')),
+        row=> row.dataset.dragEntry,
+        (draggedId, targetId, before)=>{
+          ilEnsureEntryOrder(ledger);
+          const current = ilEntriesOfType(ledger, type).map(x=>x.id);
+          const arr = current.filter(id=>id!==draggedId);
+          let idx = arr.indexOf(targetId);
+          if(!before) idx += 1;
+          arr.splice(idx, 0, draggedId);
+          ledger.entryOrder[type] = arr;
+          renderInternalLedgerMain(el);
+        }
+      );
+    }
   }
 
   // =====================================================================
@@ -351,10 +408,11 @@
             <div class="field"><label>Nội dung ${isThu?'thu':'chi'} * <span class="sub">(tối đa ${IL_MAX.content} ký tự)</span></label><input type="text" id="ilm-content" maxlength="${IL_MAX.content}" value="${escapeHtml(e0.content||'')}"></div>
             <div class="field">
               <label>Số tiền</label>
-              <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
-                <label style="display:flex; gap:8px; align-items:flex-start; font-weight:400;"><input type="radio" name="ilm-amount-mode" value="manual" ${amountMode==='manual'?'checked':''} style="margin-top:3px;"><span>Nhập số tiền cụ thể<br><span class="sub">Tự gõ đúng số tiền của dòng ${isThu?'thu':'chi'} này.</span></span></label>
-                <label style="display:flex; gap:8px; align-items:flex-start; font-weight:400;"><input type="radio" name="ilm-amount-mode" value="appendix" ${amountMode==='appendix'?'checked':''} style="margin-top:3px;"><span>Số tiền được đồng bộ theo phụ lục kèm theo của dòng này<br><span class="sub">Số tiền sẽ tự tính theo cột tiền chính của phụ lục, không gõ tay — mặc định 0 đ cho đến khi phụ lục có dữ liệu.</span></span></label>
+              <div style="display:flex; gap:0; margin:4px 0 8px; border:1px solid var(--line); border-radius:8px; overflow:hidden;">
+                <button type="button" class="btn ${amountMode==='manual'?'btn-primary':'btn-ghost'} btn-sm preview-allow" id="ilm-tab-manual" style="flex:1; border-radius:0;">Nhập số tiền cụ thể</button>
+                <button type="button" class="btn ${amountMode==='appendix'?'btn-primary':'btn-ghost'} btn-sm preview-allow" id="ilm-tab-appendix" style="flex:1; border-radius:0;">Số tiền được đồng bộ theo phụ lục kèm theo của dòng này</button>
               </div>
+              <p class="sub" style="margin:0 0 8px;">${amountMode==='manual'? `Tự gõ đúng số tiền của dòng ${isThu?'thu':'chi'} này.` : 'Số tiền sẽ tự tính theo cột tiền chính của phụ lục kèm theo, không gõ tay — mặc định 0 đ cho đến khi phụ lục kèm theo có dữ liệu.'}</p>
               ${amountMode==='manual'? `<label>Số tiền (đ) * <span class="sub">(tối đa ${IL_MAX.moneyDigits} số)</span> <span class="sub" id="ilm-amount-disp" style="font-weight:700; color:#b71c1c;"></span></label><input type="text" inputmode="numeric" id="ilm-amount" value="${e0.amount||''}" placeholder="Chỉ nhập số">` : `<p class="sub">Số tiền hiện tại (đồng bộ theo phụ lục): <b>${moneySpaced(e0.amountMode==='appendix'? e0.amount : 0)}</b></p>`}
             </div>
             <div class="field"><label>Người ${isThu?'thu':'chi'} <span class="sub">(tối đa ${IL_MAX.person} ký tự)</span></label><input type="text" id="ilm-person" maxlength="${IL_MAX.person}" value="${escapeHtml(e0.person||'')}"></div>
@@ -368,7 +426,8 @@
       const close = ()=> wrap.remove();
       wrap.querySelector('#ilm-close').onclick = close;
       wrap.querySelector('#ilm-cancel').onclick = close;
-      wrap.querySelectorAll('[name="ilm-amount-mode"]').forEach(r=> r.onchange = ()=>{ amountMode = r.value; render(); });
+      wrap.querySelector('#ilm-tab-manual').onclick = ()=>{ amountMode='manual'; render(); };
+      wrap.querySelector('#ilm-tab-appendix').onclick = ()=>{ amountMode='appendix'; render(); };
       let amountInput = wrap.querySelector('#ilm-amount');
       if(amountInput){
         const amountDisp = wrap.querySelector('#ilm-amount-disp');
@@ -394,7 +453,7 @@
         }
         const updated = { ...e0, date, content, amount, amountMode, person: wrap.querySelector('#ilm-person').value.trim(), note: wrap.querySelector('#ilm-note').value.trim(), appendix };
         const idx = ledger.entries.findIndex(x=>x.id===e0.id);
-        if(idx>=0) ledger.entries[idx] = updated; else ledger.entries.push(updated);
+        if(idx>=0) ledger.entries[idx] = updated; else { ledger.entries.push(updated); ilEnsureEntryOrder(ledger); ledger.entryOrder[type].push(updated.id); }
         ilPersist(); close();
         renderInternalLedgerMain(el);
       };
@@ -404,17 +463,109 @@
   }
 
   // =====================================================================
-  // CÔNG THỨC (chỉ cộng/trừ/nhân/chia, tham chiếu ô trong CÙNG 1 phụ lục).
+  // CÔNG THỨC — tokenizer + phân tích cú pháp nghiêm ngặt (chỉ + − × ÷, tham chiếu ô
+  // trong CÙNG 1 phụ lục, không phân biệt hoa/thường). Công thức sai cấu trúc bị chặn
+  // lưu; ô tham chiếu không phải "Tiền" (hoặc không phải số) được mặc định 0 nếu đứng
+  // sau dấu + / −, mặc định 1 nếu đứng sau dấu × / ÷.
   // =====================================================================
   function ilColLetter(i){ return String.fromCharCode(65+i); }
-  function ilSafeEvalArithmetic(str){
+  function ilTokenizeFormula(body){
+    const tokens = [];
+    const re = /\s*(?:([A-Za-z]+\d+)|(\d+(?:\.\d+)?)|([+\-*/()]))\s*/g;
     let i = 0;
-    function skipWs(){ while(str[i]===' ') i++; }
-    function parseNumber(){ skipWs(); let neg=false; if(str[i]==='-'){ neg=true; i++; } let start=i; while(/[\d.]/.test(str[i]||'')) i++; const v = parseFloat(str.slice(start,i))||0; return neg? -v : v; }
-    function parseFactor(){ skipWs(); if(str[i]==='('){ i++; const v=parseExpr(); skipWs(); if(str[i]===')') i++; return v; } return parseNumber(); }
-    function parseTerm(){ let v=parseFactor(); for(;;){ skipWs(); const op=str[i]; if(op==='*'||op==='/'){ i++; const r=parseFactor(); v = op==='*'? v*r : (r? v/r : 0); } else break; } return v; }
-    function parseExpr(){ let v=parseTerm(); for(;;){ skipWs(); const op=str[i]; if(op==='+'||op==='-'){ i++; const r=parseTerm(); v = op==='+'? v+r : v-r; } else break; } return v; }
-    return parseExpr();
+    while(i < body.length){
+      re.lastIndex = i;
+      const m = re.exec(body);
+      if(!m || m.index!==i) return null; // ký tự lạ không khớp được token nào
+      if(m[1]) tokens.push({ t:'ref', v:m[1].toUpperCase() });
+      else if(m[2]) tokens.push({ t:'num', v:parseFloat(m[2]) });
+      else if(m[3]) tokens.push({ t:m[3]==='('?'lparen':(m[3]===')'?'rparen':'op'), v:m[3] });
+      i = re.lastIndex;
+      if(i===m.index) break; // tránh vòng lặp vô hạn nếu regex không tiến lên được
+    }
+    return tokens;
+  }
+  // Phân tích cú pháp (đồng thời dùng để KIỂM TRA hợp lệ lẫn DỰNG CÂY tính toán):
+  // expr := term ((+|-) term)* ; term := factor ((*|/) factor)* ; factor := ref | num | '(' expr ')'.
+  // Phải tiêu thụ HẾT token thì mới hợp lệ — còn dư/thiếu token đều là công thức sai.
+  function ilParseFormulaTokens(tokens){
+    let pos = 0;
+    function peek(){ return tokens[pos]; }
+    function factor(){
+      const t = peek();
+      if(!t) return null;
+      if(t.t==='ref'){ pos++; return { k:'ref', v:t.v }; }
+      if(t.t==='num'){ pos++; return { k:'num', v:t.v }; }
+      if(t.t==='lparen'){
+        pos++;
+        const node = expr();
+        if(!node) return null;
+        if(!peek() || peek().t!=='rparen') return null;
+        pos++;
+        return node;
+      }
+      return null;
+    }
+    function term(){
+      let node = factor();
+      if(!node) return null;
+      for(;;){
+        const t = peek();
+        if(t && t.t==='op' && (t.v==='*'||t.v==='/')){
+          pos++;
+          const right = factor();
+          if(!right) return null;
+          node = { k:'bin', op:t.v, l:node, r:right };
+        } else break;
+      }
+      return node;
+    }
+    function expr(){
+      let node = term();
+      if(!node) return null;
+      for(;;){
+        const t = peek();
+        if(t && t.t==='op' && (t.v==='+'||t.v==='-')){
+          pos++;
+          const right = term();
+          if(!right) return null;
+          node = { k:'bin', op:t.v, l:node, r:right };
+        } else break;
+      }
+      return node;
+    }
+    const ast = expr();
+    if(!ast || pos!==tokens.length) return null;
+    return ast;
+  }
+  function ilParseFormula(raw){
+    const body = String(raw||'').trim().replace(/^=/,'');
+    if(!body) return null;
+    const tokens = ilTokenizeFormula(body);
+    if(!tokens || !tokens.length) return null;
+    return ilParseFormulaTokens(tokens);
+  }
+  function ilFormulaValid(raw){ return !!ilParseFormula(raw); }
+  // resolveRef(colLetter, rowNumber) -> { numeric:true, value:N } | { numeric:false }
+  function ilEvalAst(node, resolveRef){
+    if(node.k==='num') return { numeric:true, value:node.v };
+    if(node.k==='ref'){
+      const m = node.v.match(/^([A-Z]+)(\d+)$/);
+      if(!m) return { numeric:false };
+      return resolveRef(m[1], parseInt(m[2],10));
+    }
+    // bin: toán hạng không phải số -> mặc định theo ngữ cảnh phép toán (0 cho +/-, 1 cho */)
+    const defaultFor = node.op==='*'||node.op==='/' ? 1 : 0;
+    const lRes = ilEvalAst(node.l, resolveRef);
+    const rRes = ilEvalAst(node.r, resolveRef);
+    const l = lRes.numeric? lRes.value : defaultFor;
+    const r = rRes.numeric? rRes.value : defaultFor;
+    let value;
+    if(node.op==='+') value = l+r;
+    else if(node.op==='-') value = l-r;
+    else if(node.op==='*') value = l*r;
+    else value = r? l/r : 0;
+    return { numeric:true, value };
   }
   function ilResolveMoneyCell(ap, rowIdx, colKey, visiting){
     const cellId = rowIdx+'|'+colKey;
@@ -422,21 +573,23 @@
     visiting.add(cellId);
     const raw = String((ap.rows[rowIdx]||{})[colKey] ?? '').trim();
     let result;
-    if(raw.startsWith('=')) result = ilEvalFormula(ap, raw.slice(1), visiting);
+    if(raw.startsWith('=')){
+      const ast = ilParseFormula(raw);
+      if(ast){
+        const resolveRef = (letter, rowNum)=>{
+          const ci = letter.length===1 ? letter.charCodeAt(0)-65 : -1;
+          const ri = rowNum-1;
+          const col = ap.columns[ci];
+          if(!col || ri<0 || ri>=ap.rows.length) return { numeric:false };
+          if(col.type!=='money') return { numeric:false };
+          return { numeric:true, value: ilResolveMoneyCell(ap, ri, col.key, visiting) };
+        };
+        result = Math.round(ilEvalAst(ast, resolveRef).value);
+      } else result = 0;
+    }
     else result = parseInt(raw.replace(/[^\d-]/g,''),10) || 0;
     visiting.delete(cellId);
     return result;
-  }
-  function ilEvalFormula(ap, expr, visiting){
-    const substituted = expr.replace(/([A-Za-z])(\d+)/g, (m, L, R)=>{
-      const ci = L.toUpperCase().charCodeAt(0)-65;
-      const ri = parseInt(R,10)-1;
-      const col = ap.columns[ci];
-      if(!col || ri<0 || ri>=ap.rows.length) return '0';
-      return String(ilResolveMoneyCell(ap, ri, col.key, visiting));
-    });
-    if(!/^[\d+\-*/().\s]+$/.test(substituted)) return 0;
-    try{ return Math.round(ilSafeEvalArithmetic(substituted)); }catch(e){ return 0; }
   }
   function ilCellComputed(ap, rowIdx, colKey){
     const col = ap.columns.find(c=>c.key===colKey);
@@ -448,63 +601,121 @@
     return ap.rows.reduce((s,_,ri)=> s + (parseInt(ilCellComputed(ap, ri, colKey),10)||0), 0);
   }
   function ilAppendixDesignatedTotal(ap){ return ap.designatedKey ? ilAppendixColumnTotal(ap, ap.designatedKey) : 0; }
-  function ilFormulaValid(expr){
-    const body = expr.trim().replace(/^=/,'');
-    return /^[A-Za-z0-9+\-*/().\s]+$/.test(body) && body.length>0;
+
+  // =====================================================================
+  // Mặt nạ ô tiền (giữ số thô khi gõ, tách nhóm khi rời ô) dùng trong các modal nhỏ.
+  // =====================================================================
+  function ilWireInlineMoneyDisp(input, dispEl, maxDigits){
+    attachMoneyInputMask(input, maxDigits||IL_MAX.moneyDigits);
+    const update = ()=>{ const digits = input.value.replace(/[^\d]/g,''); dispEl.textContent = digits? `= ${groupDigitsRight(digits,3)} đ` : ''; };
+    input.addEventListener('input', update);
+    update();
   }
-  function renderFormulaEditorModal(anchorInput, currentRaw, onSave){
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed; z-index:10000; background:var(--white); border:2px solid #4527a0; border-radius:10px; padding:10px; box-shadow:0 6px 20px rgba(0,0,0,.3); width:300px;';
-    const r = anchorInput.getBoundingClientRect();
-    wrap.style.left = Math.min(r.left, window.innerWidth-320)+'px';
-    wrap.style.top = (r.bottom+6)+'px';
-    wrap.innerHTML = `
-      <div style="font-weight:700; margin-bottom:6px;">ƒ Công thức (chỉ + − × ÷)</div>
-      <input type="text" id="ilf-input" value="${escapeHtml(currentRaw && currentRaw.startsWith('=')? currentRaw : '=')}" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:monospace;">
-      <div style="display:flex; gap:6px; margin:8px 0;">
-        ${['+','-','×','÷'].map(op=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-ilf-op="${op}">${op}</button>`).join('')}
-      </div>
-      <p class="sub" style="margin:0 0 8px;">Vd: =A1+B2-C1/G2*D2 — bấm vào 1 ô tiền khác trong bảng để chèn toạ độ ô đó vào đây.</p>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilf-cancel">Huỷ</button>
-        <button type="button" class="btn btn-primary btn-sm preview-allow" id="ilf-save">Lưu công thức</button>
-      </div>`;
-    document.body.appendChild(wrap);
-    const close = ()=> wrap.remove();
-    const input = wrap.querySelector('#ilf-input');
-    wrap.querySelectorAll('[data-ilf-op]').forEach(btn=> btn.onclick = ()=>{
-      const op = btn.dataset.ilfOp==='×'?'*':btn.dataset.ilfOp==='÷'?'/':btn.dataset.ilfOp;
-      const pos = input.selectionStart||input.value.length;
-      input.value = input.value.slice(0,pos)+op+input.value.slice(pos);
-      input.focus(); input.setSelectionRange(pos+1,pos+1);
-    });
-    wrap.querySelector('#ilf-cancel').onclick = close;
-    wrap.querySelector('#ilf-save').onclick = ()=>{
-      if(!ilFormulaValid(input.value)){ alert('Công thức không hợp lệ — chỉ cho phép toạ độ ô (vd A1), số, và các phép + − × ÷ ( ).'); return; }
-      onSave(input.value.trim());
-      close();
-    };
-    return { wrap, insertRef: (ref)=>{ const pos = input.selectionStart||input.value.length; input.value = input.value.slice(0,pos)+ref+input.value.slice(pos); input.focus(); input.setSelectionRange(pos+ref.length,pos+ref.length); } };
+  // Kéo di chuyển 1 panel nổi bằng thanh tiêu đề của nó — dùng cho modal nhỏ sửa ô tiền,
+  // để không che khuất các ô khác của bảng phụ lục phía dưới.
+  function ilMakeDraggable(panel, handle){
+    let sx=0, sy=0, ox=0, oy=0, dragging=false;
+    function onDown(e){ dragging=true; sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top; e.preventDefault(); }
+    function onMove(e){ if(!dragging) return; panel.style.left=(ox+e.clientX-sx)+'px'; panel.style.top=(oy+e.clientY-sy)+'px'; }
+    function onUp(){ dragging=false; }
+    handle.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return ()=>{ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }
 
   // =====================================================================
-  // Ô TIỀN — mặt nạ nhập (giữ số thô khi đang gõ, tách nhóm khi rời ô) + lớp
-  // nổi "= x đ" đồng bộ theo thời gian thực, sát ngay ô đang gõ.
+  // MODAL NHỎ SỬA 1 Ô TIỀN — 2 tab "Nhập số tiền cụ thể" / "Gắn công thức", kéo di
+  // chuyển được bằng thanh tiêu đề, có nút ✕. Bấm vào ô tiền khác trong bảng (khi đang
+  // ở tab công thức) để chèn toạ độ ô đó.
   // =====================================================================
-  function ilAttachFloatingMoneyPreview(input){
-    let badge = null;
-    function position(){ if(!badge) return; const r = input.getBoundingClientRect(); badge.style.left = r.left+'px'; badge.style.top = Math.max(0, r.top-26)+'px'; }
-    function update(){ if(!badge) return; const digits = input.value.replace(/[^\d]/g,''); badge.textContent = digits? `= ${groupDigitsRight(digits,3)} đ` : ''; }
-    function show(){ if(badge) return; badge = document.createElement('div'); badge.className = 'il-money-float-badge'; document.body.appendChild(badge); position(); update(); }
-    function hide(){ if(badge){ badge.remove(); badge=null; } }
-    input.addEventListener('focus', show);
-    input.addEventListener('input', ()=>{ update(); position(); });
-    input.addEventListener('blur', hide);
+  function renderMoneyCellModal(ap, rowIdx, colKey, tableEl, onSaved){
+    const raw = String((ap.rows[rowIdx]||{})[colKey] ?? '');
+    const isFormula = raw.startsWith('=');
+    let tab = isFormula ? 'formula' : 'literal';
+    const panel = document.createElement('div');
+    panel.style.cssText = 'position:fixed; z-index:10000; background:var(--white); border-radius:12px; box-shadow:0 8px 28px rgba(0,0,0,.35); width:320px; overflow:hidden;';
+    const tableRect = tableEl.getBoundingClientRect();
+    panel.style.left = Math.min(window.innerWidth-336, tableRect.left+40)+'px';
+    panel.style.top = Math.max(10, tableRect.top+40)+'px';
+    document.body.appendChild(panel);
+    let unbindDrag = null;
+    let pickHandler = null;
+    const close = ()=>{ if(unbindDrag) unbindDrag(); if(pickHandler) tableEl.removeEventListener('mousedown', pickHandler, true); panel.remove(); };
+    function render(){
+      panel.innerHTML = `
+        <div id="ilcm-handle" style="background:linear-gradient(180deg, #4527a0 0%, #311b92 100%); color:#fff; padding:8px 10px; cursor:move; display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:13px;">
+          <span>💰 Ô ${ilColLetter(ap.columns.findIndex(c=>c.key===colKey))}${rowIdx+1}</span>
+          <button type="button" class="preview-allow" id="ilcm-x" style="background:none; border:none; color:#fff; font-size:16px; cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:10px;">
+          <div style="display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:10px;">
+            <button type="button" class="btn ${tab==='literal'?'btn-primary':'btn-ghost'} btn-sm preview-allow" id="ilcm-tab-lit" style="flex:1; border-radius:0;">Nhập số tiền cụ thể</button>
+            <button type="button" class="btn ${tab==='formula'?'btn-primary':'btn-ghost'} btn-sm preview-allow" id="ilcm-tab-f" style="flex:1; border-radius:0;">Gắn công thức</button>
+          </div>
+          ${tab==='literal'? `
+            <label class="sub" id="ilcm-disp" style="display:block; font-weight:700; color:#b71c1c; margin-bottom:4px;"></label>
+            <input type="text" inputmode="numeric" id="ilcm-lit-input" value="${escapeHtml(isFormula? '' : raw)}" placeholder="Chỉ nhập số" style="width:100%; text-align:right; padding:6px 8px; border:1px solid var(--line); border-radius:6px;">
+          ` : `
+            <input type="text" id="ilcm-f-input" value="${escapeHtml(isFormula? raw : '=')}" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:monospace;">
+            <div style="display:flex; gap:6px; margin:8px 0;">
+              ${['+','-','×','÷'].map(op=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-ilcm-op="${op}">${op}</button>`).join('')}
+            </div>
+            <p class="sub" style="margin:0;">Vd: =A1+B2-C1/G2*D2 — bấm vào 1 ô tiền khác trong bảng để chèn toạ độ ô đó.</p>
+          `}
+          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilcm-cancel">Huỷ</button>
+            <button type="button" class="btn btn-primary btn-sm preview-allow" id="ilcm-save">Lưu</button>
+          </div>
+        </div>`;
+      if(unbindDrag) unbindDrag();
+      unbindDrag = ilMakeDraggable(panel, panel.querySelector('#ilcm-handle'));
+      panel.querySelector('#ilcm-x').onclick = close;
+      panel.querySelector('#ilcm-cancel').onclick = close;
+      panel.querySelector('#ilcm-tab-lit').onclick = ()=>{ tab='literal'; render(); };
+      panel.querySelector('#ilcm-tab-f').onclick = ()=>{ tab='formula'; render(); };
+      if(tab==='literal'){
+        ilWireInlineMoneyDisp(panel.querySelector('#ilcm-lit-input'), panel.querySelector('#ilcm-disp'), IL_MAX.moneyDigits);
+      } else {
+        const fInput = panel.querySelector('#ilcm-f-input');
+        panel.querySelectorAll('[data-ilcm-op]').forEach(btn=> btn.onclick = ()=>{
+          const op = btn.dataset.ilcmOp==='×'?'*':btn.dataset.ilcmOp==='÷'?'/':btn.dataset.ilcmOp;
+          const pos = fInput.selectionStart||fInput.value.length;
+          fInput.value = fInput.value.slice(0,pos)+op+fInput.value.slice(pos);
+          fInput.focus(); fInput.setSelectionRange(pos+1,pos+1);
+        });
+        if(pickHandler) tableEl.removeEventListener('mousedown', pickHandler, true);
+        pickHandler = (e)=>{
+          const target = e.target;
+          if(target.classList && target.classList.contains('ilae-cell-view') && !(target.dataset.ri===String(rowIdx) && target.dataset.ck===colKey)){
+            e.preventDefault(); e.stopPropagation();
+            const ref = ilColLetter(ap.columns.findIndex(c=>c.key===target.dataset.ck)) + (parseInt(target.dataset.ri,10)+1);
+            const pos = fInput.selectionStart||fInput.value.length;
+            fInput.value = fInput.value.slice(0,pos)+ref+fInput.value.slice(pos);
+            fInput.focus(); fInput.setSelectionRange(pos+ref.length,pos+ref.length);
+          }
+        };
+        tableEl.addEventListener('mousedown', pickHandler, true);
+      }
+      panel.querySelector('#ilcm-save').onclick = ()=>{
+        if(tab==='literal'){
+          const digits = panel.querySelector('#ilcm-lit-input').value.replace(/[^\d]/g,'');
+          ap.rows[rowIdx][colKey] = digits;
+        } else {
+          const fVal = panel.querySelector('#ilcm-f-input').value.trim();
+          if(!ilFormulaValid(fVal)){ alert('Công thức không hợp lệ — chỉ cho phép toạ độ ô (vd A1), số, và các phép + − × ÷ ( ), không được thiếu/thừa dấu toán học.'); return; }
+          ap.rows[rowIdx][colKey] = '='+fVal.replace(/^=/,'');
+        }
+        close();
+        onSaved();
+      };
+    }
+    render();
   }
 
   // =====================================================================
-  // PHỤ LỤC — tối đa 1/dòng, cột tự do (Chữ hoặc Tiền), đánh số A/B/C.../1/2/3,
-  // 1 cột tiền được chọn làm "cột quyết định số tiền chung", công thức, ẩn/hiện tổng.
+  // PHỤ LỤC — tối đa 1/dòng, cột tự do (Chữ/Tiền/Ngày tháng), 1 cột tiền quyết định số
+  // tiền chung, sắp xếp cột/dòng, xoá phụ lục.
   // =====================================================================
   function ilDefaultAppendixColumns(){
     return [ { key: ilNewId('c'), label:'Nội dung', type:'text', showTotal:true }, { key: ilNewId('c'), label:'Số tiền', type:'money', showTotal:true } ];
@@ -516,118 +727,105 @@
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch;';
+    let sortingLayout = false;
+    let rowSortDraft = null, colSortDraft = null;
     function syncEntryAmountIfNeeded(){
       if(entry.amountMode==='appendix') entry.amount = ilAppendixDesignatedTotal(ap);
     }
-    function readFormIntoAp(){
-      wrap.querySelectorAll('.ilae-col-label').forEach(inp=>{ ap.columns[+inp.dataset.ci].label = inp.value; });
-      wrap.querySelectorAll('.ilae-cell-text').forEach(inp=>{ ap.rows[+inp.dataset.ri][inp.dataset.ck] = inp.value; });
-      wrap.querySelectorAll('.ilae-cell-money').forEach(inp=>{ if(!String(ap.rows[+inp.dataset.ri][inp.dataset.ck]||'').startsWith('=')) ap.rows[+inp.dataset.ri][inp.dataset.ck] = inp.value.replace(/[^\d]/g,''); });
+    function orderedCols(){ return (sortingLayout && colSortDraft) ? colSortDraft.map(k=>ap.columns.find(c=>c.key===k)).filter(Boolean) : ap.columns; }
+    function orderedRowsIdx(){ return (sortingLayout && rowSortDraft) ? rowSortDraft : ap.rows.map((_,i)=>i); }
+    function readColLabelsIntoAp(){
+      wrap.querySelectorAll('.ilae-col-label').forEach(inp=>{ const col = ap.columns.find(c=>c.key===inp.dataset.ck); if(col) col.label = inp.value; });
     }
     function render(){
-      const titleDupOk = (()=>{
-        const others = ledger.entries.filter(e=>e.id!==entry.id && e.appendix).map(e=>e.appendix.title);
-        return !others.includes((document.getElementById('ilae-title')? document.getElementById('ilae-title').value : ap.title).trim());
-      })();
+      const cols = orderedCols();
+      const rowsIdx = orderedRowsIdx();
       wrap.innerHTML = `
         <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
           <div class="modal-head"><h3>📎 Phụ lục — ${escapeHtml(entry.content||'')}</h3><button class="modal-close" id="ilae-close">✕</button></div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:14px;">
             <div class="field"><label>Tên phụ lục * <span class="sub">(tối đa ${IL_MAX.title} ký tự — không được trùng với phụ lục khác trong sổ này)</span></label><input type="text" id="ilae-title" maxlength="${IL_MAX.title}" value="${escapeHtml(ap.title||'')}" ${canEdit?'':'disabled'}></div>
-            <p class="sub" style="margin:10px 0 4px;"><b>Cột của bảng</b> — bấm ⭐ ở cột Tiền để chọn làm cột quyết định số tiền chung của dòng ${entry.type==='thu'?'thu':'chi'} này.</p>
+            ${sortingLayout? `<div style="margin-bottom:10px; display:flex; gap:8px;">
+              <button type="button" class="btn btn-primary btn-sm preview-allow" id="ilae-sort-save">💾 Lưu thứ tự</button>
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-sort-cancel">Huỷ</button>
+            </div><p class="sub">Kéo biểu tượng ☰ ở hàng A/B/C (cột) hoặc ở từng dòng để đổi vị trí.</p>` : ''}
             <div class="table-wrap"><table id="ilae-table">
               <thead>
                 <tr>
-                  ${canEdit? `<th></th>` : ''}<th></th>
-                  ${ap.columns.map((c,ci)=>`<th style="text-align:center;">${ilColLetter(ci)}</th>`).join('')}
+                  ${canEdit && !sortingLayout? `<th></th>` : ''}<th></th>
+                  ${cols.map((c,ci)=>`<th data-col-key="${c.key}" style="text-align:center; ${sortingLayout?'cursor:grab;':''}" ${sortingLayout? `draggable="true" data-drag-col="${c.key}"` : ''}>${sortingLayout? '☰' : ilColLetter(ci)}</th>`).join('')}
                 </tr>
                 <tr>
-                  ${canEdit? `<th></th>` : ''}<th></th>
-                  ${ap.columns.map((c,ci)=>`<th>
-                    <input type="text" class="ilae-col-label" data-ci="${ci}" maxlength="${IL_MAX.colLabel}" value="${escapeHtml(c.label)}" style="width:100%; font-weight:700; border:1px solid var(--line); border-radius:4px; padding:3px 5px;" ${canEdit?'':'disabled'}>
-                    <div style="display:flex; align-items:center; justify-content:center; gap:4px; margin-top:3px;">
-                      <select class="ilae-col-type" data-ci="${ci}" ${canEdit?'':'disabled'}><option value="text" ${c.type==='text'?'selected':''}>Chữ</option><option value="money" ${c.type==='money'?'selected':''}>Tiền</option></select>
-                      ${c.type==='money' && canEdit? `<button type="button" class="btn-plain-icon preview-allow ilae-col-star" data-ci="${ci}" title="${ap.designatedKey===c.key?'Đang là cột quyết định — bấm để bỏ chọn':'Chọn làm cột quyết định số tiền chung'}" style="background:none; border:none; cursor:pointer; font-size:15px;">${ap.designatedKey===c.key?'⭐':'☆'}</button>` : ''}
-                      ${canEdit? `<button type="button" class="btn-plain-icon preview-allow ilae-col-del" data-ci="${ci}" title="Xoá cột" style="background:none; border:none; cursor:pointer;" ${ap.columns.length<=1?'disabled':''}>🗑️</button>` : ''}
-                    </div>
+                  ${canEdit && !sortingLayout? `<th></th>` : ''}<th></th>
+                  ${cols.map(c=>`<th>
+                    ${!sortingLayout? `<div style="display:flex; align-items:center; justify-content:center; gap:4px; margin-bottom:3px;">
+                      <select class="ilae-col-type" data-ck="${c.key}" ${canEdit?'':'disabled'}><option value="text" ${c.type==='text'?'selected':''}>Chữ</option><option value="money" ${c.type==='money'?'selected':''}>Tiền</option><option value="date" ${c.type==='date'?'selected':''}>Ngày tháng</option></select>
+                      ${c.type==='money' && canEdit? `<button type="button" class="btn-plain-icon preview-allow ilae-col-star" data-ck="${c.key}" title="${ap.designatedKey===c.key?'Đang là cột quyết định — bấm để bỏ chọn':'Chọn làm cột quyết định số tiền chung'}" style="background:none; border:none; cursor:pointer; font-size:15px;">${ap.designatedKey===c.key?'⭐':'☆'}</button>` : ''}
+                      ${canEdit? `<button type="button" class="btn-plain-icon preview-allow ilae-col-del" data-ck="${c.key}" title="Xoá cột" style="background:none; border:none; cursor:pointer;" ${ap.columns.length<=1?'disabled':''}>🗑️</button>` : ''}
+                    </div>` : ''}
+                    <input type="text" class="ilae-col-label" data-ck="${c.key}" maxlength="${IL_MAX.colLabel}" value="${escapeHtml(c.label)}" style="width:100%; font-weight:700; border:1px solid var(--line); border-radius:4px; padding:3px 5px;" ${canEdit && !sortingLayout?'':'disabled'}>
                   </th>`).join('')}
                 </tr>
               </thead>
               <tbody>
-                ${ap.rows.map((r,ri)=>`<tr>
-                  ${canEdit? `<td style="text-align:center;"><button type="button" class="btn-plain-icon preview-allow ilae-row-del" data-ri="${ri}" title="Xoá dòng" style="background:none; border:none; cursor:pointer;">🗑️</button></td>` : ''}
-                  <td style="text-align:center; font-weight:700; background:var(--paper-2);">${ri+1}</td>
-                  ${ap.columns.map(c=>{
+                ${rowsIdx.map((ri,displayIdx)=>{ const r = ap.rows[ri]; return `<tr${sortingLayout? ` draggable="true" data-drag-row="${ri}"` : ''}>
+                  ${canEdit && !sortingLayout? `<td style="text-align:center;"><button type="button" class="btn-plain-icon preview-allow ilae-row-del" data-ri="${ri}" title="Xoá dòng" style="background:none; border:none; cursor:pointer;">🗑️</button></td>` : ''}
+                  <td style="text-align:center; font-weight:700; background:var(--paper-2); ${sortingLayout?'cursor:grab;':''}">${sortingLayout? '☰' : displayIdx+1}</td>
+                  ${cols.map(c=>{
                     const raw = r[c.key]!=null? String(r[c.key]) : '';
                     if(c.type==='money'){
                       const isFormula = raw.startsWith('=');
-                      const displayVal = isFormula? ilCellComputed(ap, ri, c.key) : raw;
-                      return `<td style="position:relative;">
-                        <input type="text" inputmode="numeric" class="ilae-cell-money" data-ri="${ri}" data-ck="${c.key}" value="${escapeHtml(String(displayVal||''))}" placeholder="Chỉ nhập số" style="text-align:right; width:100%; ${isFormula?'background:#ede7f6; font-style:italic;':''}" ${canEdit?'':'disabled'} title="${isFormula? 'Công thức: '+raw : ''}">
-                        ${canEdit? `<button type="button" class="btn-plain-icon preview-allow ilae-cell-fx" data-ri="${ri}" data-ck="${c.key}" title="Thêm công thức" style="position:absolute; right:-18px; top:2px; background:none; border:none; cursor:pointer; font-size:12px;">ƒ</button>` : ''}
-                      </td>`;
+                      const displayVal = isFormula? moneySpaced(ilCellComputed(ap, ri, c.key)) : (raw? moneySpaced(raw) : '');
+                      return `<td style="text-align:right;"><span class="ilae-cell-view" data-ri="${ri}" data-ck="${c.key}" style="display:inline-block; min-width:70px; padding:4px 6px; border:1px solid var(--line); border-radius:5px; cursor:${canEdit?'pointer':'default'}; ${isFormula?'background:#ede7f6; font-style:italic;':'background:#fff;'}" title="${isFormula? 'Công thức: '+raw : ''}">${displayVal||'—'}</span></td>`;
                     }
+                    if(c.type==='date') return `<td><input type="date" class="ilae-cell-date" data-ri="${ri}" data-ck="${c.key}" value="${escapeHtml(raw)}" style="width:100%;" ${canEdit?'':'disabled'}></td>`;
                     return `<td><input type="text" class="ilae-cell-text" data-ri="${ri}" data-ck="${c.key}" maxlength="${IL_MAX.cellText}" value="${escapeHtml(raw)}" style="width:100%;" ${canEdit?'':'disabled'}></td>`;
                   }).join('')}
-                </tr>`).join('')}
-                <tr id="ilae-totals-row" style="font-weight:700; background:var(--paper-2);">
+                </tr>`; }).join('')}
+                ${!sortingLayout? `<tr id="ilae-totals-row" style="font-weight:700; background:var(--paper-2);">
                   ${canEdit? `<td></td>` : ''}<td>Tổng</td>
-                  ${ap.columns.map(c=>{
+                  ${cols.map(c=>{
                     if(c.type!=='money') return '<td></td>';
                     const isDesignated = ap.designatedKey===c.key;
                     const hidden = !isDesignated && c.showTotal===false;
                     const total = ilAppendixColumnTotal(ap, c.key);
                     return `<td style="text-align:right; cursor:${isDesignated?'default':'pointer'}; ${isDesignated? 'background:#b71c1c; color:#fff; font-weight:800;' : ''}" class="ilae-total-cell" data-ck="${c.key}">${hidden? `<span class="sub" style="font-weight:400;">(đang ẩn — bấm để hiện)</span>` : moneySpaced(total)}</td>`;
                   }).join('')}
-                </tr>
+                </tr>` : ''}
               </tbody>
             </table></div>
-            ${canEdit? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-col-add" style="margin-top:8px;">➕ Thêm cột</button> <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-row-add" style="margin-top:8px;">➕ Thêm dòng</button>` : ''}
-            <p class="sub" style="margin-top:12px;">${ap.designatedKey? `Cột quyết định số tiền chung: <b>${escapeHtml((ap.columns.find(c=>c.key===ap.designatedKey)||{}).label||'')}</b> = <b>${moneySpaced(ilAppendixDesignatedTotal(ap))}</b>${entry.amountMode==='appendix'? ' (đang đồng bộ với số tiền dòng '+(entry.type==='thu'?'thu':'chi')+')' : ''}` : 'Chưa chọn cột quyết định số tiền chung.'}</p>
+            ${canEdit && !sortingLayout? `<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-col-add">➕ Thêm cột</button>
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-row-add">➕ Thêm dòng</button>
+              ${(ap.columns.length>1 || ap.rows.length>1)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-sort-start">🔀 Sắp xếp cột và dòng</button>` : ''}
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-del-appendix" style="margin-left:auto; color:var(--red);">🗑️ Xoá phụ lục</button>
+            </div>` : ''}
+            <p id="ilae-designated-line" class="sub" style="margin-top:12px;">${ap.designatedKey? `Cột quyết định số tiền chung: <b><span id="ilae-dg-name">${escapeHtml((ap.columns.find(c=>c.key===ap.designatedKey)||{}).label||'')}</span></b> = <b><span id="ilae-dg-amount">${moneySpaced(ilAppendixDesignatedTotal(ap))}</span></b>${entry.amountMode==='appendix'? ' (đang đồng bộ với số tiền dòng '+(entry.type==='thu'?'thu':'chi')+')' : ''}` : 'Chưa chọn cột quyết định số tiền chung.'}</p>
           </div>
           <div class="modal-foot">
-            ${canEdit? `<button class="btn btn-ghost" id="ilae-cancel">Huỷ</button><button class="btn btn-primary" id="ilae-save">💾 Lưu phụ lục</button>` : `<button class="btn btn-ghost" id="ilae-cancel">Đóng</button>`}
+            ${canEdit && sortingLayout? '' : (canEdit? `<button class="btn btn-ghost" id="ilae-cancel">Huỷ</button><button class="btn btn-primary" id="ilae-save">💾 Lưu phụ lục</button>` : `<button class="btn btn-ghost" id="ilae-cancel">Đóng</button>`)}
           </div>
         </div>`;
       const close = ()=> wrap.remove();
       wrap.querySelector('#ilae-close').onclick = close;
-      wrap.querySelector('#ilae-cancel').onclick = close;
-      wrap.querySelectorAll('.ilae-cell-money').forEach(inp=> ilAttachFloatingMoneyPreview(inp));
-      wrap.querySelectorAll('.ilae-cell-money').forEach(inp=> inp.addEventListener('input', ()=>{
-        if(String(ap.rows[+inp.dataset.ri][inp.dataset.ck]||'').startsWith('=')) return; // công thức: không cho gõ tay đè lên, phải xoá công thức trước
-        inp.value = inp.value.replace(/[^\d]/g,'').slice(0, IL_MAX.moneyDigits);
-        ap.rows[+inp.dataset.ri][inp.dataset.ck] = inp.value;
-        const totalsRow = wrap.querySelector('#ilae-totals-row');
-        if(totalsRow){
-          const cell = totalsRow.querySelector(`[data-ck="${inp.dataset.ck}"]`);
-          const col = ap.columns.find(c=>c.key===inp.dataset.ck);
-          if(cell && !(col.showTotal===false && ap.designatedKey!==col.key)) cell.textContent = moneySpaced(ilAppendixColumnTotal(ap, inp.dataset.ck));
-        }
-      }));
-      wrap.querySelectorAll('.ilae-cell-fx').forEach(btn=> btn.onclick = ()=>{
-        const input = wrap.querySelector(`.ilae-cell-money[data-ri="${btn.dataset.ri}"][data-ck="${btn.dataset.ck}"]`);
-        const current = ap.rows[+btn.dataset.ri][btn.dataset.ck];
-        let picker = renderFormulaEditorModal(input, current, (formula)=>{
-          ap.rows[+btn.dataset.ri][btn.dataset.ck] = '='+formula.replace(/^=/,'');
-          readFormIntoAp(); render();
-          const content2 = document.getElementById('content'); if(content2 && document.getElementById('il-overview-excel-btn')) {}
-        });
-        function pickHandler(e){
-          const target = e.target;
-          if(target.classList && target.classList.contains('ilae-cell-money') && target!==input){
-            e.preventDefault(); e.stopPropagation();
-            picker.insertRef(ilColLetter(ap.columns.findIndex(c=>c.key===target.dataset.ck)) + (parseInt(target.dataset.ri,10)+1));
-          }
-        }
-        wrap.querySelector('#ilae-table').addEventListener('mousedown', pickHandler, true);
+      const cancelBtn = wrap.querySelector('#ilae-cancel'); if(cancelBtn) cancelBtn.onclick = close;
+      wrap.querySelectorAll('.ilae-cell-view').forEach(span=> span.onclick = ()=>{
+        if(!canEdit) return;
+        renderMoneyCellModal(ap, +span.dataset.ri, span.dataset.ck, wrap.querySelector('#ilae-table'), ()=>{ syncEntryAmountIfNeeded(); render(); });
       });
+      wrap.querySelectorAll('.ilae-cell-text, .ilae-cell-date').forEach(inp=> inp.addEventListener('input', ()=>{ ap.rows[+inp.dataset.ri][inp.dataset.ck] = inp.value; }));
       wrap.querySelectorAll('.ilae-col-label').forEach(inp=> inp.addEventListener('input', ()=>{
-        ap.columns[+inp.dataset.ci].label = inp.value;
+        const col = ap.columns.find(c=>c.key===inp.dataset.ck);
+        if(col) col.label = inp.value;
+        if(ap.designatedKey===inp.dataset.ck){
+          const nameEl = wrap.querySelector('#ilae-dg-name');
+          if(nameEl) nameEl.textContent = inp.value;
+        }
       }));
-      wrap.querySelectorAll('.ilae-col-type').forEach(sel=> sel.onchange = ()=>{ readFormIntoAp(); ap.columns[+sel.dataset.ci].type = sel.value; if(sel.value!=='money' && ap.designatedKey===ap.columns[+sel.dataset.ci].key) ap.designatedKey=null; render(); });
+      wrap.querySelectorAll('.ilae-col-type').forEach(sel=> sel.onchange = ()=>{ readColLabelsIntoAp(); const col = ap.columns.find(c=>c.key===sel.dataset.ck); col.type = sel.value; if(sel.value!=='money' && ap.designatedKey===col.key){ ap.designatedKey=null; if(entry.amountMode==='appendix') entry.amount=0; } syncEntryAmountIfNeeded(); render(); });
       wrap.querySelectorAll('.ilae-col-star').forEach(btn=> btn.onclick = ()=>{
-        readFormIntoAp();
-        const col = ap.columns[+btn.dataset.ci];
+        readColLabelsIntoAp();
+        const col = ap.columns.find(c=>c.key===btn.dataset.ck);
         if(ap.designatedKey===col.key){ ap.designatedKey=null; if(entry.amountMode==='appendix') entry.amount=0; render(); return; }
         const newTotal = ilAppendixColumnTotal(ap, col.key);
         const proceed = ()=>{ ap.designatedKey = col.key; col.showTotal = true; syncEntryAmountIfNeeded(); render(); };
@@ -638,25 +836,39 @@
       wrap.querySelectorAll('.ilae-total-cell').forEach(td=> td.onclick = ()=>{
         const col = ap.columns.find(c=>c.key===td.dataset.ck);
         if(!col || ap.designatedKey===col.key) return;
-        readFormIntoAp();
+        readColLabelsIntoAp();
         col.showTotal = col.showTotal===false ? true : false;
         render();
       });
-      if(canEdit){
-        wrap.querySelector('#ilae-col-add').onclick = ()=>{ readFormIntoAp(); ap.columns.push({ key: ilNewId('c'), label:'Cột mới', type:'text', showTotal:true }); render(); };
+      if(canEdit && !sortingLayout){
+        const colAddBtn = wrap.querySelector('#ilae-col-add'); if(colAddBtn) colAddBtn.onclick = ()=>{ readColLabelsIntoAp(); ap.columns.push({ key: ilNewId('c'), label:'Cột mới', type:'text', showTotal:true }); render(); };
         wrap.querySelectorAll('.ilae-col-del').forEach(btn=> btn.onclick = ()=>{
           if(ap.columns.length<=1) return;
-          readFormIntoAp();
-          const col = ap.columns[+btn.dataset.ci];
+          readColLabelsIntoAp();
+          const col = ap.columns.find(c=>c.key===btn.dataset.ck);
           if(ap.designatedKey===col.key){ ap.designatedKey=null; if(entry.amountMode==='appendix') entry.amount=0; }
-          ap.columns.splice(+btn.dataset.ci,1);
+          ap.columns = ap.columns.filter(c=>c.key!==col.key);
           ap.rows.forEach(r=>{ delete r[col.key]; });
           render();
         });
-        wrap.querySelector('#ilae-row-add').onclick = ()=>{ readFormIntoAp(); ap.rows.push({}); render(); };
-        wrap.querySelectorAll('.ilae-row-del').forEach(btn=> btn.onclick = ()=>{ readFormIntoAp(); ap.rows.splice(+btn.dataset.ri,1); render(); });
-        wrap.querySelector('#ilae-save').onclick = ()=>{
-          readFormIntoAp();
+        const rowAddBtn = wrap.querySelector('#ilae-row-add'); if(rowAddBtn) rowAddBtn.onclick = ()=>{ readColLabelsIntoAp(); ap.rows.push({}); render(); };
+        wrap.querySelectorAll('.ilae-row-del').forEach(btn=> btn.onclick = ()=>{ readColLabelsIntoAp(); ap.rows.splice(+btn.dataset.ri,1); render(); });
+        const sortStartBtn = wrap.querySelector('#ilae-sort-start');
+        if(sortStartBtn) sortStartBtn.onclick = ()=>{ readColLabelsIntoAp(); sortingLayout = true; colSortDraft = ap.columns.map(c=>c.key); rowSortDraft = ap.rows.map((_,i)=>i); render(); };
+        const delApBtn = wrap.querySelector('#ilae-del-appendix');
+        if(delApBtn) delApBtn.onclick = ()=>{
+          const msg = entry.amountMode==='appendix'
+            ? `⚠️ Phụ lục này đang quyết định số tiền của dòng ${entry.type==='thu'?'thu':'chi'} mà nó thuộc về (hiện là ${moneySpaced(entry.amount)}). Nếu xoá, số tiền dòng này sẽ về 0 đ, cho đến khi đồng chí tạo một phụ lục mới và chọn lại cột quyết định. Đồng chí có chắc chắn muốn xoá phụ lục này không?`
+            : 'Xoá phụ lục này?';
+          if(!confirm(msg)) return;
+          if(entry.amountMode==='appendix') entry.amount = 0;
+          entry.appendix = null;
+          ilPersist(); close();
+          renderInternalLedgerMain(el);
+        };
+        const saveBtn = wrap.querySelector('#ilae-save');
+        if(saveBtn) saveBtn.onclick = ()=>{
+          readColLabelsIntoAp();
           const title = wrap.querySelector('#ilae-title').value.trim();
           if(!title){ alert('Vui lòng đặt tên cho phụ lục.'); return; }
           const dup = ledger.entries.some(e=> e.id!==entry.id && e.appendix && e.appendix.title===title);
@@ -667,44 +879,180 @@
           renderInternalLedgerMain(el);
         };
       }
+      if(sortingLayout){
+        const saveSortBtn = wrap.querySelector('#ilae-sort-save');
+        if(saveSortBtn) saveSortBtn.onclick = ()=>{
+          ap.columns = colSortDraft.map(k=>ap.columns.find(c=>c.key===k)).filter(Boolean);
+          const newRows = rowSortDraft.map(ri=>ap.rows[ri]);
+          ap.rows = newRows;
+          sortingLayout = false; colSortDraft=null; rowSortDraft=null;
+          render();
+        };
+        const cancelSortBtn = wrap.querySelector('#ilae-sort-cancel');
+        if(cancelSortBtn) cancelSortBtn.onclick = ()=>{ sortingLayout=false; colSortDraft=null; rowSortDraft=null; render(); };
+        wireDragReorderHorizontalWithIndicator(
+          Array.from(wrap.querySelectorAll('[data-drag-col]')),
+          th=> th.dataset.dragCol,
+          (draggedKey, targetKey, before)=>{
+            const arr = colSortDraft.filter(k=>k!==draggedKey);
+            let idx = arr.indexOf(targetKey);
+            if(!before) idx += 1;
+            arr.splice(idx, 0, draggedKey);
+            colSortDraft = arr;
+            render();
+          }
+        );
+        wireDragReorderWithIndicator(
+          Array.from(wrap.querySelectorAll('[data-drag-row]')),
+          tr=> tr.dataset.dragRow,
+          (draggedRi, targetRi, before)=>{
+            draggedRi = +draggedRi; targetRi = +targetRi;
+            const arr = rowSortDraft.filter(ri=>ri!==draggedRi);
+            let idx = arr.indexOf(targetRi);
+            if(!before) idx += 1;
+            arr.splice(idx, 0, draggedRi);
+            rowSortDraft = arr;
+            render();
+          }
+        );
+      }
     }
     document.body.appendChild(wrap);
     render();
   }
+  // Biến thể NGANG của wireDragReorderWithIndicator (hàm gốc chỉ kéo-thả theo chiều dọc,
+  // dùng toạ độ Y) — dùng để kéo-thả đổi vị trí các CỘT ngay trên hàng tiêu đề A/B/C.
+  function getDragIndicatorLineV(){
+    let line = document.getElementById('__dragIndicatorLineV');
+    if(!line){
+      line = document.createElement('div');
+      line.id = '__dragIndicatorLineV';
+      line.style.cssText = 'position:fixed; width:3px; background:#0d3b78; z-index:99999; pointer-events:none; display:none; border-radius:2px; box-shadow:0 0 5px rgba(13,59,120,.7);';
+      document.body.appendChild(line);
+    }
+    return line;
+  }
+  function showDragIndicatorV(targetEl, before){
+    const line = getDragIndicatorLineV();
+    const rect = targetEl.getBoundingClientRect();
+    line.style.top = rect.top+'px';
+    line.style.height = rect.height+'px';
+    line.style.left = (before? rect.left-2 : rect.right-2)+'px';
+    line.style.display = 'block';
+  }
+  function hideDragIndicatorV(){ const line = document.getElementById('__dragIndicatorLineV'); if(line) line.style.display='none'; }
+  function wireDragReorderHorizontalWithIndicator(cells, getKey, onReorder){
+    let draggedEl = null, draggedKey = null;
+    cells.forEach(cell=>{
+      cell.addEventListener('dragstart', (e)=>{
+        draggedEl = cell; draggedKey = getKey(cell); cell.style.opacity='0.4';
+        if(e.dataTransfer && e.dataTransfer.setDragImage){
+          const ghost = document.createElement('div');
+          ghost.textContent = '⠿';
+          ghost.style.cssText = 'position:fixed; top:-1000px; left:-1000px; padding:6px 10px; background:#212121; color:#fff; border:2px solid #fff; border-radius:8px; font-size:13px; font-weight:700;';
+          document.body.appendChild(ghost);
+          e.dataTransfer.setDragImage(ghost, 10, 10);
+          setTimeout(()=> ghost.remove(), 0);
+        }
+      });
+      cell.addEventListener('dragend', ()=>{ if(draggedEl) draggedEl.style.opacity=''; draggedEl=null; draggedKey=null; hideDragIndicatorV(); });
+      cell.addEventListener('dragover', (e)=>{
+        e.preventDefault();
+        if(!draggedKey || cell===draggedEl){ hideDragIndicatorV(); return; }
+        const rect = cell.getBoundingClientRect();
+        const before = (e.clientX - rect.left) < rect.width/2;
+        showDragIndicatorV(cell, before);
+        cell.dataset.__dragBeforeV = before? '1':'0';
+      });
+      cell.addEventListener('drop', (e)=>{
+        e.preventDefault();
+        hideDragIndicatorV();
+        const targetKey = getKey(cell);
+        if(!draggedKey || draggedKey===targetKey) return;
+        const before = cell.dataset.__dragBeforeV==='1';
+        onReorder(draggedKey, targetKey, before);
+      });
+    });
+  }
 
   // =====================================================================
-  // XEM BẢNG EXCEL / TẢI / IN — kind: 'thu' | 'chi' | 'appendix' | 'all'.
+  // XUẤT/IN — luôn hỏi "kèm/không kèm tên Cơ quan" trước (mặc định Không kèm).
   // =====================================================================
+  function ilAskOrgHeaderChoice(onChoice){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:480px;">
+        <div class="modal-head"><h3>In / Xuất file</h3><button class="modal-close" id="ilh-close">✕</button></div>
+        <div class="modal-body">
+          <p class="sub">Chọn cách hiển thị phần đầu tài liệu:</p>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <button type="button" class="btn btn-primary preview-allow" id="ilh-no">1. Không kèm tên Cơ quan</button>
+            <button type="button" class="btn btn-ghost preview-allow" id="ilh-yes">2. Kèm theo tên Cơ quan</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#ilh-close').onclick = close;
+    wrap.querySelector('#ilh-no').onclick = ()=>{ close(); onChoice(false); };
+    wrap.querySelector('#ilh-yes').onclick = ()=>{ close(); onChoice(true); };
+  }
+  function ilStartExport(ledger, kind, appendixEntry){
+    renderInternalExcelModal(ledger, kind, appendixEntry);
+  }
   function ilAoaLedger(ledger, type){
     const isThu = type==='thu';
     const headers = ['Ngày','Nội dung '+(isThu?'thu':'chi'),'Số tiền','Người '+(isThu?'thu':'chi'),'Ghi chú','Phụ lục đi kèm'];
     const list = ilEntriesOfType(ledger, type);
-    const rows = list.map(e=>[ fmtDate(e.date), e.content||'', e.amount||0, e.person||'', e.note||'', e.appendix? e.appendix.title : '' ]);
-    rows.push(['','TỔNG', list.reduce((s,e)=>s+(parseInt(e.amount,10)||0),0), '', '', '']);
-    return { headers, rows };
+    const dataRows = list.map(e=>[ fmtDate(e.date), e.content||'', e.amount||0, e.person||'', e.note||'', e.appendix? ilAppendixDisplayTitle(e) : '' ]);
+    const totalRow = ['TỔNG', '', list.reduce((s,e)=>s+(parseInt(e.amount,10)||0),0), '', '', ''];
+    return { headers, rows: [totalRow, ...dataRows], columns: [{type:'date'},{type:'text'},{type:'money'},{type:'text'},{type:'text'},{type:'text'}], moneyColIndex:2, isLedger:true, entries:list };
   }
-  function ilAoaAppendix(ap){
+  function ilAoaAppendix(entry){
+    const ap = entry.appendix;
     const headers = ap.columns.map(c=>c.label);
-    const rows = ap.rows.map((r,ri)=> ap.columns.map(c=> c.type==='money' ? ilCellComputed(ap,ri,c.key) : (r[c.key]!=null? r[c.key] : '')));
-    rows.push(ap.columns.map(c=> c.type==='money' ? ilAppendixColumnTotal(ap, c.key) : (ap.columns[0]===c?'TỔNG':'')));
-    return { headers, rows };
+    const formulaCells = [];
+    const rows = ap.rows.map((r,ri)=> ap.columns.map((c,ci)=>{
+      if(c.type==='money'){
+        const raw = String(r[c.key]??'');
+        if(raw.startsWith('=')) formulaCells.push({ ri, ci, body: raw.slice(1) });
+        return ilCellComputed(ap, ri, c.key);
+      }
+      if(c.type==='date') return r[c.key]!=null? r[c.key] : '';
+      return r[c.key]!=null? r[c.key] : '';
+    }));
+    const totalRow = ap.columns.map(c=> c.type==='money' ? ilAppendixColumnTotal(ap, c.key) : (ap.columns[0]===c?'TỔNG':''));
+    return { headers, rows:[...rows, totalRow], columns: ap.columns.map(c=>({type:c.type})), formulaCells, isAppendix:true, title: ilAppendixDisplayTitle(entry) };
+  }
+  function ilRelatedAppendixSections(ledger, type){
+    const types = type? [type] : ['thu','chi'];
+    const sections = [];
+    types.forEach(t=>{
+      ilEntriesOfType(ledger, t).forEach(e=>{ if(e.appendix) sections.push({ title: e.appendix.title, ...ilAoaAppendix(e) }); });
+    });
+    return sections;
   }
   function ilAllSections(ledger){
     const sections = [{ title:'Tổng quan', headers:['Chỉ tiêu','Số tiền'], rows:[
       ['Tổng Thu', ilTotalOfType(ledger,'thu')], ['Tổng Chi', ilTotalOfType(ledger,'chi')], ['Còn lại', ilTotalOfType(ledger,'thu')-ilTotalOfType(ledger,'chi')],
-    ] }];
-    sections.push({ title:'Sổ Thu', ...ilAoaLedger(ledger,'thu') });
-    sections.push({ title:'Sổ Chi', ...ilAoaLedger(ledger,'chi') });
-    ledger.entries.forEach(e=>{ if(e.appendix) sections.push({ title:`Phụ lục — ${e.content||''} — ${e.appendix.title||''}`, ...ilAoaAppendix(e.appendix) }); });
+    ], columns:[{type:'text'},{type:'money'}], isOverview:true }];
+    const thuSec = ilAoaLedger(ledger,'thu'); thuSec.title='Sổ Thu'; sections.push(thuSec);
+    const chiSec = ilAoaLedger(ledger,'chi'); chiSec.title='Sổ Chi'; sections.push(chiSec);
+    sections.push(...ilRelatedAppendixSections(ledger, null));
     return sections;
   }
   function renderInternalExcelModal(ledger, kind, appendixEntry){
     let sections;
     if(kind==='all') sections = ilAllSections(ledger);
-    else if(kind==='appendix') sections = [{ title:`Phụ lục — ${appendixEntry.appendix.title||''}`, ...ilAoaAppendix(appendixEntry.appendix) }];
-    else sections = [{ title: kind==='thu'?'Sổ Thu':'Sổ Chi', ...ilAoaLedger(ledger, kind) }];
+    else if(kind==='appendix'){ const sec = ilAoaAppendix(appendixEntry); sec.title = appendixEntry.appendix.title; sections = [sec]; }
+    else {
+      const sec = ilAoaLedger(ledger, kind); sec.title = kind==='thu'?'Sổ Thu':'Sổ Chi';
+      sections = [sec, ...ilRelatedAppendixSections(ledger, kind)];
+    }
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
+    function alignStyle(col){ return col && col.type==='money' ? 'text-align:right;' : ''; }
     wrap.innerHTML = `
       <div class="modal" style="max-width:96vw; width:920px;">
         <div class="modal-head"><h3>👁️ Xem trước dạng Excel — ${escapeHtml(ledger.name)}</h3><button class="modal-close" id="ilx-close">✕</button></div>
@@ -713,7 +1061,7 @@
             <h4 style="margin:14px 0 6px;">${escapeHtml(sec.title)}</h4>
             <div class="table-wrap"><table>
               <thead><tr>${sec.headers.map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
-              <tbody>${sec.rows.length? sec.rows.map(r=>`<tr>${r.map(c=>`<td>${typeof c==='number'? escapeHtml(moneySpaced(c)) : escapeHtml(String(c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.headers.length}">Không có dữ liệu</td></tr>`}</tbody>
+              <tbody>${sec.rows.length? sec.rows.map(r=>`<tr>${r.map((c,ci)=>`<td style="${alignStyle(sec.columns && sec.columns[ci])}">${typeof c==='number'? escapeHtml(moneySpaced(c)) : escapeHtml(String(c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.headers.length}">Không có dữ liệu</td></tr>`}</tbody>
             </table></div>`).join('')}
         </div>
         <div class="modal-foot">
@@ -724,57 +1072,161 @@
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
     wrap.querySelector('#ilx-close').onclick = close;
-    wrap.querySelector('#ilx-print').onclick = ()=> ilPrintSections(ledger, sections);
-    wrap.querySelector('#ilx-export').onclick = async ()=>{
-      try{ await ilExportExcel(ledger, sections); close(); }
+    wrap.querySelector('#ilx-print').onclick = ()=> ilAskOrgHeaderChoice((withOrg)=> ilPrintSections(ledger, sections, withOrg));
+    wrap.querySelector('#ilx-export').onclick = ()=> ilAskOrgHeaderChoice(async (withOrg)=>{
+      try{ await ilExportExcel(ledger, sections, withOrg); close(); }
       catch(e){ console.error('[Thu - Chi nội bộ] Lỗi xuất Excel:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
-    };
+    });
   }
-  async function ilExportExcel(ledger, sections){
+  function ilOrgHeaderLines(includeOrgHeader){
+    return includeOrgHeader ? [ ['Sổ tay Công tác Hội Nông dân cấp xã/phường'], ['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()] ] : [];
+  }
+  async function ilExportExcel(ledger, sections, includeOrgHeader){
     await loadOptionalLibrary('xlsx');
     const wb = XLSX.utils.book_new();
+    const sheetInfo = {}; // title -> { name, headerLinesLen }
     sections.forEach((sec,i)=>{
-      const headerLines = [ ['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [`SỔ THU – CHI NỘI BỘ: ${ledger.name} — ${sec.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], [] ];
+      const orgLines = ilOrgHeaderLines(includeOrgHeader);
+      const headerLines = [...orgLines, [`SỔ THU – CHI NỘI BỘ: ${ledger.name} — ${sec.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], []];
       const aoa = [...headerLines, sec.headers, ...sec.rows];
       const ws = XLSX.utils.aoa_to_sheet(aoa);
-      applyExcelCellFormatting(ws, aoa, headerLines.length);
-      boldExcelRow(ws, 3);
+      if(sec.isAppendix) ilFormatAppendixSheet(ws, sec.columns, headerLines.length);
+      else applyExcelCellFormatting(ws, aoa, headerLines.length);
+      boldExcelRow(ws, headerLines.length-1>=0? orgLines.length : 0);
       const lastCol = Math.max(0, sec.headers.length-1);
       ws['!merges'] = headerLines.map((line,r)=> (line.length? {s:{r,c:0}, e:{r,c:lastCol}} : null)).filter(Boolean);
       ws['!cols'] = sec.headers.map(()=>({wch:24}));
       const sheetName = (sec.title||`Sheet${i+1}`).replace(/[\\/?*[\]:]/g,' ').slice(0,31) || `Sheet${i+1}`;
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      sheetInfo[sec.title] = { name: sheetName, headerLinesLen: headerLines.length, sec, ws };
     });
+    // Ô TỔNG của Sổ Thu/Sổ Chi -> công thức SUM thật trên đúng cột Số tiền.
+    sections.forEach(sec=>{
+      if(!sec.isLedger) return;
+      const info = sheetInfo[sec.title];
+      if(!info || sec.rows.length<2) return;
+      const colLetter = XLSX.utils.encode_col(sec.moneyColIndex);
+      const dataFirst1 = info.headerLinesLen+3, dataLast1 = info.headerLinesLen+1+sec.rows.length;
+      const totalAddr = XLSX.utils.encode_cell({ r: info.headerLinesLen+1, c: sec.moneyColIndex });
+      info.ws[totalAddr] = Object.assign({}, info.ws[totalAddr], { t:'n', f: `SUM(${colLetter}${dataFirst1}:${colLetter}${dataLast1})` });
+    });
+    // Phụ lục: công thức ô + công thức SUM các ô tổng cột tiền.
+    sections.forEach(sec=>{
+      if(!sec.isAppendix) return;
+      const info = sheetInfo[sec.title];
+      if(!info) return;
+      const dataStartRow0 = info.headerLinesLen+1; // 0-based: ngay sau dòng tiêu đề cột
+      (sec.formulaCells||[]).forEach(({ri,ci,body})=>{
+        const realFormula = body.replace(/([A-Za-z]+)(\d+)/g, (m,L,R)=>{
+          const colIdx = L.toUpperCase().charCodeAt(0)-65;
+          const rowIdx = parseInt(R,10)-1;
+          return XLSX.utils.encode_cell({ r: dataStartRow0+rowIdx, c: colIdx });
+        });
+        const addr = XLSX.utils.encode_cell({ r: dataStartRow0+ri, c: ci });
+        info.ws[addr] = Object.assign({}, info.ws[addr], { t:'n', f: realFormula });
+      });
+      const dataRowCount = sec.rows.length-1; // trừ dòng tổng ở cuối
+      if(dataRowCount>0){
+        sec.columns.forEach((c,ci)=>{
+          if(c.type!=='money') return;
+          const colLetter = XLSX.utils.encode_col(ci);
+          const first1 = dataStartRow0+1, last1 = dataStartRow0+dataRowCount;
+          const totalRow0 = dataStartRow0+dataRowCount;
+          const addr = XLSX.utils.encode_cell({ r: totalRow0, c: ci });
+          info.ws[addr] = Object.assign({}, info.ws[addr], { t:'n', f: `SUM(${colLetter}${first1}:${colLetter}${last1})` });
+        });
+      }
+    });
+    // Tổng quan: tham chiếu sang Sổ Thu/Sổ Chi (chỉ có khi xuất bảng tổng hợp đầy đủ).
+    const overviewSec = sections.find(s=>s.isOverview);
+    if(overviewSec){
+      const thuInfo = sheetInfo['Sổ Thu'], chiInfo = sheetInfo['Sổ Chi'];
+      const ws = sheetInfo['Tổng quan'].ws;
+      const base1 = sheetInfo['Tổng quan'].headerLinesLen+2; // dòng "Tổng Thu" (1-based)
+      if(thuInfo && thuInfo.sec.rows.length>=2){
+        const colLetter = XLSX.utils.encode_col(thuInfo.sec.moneyColIndex);
+        const f1 = thuInfo.headerLinesLen+3, l1 = thuInfo.headerLinesLen+1+thuInfo.sec.rows.length;
+        const addr = XLSX.utils.encode_cell({ r: base1-1, c: 1 });
+        ws[addr] = Object.assign({}, ws[addr], { t:'n', f: `SUM('${thuInfo.name}'!${colLetter}${f1}:${colLetter}${l1})` });
+      }
+      if(chiInfo && chiInfo.sec.rows.length>=2){
+        const colLetter = XLSX.utils.encode_col(chiInfo.sec.moneyColIndex);
+        const f1 = chiInfo.headerLinesLen+3, l1 = chiInfo.headerLinesLen+1+chiInfo.sec.rows.length;
+        const addr = XLSX.utils.encode_cell({ r: base1, c: 1 });
+        ws[addr] = Object.assign({}, ws[addr], { t:'n', f: `SUM('${chiInfo.name}'!${colLetter}${f1}:${colLetter}${l1})` });
+      }
+      const conLaiAddr = XLSX.utils.encode_cell({ r: base1+1, c: 1 });
+      const thuAddr = XLSX.utils.encode_cell({ r: base1-1, c: 1 });
+      const chiAddr = XLSX.utils.encode_cell({ r: base1, c: 1 });
+      ws[conLaiAddr] = Object.assign({}, ws[conLaiAddr], { t:'n', f: `${thuAddr}-${chiAddr}` });
+    }
     XLSX.writeFile(wb, `${(ledger.name||'So-thu-chi-noi-bo').replace(/[^\p{L}\p{N} ]/gu,'')}_${todayStr()}.xlsx`, {cellStyles:true});
   }
-  function ilPrintSections(ledger, sections){
+  // Định dạng 1 sheet phụ lục theo ĐÚNG loại cột đã khai báo (không dò theo tên cột như
+  // applyExcelCellFormatting — vì tên cột ở đây do người dùng tự đặt tuỳ ý).
+  function ilFormatAppendixSheet(ws, columns, headerRowIdx0){
+    if(!ws['!ref']) return;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const FONT = { name:'Times New Roman' };
+    for(let r=0; r<=range.e.r; r++) for(let c=0; c<=range.e.c; c++){
+      const cell = ws[XLSX.utils.encode_cell({r,c})];
+      if(cell){ cell.s = cell.s||{}; cell.s.font = Object.assign({}, cell.s.font, FONT); }
+    }
+    for(let c=0; c<=range.e.c; c++){
+      const hcell = ws[XLSX.utils.encode_cell({r:headerRowIdx0,c})];
+      if(hcell){ hcell.s = hcell.s||{}; hcell.s.font = Object.assign({}, hcell.s.font, FONT, {bold:true}); }
+    }
+    columns.forEach((col,c)=>{
+      const align = col.type==='text' ? 'left' : (col.type==='money'||col.type==='date' ? 'right' : 'center');
+      for(let r=headerRowIdx0+1; r<=range.e.r; r++){
+        const addr = XLSX.utils.encode_cell({r,c});
+        const cell = ws[addr];
+        if(!cell) continue;
+        cell.s = cell.s||{}; cell.s.alignment = Object.assign({}, cell.s.alignment, {horizontal:align});
+        if(cell.f) continue; // ô công thức: để Excel tự tính, không ghi đè kiểu số/ngày tĩnh
+        if(col.type==='money' && cell.v!=null && cell.v!==''){
+          const digits = String(cell.v).replace(/[^\d]/g,'');
+          if(digits){ cell.v = parseInt(digits,10); cell.t='n'; cell.z='#,##0'; }
+        } else if(col.type==='date' && cell.v){
+          const raw = String(cell.v);
+          let d,mo,y, m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+          if(m){ [,y,mo,d] = m; cell.v = excelDateSerial(+d,+mo,+y); cell.t='n'; cell.z='dd/mm/yyyy'; }
+        }
+      }
+    });
+  }
+  function ilPrintSections(ledger, sections, includeOrgHeader){
     const area = document.getElementById('print-area');
     if(!area) return;
-    area.innerHTML = `
+    function alignStyle(col){ return col && col.type==='money' ? 'text-align:right;' : ''; }
+    const orgHtml = includeOrgHeader ? `
+      <div style="text-align:center; font-weight:800; font-size:14px;">Sổ tay Công tác Hội Nông dân cấp xã/phường</div>
       <div style="text-align:center;">
         <div style="font-weight:800; font-size:14px;">${hoiNongDanTitleHtml()}</div>
         <div style="font-size:12.5px;">${escapeHtml(provinceTitle())}</div>
-      </div>
+      </div>` : '';
+    area.innerHTML = `
+      ${orgHtml}
       <div class="print-title" style="margin:10px 0 4px; text-align:center;">SỔ THU – CHI NỘI BỘ: ${escapeHtml(ledger.name)}</div>
       <div style="text-align:center; font-size:12px; margin-bottom:10px;">Thời gian in: ${new Date().toLocaleString('vi-VN')}</div>
       ${sections.map(sec=>`
         <h4 style="margin:14px 0 4px;">${escapeHtml(sec.title)}</h4>
         <table class="print-table">
           <thead><tr>${sec.headers.map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
-          <tbody>${sec.rows.length? sec.rows.map(r=>`<tr>${r.map(c=>`<td>${typeof c==='number'? escapeHtml(moneySpaced(c)) : escapeHtml(String(c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.headers.length}">Không có dữ liệu</td></tr>`}</tbody>
+          <tbody>${sec.rows.length? sec.rows.map(r=>`<tr>${r.map((c,ci)=>`<td style="${alignStyle(sec.columns && sec.columns[ci])}">${typeof c==='number'? escapeHtml(moneySpaced(c)) : escapeHtml(String(c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.headers.length}">Không có dữ liệu</td></tr>`}</tbody>
         </table>`).join('')}
       <div style="text-align:center; margin-top:18px; font-size:11px;">https://hoinongdan.sotay.org</div>`;
     area.classList.add('landscape');
+    const prevTitle = document.title;
+    if(!includeOrgHeader) document.title = '';
     window.print();
-    setTimeout(()=> area.classList.remove('landscape'), 800);
+    setTimeout(()=>{ area.classList.remove('landscape'); document.title = prevTitle; }, 800);
   }
 
   // =====================================================================
-  // THÊM NHANH BẰNG AI — khung chat toàn màn hình + "📋 Hồ sơ đang soạn" dạng
-  // bảng tính (cột A/B/C, dòng 1/2/3, chế độ "✏️ Sửa thủ công", zoom), đúng khung
-  // sườn renderQuickAddByAiModal/renderQuickAddFilePreviewModal của Sổ vay vốn —
-  // nhưng KHÔNG có bộ chọn "bộ não AI". Có thể sửa/thêm dòng thủ công ngay cả khi
-  // CHƯA chat gì với AI (nút "Hồ sơ đang soạn" luôn bấm được, không bị khoá).
+  // THÊM NHANH BẰNG AI — khung chat toàn màn hình + "📋 Hồ sơ đang soạn" dạng bảng
+  // tính nháp, đúng khung sườn Sổ vay vốn. modal-foot: Đóng bảng / Tiêu hoá / Thêm
+  // vào Sổ (y hệt vị trí nút của modal chat Sổ vay vốn). Không có bộ chọn "bộ não AI".
   // =====================================================================
   const LQAI_COLS = [['type','Loại'],['date','Ngày'],['content','Nội dung'],['amount','Số tiền'],['person','Người thu/chi'],['note','Ghi chú']];
   function ilQuickAddSystemPrompt(){
@@ -788,7 +1240,20 @@ Chỉ đính kèm khối kết quả khi thực sự có điều gì cần phả
 \`\`\`
 Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ mâu thuẫn, hãy hỏi lại người dùng bằng lời thường, ĐỪNG tự bịa số liệu.`;
   }
-  function renderLedgerQuickAddModal(ledger){
+  function ilCommitDraftEntries(ledger, draftEntries){
+    let savedCount = 0;
+    draftEntries.forEach(e=>{
+      if(!e.date || !e.content || !e.amount) return;
+      const type = e.type==='thu'?'thu':'chi';
+      const id = ilNewId('il');
+      ledger.entries.push({ id, type, date:e.date, content:e.content, amountMode:'manual', amount: parseInt(e.amount,10)||0, person: e.person||'', note: e.note||'', appendix:null });
+      ilEnsureEntryOrder(ledger); ledger.entryOrder[type].push(id);
+      savedCount++;
+    });
+    ilPersist();
+    return savedCount;
+  }
+  function renderLedgerQuickAddModal(ledger, el){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch;';
@@ -819,8 +1284,8 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
         <div style="display:flex; gap:4px; margin-top:3px;"><button class="btn-plain-icon preview-allow" data-bubble-delete="${idx}" title="Xoá tin nhắn này" style="font-size:12px; background:none; border:none; cursor:pointer; opacity:.6;">🗑️</button></div>
       </div>`;
     }
+    function hasAnyUserContent(){ return messages.some(m=>m.role==='user') || pendingAttachments.length>0; }
     function render(){
-      const hasAnyUserContent = messages.some(m=>m.role==='user') || pendingAttachments.length>0;
       wrap.innerHTML = `
         <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
           <div class="modal-head"><h3>✨ Thêm nhanh dòng Thu/Chi bằng chat với AI</h3><button class="modal-close preview-allow" id="lqai-close">✕</button></div>
@@ -845,15 +1310,28 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
               </div>
               <textarea id="lqai-input" rows="1" placeholder="Nhắn tin cho AI... (Enter để xuống dòng, Ctrl+Enter để gửi)"></textarea>
               <div class="ai-send-wrap">
-                <button type="button" class="btn btn-sm preview-allow" id="lqai-digest" ${(busy || !hasAnyUserContent)?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent)?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>
-                <button type="button" class="btn btn-ghost btn-sm preview-allow" id="lqai-send-btn">Gửi</button>
+                <button id="lqai-send-btn">➤</button>
               </div>
             </div>
           </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost preview-allow" id="lqai-close2">Đóng bảng</button>
+            <button type="button" class="btn btn-sm preview-allow" id="lqai-digest" ${(busy || !hasAnyUserContent())?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent())?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>
+            <button class="btn btn-primary preview-allow" id="lqai-add" ${!draft.entries.length?'disabled':''} style="${!draft.entries.length?'opacity:.45; cursor:not-allowed;':'display:inline-block; animation: bigMoneyPulse 1.4s ease-in-out infinite;'}">➕ Thêm vào Sổ</button>
+          </div>
         </div>`;
       wrap.querySelector('#lqai-close').onclick = close;
+      wrap.querySelector('#lqai-close2').onclick = close;
       wrap.querySelectorAll('[data-bubble-delete]').forEach(btn=> btn.onclick = ()=>{ messages.splice(+btn.dataset.bubbleDelete,1); render(); });
-      wrap.querySelector('#lqai-view-file').onclick = ()=> renderLqaiDraftModal(draft, ()=> render(), ledger);
+      wrap.querySelector('#lqai-view-file').onclick = ()=> renderLqaiDraftModal(draft, ()=> render(), ledger, el);
+      wrap.querySelector('#lqai-add').onclick = ()=>{
+        if(!draft.entries.length) return;
+        const savedCount = ilCommitDraftEntries(ledger, draft.entries);
+        draft.entries = [];
+        closeImmediate();
+        if(el) renderInternalLedgerMain(el);
+        showBigToast(`Đã thêm ${savedCount} dòng vào Sổ Thu - Chi nội bộ!`);
+      };
       const addMenuBtn = wrap.querySelector('#lqai-add-btn');
       if(addMenuBtn) addMenuBtn.addEventListener('click', (e)=>{
         e.stopPropagation();
@@ -946,9 +1424,9 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
   }
 
   // "📋 Hồ sơ đang soạn" — bảng tính nháp (A/B/C.../1/2/3, "✏️ Sửa thủ công", zoom),
-  // y hệt khung sườn renderQuickAddFilePreviewModal của Sổ vay vốn. Sửa/thêm dòng
-  // được NGAY LẬP TỨC, không cần đã tiêu hoá tài liệu bằng AI trước.
-  function renderLqaiDraftModal(draft, onClose, ledger){
+  // y hệt khung sườn renderQuickAddFilePreviewModal của Sổ vay vốn. Sửa/thêm dòng được
+  // NGAY LẬP TỨC, không cần đã tiêu hoá tài liệu bằng AI trước.
+  function renderLqaiDraftModal(draft, onClose, ledger, el){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch;';
@@ -990,7 +1468,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
                     const inputBaseStyle = 'width:100%; min-width:90px; border:1px solid #fbc02d; border-radius:4px; padding:4px 6px; font-size:12.5px;';
                     if(k==='type') return `<td style="${cellStyle}"><select data-lqd-ri="${ri}" data-lqd-k="${k}" style="${inputBaseStyle}"><option value="thu" ${rawVal==='thu'?'selected':''}>Thu</option><option value="chi" ${rawVal==='chi'?'selected':''}>Chi</option></select></td>`;
                     if(k==='date') return `<td style="${cellStyle}"><input type="date" data-lqd-ri="${ri}" data-lqd-k="${k}" value="${escapeHtml(rawVal)}" style="${inputBaseStyle}"></td>`;
-                    if(k==='amount') return `<td style="${cellStyle}"><input type="text" inputmode="numeric" data-lqd-ri="${ri}" data-lqd-k="${k}" value="${escapeHtml(rawVal)}" placeholder="Chỉ nhập số" style="${inputBaseStyle} text-align:right;"></td>`;
+                    if(k==='amount') return `<td style="${cellStyle}"><input type="text" inputmode="numeric" data-lqd-ri="${ri}" data-lqd-k="${k}" value="${escapeHtml(rawVal==='0'?'':rawVal)}" placeholder="Chỉ nhập số" style="${inputBaseStyle} text-align:right;"></td>`;
                     const maxlen = k==='content'?IL_MAX.content:(k==='person'?IL_MAX.person:IL_MAX.note);
                     return `<td style="${cellStyle}"><input type="text" maxlength="${maxlen}" data-lqd-ri="${ri}" data-lqd-k="${k}" value="${escapeHtml(rawVal)}" style="${inputBaseStyle}"></td>`;
                   }).join('')}
@@ -1023,28 +1501,33 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
       const close2 = wrap.querySelector('#lqd-close2'); if(close2) close2.onclick = close;
       const zIn = wrap.querySelector('#lqd-zoom-in'); if(zIn) zIn.onclick = ()=>{ zoomPct = Math.min(200, zoomPct+10); render(); };
       const zOut = wrap.querySelector('#lqd-zoom-out'); if(zOut) zOut.onclick = ()=>{ zoomPct = Math.max(50, zoomPct-10); render(); };
-      wrap.querySelectorAll('[data-lqd-k="amount"]').forEach(inp=>{ attachMoneyInputMask(inp, IL_MAX.moneyDigits); ilAttachFloatingMoneyPreview(inp); });
+      wrap.querySelectorAll('[data-lqd-k="amount"]').forEach(inp=>{ attachMoneyInputMask(inp, IL_MAX.moneyDigits); ilAttachFloatingMoneyPreviewLegacy(inp); });
       const editStartBtn = wrap.querySelector('#lqd-edit-start'); if(editStartBtn) editStartBtn.onclick = ()=>{ editMode = true; render(); };
       const editCancelBtn = wrap.querySelector('#lqd-edit-cancel'); if(editCancelBtn) editCancelBtn.onclick = ()=>{ editMode = false; render(); };
       const editSaveBtn = wrap.querySelector('#lqd-edit-save'); if(editSaveBtn) editSaveBtn.onclick = ()=>{ readFormIntoDraft(); editMode = false; render(); };
-      const addRowBtn = wrap.querySelector('#lqd-add-row'); if(addRowBtn) addRowBtn.onclick = ()=>{ readFormIntoDraft(); draft.entries.push({ type:'thu', date: todayStr(), content:'', amount:0, person:'', note:'' }); render(); };
+      const addRowBtn = wrap.querySelector('#lqd-add-row'); if(addRowBtn) addRowBtn.onclick = ()=>{ readFormIntoDraft(); draft.entries.push({ type:'thu', date: todayStr(), content:'', amount:'', person:'', note:'' }); render(); };
       wrap.querySelectorAll('.lqd-row-del').forEach(btn=> btn.onclick = ()=>{ readFormIntoDraft(); draft.entries.splice(+btn.dataset.ri,1); render(); });
       const saveAllBtn = wrap.querySelector('#lqd-save-all');
       if(saveAllBtn) saveAllBtn.onclick = ()=>{
         readFormIntoDraft();
-        let savedCount = 0;
-        draft.entries.forEach(e=>{
-          if(!e.date || !e.content || !e.amount) return;
-          ledger.entries.push({ id: ilNewId('il'), type: e.type==='thu'?'thu':'chi', date:e.date, content:e.content, amountMode:'manual', amount: parseInt(e.amount,10)||0, person: e.person||'', note: e.note||'', appendix:null });
-          savedCount++;
-        });
-        ilPersist();
+        const savedCount = ilCommitDraftEntries(ledger, draft.entries);
         draft.entries = [];
         close();
-        const content2 = document.getElementById('content');
-        if(content2) renderInternalLedgerMain(content2);
+        if(el) renderInternalLedgerMain(el);
         showBigToast(`Đã lưu ${savedCount} dòng vào Sổ Thu - Chi nội bộ!`);
       };
     }
     render();
+  }
+  // Lớp nổi "= x xxx đ" sát ô tiền đang gõ — dùng cho bảng "Hồ sơ đang soạn" (không che
+  // các ô khác vì bảng nháp không có bấm-chọn-ô như phụ lục).
+  function ilAttachFloatingMoneyPreviewLegacy(input){
+    let badge = null;
+    function position(){ if(!badge) return; const r = input.getBoundingClientRect(); badge.style.left = r.left+'px'; badge.style.top = Math.max(0, r.top-26)+'px'; }
+    function update(){ if(!badge) return; const digits = input.value.replace(/[^\d]/g,''); badge.textContent = digits? `= ${groupDigitsRight(digits,3)} đ` : ''; }
+    function show(){ if(badge) return; badge = document.createElement('div'); badge.className = 'il-money-float-badge'; document.body.appendChild(badge); position(); update(); }
+    function hide(){ if(badge){ badge.remove(); badge=null; } }
+    input.addEventListener('focus', show);
+    input.addEventListener('input', ()=>{ update(); position(); });
+    input.addEventListener('blur', hide);
   }
