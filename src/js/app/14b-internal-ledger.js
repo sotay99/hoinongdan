@@ -521,7 +521,7 @@
     el.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 10px; gap:10px; flex-wrap:wrap;">
         <h2 style="margin:0;">📒 ${escapeHtml(ledger.name)}</h2>
-        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-back-list">← Thoát ra danh sách Sổ</button>
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-back-list" style="color:#b71c1c; font-weight:800;">← Thoát ra danh sách Sổ</button>
       </div>
       ${ilSummaryBarHtml(ledger)}
       ${ilFilterBarHtml()}
