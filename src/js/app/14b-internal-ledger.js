@@ -11,15 +11,8 @@
   //   columns:[{key,label,type:'text'|'money'|'date',showTotal}], rows:[{[colKey]:raw}] } } ] }] }
   // =====================================================================
   const INTERNAL_LEDGER_LOCAL_KEY = 'hnd_internal_ledger_v2';
-  const INTERNAL_LEDGER_ACCEPT_KEY = 'hnd_internal_ledger_accepted_v1';
   const IL_MAX = { content:200, person:80, note:500, title:80, colLabel:40, cellText:200, moneyDigits:12, ledgerName:80, formula:200 };
 
-  function internalLedgerAccepted(){
-    try{ return localStorage.getItem(INTERNAL_LEDGER_ACCEPT_KEY)==='1'; }catch(e){ return false; }
-  }
-  function internalLedgerAccept(){
-    try{ localStorage.setItem(INTERNAL_LEDGER_ACCEPT_KEY, '1'); }catch(e){ console.warn('Không thể ghi cờ chấp nhận Sổ Thu - Chi nội bộ:', e); }
-  }
   function internalLedgerLoadRaw(){
     try{
       const raw = JSON.parse(localStorage.getItem(INTERNAL_LEDGER_LOCAL_KEY)||'{}');
@@ -39,37 +32,159 @@
   function ilEnsureEntryOrder(ledger){ if(!ledger.entryOrder) ledger.entryOrder = {thu:[],chi:[]}; if(!ledger.entryOrder.thu) ledger.entryOrder.thu=[]; if(!ledger.entryOrder.chi) ledger.entryOrder.chi=[]; return ledger.entryOrder; }
 
   // =====================================================================
-  // SỔ (ledger) — danh sách, tạo/đổi tên/xoá/sắp xếp.
+  // LƯU TRỮ ĐÁM MÂY (bộ nhớ cá nhân) — mỗi Sổ "cloud" là 1 văn bản gốc tại
+  // internal_ledgers/{id}, cùng gốc với cơ chế chia sẻ mã xã đã có (wards/{wid} +
+  // users/{emailKey}/wards/{wid}) — ở đây là internal_ledgers/{id} +
+  // users/{emailKey}/internal_ledgers_owned|internal_ledgers_shared/{id}. Sổ "local"
+  // vẫn giữ nguyên trong mảng ilData().ledgers như trước (không đổi gì).
   // =====================================================================
-  function ilAllLedgers(){ return ilData().ledgers.slice().sort((a,b)=>(a.order||0)-(b.order||0)); }
-  function ilLedgerById(id){ return ilData().ledgers.find(l=>l.id===id); }
+  function ilMyEmail(){ return hasAuthenticatedIdentity() ? state.identity.email.toLowerCase().trim() : null; }
+  function ilMyEmailKey(){ const e = ilMyEmail(); return e ? emailToKey(e) : null; }
+  function ilCloudLedgerRef(id){ return rtdb.ref('internal_ledgers/'+id); }
+  function ilPersistCloud(ledger){
+    if(!hasAuthenticatedIdentity()) return;
+    ilCloudLedgerRef(ledger.id).set(ledger).catch(err=> console.error('Lỗi lưu Sổ Thu - Chi nội bộ lên đám mây:', err));
+  }
+  function ilSaveLedger(ledger){ if(ledger && ledger.storage==='cloud') ilPersistCloud(ledger); else ilPersist(); }
+  async function ilFetchCloudLedgersBySub(sub){
+    const key = ilMyEmailKey();
+    if(!key) return [];
+    let ids = [];
+    try{ const snap = await rtdb.ref(`users/${key}/${sub}`).once('value'); ids = snap.val()? Object.keys(snap.val()) : []; }
+    catch(e){ console.error('Lỗi đọc chỉ mục Sổ đám mây:', e); return []; }
+    const results = await Promise.all(ids.map(async id=>{
+      try{ const snap = await ilCloudLedgerRef(id).once('value'); return snap.exists()? snap.val() : null; }
+      catch(e){ return null; }
+    }));
+    return results.filter(Boolean);
+  }
+  async function ilRefreshCloudCache(){
+    if(!hasAuthenticatedIdentity()){ state._ilCloudOwned = []; state._ilCloudShared = []; return; }
+    const [owned, shared] = await Promise.all([ ilFetchCloudLedgersBySub('internal_ledgers_owned'), ilFetchCloudLedgersBySub('internal_ledgers_shared') ]);
+    state._ilCloudOwned = owned;
+    state._ilCloudShared = shared;
+  }
+  // Danh sách người được chia sẻ thay đổi -> cập nhật chỉ mục NGƯỢC ở TỪNG người được chia sẻ
+  // (để họ chỉ cần đọc đúng 1 đường dẫn của chính mình là biết có sổ nào chia sẻ cho mình).
+  async function ilSetLedgerShares(ledger, newShares){
+    const oldKeys = Object.keys(ledger.shares||{}), newKeys = Object.keys(newShares||{});
+    const removed = oldKeys.filter(k=>!newKeys.includes(k));
+    const added = newKeys.filter(k=>!oldKeys.includes(k));
+    ledger.shares = newShares||{};
+    ilPersistCloud(ledger);
+    await Promise.all([
+      ...removed.map(k=> rtdb.ref(`users/${k}/internal_ledgers_shared/${ledger.id}`).remove().catch(()=>{})),
+      ...added.map(k=> rtdb.ref(`users/${k}/internal_ledgers_shared/${ledger.id}`).set(true).catch(()=>{})),
+    ]);
+  }
+  async function ilMoveLedgerStorage(ledger, newStorage){
+    if(ledger.storage===newStorage || (!ledger.storage && newStorage==='local')) return;
+    if(newStorage==='cloud'){
+      const myEmail = ilMyEmail();
+      if(!myEmail){ alert('Vui lòng đăng nhập Google để lưu Sổ lên bộ nhớ đám mây.'); return; }
+      ledger.storage = 'cloud'; ledger.ownerEmail = myEmail; ledger.shares = ledger.shares||{};
+      await ilCloudLedgerRef(ledger.id).set(ledger);
+      await rtdb.ref(`users/${ilMyEmailKey()}/internal_ledgers_owned/${ledger.id}`).set(true);
+      const d = ilData(); d.ledgers = d.ledgers.filter(l=>l.id!==ledger.id); ilPersist();
+      state._ilCloudOwned = [...(state._ilCloudOwned||[]).filter(l=>l.id!==ledger.id), ledger];
+    } else {
+      ledger.storage = 'local';
+      const d = ilData(); d.ledgers.push(ledger); ilPersist();
+      await ilCloudLedgerRef(ledger.id).remove();
+      const key = ilMyEmailKey(); if(key) await rtdb.ref(`users/${key}/internal_ledgers_owned/${ledger.id}`).remove();
+      state._ilCloudOwned = (state._ilCloudOwned||[]).filter(l=>l.id!==ledger.id);
+    }
+  }
+  function ilTrashLedger(ledger){ ledger.trashed = true; ledger.trashedAt = new Date().toISOString(); ilSaveLedger(ledger); }
+  function ilRestoreLedger(ledger){ ledger.trashed = false; ledger.trashedAt = null; ilSaveLedger(ledger); }
+  async function ilPermanentlyDeleteLedger(ledger){
+    if(ledger.storage==='cloud'){
+      await ilCloudLedgerRef(ledger.id).remove().catch(()=>{});
+      const key = ilMyEmailKey();
+      if(key) await rtdb.ref(`users/${key}/internal_ledgers_owned/${ledger.id}`).remove().catch(()=>{});
+      Object.keys(ledger.shares||{}).forEach(k=> rtdb.ref(`users/${k}/internal_ledgers_shared/${ledger.id}`).remove().catch(()=>{}));
+      state._ilCloudOwned = (state._ilCloudOwned||[]).filter(l=>l.id!==ledger.id);
+    } else {
+      const d = ilData(); d.ledgers = d.ledgers.filter(l=>l.id!==ledger.id); ilPersist();
+    }
+  }
+  // Quyền sửa thật sự của NGƯỜI ĐANG XEM đối với 1 Sổ cụ thể — Sổ cục bộ vẫn theo đúng quyền
+  // module chung như trước; Sổ đám mây thì chủ sổ luôn sửa được, người được chia sẻ chỉ sửa
+  // được nếu quyền là "editor" (viewer chỉ xem).
+  function ilCanEditLedger(ledger){
+    if(!ledger) return false;
+    if(ledger.storage!=='cloud') return canEditModule('internal');
+    const myEmail = ilMyEmail();
+    if(myEmail && ledger.ownerEmail && myEmail===ledger.ownerEmail.toLowerCase()) return canEditModule('internal');
+    const key = ilMyEmailKey();
+    const share = key && ledger.shares ? ledger.shares[key] : null;
+    return !!(share && share.perm==='editor');
+  }
+  function ilIsLedgerOwner(ledger){
+    if(!ledger || ledger.storage!=='cloud') return true;
+    const myEmail = ilMyEmail();
+    return !!(myEmail && ledger.ownerEmail && myEmail===ledger.ownerEmail.toLowerCase());
+  }
+
+  // =====================================================================
+  // SỔ (ledger) — danh sách, tạo/đổi tên/xoá (chuyển vào thùng rác)/sắp xếp.
+  // =====================================================================
+  function ilAllLedgers(){
+    return [...ilData().ledgers.filter(l=>!l.trashed), ...(state._ilCloudOwned||[]).filter(l=>!l.trashed)].sort((a,b)=>(a.order||0)-(b.order||0));
+  }
+  function ilSharedWithMeLedgers(){ return (state._ilCloudShared||[]).filter(l=>!l.trashed); }
+  function ilTrashedLedgers(){
+    return [...ilData().ledgers.filter(l=>l.trashed), ...(state._ilCloudOwned||[]).filter(l=>l.trashed)];
+  }
+  function ilLedgerById(id){
+    return ilData().ledgers.find(l=>l.id===id)
+      || (state._ilCloudOwned||[]).find(l=>l.id===id)
+      || (state._ilCloudShared||[]).find(l=>l.id===id);
+  }
   function ilCurrentLedger(){ return state._ilCurrentLedgerId ? ilLedgerById(state._ilCurrentLedgerId) : null; }
   function ilSuggestedLedgerNames(){
     const d = new Date();
     return [ `Sổ năm ${d.getFullYear()}`, `Sổ tháng ${d.getMonth()+1} năm ${d.getFullYear()}` ];
   }
-  function ilCreateLedger(name){
+  function ilCreateLedger(name, storage){
+    const id = ilNewId('ldg');
+    if(storage==='cloud'){
+      const maxOrder = (state._ilCloudOwned||[]).reduce((m,l)=>Math.max(m, l.order||0), 0);
+      const ledger = { id, name, order: maxOrder+1, storage:'cloud', ownerEmail: ilMyEmail(), shares:{}, entryOrder:{thu:[],chi:[]}, entries: [] };
+      state._ilCloudOwned = [...(state._ilCloudOwned||[]), ledger];
+      ilPersistCloud(ledger);
+      const key = ilMyEmailKey(); if(key) rtdb.ref(`users/${key}/internal_ledgers_owned/${id}`).set(true).catch(()=>{});
+      return ledger;
+    }
     const d = ilData();
     const maxOrder = d.ledgers.reduce((m,l)=>Math.max(m, l.order||0), 0);
-    const ledger = { id: ilNewId('ldg'), name, order: maxOrder+1, entryOrder:{thu:[],chi:[]}, entries: [] };
+    const ledger = { id, name, order: maxOrder+1, storage:'local', entryOrder:{thu:[],chi:[]}, entries: [] };
     d.ledgers.push(ledger);
     ilPersist();
     return ledger;
   }
   function ilResetEntryFilters(){ state._ilSearch=''; state._ilDateFrom=''; state._ilDateTo=''; }
 
+  function ilStorageBadge(l){ return l.storage==='cloud' ? '☁️ Đám mây' : '💾 Cục bộ'; }
   function renderInternalLedgerListScreen(el){
-    const canEdit = canEditModule('internal');
+    if(hasAuthenticatedIdentity() && !state._ilCloudLoaded && !state._ilCloudLoading){
+      state._ilCloudLoading = true;
+      ilRefreshCloudCache().finally(()=>{ state._ilCloudLoading=false; state._ilCloudLoaded=true; renderInternalLedgerListScreen(el); });
+    }
     const sorting = !!state._ilSortingLedgers;
     const ledgersRaw = ilAllLedgers();
     const ledgers = sorting && state._ilLedgerSortDraft
       ? state._ilLedgerSortDraft.map(id=>ledgersRaw.find(l=>l.id===id)).filter(Boolean)
       : ledgersRaw;
     if(sorting && !state._ilLedgerSortDraft) state._ilLedgerSortDraft = ledgers.map(l=>l.id);
+    const sharedLedgers = ilSharedWithMeLedgers();
+    const trashedLedgers = ilTrashedLedgers();
+    const loadingCloud = state._ilCloudLoading;
     el.innerHTML = `
       <div class="panel">
-        <div class="panel-head"><h3>🔒 Thu – Chi nội bộ — Danh sách Sổ</h3>${canEdit? `<button type="button" class="btn btn-primary btn-sm preview-allow" id="il-ldg-new">➕ Tạo sổ mới</button>` : ''}</div>
+        <div class="panel-head"><h3>🔒 Thu – Chi nội bộ — Danh sách Sổ của tôi</h3><button type="button" class="btn btn-primary btn-sm preview-allow" id="il-ldg-new">➕ Tạo sổ mới</button></div>
         <div class="panel-body">
+          ${loadingCloud? `<p class="sub">⏳ Đang tải danh sách Sổ trên bộ nhớ đám mây...</p>` : ''}
           ${sorting? `<div style="margin-bottom:10px;">
             <div style="display:flex; gap:8px;">
               <button class="btn btn-primary btn-sm preview-allow" id="il-ldg-sort-save">💾 Lưu lại thứ tự sắp xếp</button>
@@ -78,41 +193,90 @@
             <p class="sub drag-hint-cycle" style="margin:6px 0 0;">Bấm vào tên sổ và kéo thả để thay đổi vị trí.</p>
           </div>` : ''}
           ${ledgers.length? `<div class="table-wrap"><table>
-            <thead><tr><th></th><th>Tên sổ</th><th style="text-align:center;">Số dòng Thu</th><th style="text-align:center;">Số dòng Chi</th><th></th></tr></thead>
+            <thead><tr><th></th><th>Tên sổ</th><th>Nơi lưu</th><th style="text-align:center;">Số dòng Thu</th><th style="text-align:center;">Số dòng Chi</th><th></th></tr></thead>
             <tbody>${ledgers.map(l=>{
               const thuCount = l.entries.filter(e=>e.type==='thu').length;
               const chiCount = l.entries.filter(e=>e.type==='chi').length;
+              const canEdit = ilCanEditLedger(l);
               return `<tr${sorting? ` draggable="true" data-drag-ledger="${l.id}"` : ''}>
                 <td style="${sorting?'cursor:grab;':''}">${sorting? `<span title="Kéo để đổi vị trí">☰</span>` : (canEdit? `<button type="button" class="btn-plain-icon preview-allow" title="Sắp xếp" data-il-ldg-sortbtn="1" style="background:none; border:none; cursor:pointer;">☰</button>` : '')}</td>
                 <td><b><button type="button" class="link-btn preview-allow" data-il-ldg-open="${l.id}">${escapeHtml(l.name)}</button></b></td>
+                <td>${ilStorageBadge(l)}</td>
                 <td style="text-align:center;">${thuCount}</td>
                 <td style="text-align:center;">${chiCount}</td>
-                <td style="white-space:nowrap;">${canEdit? `<button type="button" class="btn-plain-icon preview-allow" data-il-ldg-rename="${l.id}" title="Đổi tên" style="background:none; border:none; cursor:pointer;">✏️</button><button type="button" class="btn-plain-icon preview-allow" data-il-ldg-del="${l.id}" title="Xoá" style="background:none; border:none; cursor:pointer;">🗑️</button>` : ''}</td>
+                <td style="white-space:nowrap;">${canEdit? `<button type="button" class="btn-plain-icon preview-allow" data-il-ldg-rename="${l.id}" title="Đổi tên / Đổi nơi lưu / Chia sẻ" style="background:none; border:none; cursor:pointer;">✏️</button><button type="button" class="btn-plain-icon preview-allow" data-il-ldg-trash="${l.id}" title="Chuyển vào thùng rác" style="background:none; border:none; cursor:pointer;">🗑️</button>` : ''}</td>
               </tr>`;
             }).join('')}</tbody>
-          </table></div>` : `<div class="empty-state"><div class="e-ico">📒</div>Chưa có Sổ Thu - Chi nội bộ nào${canEdit? ' — bấm "➕ Tạo sổ mới" để bắt đầu' : ''}</div>`}
+          </table></div>` : `<div class="empty-state">
+            <div class="e-ico">📒</div>
+            <p style="max-width:520px; margin:0 auto;">Dữ liệu của Thu – Chi nội bộ có thể lưu theo 1 trong 2 cách: <b>Bộ nhớ nội bộ</b> (chỉ trên trình duyệt của thiết bị này, riêng tư tuyệt đối, không đồng bộ giữa các thiết bị, mất nếu xoá dữ liệu web) hoặc <b>Bộ nhớ Đám mây cá nhân</b> (gắn với tài khoản Google của đồng chí, xem được ở bất kỳ thiết bị nào khi đăng nhập, và có thể chia sẻ cho người khác). Mỗi Sổ tự chọn nơi lưu riêng, đổi lại được sau.</p>
+            <button type="button" class="btn btn-primary preview-allow" id="il-ldg-new-empty" style="margin-top:14px;">➕ Tạo sổ mới</button>
+          </div>`}
         </div>
+      </div>
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-head"><h3>🤝 Sổ được chia sẻ với tôi</h3></div>
+        <div class="panel-body">
+          ${sharedLedgers.length? `<div class="table-wrap"><table>
+            <thead><tr><th>Tên sổ</th><th>Chủ sở hữu</th><th>Quyền</th><th></th></tr></thead>
+            <tbody>${sharedLedgers.map(l=>{
+              const key = ilMyEmailKey();
+              const perm = (key && l.shares && l.shares[key] && l.shares[key].perm)||'viewer';
+              return `<tr>
+                <td><b>${escapeHtml(l.name)}</b></td>
+                <td>${escapeHtml(l.ownerEmail||'')}</td>
+                <td>${perm==='editor'? 'Được chỉnh sửa' : 'Chỉ xem'}</td>
+                <td><button type="button" class="btn btn-ghost btn-sm preview-allow" data-il-ldg-open="${l.id}">Mở</button></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>` : `<div class="empty-state"><div class="e-ico">🤝</div>Chưa có ai chia sẻ Sổ Thu - Chi nội bộ với đồng chí.</div>`}
+        </div>
+      </div>
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-head" style="cursor:pointer;" id="il-trash-toggle"><h3>🗑️ Thùng rác (${trashedLedgers.length}) ${state._ilShowTrash?'▴':'▾'}</h3></div>
+        ${state._ilShowTrash? `<div class="panel-body">
+          ${trashedLedgers.length? `<div class="table-wrap"><table>
+            <thead><tr><th>Tên sổ</th><th>Nơi lưu</th><th></th></tr></thead>
+            <tbody>${trashedLedgers.map(l=>`<tr>
+              <td>${escapeHtml(l.name)}</td>
+              <td>${ilStorageBadge(l)}</td>
+              <td style="white-space:nowrap;"><button type="button" class="btn btn-ghost btn-sm preview-allow" data-il-ldg-restore="${l.id}">♻️ Khôi phục</button> <button type="button" class="btn btn-ghost btn-sm preview-allow" data-il-ldg-purge="${l.id}" style="color:var(--red);">🗑️ Xoá vĩnh viễn</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>` : `<div class="empty-state"><div class="e-ico">🗑️</div>Thùng rác đang rỗng.</div>`}
+        </div>` : ''}
       </div>`;
     const newBtn = document.getElementById('il-ldg-new');
     if(newBtn) newBtn.onclick = ()=> renderLedgerNameModal(null, el);
+    const newBtnEmpty = document.getElementById('il-ldg-new-empty');
+    if(newBtnEmpty) newBtnEmpty.onclick = ()=> renderLedgerNameModal(null, el);
     el.querySelectorAll('[data-il-ldg-open]').forEach(btn=> btn.onclick = ()=>{
       state._ilCurrentLedgerId = btn.dataset.ilLdgOpen;
       ilResetEntryFilters();
       renderInternalLedgerMain(el);
     });
     el.querySelectorAll('[data-il-ldg-rename]').forEach(btn=> btn.onclick = ()=> renderLedgerNameModal(ilLedgerById(btn.dataset.ilLdgRename), el));
-    el.querySelectorAll('[data-il-ldg-del]').forEach(btn=> btn.onclick = ()=>{
-      if(!confirm('Xoá sổ này? Toàn bộ dòng Thu/Chi và phụ lục bên trong sẽ bị xoá vĩnh viễn.')) return;
-      const d = ilData(); d.ledgers = d.ledgers.filter(l=>l.id!==btn.dataset.ilLdgDel); ilPersist();
+    el.querySelectorAll('[data-il-ldg-trash]').forEach(btn=> btn.onclick = ()=>{
+      if(!confirm('Chuyển sổ này vào thùng rác? Có thể khôi phục lại sau ở panel "Thùng rác".')) return;
+      ilTrashLedger(ilLedgerById(btn.dataset.ilLdgTrash));
+      renderInternalLedgerListScreen(el);
+    });
+    const trashToggle = document.getElementById('il-trash-toggle');
+    if(trashToggle) trashToggle.onclick = ()=>{ state._ilShowTrash = !state._ilShowTrash; renderInternalLedgerListScreen(el); };
+    el.querySelectorAll('[data-il-ldg-restore]').forEach(btn=> btn.onclick = ()=>{
+      ilRestoreLedger(ilLedgerById(btn.dataset.ilLdgRestore));
+      renderInternalLedgerListScreen(el);
+    });
+    el.querySelectorAll('[data-il-ldg-purge]').forEach(btn=> btn.onclick = async ()=>{
+      if(!confirm('Xoá VĨNH VIỄN sổ này? Toàn bộ dòng Thu/Chi và phụ lục bên trong sẽ mất hoàn toàn, không thể khôi phục.')) return;
+      try{ await ilPermanentlyDeleteLedger(ilLedgerById(btn.dataset.ilLdgPurge)); }
+      catch(e){ console.error('Lỗi xoá vĩnh viễn Sổ:', e); alert('Có lỗi khi xoá vĩnh viễn, vui lòng thử lại.'); }
       renderInternalLedgerListScreen(el);
     });
     el.querySelectorAll('[data-il-ldg-sortbtn]').forEach(btn=> btn.onclick = ()=>{ state._ilSortingLedgers = true; state._ilLedgerSortDraft = null; renderInternalLedgerListScreen(el); });
     const sortSaveBtn = document.getElementById('il-ldg-sort-save');
     if(sortSaveBtn) sortSaveBtn.onclick = ()=>{
       const order = state._ilLedgerSortDraft||[];
-      const d = ilData();
-      order.forEach((id,i)=>{ const l = d.ledgers.find(x=>x.id===id); if(l) l.order = i+1; });
-      ilPersist();
+      order.forEach((id,i)=>{ const l = ilLedgerById(id); if(l){ l.order = i+1; ilSaveLedger(l); } });
       state._ilSortingLedgers = false; state._ilLedgerSortDraft = null;
       renderInternalLedgerListScreen(el);
     };
@@ -136,54 +300,99 @@
   function renderLedgerNameModal(ledger, el){
     const isNew = !ledger;
     const suggestions = ilSuggestedLedgerNames();
+    let storage = ledger? (ledger.storage||'local') : 'local';
+    let sharesDraft = ledger && ledger.shares ? {...ledger.shares} : {};
+    const canUseCloud = hasAuthenticatedIdentity();
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
-    wrap.innerHTML = `
-      <div class="modal">
-        <div class="modal-head"><h3>${isNew? '➕ Tạo sổ mới' : '✏️ Đổi tên sổ'}</h3><button class="modal-close" id="illn-close">✕</button></div>
-        <div class="modal-body">
-          <div class="field"><label>Tên sổ * <span class="sub">(tối đa ${IL_MAX.ledgerName} ký tự)</span></label><input type="text" id="illn-name" maxlength="${IL_MAX.ledgerName}" value="${escapeHtml(ledger? ledger.name : '')}" placeholder="Vd: Sổ năm 2026"></div>
-          ${isNew? `<p class="sub" style="margin:0 0 6px;">Gợi ý:</p><div style="display:flex; gap:8px; flex-wrap:wrap;">${suggestions.map(s=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-illn-suggest="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('')}</div>` : ''}
-        </div>
-        <div class="modal-foot"><button class="btn btn-ghost" id="illn-cancel">Huỷ</button><button class="btn btn-primary" id="illn-save">💾 Lưu</button></div>
-      </div>`;
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:640px;">
+          <div class="modal-head"><h3>${isNew? '➕ Tạo sổ mới' : '✏️ Sửa thông tin sổ'}</h3><button class="modal-close" id="illn-close">✕</button></div>
+          <div class="modal-body">
+            <div class="field"><label>Tên sổ * <span class="sub">(tối đa ${IL_MAX.ledgerName} ký tự)</span></label><input type="text" id="illn-name" maxlength="${IL_MAX.ledgerName}" value="${escapeHtml(ledger? ledger.name : '')}" placeholder="Vd: Sổ năm 2026"></div>
+            ${isNew? `<p class="sub" style="margin:0 0 6px;">Gợi ý:</p><div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">${suggestions.map(s=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-illn-suggest="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('')}</div>` : ''}
+            <label style="display:block; margin-bottom:6px;">Chọn nơi lưu</label>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+              <label style="display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:8px; padding:10px; cursor:pointer; ${storage==='local'?'border-color:#4527a0; background:#f3f0ff;':''}">
+                <input type="radio" name="illn-storage" value="local" ${storage==='local'?'checked':''} style="margin-top:3px;">
+                <span><b>1. Lưu tại Bộ nhớ nội bộ thuộc Trình duyệt Web trên thiết bị này</b><br><span class="sub">Sổ này được lưu tại Trình duyệt Web trên thiết bị này, Riêng tư tuyệt đối, không thể truy cập Sổ này nếu bạn đổi thiết bị hoặc đổi trình duyệt, Nếu bạn xoá dữ liệu web trên trình duyệt Thì Sổ Thu chi này cũng đồng thời bị xoá vĩnh viễn.</span></span>
+              </label>
+              <label style="display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:8px; padding:10px; cursor:${canUseCloud?'pointer':'not-allowed'}; opacity:${canUseCloud?1:.5}; ${storage==='cloud'?'border-color:#4527a0; background:#f3f0ff;':''}">
+                <input type="radio" name="illn-storage" value="cloud" ${storage==='cloud'?'checked':''} ${canUseCloud?'':'disabled'} style="margin-top:3px;">
+                <span><b>2. Lưu tại bộ nhớ Đám mây thuộc Tài khoản cá nhân của đồng chí.</b><br><span class="sub">Sổ được lưu trên Bộ nhớ Đám mây, thuộc Tài khoản cá nhân của đồng chí, có thể truy cập sổ này ở bất cứ thiết bị nào miễn có internet và chỉ khi đồng chí đăng nhập vào bằng tài khoản của mình, và chỉ có Tài khoản của Đồng chí mới có quyền truy cập vào Sổ này, vẫn đảm bảo riêng tư, vẫn cho phép chia sẻ với người được chọn.${canUseCloud?'':' (Cần đăng nhập Google mới chọn được mục này.)'}</span></span>
+              </label>
+            </div>
+            ${storage==='cloud'? `
+              <label style="display:block; margin-bottom:6px;">Chia sẻ cho người khác</label>
+              <div style="display:flex; gap:8px; margin-bottom:8px;">
+                <input type="email" id="illn-share-email" placeholder="email@example.com" style="flex:1;">
+                <select id="illn-share-perm"><option value="viewer">Chỉ xem</option><option value="editor">Được chỉnh sửa</option></select>
+                <button type="button" class="btn btn-primary btn-sm preview-allow" id="illn-share-add">Thêm</button>
+              </div>
+              <div id="illn-share-list">
+                ${Object.values(sharesDraft).length? Object.entries(sharesDraft).map(([key,s])=>`
+                  <div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);">
+                    <span style="flex:1;">${escapeHtml(s.email)}</span>
+                    <select data-illn-share-perm="${key}"><option value="viewer" ${s.perm==='viewer'?'selected':''}>Chỉ xem</option><option value="editor" ${s.perm==='editor'?'selected':''}>Được chỉnh sửa</option></select>
+                    <button type="button" class="btn btn-ghost btn-sm preview-allow" data-illn-share-remove="${key}">Xoá</button>
+                  </div>`).join('') : `<p class="sub">Chưa chia sẻ cho ai.</p>`}
+              </div>
+            ` : ''}
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost" id="illn-cancel">Huỷ</button><button class="btn btn-primary" id="illn-save">💾 Lưu</button></div>
+        </div>`;
+      const close = ()=> wrap.remove();
+      wrap.querySelector('#illn-close').onclick = close;
+      wrap.querySelector('#illn-cancel').onclick = close;
+      wrap.querySelectorAll('[data-illn-suggest]').forEach(btn=> btn.onclick = ()=>{ wrap.querySelector('#illn-name').value = btn.dataset.illnSuggest; });
+      wrap.querySelectorAll('[name="illn-storage"]').forEach(r=> r.onchange = ()=>{ if(r.checked){ storage = r.value; render(); } });
+      const shareAddBtn = wrap.querySelector('#illn-share-add');
+      if(shareAddBtn) shareAddBtn.onclick = ()=>{
+        const input = wrap.querySelector('#illn-share-email');
+        const email = (input.value||'').trim().toLowerCase();
+        const perm = wrap.querySelector('#illn-share-perm').value;
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ alert('Vui lòng nhập email hợp lệ.'); return; }
+        sharesDraft[emailToKey(email)] = { email, perm };
+        render();
+      };
+      wrap.querySelectorAll('[data-illn-share-remove]').forEach(btn=> btn.onclick = ()=>{ delete sharesDraft[btn.dataset.illnShareRemove]; render(); });
+      wrap.querySelectorAll('[data-illn-share-perm]').forEach(sel=> sel.onchange = ()=>{ const s = sharesDraft[sel.dataset.illnSharePerm]; if(s) s.perm = sel.value; });
+      wrap.querySelector('#illn-save').onclick = async ()=>{
+        const name = wrap.querySelector('#illn-name').value.trim();
+        if(!name){ alert('Vui lòng đặt tên sổ.'); return; }
+        if(storage==='cloud' && !canUseCloud){ alert('Vui lòng đăng nhập Google để dùng bộ nhớ đám mây.'); return; }
+        const saveBtn = wrap.querySelector('#illn-save'); saveBtn.disabled = true; saveBtn.textContent = '⏳ Đang lưu...';
+        try{
+          if(isNew){
+            const newLedger = ilCreateLedger(name, storage);
+            if(storage==='cloud' && Object.keys(sharesDraft).length) await ilSetLedgerShares(newLedger, sharesDraft);
+          } else {
+            if((ledger.storage||'local')!==storage) await ilMoveLedgerStorage(ledger, storage);
+            ledger.name = name;
+            if(storage==='cloud') await ilSetLedgerShares(ledger, sharesDraft);
+            else ilSaveLedger(ledger);
+          }
+          close();
+          renderInternalLedgerListScreen(el);
+        }catch(err){
+          console.error('Lỗi lưu Sổ Thu - Chi nội bộ:', err);
+          alert('Có lỗi khi lưu — vui lòng kiểm tra kết nối mạng rồi thử lại.');
+          saveBtn.disabled = false; saveBtn.textContent = '💾 Lưu';
+        }
+      };
+    }
     document.body.appendChild(wrap);
-    const close = ()=> wrap.remove();
-    wrap.querySelector('#illn-close').onclick = close;
-    wrap.querySelector('#illn-cancel').onclick = close;
-    wrap.querySelectorAll('[data-illn-suggest]').forEach(btn=> btn.onclick = ()=>{ wrap.querySelector('#illn-name').value = btn.dataset.illnSuggest; });
-    wrap.querySelector('#illn-save').onclick = ()=>{
-      const name = wrap.querySelector('#illn-name').value.trim();
-      if(!name){ alert('Vui lòng đặt tên sổ.'); return; }
-      if(isNew){ ilCreateLedger(name); } else { ledger.name = name; ilPersist(); }
-      close();
-      renderInternalLedgerListScreen(el);
-    };
+    render();
   }
 
   // =====================================================================
   // CỔNG "CHẤP NHẬN VÀ BẮT ĐẦU MỞ SỔ" — màn giới thiệu giữ nguyên, thêm nút.
   // =====================================================================
   function renderInternalTab(el){
-    if(!internalLedgerAccepted()){ renderInternalLedgerGate(el); return; }
     const ledger = ilCurrentLedger();
     if(ledger) renderInternalLedgerMain(el);
     else renderInternalLedgerListScreen(el);
-  }
-  function renderInternalLedgerGate(el){
-    el.innerHTML = `
-      <div class="panel">
-        <div class="panel-head"><h3>🔒 Thu – Chi nội bộ</h3></div>
-        <div class="panel-body">
-          <div class="empty-state">
-            <div class="e-ico">🚧</div>
-            <p style="max-width:480px; margin:0 auto;">Dữ liệu của Thu – Chi nội bộ được lưu <b>chỉ trên máy tính này</b> (bằng bộ nhớ cục bộ của trình duyệt), <b>không</b> đưa lên cơ sở dữ liệu đám mây Firebase như các mục còn lại của phần mềm, đảm bảo tính riêng tư tuyệt đối và không đồng bộ giữa các thiết bị.</p>
-            <button type="button" class="btn btn-primary" id="il-accept-btn" style="margin-top:18px;">✅ Chấp nhận và Bắt đầu mở sổ Thu - Chi nội bộ</button>
-          </div>
-        </div>
-      </div>`;
-    const btn = document.getElementById('il-accept-btn');
-    if(btn) btn.onclick = ()=>{ internalLedgerAccept(); renderInternalTab(el); };
   }
 
   // =====================================================================
@@ -308,7 +517,7 @@
   function renderInternalLedgerMain(el){
     const ledger = ilCurrentLedger();
     if(!ledger){ renderInternalLedgerListScreen(el); return; }
-    const canEdit = canEditModule('internal');
+    const canEdit = ilCanEditLedger(ledger);
     el.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 10px; gap:10px; flex-wrap:wrap;">
         <h2 style="margin:0;">📒 ${escapeHtml(ledger.name)}</h2>
@@ -352,7 +561,7 @@
         e.stopPropagation();
         ilEnsureEntryOrder(ledger);
         ledger.entryOrder[type] = ilEntriesOfType(ledger, type).map(x=>x.id);
-        ilPersist();
+        ilSaveLedger(ledger);
         state._ilSortingType = null; renderInternalLedgerMain(el);
       };
       const sortCancelBtn = document.getElementById('il-sort-cancel-'+type);
@@ -364,7 +573,7 @@
     });
     el.querySelectorAll('[data-il-del]').forEach(btn=> btn.onclick = ()=>{
       if(!confirm('Xoá dòng này? Phụ lục đi kèm (nếu có) cũng sẽ bị xoá.')) return;
-      ledger.entries = ledger.entries.filter(e=>e.id!==btn.dataset.ilDel); ilPersist(); renderInternalLedgerMain(el);
+      ledger.entries = ledger.entries.filter(e=>e.id!==btn.dataset.ilDel); ilSaveLedger(ledger); renderInternalLedgerMain(el);
     });
     el.querySelectorAll('[data-il-appendix]').forEach(btn=> btn.onclick = ()=>{
       const entry = ilFindEntry(ledger, btn.dataset.ilAppendix);
@@ -454,7 +663,7 @@
         const updated = { ...e0, date, content, amount, amountMode, person: wrap.querySelector('#ilm-person').value.trim(), note: wrap.querySelector('#ilm-note').value.trim(), appendix };
         const idx = ledger.entries.findIndex(x=>x.id===e0.id);
         if(idx>=0) ledger.entries[idx] = updated; else { ledger.entries.push(updated); ilEnsureEntryOrder(ledger); ledger.entryOrder[type].push(updated.id); }
-        ilPersist(); close();
+        ilSaveLedger(ledger); close();
         renderInternalLedgerMain(el);
       };
     }
@@ -751,7 +960,7 @@
   function renderInternalAppendixEditorModal(ledger, entry, el){
     entry.appendix = entry.appendix || { id: ilNewId('ila'), title: ilGenerateAppendixName(ledger, entry.type), designatedKey:null, columns: ilDefaultAppendixColumns(), rows:[] };
     const ap = entry.appendix;
-    const canEdit = canEditModule('internal');
+    const canEdit = ilCanEditLedger(ledger);
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch;';
@@ -895,7 +1104,7 @@
           if(!confirm(msg)) return;
           if(entry.amountMode==='appendix') entry.amount = 0;
           entry.appendix = null;
-          ilPersist(); close();
+          ilSaveLedger(ledger); close();
           renderInternalLedgerMain(el);
         };
         const saveBtn = wrap.querySelector('#ilae-save');
@@ -907,7 +1116,7 @@
           if(dup){ alert('Tên phụ lục này đã được dùng ở một dòng khác trong sổ — vui lòng đặt tên khác.'); return; }
           ap.title = title;
           syncEntryAmountIfNeeded();
-          ilPersist(); close();
+          ilSaveLedger(ledger); close();
           renderInternalLedgerMain(el);
         };
       }
@@ -1290,7 +1499,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
       ilEnsureEntryOrder(ledger); ledger.entryOrder[type].push(id);
       savedCount++;
     });
-    ilPersist();
+    ilSaveLedger(ledger);
     return savedCount;
   }
   function renderLedgerQuickAddModal(ledger, el){

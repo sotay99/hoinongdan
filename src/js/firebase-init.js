@@ -5,8 +5,9 @@
      > General > Your apps > SDK setup and configuration).
      Sau khi thay xong, toàn bộ dữ liệu "Sổ vay vốn / Chi tiêu Xã / Nhật ký /
      Thùng rác / Cộng tác viên" sẽ tự động lưu & đồng bộ realtime trên
-     Firebase Realtime Database. Dữ liệu module "Thu – Chi nội bộ" KHÔNG
-     dùng cấu hình này — xem phần LOCAL-ONLY STORAGE bên dưới.
+     Firebase Realtime Database. Module "Thu – Chi nội bộ" để NGƯỜI DÙNG tự
+     chọn theo từng Sổ: lưu cục bộ (localStorage, không dùng cấu hình này)
+     hoặc lưu đám mây cá nhân tại internal_ledgers/ (CÓ dùng cấu hình này).
 
      ĐỂ BẬT ĐĂNG NHẬP GOOGLE THẬT (bắt buộc cho phần Auth bên dưới hoạt động):
      1) Vào Firebase Console > Authentication > Sign-in method > bật "Google".

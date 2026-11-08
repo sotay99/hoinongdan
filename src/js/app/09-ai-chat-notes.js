@@ -841,8 +841,12 @@
   // =====================================================================
   const MODULE_INTRO_CONTENT = {
     internal: { icon:'🔒', eyebrow:'QUẢN LÝ NỘI BỘ', title:'Thu – Chi nội bộ',
-      lead:'Dữ liệu của Thu – Chi nội bộ được lưu chỉ trên máy tính này (bằng bộ nhớ cục bộ của trình duyệt), không đưa lên cơ sở dữ liệu đám mây Firebase như các mục còn lại của phần mềm, đảm bảo tính riêng tư tuyệt đối và không đồng bộ giữa các thiết bị. Tính năng này đang được nâng cấp.',
-      blocks:[], note:null },
+      lead:'Sổ Thu – Chi nội bộ ghi lại các khoản thu/chi riêng của Hội cấp xã (không phải Quỹ Hỗ trợ Nông dân). Mỗi Sổ tự chọn 1 trong 2 nơi lưu, đổi lại được bất cứ lúc nào.',
+      blocks:[
+        ['💾','Lưu tại Bộ nhớ nội bộ thuộc Trình duyệt Web trên thiết bị này','Sổ này được lưu tại Trình duyệt Web trên thiết bị này, riêng tư tuyệt đối — không thể truy cập Sổ này nếu đồng chí đổi thiết bị hoặc đổi trình duyệt. Nếu đồng chí xoá dữ liệu web trên trình duyệt thì Sổ Thu – Chi này cũng đồng thời bị xoá vĩnh viễn.'],
+        ['☁️','Lưu tại bộ nhớ Đám mây thuộc Tài khoản cá nhân của đồng chí','Sổ được lưu trên bộ nhớ Đám mây, thuộc Tài khoản cá nhân của đồng chí — có thể truy cập Sổ này ở bất cứ thiết bị nào miễn có internet và chỉ khi đồng chí đăng nhập bằng đúng tài khoản của mình. Chỉ Tài khoản của đồng chí mới có quyền truy cập, vẫn đảm bảo riêng tư, và vẫn cho phép chia sẻ (xem hoặc cùng sửa) cho người được chọn.'],
+        ['🗑️','Thùng rác và sắp xếp phụ lục bằng công thức','Xoá 1 Sổ sẽ chuyển vào Thùng rác trước, khôi phục được, chỉ mất hẳn khi bấm xoá vĩnh viễn. Mỗi dòng Thu/Chi có thể kèm 1 phụ lục tự do cột (Chữ/Tiền/Ngày tháng), cho phép gắn công thức như Excel giữa các ô tiền trong cùng phụ lục.'],
+      ], note:null },
     members: { icon:'🪪', eyebrow:'QUẢN LÝ HỘI VIÊN', title:'Hồ sơ hội viên',
       lead:'Danh sách hội viên của một xã thường là một tệp Excel nặng vài nghìn dòng, có một bảng gốc và cả chục bảng phụ chạy theo công thức. Sửa một chỗ ở bảng gốc thì mọi bảng khác đổi theo — nhưng chỉ cần gõ thừa một dấu cách là số liệu sai mà máy không hề báo lỗi. Module này thay cách làm ấy bằng một cơ sở dữ liệu hội viên đúng nghĩa.',
       blocks:[
