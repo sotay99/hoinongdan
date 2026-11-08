@@ -12,7 +12,7 @@
   // =====================================================================
   const INTERNAL_LEDGER_LOCAL_KEY = 'hnd_internal_ledger_v2';
   const INTERNAL_LEDGER_ACCEPT_KEY = 'hnd_internal_ledger_accepted_v1';
-  const IL_MAX = { content:200, person:80, note:500, title:80, colLabel:40, cellText:200, moneyDigits:12, ledgerName:80 };
+  const IL_MAX = { content:200, person:80, note:500, title:80, colLabel:40, cellText:200, moneyDigits:12, ledgerName:80, formula:200 };
 
   function internalLedgerAccepted(){
     try{ return localStorage.getItem(INTERNAL_LEDGER_ACCEPT_KEY)==='1'; }catch(e){ return false; }
@@ -413,7 +413,7 @@
                 <button type="button" class="btn ${amountMode==='appendix'?'btn-primary':'btn-ghost'} btn-sm preview-allow" id="ilm-tab-appendix" style="flex:1; border-radius:0;">Số tiền được đồng bộ theo phụ lục kèm theo của dòng này</button>
               </div>
               <p class="sub" style="margin:0 0 8px;">${amountMode==='manual'? `Tự gõ đúng số tiền của dòng ${isThu?'thu':'chi'} này.` : 'Số tiền sẽ tự tính theo cột tiền chính của phụ lục kèm theo, không gõ tay — mặc định 0 đ cho đến khi phụ lục kèm theo có dữ liệu.'}</p>
-              ${amountMode==='manual'? `<label>Số tiền (đ) * <span class="sub">(tối đa ${IL_MAX.moneyDigits} số)</span> <span class="sub" id="ilm-amount-disp" style="font-weight:700; color:#b71c1c;"></span></label><input type="text" inputmode="numeric" id="ilm-amount" value="${e0.amount||''}" placeholder="Chỉ nhập số">` : `<p class="sub">Số tiền hiện tại (đồng bộ theo phụ lục): <b>${moneySpaced(e0.amountMode==='appendix'? e0.amount : 0)}</b></p>`}
+              ${amountMode==='manual'? `<label>Số tiền (đ) * <span class="sub">(tối đa ${IL_MAX.moneyDigits} số)</span> <span class="sub" id="ilm-amount-disp" style="font-weight:700; color:#b71c1c;"></span></label><input type="text" inputmode="numeric" id="ilm-amount" value="${e0.amount||''}" placeholder="Chỉ nhập số">` : `<p class="sub">Số tiền hiện tại (đồng bộ theo phụ lục): <b>${moneySpaced(e0.appendix? ilAppendixDesignatedTotal(e0.appendix) : 0)}</b></p>`}
             </div>
             <div class="field"><label>Người ${isThu?'thu':'chi'} <span class="sub">(tối đa ${IL_MAX.person} ký tự)</span></label><input type="text" id="ilm-person" maxlength="${IL_MAX.person}" value="${escapeHtml(e0.person||'')}"></div>
             <div class="field"><label>Ghi chú <span class="sub">(tối đa ${IL_MAX.note} ký tự)</span></label><textarea id="ilm-note" rows="3" maxlength="${IL_MAX.note}">${escapeHtml(e0.note||'')}</textarea></div>
@@ -444,7 +444,7 @@
           amount = parseVNMoney(wrap.querySelector('#ilm-amount').value);
           if(!amount){ alert('Vui lòng điền Số tiền.'); return; }
         } else {
-          amount = e0.amountMode==='appendix' ? (e0.amount||0) : 0;
+          amount = e0.appendix ? ilAppendixDesignatedTotal(e0.appendix) : 0;
         }
         if(!date || !content){ alert('Vui lòng điền đủ Ngày và Nội dung.'); return; }
         let appendix = e0.appendix;
@@ -629,7 +629,7 @@
   // chuyển được bằng thanh tiêu đề, có nút ✕. Bấm vào ô tiền khác trong bảng (khi đang
   // ở tab công thức) để chèn toạ độ ô đó.
   // =====================================================================
-  function renderMoneyCellModal(ap, rowIdx, colKey, tableEl, onSaved){
+  function renderMoneyCellModal(ap, rowIdx, colKey, tableEl, onSaved, onClose){
     const raw = String((ap.rows[rowIdx]||{})[colKey] ?? '');
     const isFormula = raw.startsWith('=');
     let tab = isFormula ? 'formula' : 'literal';
@@ -641,7 +641,7 @@
     document.body.appendChild(panel);
     let unbindDrag = null;
     let pickHandler = null;
-    const close = ()=>{ if(unbindDrag) unbindDrag(); if(pickHandler) tableEl.removeEventListener('mousedown', pickHandler, true); panel.remove(); };
+    const close = ()=>{ if(unbindDrag) unbindDrag(); if(pickHandler) tableEl.removeEventListener('mousedown', pickHandler, true); panel.remove(); if(onClose) onClose(); };
     function render(){
       panel.innerHTML = `
         <div id="ilcm-handle" style="background:linear-gradient(180deg, #4527a0 0%, #311b92 100%); color:#fff; padding:8px 10px; cursor:move; display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:13px;">
@@ -657,11 +657,11 @@
             <label class="sub" id="ilcm-disp" style="display:block; font-weight:700; color:#b71c1c; margin-bottom:4px;"></label>
             <input type="text" inputmode="numeric" id="ilcm-lit-input" value="${escapeHtml(isFormula? '' : raw)}" placeholder="Chỉ nhập số" style="width:100%; text-align:right; padding:6px 8px; border:1px solid var(--line); border-radius:6px;">
           ` : `
-            <input type="text" id="ilcm-f-input" value="${escapeHtml(isFormula? raw : '=')}" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:monospace;">
+            <input type="text" id="ilcm-f-input" maxlength="${IL_MAX.formula}" value="${escapeHtml(isFormula? raw : '=')}" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:monospace;">
             <div style="display:flex; gap:6px; margin:8px 0;">
               ${['+','-','×','÷'].map(op=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-ilcm-op="${op}">${op}</button>`).join('')}
             </div>
-            <p class="sub" style="margin:0;">Vd: =A1+B2-C1/G2*D2 — bấm vào 1 ô tiền khác trong bảng để chèn toạ độ ô đó.</p>
+            <p class="sub" style="margin:0;">Vd: =A1+B2-C1/G2*D2 — bấm vào 1 ô khác trong bảng (Tiền/Chữ/Ngày tháng) để chèn toạ độ ô đó.</p>
           `}
           <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
             <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilcm-cancel">Huỷ</button>
@@ -685,9 +685,12 @@
           fInput.focus(); fInput.setSelectionRange(pos+1,pos+1);
         });
         if(pickHandler) tableEl.removeEventListener('mousedown', pickHandler, true);
+        // Trong lúc đang ở tab "Gắn công thức": bấm vào BẤT KỲ ô nào khác trong bảng (Tiền/Chữ/
+        // Ngày tháng) đều KHÔNG mở modal/sửa ô đó — chỉ chèn toạ độ ô đó vào công thức.
         pickHandler = (e)=>{
           const target = e.target;
-          if(target.classList && target.classList.contains('ilae-cell-view') && !(target.dataset.ri===String(rowIdx) && target.dataset.ck===colKey)){
+          const isPickable = target.classList && (target.classList.contains('ilae-cell-view') || target.classList.contains('ilae-cell-text') || target.classList.contains('ilae-cell-date'));
+          if(isPickable && !(target.dataset.ri===String(rowIdx) && target.dataset.ck===colKey)){
             e.preventDefault(); e.stopPropagation();
             const ref = ilColLetter(ap.columns.findIndex(c=>c.key===target.dataset.ck)) + (parseInt(target.dataset.ri,10)+1);
             const pos = fInput.selectionStart||fInput.value.length;
@@ -720,6 +723,31 @@
   function ilDefaultAppendixColumns(){
     return [ { key: ilNewId('c'), label:'Nội dung', type:'text', showTotal:true }, { key: ilNewId('c'), label:'Số tiền', type:'money', showTotal:true } ];
   }
+  // Sắp xếp lại cột/dòng KHÔNG được làm đổi kết quả của ô đang gắn công thức (y như Excel) — nên
+  // trước khi thực sự di chuyển vị trí, phải viết lại mọi công thức theo đúng vị trí MỚI của từng
+  // ô nó đang tham chiếu tới. colSortDraft/rowSortDraft là thứ tự MỚI (colSortDraft: mảng key theo
+  // đúng thứ tự mới; rowSortDraft: mảng chỉ số DÒNG CŨ theo đúng thứ tự mới).
+  function ilRemapFormulasForReorder(ap, colSortDraft, rowSortDraft){
+    const oldColKeys = ap.columns.map(c=>c.key);
+    const newLetterByOldColIdx = oldColKeys.map(key=> ilColLetter(colSortDraft.indexOf(key)));
+    const newRowNumByOldRowIdx = {};
+    rowSortDraft.forEach((oldIdx, newIdx)=>{ newRowNumByOldRowIdx[oldIdx] = newIdx+1; });
+    ap.rows.forEach(row=>{
+      ap.columns.forEach(col=>{
+        if(col.type!=='money') return;
+        const raw = String(row[col.key] ?? '');
+        if(!raw.startsWith('=')) return;
+        const newBody = raw.slice(1).replace(/([A-Za-z]+)(\d+)/g, (m,L,R)=>{
+          const oldCi = L.toUpperCase().charCodeAt(0)-65;
+          const oldRi = parseInt(R,10)-1;
+          const newLetter = newLetterByOldColIdx[oldCi];
+          const newRowNum = newRowNumByOldRowIdx[oldRi];
+          return (newLetter!=null && newRowNum!=null) ? (newLetter+newRowNum) : m;
+        });
+        row[col.key] = '='+newBody;
+      });
+    });
+  }
   function renderInternalAppendixEditorModal(ledger, entry, el){
     entry.appendix = entry.appendix || { id: ilNewId('ila'), title: ilGenerateAppendixName(ledger, entry.type), designatedKey:null, columns: ilDefaultAppendixColumns(), rows:[] };
     const ap = entry.appendix;
@@ -729,6 +757,7 @@
     wrap.style.cssText = 'padding:0; align-items:stretch;';
     let sortingLayout = false;
     let rowSortDraft = null, colSortDraft = null;
+    let openMoneyModalClose = null; // chỉ cho mở 1 modal ô tiền duy nhất tại 1 thời điểm
     function syncEntryAmountIfNeeded(){
       if(entry.amountMode==='appendix') entry.amount = ilAppendixDesignatedTotal(ap);
     }
@@ -800,7 +829,7 @@
               ${(ap.columns.length>1 || ap.rows.length>1)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-sort-start">🔀 Sắp xếp cột và dòng</button>` : ''}
               <button type="button" class="btn btn-ghost btn-sm preview-allow" id="ilae-del-appendix" style="margin-left:auto; color:var(--red);">🗑️ Xoá phụ lục</button>
             </div>` : ''}
-            <p id="ilae-designated-line" class="sub" style="margin-top:12px;">${ap.designatedKey? `Cột quyết định số tiền chung: <b><span id="ilae-dg-name">${escapeHtml((ap.columns.find(c=>c.key===ap.designatedKey)||{}).label||'')}</span></b> = <b><span id="ilae-dg-amount">${moneySpaced(ilAppendixDesignatedTotal(ap))}</span></b>${entry.amountMode==='appendix'? ' (đang đồng bộ với số tiền dòng '+(entry.type==='thu'?'thu':'chi')+')' : ''}` : 'Chưa chọn cột quyết định số tiền chung.'}</p>
+            <p id="ilae-designated-line" class="sub" style="margin-top:12px;">${ap.designatedKey? `Cột quyết định số tiền chung: <b><span id="ilae-dg-name">${escapeHtml((ap.columns.find(c=>c.key===ap.designatedKey)||{}).label||'')}</span></b> = <b><span id="ilae-dg-amount">${moneySpaced(ilAppendixDesignatedTotal(ap))}</span></b>${entry.amountMode==='appendix'? ' (đang đồng bộ với số tiền dòng '+(entry.type==='thu'?'thu':'chi')+')' : ''} - Bấm vào dấu ☆ ở các Cột (thuộc loại Tiền) để chọn cột quyết định số tiền chung` : 'Chưa chọn cột quyết định số tiền chung - Bấm vào dấu ☆ ở các Cột (thuộc loại Tiền) để chọn cột quyết định số tiền chung'}</p>
           </div>
           <div class="modal-foot">
             ${canEdit && sortingLayout? '' : (canEdit? `<button class="btn btn-ghost" id="ilae-cancel">Huỷ</button><button class="btn btn-primary" id="ilae-save">💾 Lưu phụ lục</button>` : `<button class="btn btn-ghost" id="ilae-cancel">Đóng</button>`)}
@@ -810,8 +839,11 @@
       wrap.querySelector('#ilae-close').onclick = close;
       const cancelBtn = wrap.querySelector('#ilae-cancel'); if(cancelBtn) cancelBtn.onclick = close;
       wrap.querySelectorAll('.ilae-cell-view').forEach(span=> span.onclick = ()=>{
-        if(!canEdit) return;
-        renderMoneyCellModal(ap, +span.dataset.ri, span.dataset.ck, wrap.querySelector('#ilae-table'), ()=>{ syncEntryAmountIfNeeded(); render(); });
+        if(!canEdit || openMoneyModalClose) return; // đang có 1 modal ô tiền khác mở sẵn -> phải đóng nó trước
+        openMoneyModalClose = true;
+        renderMoneyCellModal(ap, +span.dataset.ri, span.dataset.ck, wrap.querySelector('#ilae-table'),
+          ()=>{ syncEntryAmountIfNeeded(); render(); },
+          ()=>{ openMoneyModalClose = null; });
       });
       wrap.querySelectorAll('.ilae-cell-text, .ilae-cell-date').forEach(inp=> inp.addEventListener('input', ()=>{ ap.rows[+inp.dataset.ri][inp.dataset.ck] = inp.value; }));
       wrap.querySelectorAll('.ilae-col-label').forEach(inp=> inp.addEventListener('input', ()=>{
@@ -882,6 +914,7 @@
       if(sortingLayout){
         const saveSortBtn = wrap.querySelector('#ilae-sort-save');
         if(saveSortBtn) saveSortBtn.onclick = ()=>{
+          ilRemapFormulasForReorder(ap, colSortDraft, rowSortDraft);
           ap.columns = colSortDraft.map(k=>ap.columns.find(c=>c.key===k)).filter(Boolean);
           const newRows = rowSortDraft.map(ri=>ap.rows[ri]);
           ap.rows = newRows;
@@ -1022,8 +1055,14 @@
       if(c.type==='date') return r[c.key]!=null? r[c.key] : '';
       return r[c.key]!=null? r[c.key] : '';
     }));
-    const totalRow = ap.columns.map(c=> c.type==='money' ? ilAppendixColumnTotal(ap, c.key) : (ap.columns[0]===c?'TỔNG':''));
-    return { headers, rows:[...rows, totalRow], columns: ap.columns.map(c=>({type:c.type})), formulaCells, isAppendix:true, title: ilAppendixDisplayTitle(entry) };
+    // Cột tiền đang bị ẩn tổng (và không phải cột quyết định) -> để TRỐNG thật ở dòng Tổng, đồng bộ
+    // với màn hình sửa phụ lục (ẩn ở đâu thì ẩn luôn ở xem trước/in/xuất Excel).
+    const totalRow = ap.columns.map(c=>{
+      if(c.type!=='money') return ap.columns[0]===c?'TỔNG':'';
+      const hidden = ap.designatedKey!==c.key && c.showTotal===false;
+      return hidden ? '' : ilAppendixColumnTotal(ap, c.key);
+    });
+    return { headers, rows:[...rows, totalRow], columns: ap.columns.map(c=>({type:c.type, showTotal:c.showTotal, isDesignated: ap.designatedKey===c.key})), formulaCells, isAppendix:true, title: ilAppendixDisplayTitle(entry) };
   }
   function ilRelatedAppendixSections(ledger, type){
     const types = type? [type] : ['thu','chi'];
@@ -1129,6 +1168,7 @@
       if(dataRowCount>0){
         sec.columns.forEach((c,ci)=>{
           if(c.type!=='money') return;
+          if(!c.isDesignated && c.showTotal===false) return; // tổng cột đang ẩn -> để trống, không gắn công thức SUM ngầm
           const colLetter = XLSX.utils.encode_col(ci);
           const first1 = dataStartRow0+1, last1 = dataStartRow0+dataRowCount;
           const totalRow0 = dataStartRow0+dataRowCount;
