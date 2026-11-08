@@ -14,5 +14,6 @@
   "13-loans-ui.js",
   "14-accounting-settings-bootstrap.js",
   "14b-internal-ledger.js",
-  "15-drive-hub.js"
+  "15-drive-hub.js",
+  "16-members-strength.js"
 ]

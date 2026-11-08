@@ -1570,7 +1570,7 @@
     state._pendingAccessCode = '';
     state._pendingSecretId = genSecretId();
     state._pendingIsRandom = true;
-    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
+    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.members=[]; state.strengthSnapshots=[]; state.collaborators={};
     state.view = 'onboarding';
     render();
     return wid;
@@ -1954,7 +1954,7 @@
     state.accessMode = ACCESS_MODES.SIGNED_OUT;
     clearWardGuestSession();
     state.identity = null;
-    state.config=null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.interestPaymentBoxes=null; state.loanExtensions=null;
+    state.config=null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.members=[]; state.strengthSnapshots=[]; state.interestPaymentBoxes=null; state.loanExtensions=null;
     state.view = 'login';
     render();
   }
@@ -2028,7 +2028,7 @@
     state.identity.wardId = '';
     if(!wasAdminViewing) setActiveWardCache(''); // Admin chỉ "xem thử" thì giữ nguyên cache mã thật của họ
     lset(IDENTITY_KEY, state.identity);
-    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
+    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.members=[]; state.strengthSnapshots=[]; state.collaborators={};
     await loadWallet();
     state.view = 'wallet';
     render();
@@ -2067,7 +2067,7 @@
   async function kickToWalletSilent(){
     detachRealtime();
     state.identity.wardId = ''; setActiveWardCache('');
-    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
+    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.members=[]; state.strengthSnapshots=[]; state.collaborators={};
     await loadWallet();
     state.view = 'wallet'; render();
   }
@@ -2168,7 +2168,7 @@
         state.identity = null; lset(IDENTITY_KEY, null);
          state.accessMode = ACCESS_MODES.SIGNED_OUT;
          state.guestSessionId = null;
-        state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.surveySpace='personal'; state.surveyView='list'; state.surveyDraft=null; state.surveyEditingId=null; state.expenses=[]; state.trash=[]; state.log=[]; state.collaborators={};
+        state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.surveySpace='personal'; state.surveyView='list'; state.surveyDraft=null; state.surveyEditingId=null; state.expenses=[]; state.trash=[]; state.log=[]; state.members=[]; state.strengthSnapshots=[]; state.collaborators={};
         state.myWards=[]; state.myDeletedWards=[]; state.sysTrash=[];
         state.admins={}; state.aiChats=[]; state.aiActiveChatId=null; state._aiChatOpen=false; state._adminViewingWard=false;
         state.propagandaChats=[]; state.propagandaActiveChatId=null; state._propagandaChatsLoaded=false; state.propagandaPendingAttachments=[];

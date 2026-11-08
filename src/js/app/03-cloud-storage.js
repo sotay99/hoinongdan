@@ -315,6 +315,9 @@
     bind('borrowerManagers', v => { state.borrowerManagers = snapToArray(v); });
     bind('expenses', v => { state.expenses = snapToArray(v); });
     bind('trash', v => { state.trash = snapToArray(v); });
+    // Hồ sơ hội viên + các kỳ chốt số Thực lực Hội — xem src/js/app/16-members-strength.js
+    bind('members', v => { state.members = snapToArray(v); });
+    bind('strengthSnapshots', v => { state.strengthSnapshots = snapToArray(v); });
     bind('permanentlyDeletedBorrowers', v => { state.permanentlyDeletedBorrowers = snapToArray(v); });
     bind('borrowerReceipts', v => {
       const result = {};
@@ -347,7 +350,7 @@
     detachRealtime();
     state.identity.wardId = '';
     setActiveWardCache('');
-    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[];
+    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.members=[]; state.strengthSnapshots=[];
     alert(message);
     loadWallet().then(()=>{ state.view = 'wallet'; render(); });
   }
@@ -356,7 +359,7 @@
     detachRealtime();
     alert(message);
     state.identity = null;
-    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[];
+    state.config = null; state.borrowers=[]; state.loanProjects=[]; state.borrowerColumnPrefsShared=null; state.borrowerVisibleCols=null; state.borrowerColumnOrder=null; state.filterHamlets=null; state.filterProjectIds=null; state.filterFundSources=null; state.filterManagerIds=null; state.filterQuarters=null; state.filterQuartersAdvanced=false; state.filterYears=null; state.filterYearsAdvanced=false; state.mainTimeline=null; state.openFilterDropdown=null; state.surveys=[]; state.expenses=[]; state.trash=[]; state.log=[]; state.members=[]; state.strengthSnapshots=[];
     state.view = 'login';
     render();
   }
