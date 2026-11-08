@@ -501,7 +501,7 @@
           <div style="display:flex; gap:8px;">
             ${sorting? `<button type="button" class="btn btn-primary btn-sm preview-allow" id="il-sort-save-${type}">💾 Lưu thứ tự</button><button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-sort-cancel-${type}">Huỷ</button>` : `
               ${canEdit? `<button type="button" class="btn btn-primary btn-sm preview-allow" id="il-add-${type}">➕ Thêm dòng ${isThu?'thu':'chi'}</button>` : ''}
-              ${canEdit && list.length>1? `<button type="button" class="btn-plain-icon preview-allow" id="il-sort-start-${type}" title="Sắp xếp thứ tự" style="background:none; border:none; cursor:pointer; font-size:16px;">☰</button>` : ''}
+              ${canEdit && list.length>1? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-sort-start-${type}">☰ Sắp xếp thứ tự</button>` : ''}
               <button type="button" class="btn btn-ghost btn-sm preview-allow" id="il-excel-${type}">📊 Xem bảng Excel</button>
             `}
           </div>
