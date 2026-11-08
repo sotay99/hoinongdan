@@ -347,6 +347,9 @@
   .ext-action-btn.ext-green{ animation-name: extPulseGreen; color:#1b5e20; }
   @keyframes resetFilterPulse{ 0%,100%{ background:#fff; } 50%{ background:#90caf9; } }
   .reset-filter-active{ animation: resetFilterPulse 4.2s ease-in-out infinite; }
+  /* Lớp nổi "= x xxx đ" sát ô tiền đang gõ trong phụ lục Thu - Chi nội bộ — đè lên mọi thứ khác. */
+  .il-money-float-badge{ position:fixed; z-index:9999; background:#b71c1c; color:#fff; padding:2px 8px;
+    border-radius:6px; font-weight:700; font-size:12px; pointer-events:none; white-space:nowrap; }
   /* Dòng cảnh báo trùng lặp "Trích về Ấp" — đứng im 2 giây, rồi chớp 2 cái thật nhanh (mất đi hiện lại),
      rồi lại đứng im 2 giây, chớp 2 cái... lặp lại vô tận. Mỗi chu kỳ dài 2,4 giây. */
   @keyframes dupWarningBlink{

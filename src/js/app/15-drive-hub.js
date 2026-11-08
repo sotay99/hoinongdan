@@ -207,6 +207,7 @@
           </div>
           <button class="btn btn-ghost btn-sm" id="office-exit">✕ Thoát</button>
         </div>
+        ${moduleLearnBarHtml(cfg.label, '-office')}
         <div class="office-doc-body">
           <div class="office-badge">🚧 Đang xây dựng — sẽ sớm ra mắt</div>
           <p class="office-lead">${escapeHtml(cfg.tagline)}</p>
@@ -236,6 +237,7 @@
     if(backBtn) backBtn.onclick = closeOfficeModule;
     const driveBtn = document.getElementById('office-goto-drive');
     if(driveBtn) driveBtn.onclick = ()=>{ closeOfficeModule(); switchTab('drive'); };
+    wireModuleLearnBar('-office', appName.toLowerCase());
   }
   function driveDecodeDataUrl(dataUrl){
     const comma = String(dataUrl||'').indexOf(',');
