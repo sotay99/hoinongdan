@@ -796,7 +796,20 @@
         result = Math.round(ilEvalAst(ast, resolveRef).value);
       } else result = 0;
     }
-    else result = parseInt(raw.replace(/[^\d-]/g,''),10) || 0;
+    else {
+      // Trước đây chỉ giữ chữ số (xoá luôn dấu phẩy/chấm) — "12,5" biến thành "125" sai hẳn giá trị,
+      // khiến công thức tham chiếu tới ô này nhận một số nguyên lớn gấp 10-100 lần số thật người
+      // dùng gõ. Giờ đọc đúng số thập phân (nếu có) rồi LÀM TRÒN về số nguyên, đúng yêu cầu mọi ô
+      // tiền trong phụ lục luôn là số nguyên, không còn số lẻ sau dấu phẩy.
+      let cleaned = raw.replace(/[^\d,.-]/g,'');
+      const lastComma = cleaned.lastIndexOf(','), lastDot = cleaned.lastIndexOf('.');
+      if(lastComma>-1 && lastDot>-1){
+        cleaned = lastComma>lastDot ? cleaned.replace(/\./g,'').replace(',', '.') : cleaned.replace(/,/g,'');
+      } else if(lastComma>-1){
+        cleaned = cleaned.replace(',', '.');
+      }
+      result = Math.round(parseFloat(cleaned)) || 0;
+    }
     visiting.delete(cellId);
     return result;
   }
