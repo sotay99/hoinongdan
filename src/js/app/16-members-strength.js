@@ -358,10 +358,13 @@
   // từng ấp) — thay cho sắp xếp theo thứ tự chữ cái. Lưu ở state.config.memberHamletOrder (danh
   // sách tên ấp) + field `order` (số) của từng hội viên. Dùng CHUNG cho bảng danh sách, Excel và
   // xuất/in — đồng bộ thời gian thực vì đọc trực tiếp state hiện tại mỗi lần gọi. ----------
+  // "Khác" được coi là 1 khu dân cư THẬT trong sắp xếp (khác với quy ước "Khác luôn đứng đầu,
+  // khoá cứng" ở modal quản lý địa bàn dân cư — đó là quy ước RIÊNG của modal đó, không áp dụng ở
+  // đây) — mặc định đứng CUỐI nếu chưa từng được người dùng tự kéo sang vị trí khác.
   function orderedHamletsList(){
-    const all = (state.config.hamlets||[]).filter(h=>h!=='Khác');
+    const all = state.config.hamlets||[];
     const custom = (state.config.memberHamletOrder||[]).filter(h=> all.includes(h));
-    const rest = all.filter(h=> !custom.includes(h));
+    const rest = all.filter(h=> !custom.includes(h)).sort((a,b)=> (a==='Khác'?1:0) - (b==='Khác'?1:0));
     return custom.concat(rest);
   }
   function sortedMembersForDisplay(list){
@@ -422,46 +425,124 @@
     render();
   }
 
-  // ---------- CỘT HIỂN THỊ (cơ bản = "để in" trong Excel, nâng cao = phần sản xuất) ----------
+  // ---------- CỘT HIỂN THỊ (cơ bản = "để in" trong Excel, nâng cao = phần sản xuất). Mỗi cột có
+  // `key` ổn định để "Tuỳ chỉnh cột" tham chiếu được — `fixed:true` = không cho ẩn, `hiddenDefault:true`
+  // = mặc định ẩn khi chưa ai tuỳ chỉnh gì. ----------
   function memberBasicCols(){ return [
-    { label:'Họ và tên', get:m=>escapeHtml(m.fullName||''), getPlain:m=>m.fullName||'' },
-    { label:'Năm sinh', get:m=>escapeHtml(String(m.birthYear||'')), getPlain:m=>m.birthYear||'' },
-    { label:'Giới tính', get:m=>escapeHtml(m.gender||''), getPlain:m=>m.gender||'' },
-    { label:'Dân tộc', get:m=>escapeHtml(m.ethnicity||''), getPlain:m=>m.ethnicity||'' },
-    { label:'Tôn giáo', get:m=>escapeHtml(m.religion||''), getPlain:m=>m.religion||'' },
-    { label:'Số CCCD', get:m=>escapeHtml(m.cccd||''), getPlain:m=>m.cccd||'' },
-    { label:'Trình độ văn hoá', get:m=>escapeHtml(m.educationLevel||''), getPlain:m=>m.educationLevel||'' },
-    { label:'Năm vào hội', get:m=>escapeHtml(String(m.joinYear||'')), getPlain:m=>m.joinYear||'' },
-    { label:'Năm cấp thẻ hội viên', get:m=>escapeHtml(String(m.cardYear||'')), getPlain:m=>m.cardYear||'' },
-    { label:'Nơi ở hiện nay', get:m=>escapeHtml(m.currentHamlet||''), getPlain:m=>m.currentHamlet||'' },
-    { label:'Nơi ở trước sáp nhập', get:m=>escapeHtml(m.oldHamlet||''), getPlain:m=>m.oldHamlet||'' },
-    { label:'Hội viên nòng cốt', get:m=>m.isCore?'X':'', getPlain:m=>m.isCore?'X':'' },
-    { label:'Chức vụ hiện nay', get:m=>escapeHtml(m.position||''), getPlain:m=>m.position||'' },
-    { label:'Đảng viên', get:m=>escapeHtml(m.partyMember||''), getPlain:m=>m.partyMember||'' },
-    { label:'Ngày và lý do xoá tên', get:m=>escapeHtml([m.removedDate?fmtDate(m.removedDate):'', m.removedReason||''].filter(Boolean).join(' — ')), getPlain:m=>[m.removedDate||'', m.removedReason||''].filter(Boolean).join(' — ') },
-    { label:'Số điện thoại', get:m=>escapeHtml(m.phone||''), getPlain:m=>m.phone||'' },
-    { label:'Ghi chú', get:m=>escapeHtml(m.note||''), getPlain:m=>m.note||'' },
+    { key:'fullName', fixed:true, label:'Họ và tên', get:m=>escapeHtml(m.fullName||''), getPlain:m=>m.fullName||'' },
+    { key:'birthYear', label:'Năm sinh', get:m=>escapeHtml(String(m.birthYear||'')), getPlain:m=>m.birthYear||'' },
+    { key:'gender', label:'Giới tính', get:m=>escapeHtml(m.gender||''), getPlain:m=>m.gender||'' },
+    { key:'ethnicity', label:'Dân tộc', get:m=>escapeHtml(m.ethnicity||''), getPlain:m=>m.ethnicity||'' },
+    { key:'religion', label:'Tôn giáo', get:m=>escapeHtml(m.religion||''), getPlain:m=>m.religion||'' },
+    { key:'cccd', label:'Số CCCD', get:m=>escapeHtml(m.cccd||''), getPlain:m=>m.cccd||'' },
+    { key:'educationLevel', label:'Trình độ văn hoá', get:m=>escapeHtml(m.educationLevel||''), getPlain:m=>m.educationLevel||'' },
+    { key:'joinYear', label:'Năm vào hội', get:m=>escapeHtml(String(m.joinYear||'')), getPlain:m=>m.joinYear||'' },
+    { key:'cardYear', hiddenDefault:true, label:'Năm cấp thẻ hội viên', get:m=>escapeHtml(String(m.cardYear||'')), getPlain:m=>m.cardYear||'' },
+    { key:'currentHamlet', fixed:true, label:'Nơi ở hiện nay', get:m=>escapeHtml(m.currentHamlet||''), getPlain:m=>m.currentHamlet||'' },
+    { key:'oldHamlet', label:'Nơi ở trước sáp nhập', get:m=>escapeHtml(m.oldHamlet||''), getPlain:m=>m.oldHamlet||'' },
+    { key:'isCore', label:'Hội viên nòng cốt', get:m=>m.isCore?'X':'', getPlain:m=>m.isCore?'X':'' },
+    { key:'position', label:'Chức vụ hiện nay', get:m=>escapeHtml(m.position||''), getPlain:m=>m.position||'' },
+    { key:'partyMember', label:'Đảng viên', get:m=>escapeHtml(m.partyMember||''), getPlain:m=>m.partyMember||'' },
+    { key:'removedInfo', hiddenDefault:true, label:'Ngày và lý do xoá tên', get:m=>escapeHtml([m.removedDate?fmtDate(m.removedDate):'', m.removedReason||''].filter(Boolean).join(' — ')), getPlain:m=>[m.removedDate||'', m.removedReason||''].filter(Boolean).join(' — ') },
+    { key:'phone', label:'Số điện thoại', get:m=>escapeHtml(m.phone||''), getPlain:m=>m.phone||'' },
+    { key:'note', label:'Ghi chú', get:m=>escapeHtml(m.note||''), getPlain:m=>m.note||'' },
+    { key:'needsVerifyNote', hiddenDefault:true, label:'Thông tin cần xác minh', get:m=>escapeHtml(m.needsVerify? (m.needsVerifyNote||'') : ''), getPlain:m=>m.needsVerify? (m.needsVerifyNote||'') : '' },
   ]; }
   function memberAdvancedCols(){ return [
-    { label:'Diện tích sản xuất (ha)', get:m=>escapeHtml(String(m.area||'')), getPlain:m=>m.area||'' },
-    { label:'Ngành nghề SXKD chính', get:m=>escapeHtml(m.mainIndustry||''), getPlain:m=>m.mainIndustry||'' },
-    { label:'Mức thu nhập bình quân/năm (triệu đồng)', get:m=>escapeHtml(String(m.avgIncome||'')), getPlain:m=>m.avgIncome||'' },
-    { label:'Lao động tham gia SX', get:m=>escapeHtml(String(m.laborCount||'')), getPlain:m=>m.laborCount||'' },
-    { label:'Tham gia tổ hợp tác/HTX', get:m=>escapeHtml(m.coopGroup||''), getPlain:m=>m.coopGroup||'' },
-    { label:'Loại hình sản xuất', get:m=>escapeHtml(m.productionType||''), getPlain:m=>m.productionType||'' },
-    { label:'Cây trồng, vật nuôi chính', get:m=>escapeHtml(m.mainCrop||''), getPlain:m=>m.mainCrop||'' },
-    { label:'Quy mô sản xuất', get:m=>escapeHtml(m.scale||''), getPlain:m=>m.scale||'' },
-    { label:'Mức độ ứng dụng KH-KT', get:m=>escapeHtml(m.techLevel||''), getPlain:m=>m.techLevel||'' },
-    { label:'Sản phẩm tiêu biểu', get:m=>escapeHtml(m.product||''), getPlain:m=>m.product||'' },
-    { label:'Kênh tiêu thụ sản phẩm', get:m=>escapeHtml(m.salesChannel||''), getPlain:m=>m.salesChannel||'' },
-    { label:'Đăng ký danh hiệu NDSXKD giỏi', get:m=>escapeHtml(m.goodFarmerTitle||''), getPlain:m=>m.goodFarmerTitle||'' },
-    { label:'Mức độ tham gia sinh hoạt Hội', get:m=>escapeHtml(m.activityLevel||''), getPlain:m=>m.activityLevel||'' },
-    { label:'Thuận lợi', get:m=>escapeHtml(m.advantage||''), getPlain:m=>m.advantage||'' },
-    { label:'Khó khăn', get:m=>escapeHtml(m.difficulty||''), getPlain:m=>m.difficulty||'' },
-    { label:'Kiến nghị, đề xuất', get:m=>escapeHtml(m.proposal||''), getPlain:m=>m.proposal||'' },
-    { label:'Nhận xét của Chi hội trưởng', get:m=>escapeHtml(m.chiHoiComment||''), getPlain:m=>m.chiHoiComment||'' },
-    { label:'Đề xuất với Hội Nông dân xã', get:m=>escapeHtml(m.proposalToWard||''), getPlain:m=>m.proposalToWard||'' },
+    { key:'area', label:'Diện tích sản xuất (ha)', get:m=>escapeHtml(String(m.area||'')), getPlain:m=>m.area||'' },
+    { key:'mainIndustry', label:'Ngành nghề SXKD chính', get:m=>escapeHtml(m.mainIndustry||''), getPlain:m=>m.mainIndustry||'' },
+    { key:'avgIncome', label:'Mức thu nhập bình quân/năm (triệu đồng)', get:m=>escapeHtml(String(m.avgIncome||'')), getPlain:m=>m.avgIncome||'' },
+    { key:'laborCount', label:'Lao động tham gia SX', get:m=>escapeHtml(String(m.laborCount||'')), getPlain:m=>m.laborCount||'' },
+    { key:'coopGroup', label:'Tham gia tổ hợp tác/HTX', get:m=>escapeHtml(m.coopGroup||''), getPlain:m=>m.coopGroup||'' },
+    { key:'productionType', label:'Loại hình sản xuất', get:m=>escapeHtml(m.productionType||''), getPlain:m=>m.productionType||'' },
+    { key:'mainCrop', label:'Cây trồng, vật nuôi chính', get:m=>escapeHtml(m.mainCrop||''), getPlain:m=>m.mainCrop||'' },
+    { key:'scale', label:'Quy mô sản xuất', get:m=>escapeHtml(m.scale||''), getPlain:m=>m.scale||'' },
+    { key:'techLevel', label:'Mức độ ứng dụng KH-KT', get:m=>escapeHtml(m.techLevel||''), getPlain:m=>m.techLevel||'' },
+    { key:'product', label:'Sản phẩm tiêu biểu', get:m=>escapeHtml(m.product||''), getPlain:m=>m.product||'' },
+    { key:'salesChannel', label:'Kênh tiêu thụ sản phẩm', get:m=>escapeHtml(m.salesChannel||''), getPlain:m=>m.salesChannel||'' },
+    { key:'goodFarmerTitle', label:'Đăng ký danh hiệu NDSXKD giỏi', get:m=>escapeHtml(m.goodFarmerTitle||''), getPlain:m=>m.goodFarmerTitle||'' },
+    { key:'activityLevel', label:'Mức độ tham gia sinh hoạt Hội', get:m=>escapeHtml(m.activityLevel||''), getPlain:m=>m.activityLevel||'' },
+    { key:'advantage', label:'Thuận lợi', get:m=>escapeHtml(m.advantage||''), getPlain:m=>m.advantage||'' },
+    { key:'difficulty', label:'Khó khăn', get:m=>escapeHtml(m.difficulty||''), getPlain:m=>m.difficulty||'' },
+    { key:'proposal', label:'Kiến nghị, đề xuất', get:m=>escapeHtml(m.proposal||''), getPlain:m=>m.proposal||'' },
+    { key:'chiHoiComment', label:'Nhận xét của Chi hội trưởng', get:m=>escapeHtml(m.chiHoiComment||''), getPlain:m=>m.chiHoiComment||'' },
+    { key:'proposalToWard', label:'Đề xuất với Hội Nông dân xã', get:m=>escapeHtml(m.proposalToWard||''), getPlain:m=>m.proposalToWard||'' },
   ]; }
+  // ---------- "TUỲ CHỈNH CỘT" — bản rút gọn của Sổ vay vốn (chỉ ẩn/hiện, KHÔNG cho đổi vị trí).
+  // Lưu 1 bộ duy nhất, DÙNG CHUNG cho toàn mã xã ở state.config.memberColumnHidden (mảng key cột
+  // đang ẩn). "Chỉ để xem" chỉ áp dụng tạm cho state._memberVisibleColsSession (không ghi Firebase).
+  function memberAllColsFlat(){ return memberBasicCols().concat(memberAdvancedCols()); }
+  function memberDefaultHiddenKeys(){ return memberAllColsFlat().filter(c=>c.hiddenDefault).map(c=>c.key); }
+  function memberSavedHiddenKeys(){ return (state.config && state.config.memberColumnHidden) || memberDefaultHiddenKeys(); }
+  function memberEffectiveHiddenKeys(){ return state._memberVisibleColsSession || memberSavedHiddenKeys(); }
+  function memberColsFilteredByVisibility(cols){ const hidden = memberEffectiveHiddenKeys(); return cols.filter(c=> !hidden.includes(c.key)); }
+  function anyMemberColumnCustomized(){
+    const hidden = memberEffectiveHiddenKeys().slice().sort();
+    const def = memberDefaultHiddenKeys().slice().sort();
+    return JSON.stringify(hidden) !== JSON.stringify(def);
+  }
+  function renderMemberColumnPickerModal(){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    let draftHidden = memberEffectiveHiddenKeys().slice();
+    const allCols = memberAllColsFlat();
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:480px;">
+          <div class="modal-head"><h3>Tuỳ chỉnh cột — Hồ sơ hội viên</h3><button class="modal-close preview-allow" id="mcp-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin:0 0 10px;">Chọn cột muốn hiện/ẩn ở bảng Excel và khi xuất/in. "Họ và tên" và "Nơi ở hiện nay" luôn hiện, không ẩn được.</p>
+            ${allCols.map(c=>`<label class="sv-filter-item" style="display:flex; width:auto;" data-col-row-key="${c.key}">
+              <input type="checkbox" class="preview-allow" data-col-toggle="${c.key}" ${c.fixed?'disabled checked':(!draftHidden.includes(c.key)?'checked':'')}>
+              <span>${escapeHtml(c.label)}${c.fixed?' <span class="sub">(luôn hiện)</span>':''}</span>
+            </label>`).join('')}
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost preview-allow" id="mcp-close2">✕ Đóng bảng</button>
+            <button class="btn btn-ghost preview-allow" id="mcp-default">↺ Khôi phục cài đặt gốc</button>
+            <button class="btn btn-ghost preview-allow" id="mcp-view">👁️ Chỉ để xem (không lưu)</button>
+            <button class="btn btn-primary preview-allow" id="mcp-save">💾 Lưu tuỳ chỉnh</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#mcp-close').onclick = close;
+      wrap.querySelector('#mcp-close2').onclick = close;
+      wrap.querySelectorAll('[data-col-toggle]').forEach(cb=>{
+        if(cb.disabled) return;
+        cb.onchange = ()=>{
+          const key = cb.dataset.colToggle;
+          draftHidden = cb.checked? draftHidden.filter(k=>k!==key) : draftHidden.concat([key]);
+          render();
+          setTimeout(()=>{
+            const row = wrap.querySelector(`[data-col-row-key="${key}"]`);
+            if(row){
+              row.scrollIntoView({ behavior:'auto', block:'center' });
+              row.classList.remove('col-name-pulse'); void row.offsetWidth; row.classList.add('col-name-pulse');
+            }
+          }, 0);
+        };
+      });
+      wrap.querySelector('#mcp-default').onclick = ()=>{ draftHidden = memberDefaultHiddenKeys(); render(); };
+      wrap.querySelector('#mcp-view').onclick = ()=>{
+        state._memberVisibleColsSession = draftHidden.slice();
+        showToast('Đã áp dụng tạm thời cho lượt xem này, chưa lưu lại.');
+        close();
+        const el = document.getElementById('content'); if(el) renderMembersTab(el);
+      };
+      wrap.querySelector('#mcp-save').onclick = async ()=>{
+        if(!confirm('Tuỳ chỉnh cột này sẽ áp dụng cho TOÀN BỘ mọi người đang dùng mã xã/phường này (không chỉ riêng đồng chí). Đồng chí có chắc chắn muốn lưu không?')) return;
+        const newCfg = {...state.config, memberColumnHidden: draftHidden.slice()};
+        await cSet('config', newCfg);
+        state.config = newCfg;
+        state._memberVisibleColsSession = null;
+        close();
+        showToast('Đã lưu tuỳ chỉnh cột!');
+        const el = document.getElementById('content'); if(el) renderMembersTab(el);
+      };
+    }
+    render();
+  }
 
   // ---------- BỘ LỌC (giống hệt kiểu sv-filter-dropdown của Sổ vay vốn — viền đỏ khi khác mặc định).
   // "Nơi ở hiện nay"/"Nơi ở trước sáp nhập"/"Giới tính"/"Đảng viên" LUÔN hiện đủ danh mục chung —
@@ -478,7 +559,7 @@
     return arr.sort((a,b)=> a.localeCompare(b,'vi'));
   }
   function memberFilterDefs(){ return [
-    { key:'currentHamlet', label:'Nơi ở hiện nay', icon:'📍', opts:(state.config.hamlets||[]) },
+    { key:'currentHamlet', label:'Nơi ở hiện nay', icon:'📍', opts:(state.config.hamlets||[]).slice().sort((a,b)=> (a==='Khác'?1:0)-(b==='Khác'?1:0)) },
     { key:'gender', label:'Giới tính', icon:'⚧', opts:memberGenderOptions() },
     { key:'ethnicity', label:'Dân tộc', icon:'🌾', opts:memberDistinctValues('ethnicity') },
     { key:'religion', label:'Tôn giáo', icon:'🙏', opts:memberDistinctValues('religion') },
@@ -669,7 +750,8 @@
   // dựng cả chục bảng cùng lúc như trước. `scopeKey`: "__all__" hoặc tên 1 ấp cụ thể. `mode`:
   // "full" (Toàn bộ thông tin) hoặc "basic" (Thông tin cơ bản).
   function buildMembersViewSection(scopeKey, mode){
-    const cols = mode==='full'? memberBasicCols().concat(memberAdvancedCols()) : memberBasicCols();
+    const rawCols = mode==='full'? memberBasicCols().concat(memberAdvancedCols()) : memberBasicCols();
+    const cols = memberColsFilteredByVisibility(rawCols);
     const active = (state.members||[]).filter(m=>!m.deleted);
     const scoped = (!scopeKey || scopeKey==='__all__')? active : active.filter(m=>m.currentHamlet===scopeKey);
     const list = sortedMembersForDisplay(scoped);
@@ -677,18 +759,23 @@
     const modeLbl = mode==='full'? 'toàn bộ thông tin' : 'thông tin cơ bản';
     return { title: `${scopeLbl} (${modeLbl})`, list, cols };
   }
-  // Modal chọn địa phương + mức độ thông tin — dùng CHUNG khung cho cả "Xem bảng Excel" (mặc định
-  // Toàn bộ thông tin) và "Xuất file/In" (mặc định Thông tin cơ bản), chỉ khác mặc định ban đầu.
-  function renderMembersViewOptionsModal(defaultMode, onConfirm){
+  // Thêm cột STT (số thứ tự) ở ĐẦU — CHỈ dùng cho lúc in/xuất file (không dùng ở "Xem bảng Excel"
+  // vì đó là xem tương tác, không phải văn bản chốt). Đánh số lại mỗi lần bấm in/xuất, theo đúng
+  // thứ tự dòng của section (đã tôn trọng đúng thứ tự sắp xếp hiện tại).
+  function withSttCol(section){
+    const sttCol = { label:'STT', get: m=> String(section.list.indexOf(m)+1), getPlain: m=> section.list.indexOf(m)+1 };
+    return { ...section, cols: [sttCol, ...section.cols] };
+  }
+  function renderMembersExcelViewModal(){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
-    let scopeKey = '__all__', mode = defaultMode;
+    let scopeKey = '__all__', mode = 'full';
     function render(){
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:440px;">
-          <div class="modal-head"><h3>Chọn địa phương &amp; mức độ thông tin</h3><button class="modal-close preview-allow" id="mvo-close">✕</button></div>
+          <div class="modal-head"><h3>📊 Xem bảng Excel — Hồ sơ hội viên</h3><button class="modal-close preview-allow" id="mvo-close">✕</button></div>
           <div class="modal-body">
             <div class="field"><label>Địa phương</label>
               <select id="mvo-scope">
@@ -706,7 +793,7 @@
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost preview-allow" id="mvo-cancel">Đóng bảng</button>
-            <button class="btn btn-primary preview-allow" id="mvo-confirm">Tiếp tục</button>
+            <button class="btn btn-primary preview-allow" id="mvo-confirm">Xem bảng</button>
           </div>
         </div>`;
       wrap.querySelector('#mvo-close').onclick = close;
@@ -714,38 +801,58 @@
       wrap.querySelector('#mvo-scope').onchange = (e)=>{ scopeKey = e.target.value; };
       wrap.querySelector('#mvo-mode-full').onclick = ()=>{ mode='full'; render(); };
       wrap.querySelector('#mvo-mode-basic').onclick = ()=>{ mode='basic'; render(); };
-      wrap.querySelector('#mvo-confirm').onclick = ()=>{ close(); onConfirm(scopeKey, mode); };
+      wrap.querySelector('#mvo-confirm').onclick = ()=>{
+        close();
+        const section = buildMembersViewSection(scopeKey, mode);
+        renderColumnHeaderExcelModal(`📊 Bảng Hồ sơ hội viên — ${section.title}`, [section], section.cols);
+      };
     }
     render();
   }
-  function renderMembersExcelViewModal(){
-    renderMembersViewOptionsModal('full', (scopeKey, mode)=>{
-      const section = buildMembersViewSection(scopeKey, mode);
-      renderColumnHeaderExcelModal(`📊 Bảng Hồ sơ hội viên — ${section.title}`, [section], section.cols);
-    });
-  }
+  // Modal "Xuất file/In" — chọn địa phương + mức độ thông tin VÀ hiện luôn 3 nút hành động trong
+  // CÙNG 1 modal (không còn bước "Tiếp tục" sang modal khác) — cập nhật theo đúng lựa chọn hiện tại.
   function renderMembersExportSelectorModal(){
-    renderMembersViewOptionsModal('basic', (scopeKey, mode)=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    let scopeKey = '__all__', mode = 'basic';
+    function render(){
       const section = buildMembersViewSection(scopeKey, mode);
-      const wrap = document.createElement('div');
-      wrap.className = 'modal-bg';
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:440px;">
           <div class="modal-head"><h3>📄 Xuất file/In — Hồ sơ hội viên</h3><button class="modal-close preview-allow" id="mes-close">✕</button></div>
-          <div class="modal-body"><p class="sub">Xuất/in: <b>${escapeHtml(section.title)}</b> (${section.list.length} hội viên).</p></div>
+          <div class="modal-body">
+            <div class="field"><label>Địa phương</label>
+              <select id="mes-scope">
+                <option value="__all__" ${scopeKey==='__all__'?'selected':''}>Toàn ${adminLevelLabelLower()}</option>
+                ${orderedHamletsList().map(h=>`<option value="${escapeHtml(h)}" ${scopeKey===h?'selected':''}>${subAdminLabel()} ${escapeHtml(h)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label>Mức độ thông tin</label>
+              <div class="toolbar">
+                <button type="button" class="btn btn-sm preview-allow ${mode==='full'?'btn-primary':'btn-ghost'}" id="mes-mode-full">Toàn bộ thông tin hội viên</button>
+                <button type="button" class="btn btn-sm preview-allow ${mode==='basic'?'btn-primary':'btn-ghost'}" id="mes-mode-basic">Thông tin cơ bản</button>
+              </div>
+            </div>
+            <p class="sub" style="margin-top:8px;">Xuất/in: <b>${escapeHtml(section.title)}</b> (${section.list.length} hội viên).</p>
+          </div>
           <div class="modal-foot">
             <button class="btn btn-ghost preview-allow" id="mes-cancel">Đóng bảng</button>
             <button class="btn btn-ghost preview-allow" id="mes-print">🖨️ In</button>
             <button class="btn btn-primary preview-allow" id="mes-excel">⬇️ Xuất Excel</button>
           </div>
         </div>`;
-      document.body.appendChild(wrap);
-      const close = ()=> wrap.remove();
       wrap.querySelector('#mes-close').onclick = close;
       wrap.querySelector('#mes-cancel').onclick = close;
-      wrap.querySelector('#mes-print').onclick = ()=>{ close(); printSections(`Hồ sơ hội viên — ${section.title}`, [section]); };
-      wrap.querySelector('#mes-excel').onclick = ()=>{ close(); exportSectionsToExcel('Ho-so-hoi-vien', `BÁO CÁO HỒ SƠ HỘI VIÊN — ${section.title.toUpperCase()}`, [section]); };
-    });
+      wrap.querySelector('#mes-scope').onchange = (e)=>{ scopeKey = e.target.value; render(); };
+      wrap.querySelector('#mes-mode-full').onclick = ()=>{ mode='full'; render(); };
+      wrap.querySelector('#mes-mode-basic').onclick = ()=>{ mode='basic'; render(); };
+      wrap.querySelector('#mes-print').onclick = ()=>{ close(); printSections(`Hồ sơ hội viên — ${section.title}`, [withSttCol(section)]); };
+      wrap.querySelector('#mes-excel').onclick = ()=>{ close(); exportSectionsToExcel('Ho-so-hoi-vien', `BÁO CÁO HỒ SƠ HỘI VIÊN — ${section.title.toUpperCase()}`, [withSttCol(section)]); };
+    }
+    render();
   }
 
   // ---------- MODAL THÊM/SỬA HỒ SƠ (thủ công) ----------
@@ -828,7 +935,13 @@
         wireMemberFieldControl(wrap, key, 'mf-'+key, ()=>{ readFormIntoM(); render(); });
       });
       const needsVerifyEl = wrap.querySelector('#mf-needsVerify');
-      if(needsVerifyEl) needsVerifyEl.onchange = ()=>{ readFormIntoM(); render(); };
+      if(needsVerifyEl) needsVerifyEl.onchange = ()=>{
+        readFormIntoM(); render();
+        if(m.needsVerify){
+          const body = wrap.querySelector('.modal-body');
+          if(body) setTimeout(()=> body.scrollTo({ top: body.scrollHeight, behavior:'smooth' }), 0);
+        }
+      };
       // Hiển thị sống "= xx xxx đ" cho Mức thu nhập bình quân/năm — y hệt ô "Số tiền thực tế vay".
       const incomeInput = wrap.querySelector('#mf-avgIncome');
       const incomeDisp = wrap.querySelector('#mf-avgIncome-disp');
@@ -1187,19 +1300,34 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
   // ---------- TAB "HỒ SƠ HỘI VIÊN" ----------
   // Thùng rác: 1 nút menu duy nhất ở ĐẦU mỗi dòng (mép trái) gộp cả "Khôi phục" và "Xoá vĩnh viễn"
   // — bấm ra là hiện 2 lựa chọn, thay cho 2 nút riêng như trước.
+  // Menu nổi dùng chung — gắn thẳng vào document.body (position:fixed, toạ độ tính từ nút bấm) để
+  // KHÔNG bị cắt bởi .table-wrap (overflow:auto) như khi đặt trực tiếp trong 1 <td> của bảng.
+  function closeFloatingActionMenu(){ const el = document.getElementById('__memberFloatingMenu'); if(el) el.remove(); }
+  function openFloatingActionMenu(anchorBtn, items){
+    closeFloatingActionMenu();
+    const rect = anchorBtn.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.id = '__memberFloatingMenu';
+    menu.className = 'sv-filter-panel';
+    menu.style.cssText = `position:fixed; top:${rect.bottom+4}px; left:${rect.left}px; z-index:99998; min-width:170px;`;
+    menu.innerHTML = items.map((it,i)=>`<button type="button" class="btn ${it.danger?'btn-danger':'btn-ghost'} btn-sm preview-allow" data-fm-idx="${i}" style="width:100%; text-align:left; display:block; ${i<items.length-1?'margin-bottom:4px;':''}">${escapeHtml(it.label)}</button>`).join('');
+    document.body.appendChild(menu);
+    menu.querySelectorAll('[data-fm-idx]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); closeFloatingActionMenu(); items[parseInt(btn.dataset.fmIdx,10)].onClick(); });
+    if(!window.__memberFloatingMenuOutsideBound){
+      window.__memberFloatingMenuOutsideBound = true;
+      document.addEventListener('click', (e)=>{
+        if(e.target.closest('#__memberFloatingMenu') || e.target.closest('[data-floating-menu-trigger]')) return;
+        closeFloatingActionMenu();
+      });
+    }
+  }
   function buildMembersTrashPanelHtml(){
     const items = (state.members||[]).filter(m=>m.deleted).sort((a,b)=> (b.deletedAt||'').localeCompare(a.deletedAt||''));
     if(!items.length) return `<div class="empty-state"><div class="e-ico">🗑️</div>Thùng rác trống.</div>`;
     return `<div class="table-wrap"><table>
       <thead><tr><th></th><th>Họ và tên</th><th>${subAdminLabel()}</th><th>SĐT</th><th>Xoá bởi</th><th>Thời điểm xoá</th></tr></thead>
       <tbody>${items.map(m=>`<tr>
-        <td style="position:relative;">
-          <button type="button" class="btn btn-ghost btn-sm preview-allow member-trash-menu-btn" data-id="${m.id}">⋮ Thao tác</button>
-          ${state._memberTrashMenuOpen===m.id? `<div class="sv-filter-panel" style="min-width:160px;">
-            <button type="button" class="btn btn-ghost btn-sm preview-allow member-trash-restore" data-id="${m.id}" style="width:100%; text-align:left; margin-bottom:4px;">↩ Khôi phục</button>
-            <button type="button" class="btn btn-danger btn-sm preview-allow member-trash-purge" data-id="${m.id}" style="width:100%; text-align:left;">Xoá vĩnh viễn</button>
-          </div>` : ''}
-        </td>
+        <td><button type="button" class="btn btn-ghost btn-sm preview-allow member-trash-menu-btn" data-floating-menu-trigger data-id="${m.id}">⋮ Thao tác</button></td>
         <td>${escapeHtml(m.fullName||'')}</td>
         <td>${escapeHtml(m.currentHamlet||'—')}</td>
         <td>${escapeHtml(m.phone||'')}</td>
@@ -1211,24 +1339,23 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
   function wireMembersTrashPanel(container, rerenderFn){
     container.querySelectorAll('.member-trash-menu-btn').forEach(btn=> btn.onclick = (e)=>{
       e.stopPropagation();
-      state._memberTrashMenuOpen = state._memberTrashMenuOpen===btn.dataset.id ? null : btn.dataset.id;
-      rerenderFn();
+      const id = btn.dataset.id;
+      openFloatingActionMenu(btn, [
+        { label:'↩ Khôi phục', onClick: ()=> restoreMember(id).then(rerenderFn) },
+        { label:'Xoá vĩnh viễn', danger:true, onClick: ()=>{
+          if(!confirm('Xoá VĨNH VIỄN hội viên này — không thể khôi phục lại. Đồng chí có chắc chắn không?')) return;
+          purgeMemberForever(id).then(rerenderFn);
+        }},
+      ]);
     });
-    container.querySelectorAll('.member-trash-restore').forEach(btn=> btn.onclick = ()=>{ state._memberTrashMenuOpen=null; restoreMember(btn.dataset.id).then(rerenderFn); });
-    container.querySelectorAll('.member-trash-purge').forEach(btn=> btn.onclick = ()=>{
-      if(!confirm('Xoá VĨNH VIỄN hội viên này — không thể khôi phục lại. Đồng chí có chắc chắn không?')) return;
-      state._memberTrashMenuOpen=null;
-      purgeMemberForever(btn.dataset.id).then(rerenderFn);
-    });
-    if(!container._mtOutsideBound){
-      container._mtOutsideBound = true;
-      document.addEventListener('click', (e)=>{
-        if(!document.body.contains(container) || !state._memberTrashMenuOpen) return;
-        if(e.target.closest('.member-trash-menu-btn') || e.target.closest('.sv-filter-panel')) return;
-        state._memberTrashMenuOpen = null;
-        if(document.body.contains(container)) rerenderFn();
-      });
-    }
+  }
+  // Thứ tự cột CỐ ĐỊNH riêng cho bảng chính (khác thứ tự dùng ở Excel/xuất-in) — chỉ gồm cột cơ
+  // bản, "Nơi ở hiện nay" đứng ngay sau "Họ và tên" — vẫn tôn trọng ẩn/hiện theo Tuỳ chỉnh cột.
+  const MEMBER_MAIN_LIST_COL_ORDER = ['fullName','currentHamlet','birthYear','gender','ethnicity','religion','cccd','educationLevel','joinYear','cardYear','oldHamlet','isCore','position','partyMember','removedInfo','phone','note','needsVerifyNote'];
+  function memberMainListCols(){
+    const byKey = {}; memberBasicCols().forEach(c=>{ byKey[c.key]=c; });
+    const ordered = MEMBER_MAIN_LIST_COL_ORDER.map(k=> byKey[k]).filter(Boolean);
+    return memberColsFilteredByVisibility(ordered);
   }
   function renderMembersTab(el){
     ensureMemberFilters();
@@ -1245,9 +1372,10 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
     }
     const trashCount = (state.members||[]).filter(m=>m.deleted).length;
     const searchActive = (state.memberSearch||'')!=='' && (state.memberSearch||'')!==' ';
+    const cols = memberMainListCols();
     el.innerHTML = `
       <div class="panel">
-        <div class="panel-head"><h3>🪪 Hồ sơ hội viên (${notDeleted.length})</h3></div>
+        <div class="panel-head"><h3>👤 Hồ sơ hội viên (${notDeleted.length})</h3></div>
         <div class="panel-body">
           <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:10px;">
             <input type="text" id="mb-search" placeholder="🔎 Tìm theo họ tên, CCCD, số điện thoại..." value="${escapeHtml(state.memberSearch||'')}" style="flex:1; min-width:220px; ${searchActive?'border:2px solid #b71c1c;':''}">
@@ -1264,24 +1392,19 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
                 <button type="button" class="btn btn-ghost btn-sm preview-allow" id="mb-sort-rows" style="width:100%; text-align:left;">2. Sắp xếp từng dòng trong danh sách</button>
               </div>` : ''}
             </div>
+            <button type="button" class="btn btn-ghost btn-sm preview-allow ${anyMemberColumnCustomized()?'reset-filter-active':''}" id="mb-col-picker">Tuỳ chỉnh cột</button>
             <button type="button" class="btn btn-ghost btn-sm preview-allow" id="mb-view-excel">📊 Xem bảng Excel</button>
             <button type="button" class="btn btn-ghost btn-sm preview-allow" id="mb-print-export">📄 Xuất file/In</button>
           </div>
           ${rowSorting? `<p class="sub" style="margin:0 0 10px;">🖐️ Kéo-thả từng dòng để sắp xếp lại thứ tự — chỉ sắp xếp được trong phạm vi cùng 1 khu dân cư.</p>` : ''}
           <div class="table-wrap">
             <table>
-              <thead><tr><th></th><th>Họ và tên</th><th>Nơi ở hiện nay</th><th>Năm sinh</th><th>Giới tính</th><th>Chức vụ</th><th>Đảng viên</th><th>SĐT</th></tr></thead>
+              <thead><tr><th></th>${cols.map(c=>`<th>${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
               <tbody>
                 ${sorted.length? sorted.map(m=>`<tr${rowSorting? ` draggable="true" data-drag-member="${m.id}" style="cursor:grab;"` : ''}>
                   <td>${rowSorting? '☰' : `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-mb-edit="${m.id}">✏️</button>`}</td>
-                  <td>${escapeHtml(m.fullName||'')}${m.needsVerify?' <span title="Cần xác minh" style="color:#b71c1c;">🚩</span>':''}</td>
-                  <td>${escapeHtml(m.currentHamlet||'')}</td>
-                  <td>${escapeHtml(String(m.birthYear||''))}</td>
-                  <td>${escapeHtml(m.gender||'')}</td>
-                  <td>${escapeHtml(m.position||'')}</td>
-                  <td>${escapeHtml(m.partyMember||'')}</td>
-                  <td>${escapeHtml(m.phone||'')}</td>
-                </tr>`).join('') : `<tr><td colspan="8" style="text-align:center; padding:14px;">Không có hội viên theo bộ lọc hiện tại.</td></tr>`}
+                  ${cols.map(c=>`<td>${c.get(m)}</td>`).join('')}
+                </tr>`).join('') : `<tr><td colspan="${cols.length+1}" style="text-align:center; padding:14px;">Không có hội viên theo bộ lọc hiện tại.</td></tr>`}
               </tbody>
             </table>
           </div>
@@ -1307,6 +1430,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
     const sortMenuBtn = el.querySelector('#mb-sort-menu-btn'); if(sortMenuBtn) sortMenuBtn.onclick = (e)=>{ e.stopPropagation(); state._memberSortMenuOpen = !state._memberSortMenuOpen; renderMembersTab(el); };
     const sortHamletsBtn = el.querySelector('#mb-sort-hamlets'); if(sortHamletsBtn) sortHamletsBtn.onclick = ()=>{ state._memberSortMenuOpen=false; renderMemberHamletOrderModal(()=> renderMembersTab(el)); };
     const sortRowsBtn = el.querySelector('#mb-sort-rows'); if(sortRowsBtn) sortRowsBtn.onclick = ()=>{ state._memberSortMenuOpen=false; state._memberRowSorting=true; state._memberRowSortDraft=null; renderMembersTab(el); };
+    const colPickerBtn = el.querySelector('#mb-col-picker'); if(colPickerBtn) colPickerBtn.onclick = ()=> renderMemberColumnPickerModal();
     const excelBtn = el.querySelector('#mb-view-excel'); if(excelBtn) excelBtn.onclick = ()=> renderMembersExcelViewModal();
     const epBtn = el.querySelector('#mb-print-export'); if(epBtn) epBtn.onclick = ()=> renderMembersExportSelectorModal();
     el.querySelectorAll('[data-mb-edit]').forEach(b=> b.onclick=()=>{ const m=(state.members||[]).find(x=>x.id===b.dataset.mbEdit); if(m) renderMemberFormModal(m, ()=>renderMembersTab(el)); });
@@ -1345,6 +1469,16 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
           const arr = state._memberRowSortDraft.filter(id=> id!==draggedId);
           let idx = arr.indexOf(targetId);
           if(!before) idx += 1;
+          // `isForcedPair` (tham số cuối) chỉ biết 2 dòng ĐANG ĐỨNG YÊN khung quanh vị trí thả —
+          // không hề biết dòng ĐANG BỊ KÉO thuộc khu dân cư nào, nên không tự chặn được việc kéo 1
+          // hội viên ấp A thả lọt vào GIỮA cụm ấp B (2 dòng đứng yên ở đó vẫn cùng ấp B, không phải
+          // ranh giới). Phải tự kiểm tra ở đây: chỉ chấp nhận khi 2 hàng xóm (trái/phải, nếu có) của
+          // vị trí vừa thả đều CÙNG khu dân cư với dòng đang kéo — sai thì bỏ qua, không áp dụng.
+          const draggedHamlet = hamletOfId[draggedId];
+          const leftNeighbor = arr[idx-1], rightNeighbor = arr[idx];
+          const leftOk = leftNeighbor==null || hamletOfId[leftNeighbor]===draggedHamlet;
+          const rightOk = rightNeighbor==null || hamletOfId[rightNeighbor]===draggedHamlet;
+          if(!leftOk || !rightOk) return;
           arr.splice(idx, 0, draggedId);
           state._memberRowSortDraft = arr;
           renderMembersTab(el);
@@ -1465,9 +1599,15 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
       { title:'V. Chi hội khu dân cư — Chi/Tổ hội nghề nghiệp', list: rows, cols: colsV },
     ];
   }
+  // Tô đậm + tím các dòng "Toàn xã/phường" — CHỈ áp dụng cho bản XEM (không đụng tới
+  // buildStrengthSections gốc, nên không ảnh hưởng gì tới Xuất Excel/In vẫn ra đúng số thật, không
+  // lẫn mã HTML).
+  function purpleAllRowCols(cols){
+    return cols.map(c=> ({ ...c, get: r=> r.scopeLabel && r.scopeLabel.startsWith('Toàn ')? `<b style="color:#6a1b9a;">${c.get(r)}</b>` : c.get(r) }));
+  }
   function renderStrengthExcelViewModal(scope){
     const filtered = scope && scope!=='__all__';
-    const sections = buildStrengthSections(scope);
+    const sections = buildStrengthSections(scope).map(sec=> ({ ...sec, cols: purpleAllRowCols(sec.cols) }));
     const title = filtered? `📊 Bảng Thực lực Hội — ⚠️ Đang lọc theo địa bàn: ${strengthScopeLabel(scope)}` : '📊 Bảng Thực lực Hội';
     if(filtered) showToast(`Đang xem đúng địa bàn ${strengthScopeLabel(scope)}.`);
     renderColumnHeaderExcelModal(title, sections, sections[0].cols);

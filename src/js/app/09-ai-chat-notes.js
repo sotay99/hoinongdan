@@ -720,7 +720,7 @@
       items.push({id:'expenses', ico:'💰', label:`Sổ Thu Chi Lãi Quỹ`});
     }
     if(canViewModule('internal')) items.push({id:'internal', ico:'🔒', label:'Thu – Chi nội bộ'});
-    if(canViewModule('members')) items.push({id:'members', ico:'🪪', label:'Hồ sơ hội viên'});
+    if(canViewModule('members')) items.push({id:'members', ico:'👤', label:'Hồ sơ hội viên'});
     if(canViewModule('strength')) items.push({id:'strength', ico:'💪', label:'Thực lực Hội'});
     items.push({id:'tasks',    ico:'✅', label:'Danh sách Công việc'});
     items.push({id:'schedule', ico:'📅', label:'Lịch Công tác'});
@@ -847,7 +847,7 @@
         ['☁️','Lưu tại bộ nhớ Đám mây thuộc Tài khoản cá nhân của đồng chí','Sổ được lưu trên bộ nhớ Đám mây, thuộc Tài khoản cá nhân của đồng chí — có thể truy cập Sổ này ở bất cứ thiết bị nào miễn có internet và chỉ khi đồng chí đăng nhập bằng đúng tài khoản của mình. Chỉ Tài khoản của đồng chí mới có quyền truy cập, vẫn đảm bảo riêng tư, và vẫn cho phép chia sẻ (xem hoặc cùng sửa) cho người được chọn.'],
         ['🗑️','Thùng rác và sắp xếp phụ lục bằng công thức','Xoá 1 Sổ sẽ chuyển vào Thùng rác trước, khôi phục được, chỉ mất hẳn khi bấm xoá vĩnh viễn. Mỗi dòng Thu/Chi có thể kèm 1 phụ lục tự do cột (Chữ/Tiền/Ngày tháng), cho phép gắn công thức như Excel giữa các ô tiền trong cùng phụ lục.'],
       ], note:null },
-    members: { icon:'🪪', eyebrow:'QUẢN LÝ HỘI VIÊN', title:'Hồ sơ hội viên',
+    members: { icon:'👤', eyebrow:'QUẢN LÝ HỘI VIÊN', title:'Hồ sơ hội viên',
       lead:'Danh sách hội viên của một xã thường là một tệp Excel nặng vài nghìn dòng, có một bảng gốc và cả chục bảng phụ chạy theo công thức. Sửa một chỗ ở bảng gốc thì mọi bảng khác đổi theo — nhưng chỉ cần gõ thừa một dấu cách là số liệu sai mà máy không hề báo lỗi. Module này thay cách làm ấy bằng một cơ sở dữ liệu hội viên đúng nghĩa.',
       blocks:[
         ['✨','Thêm nhanh hồ sơ hội viên bằng cách trò chuyện với AI','Mở một khung chat toàn màn hình, đồng chí nhắn tin, đính kèm ảnh hoặc tài liệu, hoặc bấm micro nói cho máy tự gõ ra chữ — ảnh chụp CCCD, đơn xin vào Hội, sổ ghi chép tay, danh sách in sẵn của chi hội đều được. AI đọc hết và rót vào đúng từng trường của hồ sơ.'],

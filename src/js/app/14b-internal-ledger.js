@@ -835,15 +835,39 @@
   }
   // Kéo di chuyển 1 panel nổi bằng thanh tiêu đề của nó — dùng cho modal nhỏ sửa ô tiền,
   // để không che khuất các ô khác của bảng phụ lục phía dưới.
+  // Kéo di chuyển panel bằng thanh tiêu đề — hỗ trợ CẢ chuột lẫn ngón tay (cảm ứng). Trước đây chỉ
+  // gắn mousedown/mousemove/mouseup nên trên điện thoại/tablet giữ-kéo thanh tiêu đề không có tác
+  // dụng gì cả.
   function ilMakeDraggable(panel, handle){
     let sx=0, sy=0, ox=0, oy=0, dragging=false;
-    function onDown(e){ dragging=true; sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top; e.preventDefault(); }
-    function onMove(e){ if(!dragging) return; panel.style.left=(ox+e.clientX-sx)+'px'; panel.style.top=(oy+e.clientY-sy)+'px'; }
+    function pointFromEvent(e){ return e.touches && e.touches.length? { x:e.touches[0].clientX, y:e.touches[0].clientY } : { x:e.clientX, y:e.clientY }; }
+    function onDown(e){
+      const p = pointFromEvent(e);
+      dragging=true; sx=p.x; sy=p.y;
+      const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top;
+      e.preventDefault();
+    }
+    function onMove(e){
+      if(!dragging) return;
+      const p = pointFromEvent(e);
+      panel.style.left=(ox+p.x-sx)+'px'; panel.style.top=(oy+p.y-sy)+'px';
+      if(e.cancelable) e.preventDefault(); // chặn cuộn trang khi đang kéo bằng ngón tay
+    }
     function onUp(){ dragging=false; }
     handle.addEventListener('mousedown', onDown);
+    handle.addEventListener('touchstart', onDown, { passive:false });
     window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, { passive:false });
     window.addEventListener('mouseup', onUp);
-    return ()=>{ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('touchcancel', onUp);
+    return ()=>{
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchend', onUp);
+      window.removeEventListener('touchcancel', onUp);
+    };
   }
 
   // =====================================================================
@@ -856,10 +880,11 @@
     const isFormula = raw.startsWith('=');
     let tab = isFormula ? 'formula' : 'literal';
     const panel = document.createElement('div');
-    panel.style.cssText = 'position:fixed; z-index:10000; background:var(--white); border-radius:12px; box-shadow:0 8px 28px rgba(0,0,0,.35); width:320px; overflow:hidden;';
-    const tableRect = tableEl.getBoundingClientRect();
-    panel.style.left = Math.min(window.innerWidth-336, tableRect.left+40)+'px';
-    panel.style.top = Math.max(10, tableRect.top+40)+'px';
+    // Luôn hiện CHÍNH GIỮA màn hình lúc mở — trước đây đặt lệch theo vị trí bảng (tableRect), nhìn
+    // ổn trên máy lớn nhưng méo và tràn mép trên màn hình hẹp. Dùng visibility:hidden trong 1 khung
+    // hình đầu để đo đúng offsetWidth/offsetHeight THẬT (viền/đổ bóng/nội dung 2 tab khác chiều cao)
+    // rồi mới tính toạ độ giữa, tránh "nhảy" vị trí ngay sau khi hiện ra.
+    panel.style.cssText = 'position:fixed; z-index:10000; background:var(--white); border-radius:12px; box-shadow:0 8px 28px rgba(0,0,0,.35); width:320px; overflow:hidden; visibility:hidden;';
     document.body.appendChild(panel);
     let unbindDrag = null;
     let pickHandler = null;
@@ -936,6 +961,11 @@
       };
     }
     render();
+    // Đo kích thước THẬT rồi tính toạ độ giữa màn hình — làm SAU render() đầu tiên để lấy đúng
+    // offsetWidth/offsetHeight (phụ thuộc nội dung tab đang mở), rồi mới hiện ra (visibility).
+    panel.style.left = Math.max(8, (window.innerWidth - panel.offsetWidth)/2) + 'px';
+    panel.style.top = Math.max(8, (window.innerHeight - panel.offsetHeight)/2) + 'px';
+    panel.style.visibility = 'visible';
   }
 
   // =====================================================================
