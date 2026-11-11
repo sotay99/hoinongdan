@@ -784,7 +784,7 @@
     if(!area) return;
     area.innerHTML = printInnerHtml;
     area.classList.add('landscape');
-    window.print();
+    printAreaNow(true);
     setTimeout(()=> area.classList.remove('landscape'), 800);
   }
 
@@ -1440,18 +1440,31 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
   // Menu nổi dùng chung — gắn thẳng vào document.body (position:fixed, toạ độ tính từ nút bấm) để
   // KHÔNG bị cắt bởi .table-wrap (overflow:auto) như khi đặt trực tiếp trong 1 <td> của bảng.
   function closeFloatingActionMenu(){ const el = document.getElementById('__memberFloatingMenu'); if(el) el.remove(); }
+  // LƯU Ý: dùng class CSS RIÊNG (member-floating-menu) — KHÔNG dùng chung "sv-filter-panel" (class
+  // dùng cho các khung lọc khác trong app) vì có 1 MutationObserver toàn app (01-foundation.js) tự
+  // động can thiệp vào MỌI phần tử có class đó (tự chèn nút ✕, dựng lớp phủ scrim...) — không dành
+  // cho menu nổi dùng chung này, tách riêng để chắc chắn không bị can thiệp nhầm.
   function openFloatingActionMenu(anchorBtn, items){
     closeFloatingActionMenu();
     const rect = anchorBtn.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.id = '__memberFloatingMenu';
-    menu.className = 'sv-filter-panel';
+    menu.className = 'member-floating-menu';
     // Neo bằng `bottom` (không phải `top`) để menu luôn hiện NGAY PHÍA TRÊN nút, thẳng hàng mép
     // trái — dùng `bottom` thì không cần biết trước chiều cao thật của menu (phụ thuộc số lựa chọn).
-    menu.style.cssText = `position:fixed; bottom:${window.innerHeight-rect.top+4}px; left:${rect.left}px; z-index:99998; min-width:170px;`;
+    menu.style.cssText = `position:fixed; bottom:${window.innerHeight-rect.top+4}px; left:${rect.left}px; z-index:99998; min-width:170px; background:var(--white); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.18); padding:8px;`;
     menu.innerHTML = items.map((it,i)=>`<button type="button" class="btn ${it.danger?'btn-danger':'btn-ghost'} btn-sm preview-allow" data-fm-idx="${i}" style="width:100%; text-align:left; display:block; ${i<items.length-1?'margin-bottom:4px;':''}">${escapeHtml(it.label)}</button>`).join('');
     document.body.appendChild(menu);
-    menu.querySelectorAll('[data-fm-idx]').forEach(btn=> btn.onclick = (e)=>{ e.stopPropagation(); closeFloatingActionMenu(); items[parseInt(btn.dataset.fmIdx,10)].onClick(); });
+    // Ủy quyền sự kiện (delegation) trên chính `menu` thay vì gắn .onclick riêng từng nút con — chắc
+    // chắn không bị ảnh hưởng bởi thứ tự/thời điểm gắn sự kiện.
+    menu.addEventListener('click', (e)=>{
+      const btn = e.target.closest('[data-fm-idx]');
+      if(!btn) return;
+      e.stopPropagation();
+      const it = items[parseInt(btn.dataset.fmIdx,10)];
+      closeFloatingActionMenu();
+      if(it) it.onClick();
+    });
     if(!window.__memberFloatingMenuOutsideBound){
       window.__memberFloatingMenuOutsideBound = true;
       document.addEventListener('click', (e)=>{
@@ -1476,7 +1489,13 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
     </table></div>`;
   }
   function wireMembersTrashPanel(container, rerenderFn){
-    container.querySelectorAll('.member-trash-menu-btn').forEach(btn=> btn.onclick = (e)=>{
+    // Ủy quyền sự kiện (delegation) trên cả khung — gắn ĐÚNG 1 lần cho mỗi khung, không gắn lại
+    // riêng từng nút mỗi lần vẽ lại (an toàn hơn nếu khung này được vẽ lại nhiều lần).
+    if(container._mbTrashDelegated) return;
+    container._mbTrashDelegated = true;
+    container.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.member-trash-menu-btn');
+      if(!btn || !container.contains(btn)) return;
       e.stopPropagation();
       const id = btn.dataset.id;
       openFloatingActionMenu(btn, [
@@ -1525,8 +1544,8 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
         </div>` : ''}
       </div>
       <div class="panel">
-        <div class="panel-head" style="cursor:pointer;" id="mb-list-toggle"><h3>👤 Hồ sơ hội viên (${notDeleted.length}) ${state.showMembersListPanel===false?'▾':'▴'}</h3></div>
-        ${state.showMembersListPanel===false? '' : `<div class="panel-body ${panelBodyAnimClass()}">
+        <div class="panel-head" style="cursor:pointer;" id="mb-list-toggle"><h3>👤 Hồ sơ hội viên (${notDeleted.length}) ${state.showMembersListPanel===true?'▴':'▾'}</h3></div>
+        ${state.showMembersListPanel===true? `<div class="panel-body ${panelBodyAnimClass()}">
           ${bannerHtml}
           <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:14px;">
             <button type="button" class="btn btn-primary btn-sm preview-allow" id="mb-add-manual">➕ Thêm hội viên</button>
@@ -1561,7 +1580,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
           <div style="margin-top:12px;">
             <button type="button" class="btn btn-primary preview-allow" id="mb-view-full">Xem Danh sách phía trên một cách đầy đủ</button>
           </div>
-        </div>`}
+        </div>` : ''}
       </div>
       <div class="panel">
         <div class="panel-head" style="cursor:pointer;" id="mb-trash-toggle"><h3>🗑️ Thùng rác (Hồ sơ hội viên) ${trashCount? `<span class="sub">(${trashCount})</span>` : ''} ${state.showMembersTrash?'▴':'▾'}</h3></div>
@@ -1573,7 +1592,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
     const filtersToggle = el.querySelector('#mb-filters-toggle');
     if(filtersToggle) filtersToggle.onclick = ()=>{ state.showMemberFiltersPanel = !state.showMemberFiltersPanel; markPanelJustToggled(); renderMembersTab(el); };
     const listToggle = el.querySelector('#mb-list-toggle');
-    if(listToggle) listToggle.onclick = ()=>{ state.showMembersListPanel = state.showMembersListPanel===false? true : false; markPanelJustToggled(); renderMembersTab(el); };
+    if(listToggle) listToggle.onclick = ()=>{ state.showMembersListPanel = state.showMembersListPanel===true? false : true; markPanelJustToggled(); renderMembersTab(el); };
     const searchEl = el.querySelector('#mb-search');
     if(searchEl) searchEl.oninput = ()=>{ state.memberSearch = searchEl.value; rerenderKeepingFocus(()=>renderMembersTab(el)); };
     wireMemberFilterDropdowns(el, 'mf', ()=>renderMembersTab(el));

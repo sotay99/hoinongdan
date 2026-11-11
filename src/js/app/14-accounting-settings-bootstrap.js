@@ -122,7 +122,9 @@
     `;
   }
   function bindAcctPeriodSelector(prefix, onChange, container){
-    document.getElementById(`${prefix}-mode`).onchange = e=>{
+    const modeSel = document.getElementById(`${prefix}-mode`);
+    if(!modeSel) return; // panel chứa bộ chọn này có thể đang thu gọn (vd panel "Kỳ hạch toán đang xem" ở Sổ thu chi lãi quỹ) — không có gì để gắn sự kiện.
+    modeSel.onchange = e=>{
       state.acctMode = e.target.value;
       // Vào chế độ "Chọn Quý cụ thể" -> mặc định LUÔN là Quý hiện tại + Năm hiện tại (đúng yêu cầu).
       if(e.target.value==='quarter') resetTimelineFilter(prefix);
@@ -225,14 +227,14 @@
     list = [...list].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
 
     el.innerHTML = `
-      <div class="panel"><div class="panel-head"><h3>Kỳ hạch toán đang xem</h3></div>
-        <div class="panel-body"><div class="toolbar" style="margin:0;">${acctPeriodSelectorHtml('exp')}
+      <div class="panel"><div class="panel-head" style="cursor:pointer;" id="exp-period-toggle"><h3>Kỳ hạch toán đang xem ${state._expShowPeriod===true?'▴':'▾'}</h3></div>
+        ${state._expShowPeriod===true? `<div class="panel-body ${panelBodyAnimClass()}"><div class="toolbar" style="margin:0;">${acctPeriodSelectorHtml('exp')}
             <div class="spacer"></div>
             <button class="btn btn-sm preview-allow" id="exp-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#000; border-color:#00acc1; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
             <button class="btn btn-sm preview-allow" id="exp-stats-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ba68c8 45%, #6a1b9a 100%); color:#000; border-color:#6a1b9a; font-weight:700;">📈 Thống kê Thu Chi chi tiết</button>
           </div>
           <div class="sub" style="margin-top:8px;">Khoảng áp dụng: <b>${fmtDate(from)} → ${fmtDate(to)}</b></div>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="grid3">
@@ -254,8 +256,8 @@
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h3>📋 Danh sách khoản chi</h3></div>
-        <div class="panel-body">
+        <div class="panel-head" style="cursor:pointer;" id="exp-list-toggle"><h3>📋 Danh sách khoản chi ${state._expShowList===true?'▴':'▾'}</h3></div>
+        ${state._expShowList===true? `<div class="panel-body ${panelBodyAnimClass()}">
           <div class="toolbar" style="margin:0 0 12px;">
             <input id="e-search" class="preview-allow" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px;">
             <select id="e-cat" class="preview-allow"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
@@ -279,12 +281,12 @@
               </tbody>
             </table>
           </div>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h3>⚖️ Đối chiếu "Trích về ${subAdminLabelLower()}": Thực tế vs. Tự động (theo Sổ vay vốn)</h3></div>
-        <div class="panel-body">
+        <div class="panel-head" style="cursor:pointer;" id="exp-reconcile-toggle"><h3>⚖️ Đối chiếu "Trích về ${subAdminLabelLower()}": Thực tế vs. Tự động (theo Sổ vay vốn) ${state._expShowReconcile===true?'▴':'▾'}</h3></div>
+        ${state._expShowReconcile===true? `<div class="panel-body ${panelBodyAnimClass()}">
           <p class="sub" style="margin:0 0 10px;">So sánh số tiền ĐÃ THỰC SỰ chi "Trích về ${subAdminLabelLower()}" với số tự động tính theo đúng công thức phân bổ của Sổ vay vốn — luôn tính TOÀN BỘ thời gian từ trước đến nay cho MỌI địa bàn, không phụ thuộc kỳ hạch toán đang xem ở panel phía trên. Phát hiện cả trường hợp bị ghi trùng lặp (nhiều bản ghi cùng 1 Quý của 1 địa bàn).</p>
           ${(()=>{
             const rows = computeHamletQuarterReconciliation();
@@ -316,7 +318,7 @@
               </tbody>
             </table></div>`;
           })()}
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="panel">
@@ -324,6 +326,12 @@
         ${state.showExpenseTrash? `<div class="panel-body">${buildTrashPanelHtml(['expense'])}</div>` : ''}
       </div>`;
 
+    const expPeriodToggle = document.getElementById('exp-period-toggle');
+    if(expPeriodToggle) expPeriodToggle.onclick = ()=>{ state._expShowPeriod = state._expShowPeriod===true? false : true; markPanelJustToggled(); renderExpensesTab(el); };
+    const expListToggle = document.getElementById('exp-list-toggle');
+    if(expListToggle) expListToggle.onclick = ()=>{ state._expShowList = state._expShowList===true? false : true; markPanelJustToggled(); renderExpensesTab(el); };
+    const expReconcileToggle = document.getElementById('exp-reconcile-toggle');
+    if(expReconcileToggle) expReconcileToggle.onclick = ()=>{ state._expShowReconcile = state._expShowReconcile===true? false : true; markPanelJustToggled(); renderExpensesTab(el); };
     const expTrashToggle = document.getElementById('exp-trash-toggle');
     if(expTrashToggle) expTrashToggle.onclick = ()=>{ state.showExpenseTrash = !state.showExpenseTrash; renderExpensesTab(el); };
     if(state.showExpenseTrash) wireTrashPanel(el, ()=> renderExpensesTab(el));
@@ -338,8 +346,8 @@
     if(expLevelAllocationBtn) expLevelAllocationBtn.onclick = ()=> renderLevelAllocationModal();
     const expStatsBtn = document.getElementById('exp-stats-btn');
     if(expStatsBtn) expStatsBtn.onclick = ()=> renderExpenseStatsModal();
-    document.getElementById('e-search').oninput = e=>{ state.expSearch=e.target.value; renderExpensesTab(el); };
-    document.getElementById('e-cat').onchange = e=>{ state.expFilterCat=e.target.value; renderExpensesTab(el); };
+    const eSearch = document.getElementById('e-search'); if(eSearch) eSearch.oninput = e=>{ state.expSearch=e.target.value; renderExpensesTab(el); };
+    const eCat = document.getElementById('e-cat'); if(eCat) eCat.onchange = e=>{ state.expFilterCat=e.target.value; renderExpensesTab(el); };
     const addBtn = document.getElementById('add-exp-btn');
     if(addBtn) addBtn.onclick = ()=>{ state.modal={type:'expense', payload:null}; render(); };
     document.querySelectorAll('[data-view-exp]').forEach(b=>{
@@ -1924,7 +1932,7 @@
       </table>
       <div style="text-align:center; margin-top:18px; font-size:11px;">https://hoinongdan.sotay.org</div>`;
     area.classList.add('landscape');
-    window.print();
+    printAreaNow(true);
     setTimeout(()=> area.classList.remove('landscape'), 800);
   }
 
@@ -4372,6 +4380,8 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         <div class="modal">
           <div class="modal-head"><h3>Chỉnh Lãi suất phân bổ các cấp</h3><button class="modal-close" id="fsd-close">✕</button></div>
           <div class="modal-body">
+            <p class="sub">Đây là bộ mặc định sẽ tự điền sẵn khi tạo phương án vay mới theo đúng Nguồn vay đã chọn (cả khi tạo thủ công và khi AI thêm nhanh) — người dùng vẫn luôn có thể tự sửa lại cho từng phương án sau khi tạo. Sửa ở đây KHÔNG ảnh hưởng các phương án vay đã tạo trước đó.</p>
+            <p style="font-weight:800;">Đang áp dụng với nguồn vay <span style="color:#b71c1c;">${escapeHtml(fundSourceDisplay(fundSourceType))}</span></p>
             <div class="form-grid">
               <div class="field"><label>Nguồn vay *</label>
                 <select id="fsd-fundsource-type">${fundSourceSelectOptionsHtml(fundSourceType)}</select>
@@ -4391,10 +4401,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
               <div class="field"><label>% của ${adminLevelLabelLower()} phân bổ về ${curSubLower}</label><input type="text" inputmode="decimal" id="fsd-hamlet-alloc" value="${String(d.hamletAllocPercent).replace('.',',')}"></div>
             </div>
             <p class="sub" style="margin-top:-4px;">💡 Đây KHÔNG phải là tỷ lệ trích trực tiếp từ tổng lãi suất, mà là tỷ lệ mà cấp ${adminLevelLabelLower()} tiếp tục PHÂN BỔ XUỐNG cho ${curSubLower} TỪ chính phần tiền lãi mà ${adminLevelLabelLower()} đã nhận được (theo tỷ lệ "Cấp ${adminLevelLabel()}" ở trên). (Không được vượt quá 100%.)</p>
-            <p class="sub">Đây là bộ mặc định sẽ tự điền sẵn khi tạo phương án vay mới theo đúng Nguồn vay đã chọn (cả khi tạo thủ công và khi AI thêm nhanh) — người dùng vẫn luôn có thể tự sửa lại cho từng phương án sau khi tạo. Sửa ở đây KHÔNG ảnh hưởng các phương án vay đã tạo trước đó.</p>
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost" id="fsd-cancel">Đóng (không lưu)</button>
+            <button class="btn btn-ghost" id="fsd-reset" style="color:#b71c1c;">↺ Khôi phục cài đặt gốc</button>
             <button class="btn btn-primary" id="fsd-save">💾 Lưu mặc định</button>
           </div>
         </div>`;
@@ -4402,6 +4412,13 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       wrap.querySelector('#fsd-cancel').onclick = close;
       wrap.querySelector('#fsd-fundsource-type').onchange = (e)=>{ fundSourceType = e.target.value; render(); };
       ['#fsd-rate','#fsd-central','#fsd-province','#fsd-ward','#fsd-hamlet-alloc'].forEach(sel=> attachPercentInputMask(wrap.querySelector(sel)));
+      wrap.querySelector('#fsd-reset').onclick = async ()=>{
+        if(!confirm(`Khôi phục các tỷ lệ của nguồn vay "${fundSourceDisplay(fundSourceType)}" về đúng mặc định gốc của hệ thống? Cài đặt tuỳ chỉnh hiện tại (nếu có) sẽ bị xoá.`)) return;
+        if(state.config.fundSourceDefaults) delete state.config.fundSourceDefaults[fundSourceType];
+        await cSet('config', state.config);
+        showToast('Đã khôi phục mặc định gốc!');
+        render();
+      };
       wrap.querySelector('#fsd-save').onclick = async ()=>{
         const num = (sel)=> parseFloat((wrap.querySelector(sel).value||'0').replace(',','.')) || 0;
         const rate = num('#fsd-rate'), central = num('#fsd-central'), province = num('#fsd-province'), ward = num('#fsd-ward'), hamletAlloc = num('#fsd-hamlet-alloc');

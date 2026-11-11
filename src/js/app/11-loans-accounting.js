@@ -353,7 +353,7 @@
         container.querySelectorAll('.lvlalloc-manager-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const m=cb.dataset.m; state.levelAllocFilterManagers = cb.checked? state.levelAllocFilterManagers.concat([m]) : state.levelAllocFilterManagers.filter(x=>x!==m); render(); });
         wireSvProjectAndFundSourceFilters(container, 'lvlalloc', 'levelAllocFilterProjectIds', 'levelAllocFilterFundSources', allProjectsForFilter, allFundSourcesForFilter, render);
         const rb = container.querySelector('#lvlalloc-reset-btn'); if(rb) rb.onclick = ()=>{ state.levelAllocFilterHamlets = hamlets.slice(); state.levelAllocFilterManagers = managers.map(m=>m.id); state.levelAllocFilterProjectIds = allProjectsForFilter.map(p=>p.id); state.levelAllocFilterFundSources = allFundSourcesForFilter.slice(); state.openFilterDropdown = null; render(); };
-        wireExportPrintButtons(wrap, 'lvlalloc-ep', '#lvlalloc-body-inner', 'Thống kê phân bổ tiền lãi các cấp');
+        wireExportPrintButtons(wrap, 'lvlalloc-ep', '#lvlalloc-body-inner', 'Thống kê phân bổ tiền lãi các cấp', true);
         if(!wrap._lvlallocOutsideClickBound){
           wrap._lvlallocOutsideClickBound = true;
           document.addEventListener('click', (e)=>{
@@ -586,7 +586,7 @@
         container.querySelectorAll('.audit-group-item').forEach(cb=> cb.onclick=(e)=>{ e.stopPropagation(); const g=parseInt(cb.dataset.g,10); state.auditFilterGroups = cb.checked? state.auditFilterGroups.concat([g]) : state.auditFilterGroups.filter(x=>x!==g); render(); });
         wireSvProjectAndFundSourceFilters(container, 'audit', 'auditFilterProjectIds', 'auditFilterFundSources', allProjectsForFilter, allFundSourcesForFilter, render);
         const rb = container.querySelector('#audit-reset-btn'); if(rb) rb.onclick = ()=>{ state.auditFilterHamlets = hamlets.slice(); state.auditFilterGroups = AUDIT_GROUP_NAMES.map((_,i)=>i+1); state.auditFilterProjectIds = allProjectsForFilter.map(p=>p.id); state.auditFilterFundSources = allFundSourcesForFilter.slice(); state.openFilterDropdown = null; render(); };
-        wireExportPrintButtons(wrap, 'audit-ep', '#audit-body-inner', 'Bảng Đối chiếu và Kiểm định Số liệu Sổ vay vốn');
+        wireExportPrintButtons(wrap, 'audit-ep', '#audit-body-inner', 'Bảng Đối chiếu và Kiểm định Số liệu Sổ vay vốn', true);
         if(!wrap._auditOutsideClickBound){
           wrap._auditOutsideClickBound = true;
           document.addEventListener('click', (e)=>{

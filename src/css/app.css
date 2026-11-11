@@ -279,7 +279,7 @@
   #print-area .print-divider{margin-top:4px;}
   #print-area .print-title{text-align:center; font-size:16px; margin:18px 0 16px; letter-spacing:.01em;}
   #print-area .print-sec{font-size:13.5px; margin:16px 0 8px; text-decoration:underline;}
-  #print-area table.print-table{width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:4px;}
+  #print-area table.print-table{width:100%; border-collapse:collapse; font-size:14px; margin-bottom:4px;}
   #print-area table.print-table th, #print-area table.print-table td{border:1px solid #333; padding:5px 8px; text-align:left;}
   #print-area table.print-table td:last-child, #print-area table.print-table th:last-child{text-align:right;}
   #print-area .print-signdate{text-align:right; font-style:italic; margin-top:26px; font-size:13px;}
@@ -291,13 +291,23 @@
   @media print{
     body *{ visibility:hidden; }
     #print-area, #print-area *{ visibility:visible; }
-    #print-area{ display:block; position:absolute; left:0; top:0; width:100%; padding:0 8mm; color:#000; font-family:var(--app-font-serif); }
+    #print-area{ display:block; position:absolute; left:0; top:0; width:100%; padding:0 8mm; color:#000; font-family:'Times New Roman', var(--app-font-serif); font-size:14px; }
     .no-print{ display:none !important; }
     @page{ size:A4 portrait; margin:15mm 12mm; }
-    /* Khổ A4 NẰM NGANG riêng cho bảng Sổ vay vốn (nhiều cột) — kích hoạt bằng class .landscape */
+    /* Khổ A4 NẰM NGANG riêng cho bảng nhiều cột (Sổ vay vốn, Bảng Đối chiếu, Thống kê phân bổ...) —
+       kích hoạt bằng class .landscape. Dùng "named page" (page:landscape-a4) để chọn hướng giấy có hỗ
+       trợ KHÔNG đồng nhất giữa các trình duyệt — xem thêm cơ chế ghi đè trực tiếp bằng JS (chèn 1
+       <style>@page{size:A4 landscape}</style> ngay trước lúc in) ở printSections()/renderExportPrintPreviewModal, chắc chắn hơn cơ chế named-page này.
+       Named-page vẫn được giữ lại làm lớp hỗ trợ dự phòng, không gây hại khi JS đã ghi đè. */
     @page landscape-a4{ size:A4 landscape; margin:10mm; }
     #print-area.landscape{ page:landscape-a4; padding:0 4mm; }
     #print-area.landscape table.print-table{ width:100%; table-layout:fixed; word-break:break-word; }
+    /* Dòng tiêu đề đoạn (divider-lbl) in ra bị MỜ vì nền tối + chữ trắng — nhiều trình duyệt mặc định
+       KHÔNG in nền màu (tắt "in nền/hình ảnh"), khiến chữ trắng gần như vô hình. Khi in: đổi lại thành
+       chữ đen đậm, to hơn 1 chút, không cần nền — vẫn nổi bật rõ ràng mà không phụ thuộc cấu hình máy
+       in của người dùng.
+    */
+    .divider-lbl-text{ background:none !important; color:#000 !important; text-shadow:none !important; font-weight:800 !important; font-size:1.15em !important; padding:0 !important; }
   }
 
   /* ================= Trợ lý AI "Chàng Nông dân Thông minh" ================= */

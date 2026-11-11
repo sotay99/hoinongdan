@@ -433,22 +433,22 @@
       </div>
 
       <div class="panel">
-        <div class="panel-head" style="cursor:pointer;" id="loan-manage-panel-toggle"><h3 style="color:#0d47a1;">💰 Quản lý, thống kê và phê duyệt hành động khoản vay ${state.showManagePanel===false?'▾':'▴'}</h3><button type="button" class="btn btn-ghost btn-sm preview-allow" id="collapse-all-panels-btn">Rút gọn mọi thứ</button></div>
-        ${state.showManagePanel===false? '' : `<div class="panel-body ${panelBodyAnimClass()}">
+        <div class="panel-head" style="cursor:pointer;" id="loan-manage-panel-toggle"><h3 style="color:#0d47a1;">💰 Quản lý, thống kê và phê duyệt hành động khoản vay ${state.showManagePanel===true?'▴':'▾'}</h3><button type="button" class="btn btn-ghost btn-sm preview-allow" id="collapse-all-panels-btn">Rút gọn mọi thứ</button></div>
+        ${state.showManagePanel===true? `<div class="panel-body ${panelBodyAnimClass()}">
           <div class="toolbar" style="flex-wrap:wrap;">
-            <button class="btn btn-sm preview-allow" id="loan-calc-interest-btn" style="background:linear-gradient(180deg, #ffffff 0%, #43a047 45%, #1b5e20 100%); color:#fff; border-color:#1b5e20; text-shadow:0 1px 2px rgba(0,0,0,.35);">Tính tiền lãi và phê duyệt đóng lãi</button>
-            <button class="btn btn-sm preview-allow" id="loan-approve-settlement-btn" style="background:linear-gradient(180deg, #ffffff 0%, #1e6fd9 45%, #0d47a1 100%); color:#fff; border-color:#0d47a1; text-shadow:0 1px 2px rgba(0,0,0,.35);">Tất toán khoản vay/Trả nợ trước hạn</button>
-            <button class="btn btn-sm preview-allow" id="loan-extend-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #fb8c00 45%, #e65100 100%); color:#000; border-color:#e65100; font-weight:700;">Gia hạn nợ</button>
-            <button class="btn btn-sm preview-allow" id="loan-risk-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ffcdd2 50%, #ef9a9a 100%); color:#7a1f1f; border-color:#ef9a9a;">Quản lý Nợ rủi ro</button>
-            <button class="btn btn-sm preview-allow" id="loan-archive-btn" style="background:linear-gradient(180deg, #ffffff 0%, #7b1fa2 45%, #4a148c 100%); color:#fff; border-color:#4a148c; text-shadow:0 1px 2px rgba(0,0,0,.35);">Kho biên lai/giấy xác nhận/dòng nhật ký</button>
+            <button class="btn btn-sm preview-allow" id="loan-calc-interest-btn" style="background:linear-gradient(180deg, #ffffff 0%, #b4d9b5 45%, #a4bea6 100%); color:#1b5e20; border-color:#a4bea6; font-weight:700;">Tính tiền lãi và phê duyệt đóng lãi</button>
+            <button class="btn btn-sm preview-allow" id="loan-approve-settlement-btn" style="background:linear-gradient(180deg, #ffffff 0%, #a5c5f0 45%, #9eb5d9 100%); color:#0d47a1; border-color:#9eb5d9; font-weight:700;">Tất toán khoản vay/Trả nợ trước hạn</button>
+            <button class="btn btn-sm preview-allow" id="loan-extend-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #fed199 45%, #f5b999 100%); color:#000; border-color:#f5b999; font-weight:700;">Gia hạn nợ</button>
+            <button class="btn btn-sm preview-allow" id="loan-risk-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ffebed 50%, #f9d6d6 100%); color:#7a1f1f; border-color:#f9d6d6;">Quản lý Nợ rủi ro</button>
+            <button class="btn btn-sm preview-allow" id="loan-archive-btn" style="background:linear-gradient(180deg, #ffffff 0%, #caa5da 45%, #b6a1d1 100%); color:#4a148c; border-color:#b6a1d1; font-weight:700;">Kho biên lai/giấy xác nhận/dòng nhật ký</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="loan-quarter-settings-btn">📅 Chỉnh mốc thời gian tính lãi hàng Quý</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="loan-fundsource-defaults-btn">Chỉnh Lãi suất phân bổ các cấp</button>
-            <button class="btn btn-sm preview-allow" id="loan-approval-details-toggle" style="background:linear-gradient(180deg, #ffffff 0%, #fff9c4 50%, #fbc02d 100%); color:var(--rice-dark); border-color:#fbc02d; font-weight:700;">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Sổ vay vốn</button>
-            <button class="btn btn-sm preview-allow" id="loan-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#000; border-color:#00acc1; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
+            <button class="btn btn-sm preview-allow" id="loan-approval-details-toggle" style="background:linear-gradient(180deg, #ffffff 0%, #fffce7 50%, #fde5ab 100%); color:var(--rice-dark); border-color:#fde5ab; font-weight:700;">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Sổ vay vốn</button>
+            <button class="btn btn-sm preview-allow" id="loan-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #a8e8f0 45%, #99dde6 100%); color:#000; border-color:#99dde6; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="exp-excel-btn">⬇️ Xuất Excel</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="print-btn">🖨️ In</button>
           </div>
-        </div>`}
+        </div>` : ''}
       </div>
 
       ${overdueList.length? `
@@ -472,7 +472,7 @@
             ${buildTimelineFilterDropdownHtml('main')}
             <button class="btn btn-ghost btn-sm preview-allow ${resetFilterBtnClass(hamlets, projects)}" id="f-reset-all-btn" title="Đưa cả 4 bộ lọc (Ấp/Phương án vay/Quý/Năm) về đúng mặc định ban đầu">↺ Khôi phục bộ lọc gốc</button>
             <div class="spacer"></div>
-            <button class="btn btn-ghost btn-sm preview-allow" id="col-viewset-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ffca28 45%, #ff8f00 100%); color:#5a3d00; border-color:#ff8f00; font-weight:700;">👁️ Chế độ xem cột</button>
+            <button class="btn btn-ghost btn-sm preview-allow" id="col-viewset-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ffe9a9 45%, #ffd299 100%); color:#5a3d00; border-color:#ffd299; font-weight:700;">👁️ Chế độ xem cột</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="col-picker-btn">🧩 Tuỳ chỉnh cột (${visibleKeys.length}/${allCols.length})</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="color-picker-btn">🎨 Tuỳ chỉnh màu</button>
           </div>
@@ -582,7 +582,7 @@
     const lpBorrowersToggle = document.getElementById('lp-borrowers-toggle');
     if(lpBorrowersToggle) lpBorrowersToggle.onclick = ()=>{ state.showBorrowersList = state.showBorrowersList===false ? true : false; if(state.showBorrowersList!==false) showOpeningListToast('Khoản vay đang hoạt động'); markPanelJustToggled(); renderDataTab(el); };
     const loanManagePanelToggle = document.getElementById('loan-manage-panel-toggle');
-    if(loanManagePanelToggle) loanManagePanelToggle.onclick = ()=>{ state.showManagePanel = state.showManagePanel===false ? true : false; if(state.showManagePanel!==false) showOpeningListToast('Quản lý, thống kê và phê duyệt hành động'); markPanelJustToggled(); renderDataTab(el); };
+    if(loanManagePanelToggle) loanManagePanelToggle.onclick = ()=>{ state.showManagePanel = state.showManagePanel===true ? false : true; if(state.showManagePanel===true) showOpeningListToast('Quản lý, thống kê và phê duyệt hành động'); markPanelJustToggled(); renderDataTab(el); };
     const lpBorrowersCollapseAll = document.getElementById('lp-borrowers-collapse-all');
     if(lpBorrowersCollapseAll) lpBorrowersCollapseAll.onclick = ()=>{ state.showBorrowersList = false; renderDataTab(el); };
     const lpNewBtn = document.getElementById('lp-new-btn');

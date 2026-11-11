@@ -1,4 +1,21 @@
   // =====================================================================
+  // In đúng khổ giấy dọc/ngang — ghi đè TRỰC TIẾP bằng 1 <style>@page{size:...}</style> chèn vào
+  // <head> ngay trước lúc gọi window.print(), rồi gỡ ra ngay sau đó. Cách này chắc chắn hơn nhiều so
+  // với cơ chế "named page" cũ (class .landscape + @page landscape-a4 trong app.css) — tính năng CSS
+  // Paged Media "named page" (thuộc tính `page:`) được trình duyệt hỗ trợ KHÔNG đồng nhất, có thể vẫn
+  // in ra giấy dọc dù đã gắn class — còn ghi đè trực tiếp @page{size:...} (không dùng tên trang riêng)
+  // thì được mọi engine in ấn Chromium/Firefox tôn trọng nhất quán.
+  function printAreaNow(landscape){
+    const styleEl = document.createElement('style');
+    styleEl.id = '__printOrientationOverride';
+    styleEl.textContent = landscape
+      ? '@page{ size:A4 landscape; margin:10mm; }'
+      : '@page{ size:A4 portrait; margin:15mm 12mm; }';
+    document.head.appendChild(styleEl);
+    window.print();
+    setTimeout(()=>{ const s = document.getElementById('__printOrientationOverride'); if(s) s.remove(); }, 500);
+  }
+  // =====================================================================
   // 2 nút cuộn qua TRÁI/PHẢI — tự động chèn cho MỌI khung có thanh cuộn ngang trong toàn app (menu
   // module, bảng trong panel/modal...). Dùng Map THƯỜNG (không phải WeakMap) để có thể DUYỆT QUA toàn
   // bộ danh sách và dọn dẹp đúng mọi cặp mồ côi mỗi lần quét — đây là điểm mấu chốt để tránh lỗi tích
@@ -1246,7 +1263,7 @@
     if(!area){ alert('Không tìm thấy khu vực in trên trang.'); return; }
     area.innerHTML = `<div style="padding:10mm;">${renderMarkdownLite(text)}</div>`;
     area.classList.remove('landscape');
-    window.print();
+    printAreaNow(false);
   }
   // Giọng nói AI THẬT — dùng Web Speech API có sẵn của trình duyệt/thiết bị (không cần API trả
   // phí, hoạt động ngay lập tức). Bấm lần nữa để dừng đọc giữa chừng.

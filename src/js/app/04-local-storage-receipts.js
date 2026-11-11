@@ -28,6 +28,10 @@
   }
 
   function htmlToWordDoc(title, bodyHtml){
+    // Chèn 2 dấu xuống dòng ngay TRƯỚC mỗi dòng tiêu đề đoạn ("divider-lbl") để file Word xuất ra có
+    // khoảng trống rõ ràng ngăn cách từng đoạn — áp dụng CHUNG cho mọi nơi xuất Word trong app (hàm
+    // dùng chung này), không cần sửa riêng từng chỗ gọi.
+    const bodyHtmlSpaced = bodyHtml.replace(/<div class="divider-lbl"/g, '<br><br><div class="divider-lbl"');
     return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     <head><meta charset="utf-8"><title>${title}</title>
     <style>
@@ -39,8 +43,11 @@
       td,th{border:1px solid #333; padding:5px 8px; font-family:'Times New Roman',serif; font-size:14pt;}
       .sign-row{width:100%; margin-top:30px;}
       .sign-col{display:inline-block; width:46%; text-align:center; vertical-align:top;}
+      /* Dòng tiêu đề đoạn: khi mở trong Word, nền tối + chữ trắng vẫn hiển thị rõ (Word render nền
+         được, khác với in trình duyệt) — chỉ cần in đậm/to hơn cho nổi bật, không cần đổi màu. */
+      .divider-lbl-text{display:inline-block; background:#4a4a4a; color:#fff; padding:3px 8px; border-radius:6px; font-weight:700;}
     </style></head>
-    <body>${bodyHtml}</body></html>`;
+    <body>${bodyHtmlSpaced}</body></html>`;
   }
   // Loại bỏ mọi phần tử TƯƠNG TÁC (nút, ô nhập, checkbox, radio, select...) khỏi 1 khối nội dung
   // trước khi đem xuất Word/in — chỉ giữ lại đúng phần thông tin thuần tuý đang hiển thị.
@@ -394,7 +401,7 @@
   }
   // Modal "Xem trước" dùng CHUNG cho mọi nút "Xuất file Word"/"In" gắn trong các modal khác — luôn
   // kèm 4 dòng tiêu đề đầu + dòng chân trang, y hệt phong cách Xuất Excel/In ở panel chính.
-  function renderExportPrintPreviewModal(title, contentHtml){
+  function renderExportPrintPreviewModal(title, contentHtml, landscape){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     const dateLbl = new Date().toLocaleString('vi-VN');
@@ -431,22 +438,25 @@
       if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan — chỉ xem trước được, chưa thể in thật.'); return; }
       const area = document.getElementById('print-area');
       if(!area) return;
-      area.classList.remove('landscape');
+      area.classList.toggle('landscape', !!landscape);
       area.innerHTML = fullBodyHtml;
-      window.print();
+      printAreaNow(!!landscape);
     };
   }
   // Gắn 2 nút "📄 Xuất file Word" + "🖨️ In" vào 1 vị trí bất kỳ trong modal — bấm vào sẽ lấy đúng
-  // nội dung hiện tại của modal (đã loại bỏ nút/ô nhập), mở bảng xem trước.
+  // nội dung hiện tại của modal (đã loại bỏ nút/ô nhập), mở bảng xem trước. `landscape` (tuỳ chọn,
+  // mặc định false): true cho các bảng nhiều cột (VD "Bảng Đối chiếu", "Thống kê phân bổ tiền lãi các
+  // cấp", "Thông tin đóng lãi của hộ vay") — in ngang cho dễ đọc; để false/bỏ trống cho biên lai/giấy
+  // xác nhận (không phải dạng bảng) — vẫn in dọc như cũ.
   function exportPrintButtonsHtml(idPrefix){
     return `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="${idPrefix}-word">📄 Xuất file Word hoặc in</button>`;
   }
-  function wireExportPrintButtons(wrap, idPrefix, contentSelector, title){
+  function wireExportPrintButtons(wrap, idPrefix, contentSelector, title, landscape){
     const wordBtn = wrap.querySelector(`#${idPrefix}-word`);
     const openPreview = ()=>{
       const sourceEl = wrap.querySelector(contentSelector);
       if(!sourceEl) return;
-      renderExportPrintPreviewModal(title, stripInteractiveElementsHtml(sourceEl));
+      renderExportPrintPreviewModal(title, stripInteractiveElementsHtml(sourceEl), landscape);
     };
     if(wordBtn) wordBtn.onclick = openPreview;
   }
@@ -882,7 +892,7 @@
     if(!area) return;
     area.innerHTML = printInnerHtml;
     area.classList.add('landscape');
-    window.print();
+    printAreaNow(true);
     setTimeout(()=> area.classList.remove('landscape'), 800);
   }
   // In NHIỀU thành phần cùng lúc — mỗi thành phần 1 khối bảng riêng có tiêu đề, vẫn khổ A4 NẰM NGANG.
@@ -940,7 +950,7 @@
     if(!area) return;
     area.innerHTML = printInnerHtml;
     area.classList.add('landscape');
-    window.print();
+    printAreaNow(true);
     setTimeout(()=> area.classList.remove('landscape'), 800);
   }
 
@@ -1014,7 +1024,7 @@
   function printReport(){
     const area = document.getElementById('print-area');
     if(area) area.innerHTML = buildReportHtml();
-    window.print();
+    printAreaNow(false);
   }
 
   function exportReportWord(){

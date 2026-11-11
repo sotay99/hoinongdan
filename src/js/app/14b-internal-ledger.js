@@ -485,7 +485,7 @@
   function ilPanelHtml(ledger, type, canEdit){
     const isThu = type==='thu';
     const showKey = isThu ? '_ilShowThu' : '_ilShowChi';
-    const open = state[showKey]!==false;
+    const open = state[showKey]===true;
     const sorting = state._ilSortingType===type;
     const rawCount = ilEntriesOfType(ledger, type).length;
     const list = sorting ? ilEntriesOfType(ledger, type) : ilFilteredEntriesOfType(ledger, type);
@@ -549,7 +549,7 @@
     if(clearBtn) clearBtn.onclick = ()=>{ ilResetEntryFilters(); renderInternalLedgerMain(el); };
     ['thu','chi'].forEach(type=>{
       const toggle = document.getElementById('il-toggle-'+type);
-      if(toggle) toggle.onclick = ()=>{ const k = type==='thu'?'_ilShowThu':'_ilShowChi'; state[k] = !(state[k]!==false); renderInternalLedgerMain(el); };
+      if(toggle) toggle.onclick = ()=>{ const k = type==='thu'?'_ilShowThu':'_ilShowChi'; state[k] = state[k]===true? false : true; renderInternalLedgerMain(el); };
       const addBtn = document.getElementById('il-add-'+type);
       if(addBtn) addBtn.onclick = (e)=>{ e.stopPropagation(); renderInternalEntryModal(ledger, type, null, el); };
       const excelBtn = document.getElementById('il-excel-'+type);
@@ -906,7 +906,7 @@
           ` : `
             <input type="text" id="ilcm-f-input" maxlength="${IL_MAX.formula}" value="${escapeHtml(isFormula? raw : '=')}" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:monospace;">
             <div style="display:flex; gap:6px; margin:8px 0;">
-              ${['+','-','×','÷'].map(op=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-ilcm-op="${op}">${op}</button>`).join('')}
+              ${['+','-','×','÷','(',')'].map(op=>`<button type="button" class="btn btn-ghost btn-sm preview-allow" data-ilcm-op="${op}">${op}</button>`).join('')}
             </div>
             <p class="sub" style="margin:0;">Vd: =A1+B2-C1/G2*D2 — bấm vào 1 ô khác trong bảng (Tiền/Chữ/Ngày tháng) để chèn toạ độ ô đó.</p>
           `}
@@ -1289,32 +1289,34 @@
   function ilAoaLedger(ledger, type){
     const isThu = type==='thu';
     const headers = ['Ngày','Nội dung '+(isThu?'thu':'chi'),'Số tiền','Người '+(isThu?'thu':'chi'),'Ghi chú','Phụ lục đi kèm'];
-    const list = ilEntriesOfType(ledger, type);
+    const list = ilEntriesOfType(ledger, type).filter(Boolean);
     const dataRows = list.map(e=>[ fmtDate(e.date), e.content||'', e.amount||0, e.person||'', e.note||'', e.appendix? ilAppendixDisplayTitle(e) : '' ]);
     const totalRow = ['TỔNG', '', list.reduce((s,e)=>s+(parseInt(e.amount,10)||0),0), '', '', ''];
     return { headers, rows: [totalRow, ...dataRows], columns: [{type:'date'},{type:'text'},{type:'money'},{type:'text'},{type:'text'},{type:'text'}], moneyColIndex:2, isLedger:true, entries:list };
   }
   function ilAoaAppendix(entry){
     const ap = entry.appendix;
-    const headers = ap.columns.map(c=>c.label);
+    const apCols = (ap.columns||[]).filter(Boolean);
+    const apRows = (ap.rows||[]).filter(Boolean);
+    const headers = apCols.map(c=>c.label);
     const formulaCells = [];
-    const rows = ap.rows.map((r,ri)=> ap.columns.map((c,ci)=>{
+    const rows = apRows.map((r,ri)=> apCols.map((c,ci)=>{
       if(c.type==='money'){
-        const raw = String(r[c.key]??'');
+        const raw = String((r||{})[c.key]??'');
         if(raw.startsWith('=')) formulaCells.push({ ri, ci, body: raw.slice(1) });
         return ilCellComputed(ap, ri, c.key);
       }
-      if(c.type==='date') return r[c.key]!=null? r[c.key] : '';
-      return r[c.key]!=null? r[c.key] : '';
+      if(c.type==='date') return (r||{})[c.key]!=null? r[c.key] : '';
+      return (r||{})[c.key]!=null? r[c.key] : '';
     }));
     // Cột tiền đang bị ẩn tổng (và không phải cột quyết định) -> để TRỐNG thật ở dòng Tổng, đồng bộ
     // với màn hình sửa phụ lục (ẩn ở đâu thì ẩn luôn ở xem trước/in/xuất Excel).
-    const totalRow = ap.columns.map(c=>{
-      if(c.type!=='money') return ap.columns[0]===c?'TỔNG':'';
+    const totalRow = apCols.map(c=>{
+      if(c.type!=='money') return apCols[0]===c?'TỔNG':'';
       const hidden = ap.designatedKey!==c.key && c.showTotal===false;
       return hidden ? '' : ilAppendixColumnTotal(ap, c.key);
     });
-    return { headers, rows:[...rows, totalRow], columns: ap.columns.map(c=>({type:c.type, showTotal:c.showTotal, isDesignated: ap.designatedKey===c.key})), formulaCells, isAppendix:true, title: ilAppendixDisplayTitle(entry) };
+    return { headers, rows:[...rows, totalRow], columns: apCols.map(c=>({type:c.type, showTotal:c.showTotal, isDesignated: ap.designatedKey===c.key})), formulaCells, isAppendix:true, title: ilAppendixDisplayTitle(entry) };
   }
   function ilRelatedAppendixSections(ledger, type){
     const types = type? [type] : ['thu','chi'];
@@ -1348,12 +1350,15 @@
       <div class="modal" style="max-width:96vw; width:920px;">
         <div class="modal-head"><h3>👁️ Xem trước dạng Excel — ${escapeHtml(ledger.name)}</h3><button class="modal-close" id="ilx-close">✕</button></div>
         <div class="modal-body">
-          ${sections.map(sec=>`
+          ${sections.filter(Boolean).map(sec=>{
+            const rows = (sec.rows||[]).filter(Boolean).map(r=> r||[]);
+            return `
             <h4 style="margin:14px 0 6px;">${escapeHtml(sec.title)}</h4>
             <div class="table-wrap"><table>
-              <thead><tr>${sec.headers.map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
-              <tbody>${sec.rows.length? sec.rows.map(r=>`<tr>${r.map((c,ci)=>`<td style="${alignStyle(sec.columns && sec.columns[ci])}">${typeof c==='number'? escapeHtml(moneySpaced(c)) : escapeHtml(String(c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.headers.length}">Không có dữ liệu</td></tr>`}</tbody>
-            </table></div>`).join('')}
+              <thead><tr>${(sec.headers||[]).map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
+              <tbody>${rows.length? rows.map(r=>`<tr>${r.map((c,ci)=>`<td style="${alignStyle(sec.columns && sec.columns[ci])}">${typeof c==='number'? escapeHtml(moneySpaced(c)) : escapeHtml(String(c==null?'':c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${(sec.headers||[]).length}">Không có dữ liệu</td></tr>`}</tbody>
+            </table></div>`;
+          }).join('')}
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost" id="ilx-print">🖨️ In</button>
@@ -1511,7 +1516,7 @@
     area.classList.add('landscape');
     const prevTitle = document.title;
     if(!includeOrgHeader) document.title = '';
-    window.print();
+    printAreaNow(true);
     setTimeout(()=>{ area.classList.remove('landscape'); document.title = prevTitle; }, 800);
   }
 

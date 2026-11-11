@@ -1116,7 +1116,7 @@
       if(statusLogBtn) statusLogBtn.onclick = ()=> renderQuarterStatusLogModal(b);
       const impactBtn = wrap.querySelector('#iahist-impact-btn');
       if(impactBtn) impactBtn.onclick = ()=> renderInterestImpactReceiptsModal(b);
-      wireExportPrintButtons(wrap, 'iahist-ep', '#iahist-content', `Thông tin đóng tiền lãi của hộ vay ${b.name}`);
+      wireExportPrintButtons(wrap, 'iahist-ep', '#iahist-content', `Thông tin đóng tiền lãi của hộ vay ${b.name}`, true);
       // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
       const leftoverInfoBtn = wrap.querySelector('#iahist-leftover-info');
       const leftoverTip = wrap.querySelector('#iahist-leftover-tip');
