@@ -1842,9 +1842,11 @@
     return true;
   }
   function emptyLoanProject(){
+    const fundSourceType = FUND_SOURCE_OPTIONS[0];
+    const d = fundSourceDefaultValues(fundSourceType);
     return { id:uid(), name:'', totalCapital:0, disburseDate:todayStr(), dueDate:'',
-      fundSourceType: FUND_SOURCE_OPTIONS[0], fundSourceOther:'',
-      interestRate:8.4, splitCentral:3.5, splitProvince:2, splitWard:2.9, hamletAllocPercent:45,
+      fundSourceType, fundSourceOther:'',
+      interestRate:d.interestRate, splitCentral:d.splitCentral, splitProvince:d.splitProvince, splitWard:d.splitWard, hamletAllocPercent:d.hamletAllocPercent,
       createdAt:new Date().toISOString(), deleted:false };
   }
   // Hồ sơ người vay MỚI, kế thừa toàn bộ thiết lập của phương án đã chọn — Admin chỉ cần bổ sung
@@ -2832,9 +2834,9 @@ ${existingProjectsDetail}
    - QUY TẮC ĐIỀN/ĐỂ TRỐNG (áp dụng cho nhóm 5 trường: lãi suất chung, Phân bổ TW, Phân bổ ${provinceUnit}, Phân bổ ${adminUnit}, % ${adminUnit} chia ${subAdminUnit}):
      a. Nếu người dùng CHỈ cung cấp MỘT VÀI (không phải tất cả) trong 5 trường này, bạn CHỈ điền đúng đúng những gì người dùng đã cung cấp — các trường CÒN LẠI (người dùng KHÔNG nhắc tới) PHẢI ĐỂ TRỐNG (không tự động điền mặc định, không tự bịa số cho "khớp" phép tính ở trên — trừ khi người dùng đã cung cấp ĐỦ dữ liệu để tự suy ra được 1 trường còn thiếu duy nhất, VD: đã biết lãi suất chung + Phân bổ TW + Phân bổ ${provinceUnit} thì CÓ THỂ tự tính ra Phân bổ ${adminUnit} còn thiếu bằng phép trừ, hãy làm vậy thay vì để trống một cách máy móc).
      b. Điều kiện để áp dụng bộ mặc định đầy đủ: người dùng KHÔNG cung cấp BẤT KỲ trường nào trong 4 TRƯỜNG CỐT LÕI (lãi suất chung, Phân bổ TW, Phân bổ ${provinceUnit}, Phân bổ ${adminUnit}) — hoàn toàn không nhắc tới lãi suất/phân bổ 3 cấp. Điều kiện này CHỈ phụ thuộc vào 4 trường cốt lõi này, KHÔNG phụ thuộc vào việc "% ${adminUnit} chia ${subAdminUnit}" có được người dùng nhắc tới hay không (dù người dùng CÓ nói tới "% ${adminUnit} chia ${subAdminUnit}" cụ thể hay KHÔNG nói gì tới nó, chỉ cần 4 trường cốt lõi kia đều trống thì vẫn áp dụng mặc định đầy đủ cho CẢ 5 trường theo đúng bộ số bên dưới — nếu người dùng CÓ tự nói rõ "% ${adminUnit} chia ${subAdminUnit}" là bao nhiêu thì vẫn ưu tiên dùng đúng số đó thay vì mặc định 45).
-        Khi đủ điều kiện, áp dụng bộ mặc định đầy đủ theo đúng "fundSourceType" đã xác định:
-        * Nguồn vay là "Cấp trung ương": lãi suất (interestRate) = 8.4, Phân bổ Trung ương (splitCentral) = 3.5, Phân bổ ${provinceUnit} (splitProvince) = 2, Phân bổ ${adminUnit} (splitWard) = 2.9, % ${adminUnit} chia ${subAdminUnit} (hamletAllocPercent) = 45.
-        * Nguồn vay KHÁC "Cấp trung ương": lãi suất (interestRate) = 6.6, Phân bổ Trung ương (splitCentral) = 0, Phân bổ ${provinceUnit} (splitProvince) = 4.32, Phân bổ ${adminUnit} (splitWard) = 2.28, % ${adminUnit} chia ${subAdminUnit} (hamletAllocPercent) = 45.
+        Khi đủ điều kiện, áp dụng bộ mặc định đầy đủ theo đúng "fundSourceType" đã xác định — bộ mặc định NÀY ĐÃ ĐƯỢC NGƯỜI DÙNG CẤU HÌNH (qua nút "Chỉnh Lãi suất phân bổ các cấp") hoặc dùng nguyên bộ mặc định gốc của hệ thống, như sau:
+${FUND_SOURCE_OPTIONS.map(fs=>{ const d=fundSourceDefaultValues(fs); return `        * Nguồn vay là "${fs}": lãi suất (interestRate) = ${d.interestRate}, Phân bổ Trung ương (splitCentral) = ${d.splitCentral}, Phân bổ ${provinceUnit} (splitProvince) = ${d.splitProvince}, Phân bổ ${adminUnit} (splitWard) = ${d.splitWard}, % ${adminUnit} chia ${subAdminUnit} (hamletAllocPercent) = ${d.hamletAllocPercent}.`; }).join('\n')}
+        Nguồn vay tuỳ chỉnh (do người dùng tự thêm, không nằm trong danh sách trên): dùng nguyên bộ mặc định như "Nguồn khác" ở trên.
         Đây CHÍNH LÀ bộ mặc định giống hệt khi người dùng tự bấm "Tạo phương án vay mới" ngoài giao diện — người dùng vẫn có thể tự sửa lại các số này sau khi xem kết quả.
 3c) RÀNG BUỘC BẮT BUỘC VỀ NGÀY THÁNG khi tạo Phương án vay MỚI (CHỈ áp dụng cho phương án MỚI — phương án ĐÃ CÓ SẴN thì luôn tôn trọng ngày tháng gốc đã liệt kê ở mục 1b, KHÔNG áp dụng ràng buộc này):
    a. "Ngày giải ngân" (disburseDate) KHÔNG ĐƯỢC là ngày trong TƯƠNG LAI so với ngày hiện tại thật (hôm nay).

@@ -4355,6 +4355,70 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     renderBody();
   }
 
+  // Modal "Chỉnh Lãi suất phân bổ các cấp" — cấu hình bộ mặc định (lãi suất + phân bổ 3 cấp + % xã/
+  // phường chia thôn/ấp) riêng cho TỪNG Nguồn vay, lưu ở state.config.fundSourceDefaults. Bộ mặc định
+  // này được "Thêm phương án vay" (thủ công) VÀ AI thêm nhanh cùng đọc — xem fundSourceDefaultValues()
+  // ở 07-core-modules.js. Sửa ở đây KHÔNG ảnh hưởng các phương án vay ĐÃ TẠO trước đó.
+  function renderFundSourceDefaultsModal(){
+    const curSubLower = subAdminLabelLower();
+    let fundSourceType = FUND_SOURCE_OPTIONS[0];
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    function render(){
+      const d = fundSourceDefaultValues(fundSourceType);
+      wrap.innerHTML = `
+        <div class="modal">
+          <div class="modal-head"><h3>Chỉnh Lãi suất phân bổ các cấp</h3><button class="modal-close" id="fsd-close">✕</button></div>
+          <div class="modal-body">
+            <div class="form-grid">
+              <div class="field"><label>Nguồn vay *</label>
+                <select id="fsd-fundsource-type">${fundSourceSelectOptionsHtml(fundSourceType)}</select>
+              </div>
+              <div class="field"><label>Lãi suất người vay phải trả (%/năm) *</label><input type="text" inputmode="decimal" id="fsd-rate" value="${String(d.interestRate).replace('.',',')}" placeholder="Vd: 6,6"></div>
+            </div>
+            <div class="divider-lbl">Tỷ lệ cấu hình trích chia lãi suất theo cấp (%) — cắt khúc dòng tiền</div>
+            <div class="form-grid">
+              <div class="field"><label>Trung ương</label><input type="text" inputmode="decimal" id="fsd-central" value="${String(d.splitCentral).replace('.',',')}"></div>
+              <div class="field"><label>Cấp ${provinceLevelLabel()}</label><input type="text" inputmode="decimal" id="fsd-province" value="${String(d.splitProvince).replace('.',',')}"></div>
+              <div class="field"><label>Cấp ${adminLevelLabel()}</label><input type="text" inputmode="decimal" id="fsd-ward" value="${String(d.splitWard).replace('.',',')}"></div>
+            </div>
+            <p class="sub" style="margin-top:-4px;">⚠️ Tổng 3 tỷ lệ Trung ương + Cấp ${provinceLevelLabel()} + Cấp ${adminLevelLabel()} phải LUÔN BẰNG đúng "Lãi suất người vay phải trả" ở trên (vd: 0% + 4,32% + 2,28% = 6,6%).</p>
+
+            <div class="divider-lbl">% của ${adminLevelLabelLower()} phân bổ về ${curSubLower}</div>
+            <div class="form-grid">
+              <div class="field"><label>% của ${adminLevelLabelLower()} phân bổ về ${curSubLower}</label><input type="text" inputmode="decimal" id="fsd-hamlet-alloc" value="${String(d.hamletAllocPercent).replace('.',',')}"></div>
+            </div>
+            <p class="sub" style="margin-top:-4px;">💡 Đây KHÔNG phải là tỷ lệ trích trực tiếp từ tổng lãi suất, mà là tỷ lệ mà cấp ${adminLevelLabelLower()} tiếp tục PHÂN BỔ XUỐNG cho ${curSubLower} TỪ chính phần tiền lãi mà ${adminLevelLabelLower()} đã nhận được (theo tỷ lệ "Cấp ${adminLevelLabel()}" ở trên). (Không được vượt quá 100%.)</p>
+            <p class="sub">Đây là bộ mặc định sẽ tự điền sẵn khi tạo phương án vay mới theo đúng Nguồn vay đã chọn (cả khi tạo thủ công và khi AI thêm nhanh) — người dùng vẫn luôn có thể tự sửa lại cho từng phương án sau khi tạo. Sửa ở đây KHÔNG ảnh hưởng các phương án vay đã tạo trước đó.</p>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" id="fsd-cancel">Đóng (không lưu)</button>
+            <button class="btn btn-primary" id="fsd-save">💾 Lưu mặc định</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#fsd-close').onclick = close;
+      wrap.querySelector('#fsd-cancel').onclick = close;
+      wrap.querySelector('#fsd-fundsource-type').onchange = (e)=>{ fundSourceType = e.target.value; render(); };
+      ['#fsd-rate','#fsd-central','#fsd-province','#fsd-ward','#fsd-hamlet-alloc'].forEach(sel=> attachPercentInputMask(wrap.querySelector(sel)));
+      wrap.querySelector('#fsd-save').onclick = async ()=>{
+        const num = (sel)=> parseFloat((wrap.querySelector(sel).value||'0').replace(',','.')) || 0;
+        const rate = num('#fsd-rate'), central = num('#fsd-central'), province = num('#fsd-province'), ward = num('#fsd-ward'), hamletAlloc = num('#fsd-hamlet-alloc');
+        if(Math.round((central+province+ward)*100) !== Math.round(rate*100)){
+          alert(`Tổng 3 tỷ lệ Trung ương + Cấp ${provinceLevelLabel()} + Cấp ${adminLevelLabel()} (${central}+${province}+${ward}=${+(central+province+ward).toFixed(2)}) phải bằng đúng Lãi suất người vay phải trả (${rate}). Vui lòng sửa lại.`);
+          return;
+        }
+        if(hamletAlloc > 100){ alert(`% ${adminLevelLabelLower()} phân bổ về ${curSubLower} không được vượt quá 100.`); return; }
+        state.config.fundSourceDefaults = state.config.fundSourceDefaults || {};
+        state.config.fundSourceDefaults[fundSourceType] = { interestRate:rate, splitCentral:central, splitProvince:province, splitWard:ward, hamletAllocPercent:hamletAlloc };
+        await cSet('config', state.config);
+        showToast('Đã lưu mặc định Lãi suất/phân bổ!');
+        close();
+      };
+    }
+    render();
+  }
   function renderLoanProjectModal(payload, onDone, forceReadOnly){
     const isNew = !payload;
     const p = payload ? {...payload} : emptyLoanProject();
@@ -4451,22 +4515,14 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         e.target.value = prevVal;
         return;
       }
-      // Nguồn vay "Cấp trung ương" có bộ mặc định riêng (khác các nguồn vay khác) — tự điền sẵn, người
-      // dùng vẫn có thể tự sửa lại theo ý mình sau đó.
-      if(e.target.value==='Cấp trung ương'){
-        wrap.querySelector('#lpm-rate').value = '8,4';
-        wrap.querySelector('#lpm-central').value = '3,5';
-        wrap.querySelector('#lpm-province').value = '2';
-        wrap.querySelector('#lpm-ward').value = '2,9';
-        wrap.querySelector('#lpm-hamlet-alloc').value = '45';
-      } else {
-        // Các nguồn vay KHÁC Trung ương — về đúng bộ mặc định chung cũ (vẫn có thể tự sửa lại sau đó).
-        wrap.querySelector('#lpm-rate').value = '6,6';
-        wrap.querySelector('#lpm-central').value = '0';
-        wrap.querySelector('#lpm-province').value = '4,32';
-        wrap.querySelector('#lpm-ward').value = '2,28';
-        wrap.querySelector('#lpm-hamlet-alloc').value = '45';
-      }
+      // Mỗi "Nguồn vay" có bộ mặc định riêng, cấu hình được qua nút "Chỉnh Lãi suất phân bổ các
+      // cấp" (state.config.fundSourceDefaults) — tự điền sẵn, người dùng vẫn có thể tự sửa lại sau đó.
+      const d = fundSourceDefaultValues(e.target.value);
+      wrap.querySelector('#lpm-rate').value = String(d.interestRate).replace('.',',');
+      wrap.querySelector('#lpm-central').value = String(d.splitCentral).replace('.',',');
+      wrap.querySelector('#lpm-province').value = String(d.splitProvince).replace('.',',');
+      wrap.querySelector('#lpm-ward').value = String(d.splitWard).replace('.',',');
+      wrap.querySelector('#lpm-hamlet-alloc').value = String(d.hamletAllocPercent).replace('.',',');
     };
     // ---- THỬ NGHIỆM: ô nhập chỉ chứa số thuần khi gõ (không tự chèn dấu cách nhóm 3 số ngay
     // trong lúc gõ — đây chính là nguyên nhân gây lỗi lệch con trỏ khi gõ nhiều chữ số). Số đã

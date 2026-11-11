@@ -442,6 +442,7 @@
             <button class="btn btn-sm preview-allow" id="loan-risk-debt-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ffcdd2 50%, #ef9a9a 100%); color:#7a1f1f; border-color:#ef9a9a;">Quản lý Nợ rủi ro</button>
             <button class="btn btn-sm preview-allow" id="loan-archive-btn" style="background:linear-gradient(180deg, #ffffff 0%, #7b1fa2 45%, #4a148c 100%); color:#fff; border-color:#4a148c; text-shadow:0 1px 2px rgba(0,0,0,.35);">Kho biên lai/giấy xác nhận/dòng nhật ký</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="loan-quarter-settings-btn">📅 Chỉnh mốc thời gian tính lãi hàng Quý</button>
+            <button class="btn btn-ghost btn-sm preview-allow" id="loan-fundsource-defaults-btn">Chỉnh Lãi suất phân bổ các cấp</button>
             <button class="btn btn-sm preview-allow" id="loan-approval-details-toggle" style="background:linear-gradient(180deg, #ffffff 0%, #fff9c4 50%, #fbc02d 100%); color:var(--rice-dark); border-color:#fbc02d; font-weight:700;">🔍 Bảng Đối chiếu &amp; Kiểm định Số liệu Sổ vay vốn</button>
             <button class="btn btn-sm preview-allow" id="loan-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#000; border-color:#00acc1; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="exp-excel-btn">⬇️ Xuất Excel</button>
@@ -611,6 +612,8 @@
     if(loanCalcInterestBtn) loanCalcInterestBtn.onclick = ()=> renderInterestApprovalModal();
     const loanQuarterSettingsBtn = document.getElementById('loan-quarter-settings-btn');
     if(loanQuarterSettingsBtn) loanQuarterSettingsBtn.onclick = ()=> renderQuarterIntervalModal();
+    const loanFundSourceDefaultsBtn = document.getElementById('loan-fundsource-defaults-btn');
+    if(loanFundSourceDefaultsBtn) loanFundSourceDefaultsBtn.onclick = ()=> renderFundSourceDefaultsModal();
     const loanApproveSettlementBtn = document.getElementById('loan-approve-settlement-btn');
     if(loanApproveSettlementBtn) loanApproveSettlementBtn.onclick = ()=> renderSettlementModal();
     const loanExtendDebtBtn = document.getElementById('loan-extend-debt-btn');

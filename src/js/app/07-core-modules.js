@@ -1104,6 +1104,20 @@
   // giá trị hiện tại (currentVal) là 1 tên KHÔNG nằm trong bất kỳ danh sách nào (VD do AI trích xuất ra
   // 1 tên lạ, hoặc nguồn tuỳ chỉnh đã bị xoá sau đó) thì vẫn giữ lại, chèn thêm vào đầu để không mất dữ
   // liệu gốc.
+  // Bộ mặc định Lãi suất/phân bổ theo TỪNG "Nguồn vay" — cấu hình được qua nút "Chỉnh Lãi suất phân
+  // bổ các cấp" (lưu ở state.config.fundSourceDefaults, khoá theo đúng tên nguồn vay). Nếu chưa từng
+  // cấu hình, dùng nguyên bộ mặc định gốc (Cấp trung ương riêng, mọi nguồn khác dùng chung 1 bộ) — ĐÂY
+  // LÀ NGUỒN DUY NHẤT cho các mặc định này, dùng chung bởi cả "Thêm phương án vay" (thủ công) và AI
+  // thêm nhanh — tránh lệch nhau như trước.
+  function fundSourceDefaultFallback(fundSourceType){
+    return fundSourceType==='Cấp trung ương'
+      ? { interestRate:8.4, splitCentral:3.5, splitProvince:2, splitWard:2.9, hamletAllocPercent:45 }
+      : { interestRate:6.6, splitCentral:0, splitProvince:4.32, splitWard:2.28, hamletAllocPercent:45 };
+  }
+  function fundSourceDefaultValues(fundSourceType){
+    const saved = (state.config.fundSourceDefaults||{})[fundSourceType];
+    return saved ? {...fundSourceDefaultFallback(fundSourceType), ...saved} : fundSourceDefaultFallback(fundSourceType);
+  }
   function fundSourceSelectOptionsHtml(currentVal){
     const fixed = FUND_SOURCE_OPTIONS.filter(o=>o!=='Nguồn khác');
     const custom = state.config.customFundSources||[];
