@@ -710,19 +710,38 @@
   // bảng chính, thùng rác, bảng Excel xem trước và bản in (file Excel xuất thật đã tự căn đúng qua
   // applyExcelCellFormatting ở 04-local-storage-receipts.js, không cần sửa thêm).
   function colTextAlign(label){ return /^(Họ và tên|Đơn vị)$/i.test(String(plainLabel(label)||'').trim()) ? 'left' : 'center'; }
+  // `sec.bannerLines` (tuỳ chọn): mảng chuỗi chèn ngay trước dòng tiêu đề của section đó (chữ đậm,
+  // không màu — Excel xuất qua SheetJS bản miễn phí không ghi được màu chữ chắc chắn).
+  // `sec.totalRow` + `sec.totalMoneyColIndex` (tuỳ chọn): chèn 1 dòng TỔNG ngay sau dòng tiêu đề cột
+  // (trước dữ liệu) — ô tại `totalMoneyColIndex` sẽ được ghi đè thành CÔNG THỨC SUM thật trên đúng
+  // vùng dữ liệu bên dưới, y hệt cách Thu-Chi nội bộ làm (ilExportExcel).
   function exportSectionsToExcel(filenameBase, reportTitle, sections){
     loadOptionalLibrary('xlsx').then(()=>{
       const maxCols = Math.max(1, ...sections.map(s=> s.cols.length));
       const headerLines = [['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [reportTitle], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], []];
       let aoa = [...headerLines];
       const merges = headerLines.map((line,r)=> line.length? {s:{r,c:0},e:{r,c:maxCols-1}} : null).filter(Boolean);
-      const headerRows = [], titleRows = [];
+      const headerRows = [], titleRows = [], bannerRows = [], totalFormulas = [];
       sections.forEach(sec=>{
+        (sec.bannerLines||[]).forEach(line=>{
+          merges.push({ s:{r:aoa.length,c:0}, e:{r:aoa.length,c:maxCols-1} });
+          bannerRows.push(aoa.length);
+          aoa.push([line]);
+        });
         merges.push({ s:{r:aoa.length,c:0}, e:{r:aoa.length,c:maxCols-1} });
         titleRows.push(aoa.length);
         aoa.push([`${sec.title} (${sec.list.length})`.toUpperCase()]);
         headerRows.push(aoa.length);
         aoa.push(sec.cols.map(c=> plainLabel(c.label).toUpperCase()));
+        if(sec.totalRow){
+          const totalRowIdx = aoa.length;
+          aoa.push(sec.totalRow.slice());
+          if(sec.totalMoneyColIndex!=null && sec.list.length){
+            const colLetter = XLSX.utils.encode_col(sec.totalMoneyColIndex);
+            const dataFirst = totalRowIdx+2, dataLast = totalRowIdx+1+sec.list.length;
+            totalFormulas.push({ r:totalRowIdx, c:sec.totalMoneyColIndex, f:`SUM(${colLetter}${dataFirst}:${colLetter}${dataLast})` });
+          }
+        }
         sec.list.forEach(item=> aoa.push(sec.cols.map(c=> (c.getPlain||c.get)(item))));
         aoa.push([]);
       });
@@ -731,7 +750,12 @@
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       headerRows.forEach(r=> applyExcelCellFormatting(ws, aoa, r));
       titleRows.forEach(r=> boldExcelRow(ws, r));
+      bannerRows.forEach(r=> boldExcelRow(ws, r));
       boldExcelRow(ws, 3);
+      totalFormulas.forEach(({r,c,f})=>{
+        const addr = XLSX.utils.encode_cell({r,c});
+        ws[addr] = Object.assign({}, ws[addr], { t:'n', f });
+      });
       ws['!merges'] = merges;
       ws['!cols'] = Array.from({length:maxCols}, ()=>({wch:18}));
       const wb = XLSX.utils.book_new();
@@ -747,10 +771,11 @@
     else if(ncols>9){ fontSize=9.5; pad='4px 5px'; }
     else if(ncols>6){ fontSize=11; pad='5px 6px'; }
     const sectionsHtml = sections.map(sec=>`
+      ${(sec.bannerLines||[]).map(line=>`<p style="font-weight:800; color:#b71c1c; margin:0 0 4px;">${escapeHtml(line)}</p>`).join('')}
       <p style="font-weight:800; font-size:13px; margin:16px 0 6px;">${escapeHtml(sec.title)} (${sec.list.length})</p>
       <table class="print-table" style="font-size:${fontSize}px;">
         <thead><tr>${sec.cols.map(c=>`<th style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
-        <tbody>${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
+        <tbody>${sec.totalRowHtml||''}${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
       </table>`).join('');
     const printInnerHtml = `
       <div style="text-align:center;">
@@ -1014,14 +1039,79 @@
     const liveSpan = opts.live? ` <span class="sub" id="mf-${key}-disp" style="font-weight:700; color:#b71c1c;"></span>` : '';
     return `<div class="field" style="${opts.full?'grid-column:1/-1;':''}"><label>${escapeHtml(label)}${opts.required?' *':''}${liveSpan}</label>${control}</div>`;
   }
-  function renderMemberFormModal(existing, onSaved){
+  // Modal chọn 1 Hội viên để liên kết với 1 hộ vay (gọi từ modal Thêm/Sửa người vay — Sổ vay vốn).
+  // Thanh tìm kiếm ghim trên cùng (nằm trong modal-head, không cuộn theo nội dung); danh sách dùng
+  // đúng cột/thứ tự của panel "Hồ sơ hội viên" (memberMainListCols).
+  function renderMemberPickerModal(onPick){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
+    wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99997;';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    let search = '';
+    function render(){
+      const cols = memberMainListCols();
+      const all = (state.members||[]).filter(m=>!m.deleted);
+      const q = search.trim().toLowerCase();
+      const list = q? all.filter(m=> (m.fullName||'').toLowerCase().includes(q) || (m.cccd||'').includes(q) || (m.phone||'').includes(q)) : all;
+      const sorted = sortedMembersForDisplay(list);
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:100vw; width:100vw; height:92vh; max-height:92vh; display:flex; flex-direction:column; border-radius:0;">
+          <div class="modal-head" style="flex-direction:column; align-items:stretch; gap:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <h3>Chọn Hội viên để liên kết</h3>
+              <button class="modal-close preview-allow" id="mpk-close">✕</button>
+            </div>
+            <input type="text" id="mpk-search" placeholder="🔎 Tìm theo họ tên, CCCD, số điện thoại..." value="${escapeHtml(search)}" style="width:100%;">
+          </div>
+          <div class="modal-body" style="flex:1; overflow:auto; padding:0;">
+            <div class="table-wrap"><table>
+              <thead><tr><th></th>${cols.map(c=>`<th style="text-align:${colTextAlign(c.label)};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
+              <tbody>${sorted.length? sorted.map(m=>`<tr>
+                <td><button type="button" class="btn btn-primary btn-sm preview-allow" data-mpk-pick="${m.id}">Chọn</button></td>
+                ${cols.map(c=>`<td style="text-align:${colTextAlign(c.label)};">${c.get(m)}</td>`).join('')}
+              </tr>`).join('') : `<tr><td colspan="${cols.length+1}" style="text-align:center; padding:14px;">Không có hội viên phù hợp.</td></tr>`}</tbody>
+            </table></div>
+          </div>
+          <div class="modal-foot">
+            <span class="sub" style="margin-right:auto;">(Tìm thấy đúng tên hội viên thì bấm vào nút "Chọn")</span>
+            <button class="btn btn-ghost preview-allow" id="mpk-close2">Đóng bảng</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#mpk-close').onclick = close;
+      wrap.querySelector('#mpk-close2').onclick = close;
+      const searchEl = wrap.querySelector('#mpk-search');
+      searchEl.oninput = ()=>{ search = searchEl.value; rerenderKeepingFocus(render); };
+      wrap.querySelectorAll('[data-mpk-pick]').forEach(btn=> btn.onclick = ()=>{
+        const m = (state.members||[]).find(x=>x.id===btn.dataset.mpkPick);
+        if(!m) return;
+        if(!confirm(`Sẽ lấy thông tin của Hội viên ${m.fullName} vào các thông tin tương ứng của hộ vay này, và Hộ này sẽ được đánh dấu là đã được vay vốn trong Hồ sơ Hội viên. Đồng chí xác nhận?`)) return;
+        close();
+        onPick(m);
+      });
+    }
+    render();
+  }
+  function renderMemberFormModal(existing, onSaved, forceReadOnly){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    if(forceReadOnly) wrap.style.zIndex = '99998';
     document.body.appendChild(wrap);
     const isNew = !existing;
     let m = existing? {...existing} : emptyMember();
+    let draftBorrowerId = m.borrowerId || null;
     let tab = 'basic';
     const close = ()=> wrap.remove();
+    function linkStatusHtml(){
+      if(forceReadOnly) return '';
+      const linked = draftBorrowerId? (state.borrowers||[]).find(x=>x.id===draftBorrowerId) : null;
+      return `<div style="background:var(--paper-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-link-borrower-btn">🔗 Liên kết người này với Danh sách Sổ vay vốn Quỹ HTND</button>
+        ${linked? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hộ vay: ${escapeHtml(linked.name)}</span><button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-unlink-borrower-btn" style="color:#b71c1c;">Xoá liên kết Hội viên này với Hộ vay đang có ở Sổ vay vốn</button>`
+          : (draftBorrowerId? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với 1 hộ vay (đã xoá khỏi Sổ vay vốn)</span>` : '')}
+        ${(!isNew && draftBorrowerId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-view-borrower-btn">Xem Thông tin vay vốn của Hội viên này trong sổ vay vốn Quỹ HTND</button>` : ''}
+      </div>`;
+    }
     function render(){
       const basicHtml = `<div class="form-grid">
         ${MEMBER_BASIC_FIELD_ROWS.map(([key,label,required])=> memberFieldRowHtml(key,label,m[key],{required})).join('')}
@@ -1038,8 +1128,9 @@
       </div>`;
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:760px;">
-          <div class="modal-head"><h3>${isNew?'➕ Thêm hội viên':'✏️ Sửa hồ sơ hội viên'}</h3><button class="modal-close preview-allow" id="mf-close">✕</button></div>
+          <div class="modal-head"><h3>${forceReadOnly? `Thông tin chi tiết Hội viên ${escapeHtml(m.fullName||'')}` : (isNew?'➕ Thêm hội viên':'✏️ Sửa hồ sơ hội viên')}</h3><button class="modal-close preview-allow" id="mf-close">✕</button></div>
           <div class="modal-body">
+            ${linkStatusHtml()}
             <div class="toolbar" style="margin-bottom:12px;">
               <button type="button" class="btn btn-sm preview-allow ${tab==='basic'?'btn-primary':'btn-ghost'}" id="mf-tab-basic">Thông tin cơ bản</button>
               <button type="button" class="btn btn-sm preview-allow ${tab==='advanced'?'btn-primary':'btn-ghost'}" id="mf-tab-advanced">Thông tin sản xuất — nâng cao</button>
@@ -1047,11 +1138,14 @@
             ${tab==='basic'? basicHtml : advancedHtml}
           </div>
           <div class="modal-foot">
+            ${forceReadOnly? `<button class="btn btn-primary preview-allow" id="mf-cancel">Đóng bảng</button>` : `
             ${!isNew? `<button class="btn btn-danger preview-allow" id="mf-delete" style="margin-right:auto;">Xoá (chuyển vào thùng rác)</button>` : ''}
             <button class="btn btn-ghost preview-allow" id="mf-cancel">Đóng bảng quay lại</button>
             <button class="btn btn-primary preview-allow" id="mf-save">💾 Lưu hồ sơ</button>
+            `}
           </div>
         </div>`;
+      if(forceReadOnly) wrap.querySelectorAll('input,select,textarea').forEach(el=> el.disabled = true);
       wire();
     }
     function readFormIntoM(){
@@ -1087,11 +1181,15 @@
         incomeInput.addEventListener('input', updateIncomeDisp);
         updateIncomeDisp();
       }
-      wrap.querySelector('#mf-save').onclick = async ()=>{
+      const saveBtn = wrap.querySelector('#mf-save');
+      if(saveBtn) saveBtn.onclick = async ()=>{
         readFormIntoM();
         if(!m.fullName || !m.fullName.trim()){ alert('Vui lòng nhập Họ và tên.'); return; }
         if(!m.currentHamlet){ alert('Vui lòng chọn Nơi ở hiện nay — chưa thể lưu khi còn để "(Chưa rõ)".'); return; }
+        const prevBorrowerId = existing? (existing.borrowerId||null) : null;
+        m.borrowerId = draftBorrowerId;
         await saveMember(m);
+        await syncMemberBorrowerLink(m.id, draftBorrowerId, prevBorrowerId);
         if(window.__instantRemoveModal) window.__instantRemoveModal(wrap); else close();
         if(onSaved) onSaved();
       };
@@ -1102,6 +1200,36 @@
         if(window.__instantRemoveModal) window.__instantRemoveModal(wrap); else close();
         showToast('Đã đưa vào thùng rác.');
         if(onSaved) onSaved();
+      };
+      const linkBtn = wrap.querySelector('#mf-link-borrower-btn');
+      if(linkBtn) linkBtn.onclick = ()=>{
+        readFormIntoM();
+        renderBorrowerPickerModal((b)=>{
+          const apply = {};
+          if(b.name) apply.fullName = b.name;
+          if(b.hamlet) apply.currentHamlet = b.hamlet;
+          if(b.birthYear) apply.birthYear = b.birthYear;
+          if(b.cccd) apply.cccd = b.cccd;
+          if(b.phone) apply.phone = b.phone;
+          if(b.preMergerAddress) apply.oldHamlet = b.preMergerAddress;
+          if(b.industry) apply.mainIndustry = b.industry;
+          Object.assign(m, apply);
+          draftBorrowerId = b.id;
+          render();
+        });
+      };
+      const unlinkBtn = wrap.querySelector('#mf-unlink-borrower-btn');
+      if(unlinkBtn) unlinkBtn.onclick = ()=>{
+        if(!confirm('Xoá liên kết Hội viên này với hộ vay đang có ở Sổ vay vốn? Cần bấm "Lưu hồ sơ" để liên kết được xoá thật.')) return;
+        draftBorrowerId = null;
+        render();
+      };
+      const viewBorrowerBtn = wrap.querySelector('#mf-view-borrower-btn');
+      if(viewBorrowerBtn) viewBorrowerBtn.onclick = ()=>{
+        const b = (state.borrowers||[]).find(x=>x.id===draftBorrowerId);
+        if(!b){ alert('Hộ vay này đã bị xoá vĩnh viễn khỏi Sổ vay vốn.'); return; }
+        state.modal = { type:'borrower', payload:b, forceReadOnly:true };
+        renderModal();
       };
     }
     render();

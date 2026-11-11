@@ -221,7 +221,7 @@
   // Bảng Excel xem trước BESPOKE cho "Danh sách khoản chi" (Sổ thu chi lãi quỹ) — y hệt mẫu đã dùng ở
   // Hồ sơ hội viên/Thu-Chi nội bộ (zoom/cố định cột, in/xuất file hành động ngay). Căn giữa mọi cột,
   // riêng cột "Số tiền" căn phải — áp dụng cả khi xem, in và xuất file.
-  function renderExpensesSummaryExcelModal(list){
+  function renderExpensesSummaryExcelModal(list, from, to){
     const cols = [
       { label:'Ngày chi', get:e=>escapeHtml(fmtDate(e.date)), getPlain:e=>fmtDate(e.date), align:'center' },
       { label:'Nội dung / Mục đích', get:e=>escapeHtml(e.purpose===CAT_OTHER? `${categoryLabel(CAT_OTHER)}: ${e.purposeOther||''}` : categoryLabel(e.purpose)), align:'center' },
@@ -229,7 +229,15 @@
       { label:'Số tiền', get:e=>escapeHtml(moneySpaced(e.amount)), getPlain:e=>parseInt(e.amount,10)||0, align:'right' },
       { label:'Ghi chú', get:e=>e.note? escapeHtml(e.note) : '—', align:'center' },
     ];
-    const section = { title:'Danh sách khoản chi', list, cols };
+    const listTotal = list.reduce((s,e)=>s+(parseInt(e.amount,10)||0), 0);
+    const activeFilters = [];
+    if((state.expSearch||'').trim()) activeFilters.push('Thanh tìm kiếm');
+    if(state.expFilterCat) activeFilters.push(`Mục đích chi: ${categoryLabel(state.expFilterCat)}`);
+    const bannerLines = [];
+    if(activeFilters.length) bannerLines.push(`Đang áp dụng bộ lọc: ${activeFilters.join(', ')}`);
+    bannerLines.push(`Khoảng áp dụng: ${fmtDate(from)} → ${fmtDate(to)}`);
+    const totalRowHtml = `<tr style="font-weight:800;"><td></td><td>TỔNG TIỀN</td><td></td><td style="text-align:right;">${escapeHtml(moneySpaced(listTotal))}</td><td></td></tr>`;
+    const section = { title:'Danh sách khoản chi', list, cols, bannerLines, totalRowHtml, totalRow:['', 'TỔNG TIỀN', '', listTotal, ''], totalMoneyColIndex:3 };
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch;';
@@ -245,10 +253,11 @@
         <div class="modal" style="max-width:100vw; width:100vw; height:90vh; max-height:90vh; display:flex; flex-direction:column; border-radius:0;">
           <div class="modal-head"><h3>📊 Bảng tổng hợp — Danh sách khoản chi</h3><button class="modal-close preview-allow" id="exs-close">✕</button></div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:10px;">
+            ${bannerLines.map(line=>`<p style="font-weight:800; color:#b71c1c; margin:0 0 4px;">${escapeHtml(line)}</p>`).join('')}
             <div style="zoom:${zoomPct}%;">
             <div class="table-wrap"><table>
               <thead><tr>${cols.map((c,i)=>`<th style="${stickyTop} ${(!narrow&&frozen&&i===0)?stickyLeft0+' z-index:3;':''} background:var(--paper-2); white-space:nowrap; text-align:${c.align};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
-              <tbody>${list.length? list.map(e=>`<tr>${cols.map((c,i)=>`<td style="${(!narrow&&frozen&&i===0)?stickyLeft0+' background:#fff; z-index:1;':''} white-space:nowrap; text-align:${c.align};">${c.get(e)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" style="text-align:center; padding:14px;">Chưa có khoản chi nào.</td></tr>`}</tbody>
+              <tbody>${totalRowHtml}${list.length? list.map(e=>`<tr>${cols.map((c,i)=>`<td style="${(!narrow&&frozen&&i===0)?stickyLeft0+' background:#fff; z-index:1;':''} white-space:nowrap; text-align:${c.align};">${c.get(e)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" style="text-align:center; padding:14px;">Chưa có khoản chi nào.</td></tr>`}</tbody>
             </table></div>
             </div>
           </div>
@@ -326,6 +335,7 @@
             <table>
               <thead><tr><th><span class="dancing-header preview-allow" data-header-scope="explist">Ngày chi</span></th><th>Nội dung / Mục đích</th><th>Địa bàn (${subAdminLabel()})</th><th>Số tiền</th><th>Ghi chú</th><th></th></tr></thead>
               <tbody>
+                <tr style="font-weight:800; background:var(--paper-2);"><td></td><td>TỔNG TIỀN</td><td></td><td style="text-align:right;">${money(list.reduce((s,e)=>s+(parseInt(e.amount,10)||0),0))}</td><td></td><td></td></tr>
                 ${list.length? list.map(e=>`
                   <tr>
                     <td>${fmtDate(e.date)}</td>
@@ -408,7 +418,7 @@
     const addBtn = document.getElementById('add-exp-btn');
     if(addBtn) addBtn.onclick = ()=>{ state.modal={type:'expense', payload:null}; render(); };
     const expSummaryBtn = document.getElementById('exp-view-summary-btn');
-    if(expSummaryBtn) expSummaryBtn.onclick = ()=> renderExpensesSummaryExcelModal(list);
+    if(expSummaryBtn) expSummaryBtn.onclick = ()=> renderExpensesSummaryExcelModal(list, from, to);
     document.querySelectorAll('[data-view-exp]').forEach(b=>{
       b.onclick = ()=>{ state.modal={type:'expense', payload: state.expenses.find(x=>x.id===b.dataset.viewExp)}; render(); };
     });
@@ -3628,6 +3638,63 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
   }
 
   // ---------- borrower modal ----------
+  // Modal chọn 1 Hộ vay (Sổ vay vốn) để liên kết với 1 hội viên (gọi từ modal Thêm/Sửa hội viên — Hồ
+  // sơ hội viên). Thanh tìm kiếm ghim trên cùng; danh sách gộp mọi hộ vay chưa xoá (đang hoạt động,
+  // nợ rủi ro, đã tất toán) kèm trạng thái, tìm theo tên/CCCD/SĐT.
+  function renderBorrowerPickerModal(onPick){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99997;';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    let search = '';
+    function render(){
+      const q = search.trim().toLowerCase();
+      let list = (state.borrowers||[]).filter(b=>!b.deleted);
+      if(q) list = list.filter(b=> (b.name||'').toLowerCase().includes(q) || (b.cccd||'').includes(q) || (b.phone||'').includes(q));
+      list = [...list].sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+      const statusLabel = b=> b.settled? 'Đã tất toán/TNTH' : (b.riskDebt? 'Nợ rủi ro' : 'Đang hoạt động');
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:100vw; width:100vw; height:92vh; max-height:92vh; display:flex; flex-direction:column; border-radius:0;">
+          <div class="modal-head" style="flex-direction:column; align-items:stretch; gap:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <h3>Chọn Hộ vay để liên kết</h3>
+              <button class="modal-close preview-allow" id="bpk-close">✕</button>
+            </div>
+            <input type="text" id="bpk-search" placeholder="🔎 Tìm theo họ tên, CCCD, số điện thoại..." value="${escapeHtml(search)}" style="width:100%;">
+          </div>
+          <div class="modal-body" style="flex:1; overflow:auto; padding:0;">
+            <div class="table-wrap"><table>
+              <thead><tr><th></th><th>Họ và tên</th><th>Phương án vay</th><th>${subAdminLabel()}</th><th>Số tiền vay</th><th>Trạng thái</th></tr></thead>
+              <tbody>${list.length? list.map(b=>{ const proj=projectOf(b); return `<tr>
+                <td><button type="button" class="btn btn-primary btn-sm preview-allow" data-bpk-pick="${b.id}">Chọn</button></td>
+                <td>${escapeHtml(b.name||'')}</td>
+                <td>${escapeHtml(proj? proj.name : '—')}</td>
+                <td>${escapeHtml(b.hamlet||'')}</td>
+                <td style="text-align:right;">${moneySpaced(b.principal)}</td>
+                <td>${statusLabel(b)}</td>
+              </tr>`; }).join('') : `<tr><td colspan="6" style="text-align:center; padding:14px;">Không có hộ vay phù hợp.</td></tr>`}</tbody>
+            </table></div>
+          </div>
+          <div class="modal-foot">
+            <span class="sub" style="margin-right:auto;">(Tìm thấy đúng tên hộ vay thì bấm vào nút "Chọn")</span>
+            <button class="btn btn-ghost preview-allow" id="bpk-close2">Đóng bảng</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#bpk-close').onclick = close;
+      wrap.querySelector('#bpk-close2').onclick = close;
+      const searchEl = wrap.querySelector('#bpk-search');
+      searchEl.oninput = ()=>{ search = searchEl.value; rerenderKeepingFocus(render); };
+      wrap.querySelectorAll('[data-bpk-pick]').forEach(btn=> btn.onclick = ()=>{
+        const b = (state.borrowers||[]).find(x=>x.id===btn.dataset.bpkPick);
+        if(!b) return;
+        if(!confirm(`Sẽ lấy thông tin của Hộ vay ${b.name} vào các thông tin tương ứng của Hội viên này, và Hội viên này sẽ được đánh dấu là đã được vay vốn trong Hồ sơ Hội viên. Đồng chí xác nhận?`)) return;
+        close();
+        onPick(b);
+      });
+    }
+    render();
+  }
   function renderModal(){
     const isNew = !state.modal.payload;
     if(!isNew && !state.modal.projectId){
@@ -3656,6 +3723,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     const forceReadOnly = !!state.modal.forceReadOnly;
     const inheritedReadonly = true; // Yêu cầu mới: các trường kế thừa từ phương án KHOÁ CỨNG, không sửa được nữa, chỉ xem
     const remainBeforeThis = project ? Math.max(0, (parseFloat(project.totalCapital)||0) - projectDisbursedTotal(project.id, b.id)) : null;
+    let draftMemberId = b.memberId || null;
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     if(forceReadOnly) wrap.style.zIndex = '99998';
@@ -3663,6 +3731,15 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       <div class="modal">
         <div class="modal-head"><h3>${isNew? 'Thêm người vay mới':'Chi tiết người vay'}</h3><div style="display:flex; align-items:center; gap:8px; margin-left:auto;">${isNew? `<button class="btn btn-sm preview-allow" id="md-quickadd-ai-btn" style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Thêm nhanh bằng AI</button>` : ''}<button class="modal-close" id="md-close">✕</button></div></div>
         <div class="modal-body">
+          <div id="m-link-block" style="background:var(--paper-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            ${(()=>{
+              const linkedMember = draftMemberId? (state.members||[]).find(x=>x.id===draftMemberId) : null;
+              return `${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-link-member-btn">🔗 Liên kết người này với danh sách Hội viên</button>` : ''}
+                ${linkedMember? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hội viên: ${escapeHtml(linkedMember.fullName)}</span>${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-unlink-member-btn" style="color:#b71c1c;">Xoá liên kết hộ vay này với hội viên đang có ở Hồ sơ hội viên</button>` : ''}`
+                  : (draftMemberId? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với 1 hội viên (đã xoá khỏi Hồ sơ hội viên)</span>` : '')}
+                ${(!isNew && draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-view-member-btn">Xem Thông tin chi tiết của Hội viên này trong Hồ sơ Hội viên</button>` : ''}`;
+            })()}
+          </div>
           <div class="field full" style="margin-bottom:6px;">
             <label>Chọn phương án vay *</label>
             <select id="m-project-picker">
@@ -3832,6 +3909,47 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         if(fundSourceEl) fundSourceEl.value = '';
       }
     };
+    // Khối liên kết Hội viên — cập nhật trực tiếp #m-link-block + điền sẵn các trường tương ứng khi
+    // chọn/xoá liên kết, KHÔNG vẽ lại cả modal (cùng nguyên tắc với khối "Chọn phương án vay" ở trên).
+    function refreshLinkBlock(){
+      const linkedMember = draftMemberId? (state.members||[]).find(x=>x.id===draftMemberId) : null;
+      const block = wrap.querySelector('#m-link-block');
+      if(block) block.innerHTML = `${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-link-member-btn">🔗 Liên kết người này với danh sách Hội viên</button>` : ''}
+        ${linkedMember? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hội viên: ${escapeHtml(linkedMember.fullName)}</span>${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-unlink-member-btn" style="color:#b71c1c;">Xoá liên kết hộ vay này với hội viên đang có ở Hồ sơ hội viên</button>` : ''}`
+          : (draftMemberId? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với 1 hội viên (đã xoá khỏi Hồ sơ hội viên)</span>` : '')}
+        ${(!isNew && draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-view-member-btn">Xem Thông tin chi tiết của Hội viên này trong Hồ sơ Hội viên</button>` : ''}`;
+      wireLinkBlockButtons();
+    }
+    function wireLinkBlockButtons(){
+      const linkBtn = wrap.querySelector('#m-link-member-btn');
+      if(linkBtn) linkBtn.onclick = ()=>{
+        renderMemberPickerModal((member)=>{
+          const setVal = (id,val)=>{ const el = wrap.querySelector('#'+id); if(el) el.value = val; };
+          if(member.fullName) setVal('m-name', member.fullName);
+          if(member.currentHamlet) setVal('m-hamlet', member.currentHamlet);
+          if(member.birthYear) setVal('m-birthYear', member.birthYear);
+          if(member.cccd) setVal('m-cccd', member.cccd);
+          if(member.phone) setVal('m-phone', member.phone);
+          if(member.oldHamlet) setVal('m-legacy-address', member.oldHamlet);
+          if(member.mainIndustry) setVal('m-industry', member.mainIndustry);
+          draftMemberId = member.id;
+          refreshLinkBlock();
+        });
+      };
+      const unlinkBtn = wrap.querySelector('#m-unlink-member-btn');
+      if(unlinkBtn) unlinkBtn.onclick = ()=>{
+        if(!confirm('Xoá liên kết hộ vay này với hội viên đang có ở Hồ sơ hội viên? Cần bấm "Lưu" để liên kết được xoá thật.')) return;
+        draftMemberId = null;
+        refreshLinkBlock();
+      };
+      const viewBtn = wrap.querySelector('#m-view-member-btn');
+      if(viewBtn) viewBtn.onclick = ()=>{
+        const member = (state.members||[]).find(x=>x.id===draftMemberId);
+        if(!member){ alert('Hội viên này đã bị xoá vĩnh viễn khỏi Hồ sơ hội viên.'); return; }
+        renderMemberFormModal(member, null, true);
+      };
+    }
+    wireLinkBlockButtons();
     (function(){
       const pInput = wrap.querySelector('#m-principal');
       const pDisp = wrap.querySelector('#m-principal-disp');
@@ -3986,7 +4104,9 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         repayAbility: wrap.querySelector('#m-repayAbility').value.trim(),
         guarantor: wrap.querySelector('#m-guarantor').value.trim(),
         note: wrap.querySelector('#m-note').value.trim(),
+        memberId: draftMemberId,
       };
+      const prevMemberId = b.memberId || null;
 
       // Phát hiện có thay đổi THẬT SỰ hay không (so với dữ liệu gốc trước khi sửa).
       const compareKeysB = ['projectId','name','hamlet','principal','birthYear','managerId','cccd','phone','address','preMergerAddress','industry','repayAbility','guarantor','note'];
@@ -4005,6 +4125,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
       }
 
       await cSetRecord('borrowers', updated.id, updated);
+      await syncBorrowerMemberLink(updated.id, draftMemberId, prevMemberId);
       // Yêu cầu mới: nếu là địa bàn hoàn toàn mới (gõ tay/chọn "Khác") -> tự động đăng ký vào danh
       // sách ấp của mã xã (hiện ở Cài đặt & Chia sẻ) + cập nhật danh sách ẩn "(cũ)" tương ứng.
       await registerHamletIfNew(hamlet);

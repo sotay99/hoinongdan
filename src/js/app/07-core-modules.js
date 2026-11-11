@@ -1095,6 +1095,64 @@
     { key:'checkbox', label:'Hộp kiểm (được chọn nhiều phương án)' },
     { key:'dropdown', label:'Menu thả xuống (chỉ chọn 1 phương án)' },
   ];
+  // ---------- LIÊN KẾT HỘ VAY (Sổ vay vốn) <-> HỘI VIÊN (Hồ sơ hội viên) ----------
+  // Ràng buộc 1-1: 1 hội viên chỉ liên kết ĐÚNG 1 hộ vay tại 1 thời điểm (và ngược lại). Gọi hàm này
+  // NGAY SAU KHI đã lưu xong bản ghi hộ vay chính (updated.memberId đã có giá trị mới) — tự xử lý mọi
+  // trường hợp xung đột: nếu hội viên mới chọn đang liên kết với hộ vay KHÁC thì tự huỷ liên kết đó.
+  async function syncBorrowerMemberLink(borrowerId, newMemberId, prevMemberId){
+    newMemberId = newMemberId || null; prevMemberId = prevMemberId || null;
+    if(newMemberId===prevMemberId) return;
+    if(prevMemberId){
+      const old = (state.members||[]).find(m=>m.id===prevMemberId);
+      if(old && old.borrowerId===borrowerId){
+        const upd = {...old, borrowerId:null};
+        state.members = state.members.map(m=>m.id===old.id?upd:m);
+        await cSetRecord('members', old.id, upd);
+      }
+    }
+    if(newMemberId){
+      const stolen = (state.borrowers||[]).find(b=>b.memberId===newMemberId && b.id!==borrowerId);
+      if(stolen){
+        const updS = {...stolen, memberId:null};
+        state.borrowers = state.borrowers.map(b=>b.id===stolen.id?updS:b);
+        await cSetRecord('borrowers', stolen.id, updS);
+      }
+      const m = (state.members||[]).find(x=>x.id===newMemberId);
+      if(m){
+        const updM = {...m, borrowerId};
+        state.members = state.members.map(x=>x.id===newMemberId?updM:x);
+        await cSetRecord('members', newMemberId, updM);
+      }
+    }
+  }
+  // Chiều ngược lại — gọi NGAY SAU KHI đã lưu xong bản ghi hội viên chính (updated.borrowerId đã có
+  // giá trị mới).
+  async function syncMemberBorrowerLink(memberId, newBorrowerId, prevBorrowerId){
+    newBorrowerId = newBorrowerId || null; prevBorrowerId = prevBorrowerId || null;
+    if(newBorrowerId===prevBorrowerId) return;
+    if(prevBorrowerId){
+      const old = (state.borrowers||[]).find(b=>b.id===prevBorrowerId);
+      if(old && old.memberId===memberId){
+        const upd = {...old, memberId:null};
+        state.borrowers = state.borrowers.map(b=>b.id===old.id?upd:b);
+        await cSetRecord('borrowers', old.id, upd);
+      }
+    }
+    if(newBorrowerId){
+      const stolen = (state.members||[]).find(m=>m.borrowerId===newBorrowerId && m.id!==memberId);
+      if(stolen){
+        const updS = {...stolen, borrowerId:null};
+        state.members = state.members.map(m=>m.id===stolen.id?updS:m);
+        await cSetRecord('members', stolen.id, updS);
+      }
+      const b = (state.borrowers||[]).find(x=>x.id===newBorrowerId);
+      if(b){
+        const updB = {...b, memberId};
+        state.borrowers = state.borrowers.map(x=>x.id===newBorrowerId?updB:x);
+        await cSetRecord('borrowers', newBorrowerId, updB);
+      }
+    }
+  }
   function surveyQTypeLabel(t){ return (SURVEY_QTYPES.find(x=>x.key===t)||{}).label || t; }
   function surveyQTypeHasOptions(t){ return t==='radio' || t==='checkbox' || t==='dropdown'; }
   // Danh sách "Nguồn vay" của 1 Phương án vay — chọn "Nguồn khác" thì phải tự gõ tên nguồn cụ thể.
