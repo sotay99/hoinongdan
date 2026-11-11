@@ -1263,6 +1263,14 @@
     };
     document.addEventListener('click', ()=>{ if(state.bellOpen){ state.bellOpen=false; render(); } }, {once:true});
 
+    // Khung menu bên phải "Đang chọn N hộ vay" (renderSelectedNamesSidePanel) chỉ thuộc về module Sổ
+    // vay vốn — chèn thẳng vào document.body nên KHÔNG tự mất khi đổi module (không nằm trong #content
+    // bị vẽ lại). Rời khỏi module 'data' thì tự xoá lựa chọn + gỡ khung này luôn.
+    if(state.activeTab!=='data' && (state.selectedBorrowerNames||[]).length){
+      state.selectedBorrowerNames = [];
+      const stalePanel = document.getElementById('__selectedNamesSidePanel');
+      if(stalePanel) stalePanel.remove();
+    }
     const content = document.getElementById('content');
     if(state.activeTab==='dashboard') renderDashboard(content, alerts);
     else if(state.activeTab==='data') renderDataTab(content);

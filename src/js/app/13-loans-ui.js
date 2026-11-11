@@ -461,8 +461,8 @@
       </div>` : ''}
 
       <div class="panel">
-        <div class="panel-head" style="cursor:pointer;" id="lp-borrowers-toggle"><h3 style="color:#1b5e20;">👥 Danh sách Khoản vay đang hoạt động (${totalActiveBorrowersCount}) ${state.showBorrowersList===false?'▾':'▴'}</h3>${canEdit? `<div style="display:flex; gap:8px;"><button class="btn btn-primary btn-sm" id="lp-add-borrower-any-btn">➕ Thêm người vay</button><button class="btn btn-sm preview-allow" id="lp-quickadd-ai-btn-2" style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Thêm nhanh bằng AI</button></div>` : ''}</div>
-        ${state.showBorrowersList===false? '' : `<div class="panel-body ${panelBodyAnimClass()}">
+        <div class="panel-head" style="cursor:pointer;" id="lp-borrowers-toggle"><h3 style="color:#1b5e20;">👥 Danh sách Khoản vay đang hoạt động (${totalActiveBorrowersCount}) ${state.showBorrowersList===true?'▴':'▾'}</h3>${canEdit? `<div style="display:flex; gap:8px;"><button class="btn btn-primary btn-sm" id="lp-add-borrower-any-btn">➕ Thêm người vay</button><button class="btn btn-sm preview-allow" id="lp-quickadd-ai-btn-2" style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Thêm nhanh bằng AI</button></div>` : ''}</div>
+        ${state.showBorrowersList===true? `<div class="panel-body ${panelBodyAnimClass()}">
           <div class="toolbar" style="flex-wrap:wrap;">
             <input id="f-search" class="preview-allow" placeholder="🔎 Tìm theo tên, CCCD, SĐT..." value="${state.search}" style="min-width:200px;${(state.search!=='' && state.search!==' ')? "border:2px solid #b71c1c;" : ""}">
             ${buildHamletFilterDropdownHtml(hamlets)}
@@ -481,7 +481,7 @@
           <div id="borrower-table-area">${renderBorrowerGroupedTablesHtml(list, visibleCols, projects, canEdit, overdueList)}</div>
           ${currentQuarterBoundariesCaptionHtml()}
           <div style="text-align:center; margin-top:14px;"><button class="btn btn-ghost btn-sm preview-allow" id="lp-borrowers-collapse-all" style="color:#b71c1c; font-weight:700;">Rút gọn toàn bộ danh sách</button></div>
-        </div>`}
+        </div>` : ''}
       </div>
 
       <div class="panel">
@@ -580,7 +580,7 @@
       }
     );
     const lpBorrowersToggle = document.getElementById('lp-borrowers-toggle');
-    if(lpBorrowersToggle) lpBorrowersToggle.onclick = ()=>{ state.showBorrowersList = state.showBorrowersList===false ? true : false; if(state.showBorrowersList!==false) showOpeningListToast('Khoản vay đang hoạt động'); markPanelJustToggled(); renderDataTab(el); };
+    if(lpBorrowersToggle) lpBorrowersToggle.onclick = ()=>{ state.showBorrowersList = state.showBorrowersList===true ? false : true; if(state.showBorrowersList===true) showOpeningListToast('Khoản vay đang hoạt động'); markPanelJustToggled(); renderDataTab(el); };
     const loanManagePanelToggle = document.getElementById('loan-manage-panel-toggle');
     if(loanManagePanelToggle) loanManagePanelToggle.onclick = ()=>{ state.showManagePanel = state.showManagePanel===true ? false : true; if(state.showManagePanel===true) showOpeningListToast('Quản lý, thống kê và phê duyệt hành động'); markPanelJustToggled(); renderDataTab(el); };
     const lpBorrowersCollapseAll = document.getElementById('lp-borrowers-collapse-all');

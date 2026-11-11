@@ -218,6 +218,62 @@
     wrap.onclick = e=>{ if(e.target===wrap) close(); };
   }
 
+  // Bảng Excel xem trước BESPOKE cho "Danh sách khoản chi" (Sổ thu chi lãi quỹ) — y hệt mẫu đã dùng ở
+  // Hồ sơ hội viên/Thu-Chi nội bộ (zoom/cố định cột, in/xuất file hành động ngay). Căn giữa mọi cột,
+  // riêng cột "Số tiền" căn phải — áp dụng cả khi xem, in và xuất file.
+  function renderExpensesSummaryExcelModal(list){
+    const cols = [
+      { label:'Ngày chi', get:e=>escapeHtml(fmtDate(e.date)), getPlain:e=>fmtDate(e.date), align:'center' },
+      { label:'Nội dung / Mục đích', get:e=>escapeHtml(e.purpose===CAT_OTHER? `${categoryLabel(CAT_OTHER)}: ${e.purposeOther||''}` : categoryLabel(e.purpose)), align:'center' },
+      { label:`Địa bàn (${subAdminLabel()})`, get:e=>escapeHtml(isCatHamlet(e.purpose)? (e.hamlet||'—') : '—'), align:'center' },
+      { label:'Số tiền', get:e=>escapeHtml(moneySpaced(e.amount)), getPlain:e=>parseInt(e.amount,10)||0, align:'right' },
+      { label:'Ghi chú', get:e=>e.note? escapeHtml(e.note) : '—', align:'center' },
+    ];
+    const section = { title:'Danh sách khoản chi', list, cols };
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.cssText = 'padding:0; align-items:stretch;';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    let frozen = false, zoomPct = 100;
+    const ZOOM_MIN = 50, ZOOM_MAX = 200, ZOOM_STEP = 10;
+    function render(){
+      const narrow = isNarrowScreenForSidebar();
+      const stickyTop = narrow? '' : 'position:sticky; top:0;';
+      const stickyLeft0 = narrow? '' : 'position:sticky; left:0;';
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:100vw; width:100vw; height:90vh; max-height:90vh; display:flex; flex-direction:column; border-radius:0;">
+          <div class="modal-head"><h3>📊 Bảng tổng hợp — Danh sách khoản chi</h3><button class="modal-close preview-allow" id="exs-close">✕</button></div>
+          <div class="modal-body" style="flex:1; overflow:auto; padding:10px;">
+            <div style="zoom:${zoomPct}%;">
+            <div class="table-wrap"><table>
+              <thead><tr>${cols.map((c,i)=>`<th style="${stickyTop} ${(!narrow&&frozen&&i===0)?stickyLeft0+' z-index:3;':''} background:var(--paper-2); white-space:nowrap; text-align:${c.align};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
+              <tbody>${list.length? list.map(e=>`<tr>${cols.map((c,i)=>`<td style="${(!narrow&&frozen&&i===0)?stickyLeft0+' background:#fff; z-index:1;':''} white-space:nowrap; text-align:${c.align};">${c.get(e)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" style="text-align:center; padding:14px;">Chưa có khoản chi nào.</td></tr>`}</tbody>
+            </table></div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost preview-allow" id="exs-print">🖨️ In</button>
+            <button class="btn btn-ghost preview-allow" id="exs-excel">⬇️ Xuất Excel</button>
+            <button type="button" class="btn btn-sm preview-allow" id="exs-freeze" style="background:${frozen?'#ff8f00':'#1565c0'}; color:#fff; font-weight:700;">${frozen?'Tắt cố định cột':'Cố định xem cột đầu'}</button>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="exs-zoom-out" ${zoomPct<=ZOOM_MIN?'disabled':''}>➖</button>
+              <span style="font-weight:700; min-width:42px; text-align:center;">${zoomPct}%</span>
+              <button type="button" class="btn btn-ghost btn-sm preview-allow" id="exs-zoom-in" ${zoomPct>=ZOOM_MAX?'disabled':''}>➕</button>
+            </div>
+            <button class="btn btn-primary preview-allow" id="exs-close2">Đóng bảng</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#exs-close').onclick = close;
+      wrap.querySelector('#exs-close2').onclick = close;
+      wrap.querySelector('#exs-freeze').onclick = ()=>{ frozen=!frozen; render(); };
+      wrap.querySelector('#exs-zoom-in').onclick = ()=>{ zoomPct=Math.min(ZOOM_MAX, zoomPct+ZOOM_STEP); render(); };
+      wrap.querySelector('#exs-zoom-out').onclick = ()=>{ zoomPct=Math.max(ZOOM_MIN, zoomPct-ZOOM_STEP); render(); };
+      wrap.querySelector('#exs-print').onclick = ()=> printSections('Danh sách khoản chi', [section]);
+      wrap.querySelector('#exs-excel').onclick = ()=> exportSectionsToExcel('Danh-sach-khoan-chi', 'BÁO CÁO DANH SÁCH KHOẢN CHI', [section]);
+    }
+    render();
+  }
   function renderExpensesTab(el){
     const {from,to,quarterSet} = acctPeriodRange();
     const acct = computeAcctTotals(from,to,quarterSet);
@@ -262,6 +318,7 @@
             <input id="e-search" class="preview-allow" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px;">
             <select id="e-cat" class="preview-allow"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
             <div class="spacer"></div>
+            <button class="btn btn-ghost preview-allow" id="exp-view-summary-btn">📊 Xem bảng tổng hợp</button>
             ${canEditModule('data')? `<button class="btn btn-primary preview-allow" id="add-exp-btn">+ Thêm khoản chi mới</button>` : ''}
           </div>
 
@@ -350,6 +407,8 @@
     const eCat = document.getElementById('e-cat'); if(eCat) eCat.onchange = e=>{ state.expFilterCat=e.target.value; renderExpensesTab(el); };
     const addBtn = document.getElementById('add-exp-btn');
     if(addBtn) addBtn.onclick = ()=>{ state.modal={type:'expense', payload:null}; render(); };
+    const expSummaryBtn = document.getElementById('exp-view-summary-btn');
+    if(expSummaryBtn) expSummaryBtn.onclick = ()=> renderExpensesSummaryExcelModal(list);
     document.querySelectorAll('[data-view-exp]').forEach(b=>{
       b.onclick = ()=>{ state.modal={type:'expense', payload: state.expenses.find(x=>x.id===b.dataset.viewExp)}; render(); };
     });
@@ -3639,10 +3698,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
 
           <div class="divider-lbl">Điều khoản vay (đã kế thừa từ phương án — KHOÁ, chỉ xem) chỉ có thể thay đổi ở thông tin phương án vay</div>
           <div class="form-grid">
-            <div class="field"><label>Lãi suất (%/năm)</label><input value="${b.rate}%/năm" disabled></div>
-            <div class="field"><label>Ngày vay</label><input value="${fmtDate(b.loanDate)}" disabled></div>
-            <div class="field"><label>Ngày đến hạn (gốc)</label><input value="${fmtDate(b.dueDate)}" disabled></div>
-            <div class="field"><label>Nguồn vay</label><input value="${escapeHtml(fundSourceDisplay(b.fundSource))}" disabled></div>
+            <div class="field"><label>Lãi suất (%/năm)</label><input id="m-inherited-rate" value="${project? project.interestRate+'%/năm' : b.rate+'%/năm'}" disabled style="background:#e3f2fd;"></div>
+            <div class="field"><label>Ngày vay</label><input id="m-inherited-loanDate" value="${fmtDate(project? project.disburseDate : b.loanDate)}" disabled style="background:#e3f2fd;"></div>
+            <div class="field"><label>Ngày đến hạn (gốc)</label><input id="m-inherited-dueDate" value="${fmtDate(project? project.dueDate : b.dueDate)}" disabled style="background:#e3f2fd;"></div>
+            <div class="field"><label>Nguồn vay</label><input id="m-inherited-fundSource" value="${escapeHtml(fundSourceDisplay(project? project.fundSourceType : b.fundSource))}" disabled style="background:#e3f2fd;"></div>
           </div>
 
           <div class="divider-lbl" id="m-adv-toggle" style="cursor:pointer; user-select:none;">🔽 Thông tin nâng cao (không bắt buộc — có thể để trống)</div>
@@ -3753,6 +3812,24 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         } else {
           infoBox.innerHTML = `<b style="color:#b71c1c; font-size:13px;">⚠️ Vui lòng chọn Phương án vay trước</b>`;
         }
+      }
+      // Đồng bộ ngay 4 ô "Điều khoản vay" (chỉ xem) theo đúng phương án vừa chọn — trước đây các ô này
+      // chỉ được điền 1 lần lúc mở modal, không cập nhật khi đổi lựa chọn phương án vay (lỗi hiển thị
+      // thật — số liệu LƯU xuống vẫn luôn đúng vì được tính lại ở bước Lưu, chỉ phần hiển thị bị sai).
+      const rateEl = wrap.querySelector('#m-inherited-rate');
+      const loanDateEl = wrap.querySelector('#m-inherited-loanDate');
+      const dueDateEl = wrap.querySelector('#m-inherited-dueDate');
+      const fundSourceEl = wrap.querySelector('#m-inherited-fundSource');
+      if(newProject){
+        if(rateEl) rateEl.value = newProject.interestRate+'%/năm';
+        if(loanDateEl) loanDateEl.value = fmtDate(newProject.disburseDate);
+        if(dueDateEl) dueDateEl.value = fmtDate(newProject.dueDate);
+        if(fundSourceEl) fundSourceEl.value = fundSourceDisplay(newProject.fundSourceType);
+      } else {
+        if(rateEl) rateEl.value = '';
+        if(loanDateEl) loanDateEl.value = '';
+        if(dueDateEl) dueDateEl.value = '';
+        if(fundSourceEl) fundSourceEl.value = '';
       }
     };
     (function(){
@@ -4374,6 +4451,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
+    showCenterBriefToast(`Áp dụng nguồn vay: ${fundSourceDisplay(fundSourceType)}`);
     function render(){
       const d = fundSourceDefaultValues(fundSourceType);
       wrap.innerHTML = `
@@ -4410,7 +4488,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         </div>`;
       wrap.querySelector('#fsd-close').onclick = close;
       wrap.querySelector('#fsd-cancel').onclick = close;
-      wrap.querySelector('#fsd-fundsource-type').onchange = (e)=>{ fundSourceType = e.target.value; render(); };
+      wrap.querySelector('#fsd-fundsource-type').onchange = (e)=>{ fundSourceType = e.target.value; showCenterBriefToast(`Áp dụng nguồn vay: ${fundSourceDisplay(fundSourceType)}`); render(); };
       ['#fsd-rate','#fsd-central','#fsd-province','#fsd-ward','#fsd-hamlet-alloc'].forEach(sel=> attachPercentInputMask(wrap.querySelector(sel)));
       wrap.querySelector('#fsd-reset').onclick = async ()=>{
         if(!confirm(`Khôi phục các tỷ lệ của nguồn vay "${fundSourceDisplay(fundSourceType)}" về đúng mặc định gốc của hệ thống? Cài đặt tuỳ chỉnh hiện tại (nếu có) sẽ bị xoá.`)) return;

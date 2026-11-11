@@ -749,8 +749,8 @@
     const sectionsHtml = sections.map(sec=>`
       <p style="font-weight:800; font-size:13px; margin:16px 0 6px;">${escapeHtml(sec.title)} (${sec.list.length})</p>
       <table class="print-table" style="font-size:${fontSize}px;">
-        <thead><tr>${sec.cols.map(c=>`<th style="padding:${pad}; text-align:${colTextAlign(c.label)};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
-        <tbody>${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${colTextAlign(c.label)};">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
+        <thead><tr>${sec.cols.map(c=>`<th style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
+        <tbody>${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
       </table>`).join('');
     const printInnerHtml = `
       <div style="text-align:center;">
