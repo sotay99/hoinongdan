@@ -355,6 +355,13 @@
     // tìm kiếm/địa bàn/phương án/nguồn vay/người quản lý/Quý/Năm nào, để tiêu đề panel luôn hiện đúng
     // tổng số thật, không đổi theo bộ lọc.
     const totalActiveBorrowersCount = list.length;
+    // Lưu lại danh sách CHƯA qua bộ lọc hiển thị (tìm kiếm/địa bàn/phương án/nguồn vay/người quản
+    // lý/Quý-Năm) — dùng riêng cho việc xác định phương án nào "đang có người active" ở dưới, KHÔNG
+    // dùng biến "list" (đã lọc) cho việc này — nếu không, 1 phương án hợp lệ có người vay hợp lệ vẫn
+    // có thể bị tính nhầm là "không còn ai active" chỉ vì người đó không khớp bộ lọc hiển thị đang
+    // chọn (VD Quý/Năm hẹp), khiến phương án bị rơi nhầm vào mục "phương án vay bị ẩn" — đây chính là
+    // lỗi thật đã xảy ra: vừa thêm người vay vào 1 phương án trống là phương án đó "biến mất".
+    const unfilteredActivePool = list.concat(overdueList);
     if(state.search) list = list.filter(b=> (b.name+b.cccd+b.phone).toLowerCase().includes(state.search.toLowerCase()));
     ensureFilterHamletsInit(hamlets);
     ensureFilterProjectsInit(projects);
@@ -369,7 +376,7 @@
     // án hoàn toàn CHƯA có người vay nào (mới tạo, đang chờ thêm người) — mặc định nằm cuối danh sách,
     // có thể kéo-thả đổi vị trí như bình thường. Chỉ những phương án CÓ người vay nhưng KHÔNG còn ai
     // nằm trong danh sách đang hoạt động (VD: tất cả đã tất toán/bị xoá hết) mới bị coi là "ẩn".
-    const activeProjectIds = new Set(list.concat(overdueList).map(b=>b.projectId).filter(Boolean));
+    const activeProjectIds = new Set(unfilteredActivePool.map(b=>b.projectId).filter(Boolean));
     const projectHasAnyBorrowerEver = new Set(state.borrowers.filter(b=>!b.deleted && b.projectId).map(b=>b.projectId));
     const activeProjectsOnlyRaw = projects.filter(p=> activeProjectIds.has(p.id) || !projectHasAnyBorrowerEver.has(p.id));
     const hiddenProjects = projects.filter(p=> !activeProjectIds.has(p.id) && projectHasAnyBorrowerEver.has(p.id));
@@ -399,7 +406,7 @@
                 <td class="sv-sticky-1" style="background:var(--white); ${sortingProjects?'cursor:grab;':''}">${sortingProjects? `<span title="Kéo để đổi vị trí">☰</span>` : (canEdit? `<button class="btn btn-ghost btn-sm" data-lp-edit="${p.id}" title="Sửa" style="padding:4px 8px;">✏️</button>` : '')}</td>
                 <td class="sv-sticky-2 sv-col-wrap-check" style="background:var(--white); ${svColStyle({key:'project',label:'Tên phương án', userInput:true})}"><b><span class="dancing-project-name preview-allow" data-project-id="${p.id}">${escapeHtml(p.name)}</span></b></td>
                 <td class="money" style="${svColStyle({align:'right',label:'Tổng vốn (đ)'})}">${moneySpaced(p.totalCapital)}</td>
-                <td style="${svColStyle({align:'center',label:'Hộ tham gia'})}">${projectParticipantCount(p.id)}</td>
+                <td style="${svColStyle({align:'center',label:'Hộ tham gia'})}">${projectParticipantCount(p.id)===0? `<b style="color:#b71c1c;">0</b>` : projectParticipantCount(p.id)}</td>
                 <td class="money" style="${svColStyle({align:'right',label:'Đã cho vay (đ)'})}">${moneySpaced(disbursed)}</td>
                 <td style="${svColStyle({label:'Lãi suất %', width:96})}">${p.interestRate||0}%/năm</td>
                 <td style="${svColStyle({key:'loanDate',label:'Ngày vay'})}">${fmtDate(p.disburseDate)}</td>

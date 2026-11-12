@@ -324,8 +324,8 @@
         <div class="panel-head" style="cursor:pointer;" id="exp-list-toggle"><h3>📋 Danh sách khoản chi ${state._expShowList===true?'▴':'▾'}</h3></div>
         ${state._expShowList===true? `<div class="panel-body ${panelBodyAnimClass()}">
           <div class="toolbar" style="margin:0 0 12px;">
-            <input id="e-search" class="preview-allow" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px;">
-            <select id="e-cat" class="preview-allow"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
+            <input id="e-search" class="preview-allow" placeholder="🔎 Tìm theo ghi chú, ${subAdminLabelLower()}..." value="${state.expSearch}" style="min-width:220px; ${(state.expSearch||'').trim()?'border:2px solid #b71c1c;':''}">
+            <select id="e-cat" class="preview-allow" style="${state.expFilterCat?'border:2px solid #b71c1c;':''}"><option value="">Tất cả mục đích chi</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${state.expFilterCat===c?'selected':''}>${categoryLabel(c)}</option>`).join('')}</select>
             <div class="spacer"></div>
             <button class="btn btn-ghost preview-allow" id="exp-view-summary-btn">📊 Xem bảng tổng hợp</button>
             ${canEditModule('data')? `<button class="btn btn-primary preview-allow" id="add-exp-btn">+ Thêm khoản chi mới</button>` : ''}
@@ -3734,9 +3734,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
           <div id="m-link-block" style="background:var(--paper-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             ${(()=>{
               const linkedMember = draftMemberId? (state.members||[]).find(x=>x.id===draftMemberId) : null;
-              return `${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-link-member-btn">🔗 Liên kết người này với danh sách Hội viên</button>` : ''}
-                ${linkedMember? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hội viên: ${escapeHtml(linkedMember.fullName)}</span>${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-unlink-member-btn" style="color:#b71c1c;">Xoá liên kết hộ vay này với hội viên đang có ở Hồ sơ hội viên</button>` : ''}`
+              return `${(!forceReadOnly && !draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-link-member-btn">🔗 Liên kết người này với danh sách Hội viên</button>` : ''}
+                ${linkedMember? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hội viên: ${escapeHtml(linkedMember.fullName)}</span>`
                   : (draftMemberId? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với 1 hội viên (đã xoá khỏi Hồ sơ hội viên)</span>` : '')}
+                ${(!forceReadOnly && draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-unlink-member-btn" style="color:#b71c1c;">Xoá liên kết hộ vay này với hội viên đang có ở Hồ sơ hội viên</button>` : ''}
                 ${(!isNew && draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-view-member-btn">Xem Thông tin chi tiết của Hội viên này trong Hồ sơ Hội viên</button>` : ''}`;
             })()}
           </div>
@@ -3914,9 +3915,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     function refreshLinkBlock(){
       const linkedMember = draftMemberId? (state.members||[]).find(x=>x.id===draftMemberId) : null;
       const block = wrap.querySelector('#m-link-block');
-      if(block) block.innerHTML = `${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-link-member-btn">🔗 Liên kết người này với danh sách Hội viên</button>` : ''}
-        ${linkedMember? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hội viên: ${escapeHtml(linkedMember.fullName)}</span>${!forceReadOnly? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-unlink-member-btn" style="color:#b71c1c;">Xoá liên kết hộ vay này với hội viên đang có ở Hồ sơ hội viên</button>` : ''}`
+      if(block) block.innerHTML = `${(!forceReadOnly && !draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-link-member-btn">🔗 Liên kết người này với danh sách Hội viên</button>` : ''}
+        ${linkedMember? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hội viên: ${escapeHtml(linkedMember.fullName)}</span>`
           : (draftMemberId? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với 1 hội viên (đã xoá khỏi Hồ sơ hội viên)</span>` : '')}
+        ${(!forceReadOnly && draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-unlink-member-btn" style="color:#b71c1c;">Xoá liên kết hộ vay này với hội viên đang có ở Hồ sơ hội viên</button>` : ''}
         ${(!isNew && draftMemberId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="m-view-member-btn">Xem Thông tin chi tiết của Hội viên này trong Hồ sơ Hội viên</button>` : ''}`;
       wireLinkBlockButtons();
     }

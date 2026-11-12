@@ -495,7 +495,7 @@
   function projectExportCols(){ return [
     { label:'Tên phương án vay', get: p=> escapeHtml(p.name||''), getPlain: p=> p.name||'' },
     { label:'Tổng nguồn vốn (đ)', get: p=> moneySpaced(p.totalCapital||0), getPlain: p=> p.totalCapital||0 },
-    { label:'Hộ tham gia', get: p=> String(projectParticipantCount(p.id)), getPlain: p=> projectParticipantCount(p.id) },
+    { label:'Hộ tham gia', get: p=> { const n=projectParticipantCount(p.id); return n===0? `<b style="color:#b71c1c;">0</b>` : String(n); }, getPlain: p=> projectParticipantCount(p.id) },
     { label:'Đã cho vay (đ)', get: p=> moneySpaced(projectDisbursedTotal(p.id)), getPlain: p=> projectDisbursedTotal(p.id) },
     { label:'Lãi suất (%/năm)', get: p=> String(parseFloat(p.interestRate)||0).replace('.',','), getPlain: p=> parseFloat(p.interestRate)||0 },
     { label:'Ngày vay', get: p=> fmtDate(p.disburseDate), getPlain: p=> p.disburseDate||'' },

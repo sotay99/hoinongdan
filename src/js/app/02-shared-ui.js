@@ -717,7 +717,7 @@
         const cols = [
           { key:'project', label:'Tên phương án', userInput:true, get:p=> escapeHtml(p.name) },
           { align:'right', label:'Tổng vốn (đ)', get:p=> moneySpaced(p.totalCapital) },
-          { align:'center', label:'Hộ tham gia', get:p=> String(projectParticipantCount(p.id)) },
+          { align:'center', label:'Hộ tham gia', get:p=> { const n=projectParticipantCount(p.id); return n===0? `<b style="color:#b71c1c;">0</b>` : String(n); }, getPlain:p=> projectParticipantCount(p.id) },
           { align:'right', label:'Đã cho vay (đ)', get:p=> moneySpaced(projectDisbursedTotal(p.id)) },
           { label:'Lãi suất %', width:96, get:p=> (p.interestRate||0)+'%/năm' },
           { key:'loanDate', label:'Ngày vay', get:p=> fmtDate(p.disburseDate) },

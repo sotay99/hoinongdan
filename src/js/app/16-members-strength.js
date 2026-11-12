@@ -449,6 +449,7 @@
     { key:'needsVerifyNote', hiddenDefault:true, label:'Thông tin cần xác minh', get:m=>escapeHtml(m.needsVerify? (m.needsVerifyNote||'') : ''), getPlain:m=>m.needsVerify? (m.needsVerifyNote||'') : '' },
   ]; }
   function memberAdvancedCols(){ return [
+    { key:'loanLinked', hiddenDefault:true, label:'Vay vốn Quỹ HTND', get:m=>escapeHtml(m.loanLinked||''), getPlain:m=>m.loanLinked||'' },
     { key:'area', label:'Diện tích sản xuất (ha)', get:m=>escapeHtml(String(m.area||'')), getPlain:m=>m.area||'' },
     { key:'mainIndustry', label:'Ngành nghề SXKD chính', get:m=>escapeHtml(m.mainIndustry||''), getPlain:m=>m.mainIndustry||'' },
     { key:'avgIncome', label:'Mức thu nhập bình quân/năm (triệu đồng)', get:m=>escapeHtml(String(m.avgIncome||'')), getPlain:m=>m.avgIncome||'' },
@@ -582,6 +583,7 @@
     { key:'position', label:'Chức vụ hiện nay', icon:'🎖️', opts: memberOptsWithBlank('position', memberDistinctValues('position')) },
     { key:'birthYear', label:'Năm sinh', icon:'🎂', opts: memberOptsWithBlank('birthYear', memberDistinctValues('birthYear')) },
     { key:'oldHamlet', label:'Nơi ở trước sáp nhập', icon:'🏘️', opts: memberOptsWithBlank('oldHamlet', state.config.hamletsLegacyHidden||[]) },
+    { key:'loanLinked', label:'Vay vốn Quỹ HTND', icon:'💰', opts: memberOptsWithBlank('loanLinked', memberDistinctValues('loanLinked')) },
     { key:'techLevel', label:'Mức ứng dụng KH-KT', icon:'🔬', opts: memberOptsWithBlank('techLevel', memberDistinctValues('techLevel')) },
     { key:'activityLevel', label:'Mức sinh hoạt Hội', icon:'🙋', opts: memberOptsWithBlank('activityLevel', memberDistinctValues('activityLevel')) },
     { key:'goodFarmerTitle', label:'Danh hiệu NDSXKD giỏi', icon:'🏆', opts: memberOptsWithBlank('goodFarmerTitle', memberDistinctValues('goodFarmerTitle')) },
@@ -1106,9 +1108,10 @@
       if(forceReadOnly) return '';
       const linked = draftBorrowerId? (state.borrowers||[]).find(x=>x.id===draftBorrowerId) : null;
       return `<div style="background:var(--paper-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-link-borrower-btn">🔗 Liên kết người này với Danh sách Sổ vay vốn Quỹ HTND</button>
-        ${linked? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hộ vay: ${escapeHtml(linked.name)}</span><button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-unlink-borrower-btn" style="color:#b71c1c;">Xoá liên kết Hội viên này với Hộ vay đang có ở Sổ vay vốn</button>`
+        ${!draftBorrowerId? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-link-borrower-btn">🔗 Liên kết người này với Danh sách Sổ vay vốn Quỹ HTND</button>` : ''}
+        ${linked? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với hộ vay: ${escapeHtml(linked.name)}</span>`
           : (draftBorrowerId? `<span style="font-weight:700; color:#0d47a1;">Đang liên kết với 1 hộ vay (đã xoá khỏi Sổ vay vốn)</span>` : '')}
+        ${draftBorrowerId? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-unlink-borrower-btn" style="color:#b71c1c;">Xoá liên kết Hội viên này với Hộ vay đang có ở Sổ vay vốn</button>` : ''}
         ${(!isNew && draftBorrowerId)? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="mf-view-borrower-btn">Xem Thông tin vay vốn của Hội viên này trong sổ vay vốn Quỹ HTND</button>` : ''}
       </div>`;
     }
@@ -1128,7 +1131,7 @@
       </div>`;
       wrap.innerHTML = `
         <div class="modal" style="max-width:96vw; width:760px;">
-          <div class="modal-head"><h3>${forceReadOnly? `Thông tin chi tiết Hội viên ${escapeHtml(m.fullName||'')}` : (isNew?'➕ Thêm hội viên':'✏️ Sửa hồ sơ hội viên')}</h3><button class="modal-close preview-allow" id="mf-close">✕</button></div>
+          <div class="modal-head"><h3>${forceReadOnly? `Thông tin chi tiết Hội viên ${escapeHtml(m.fullName||'')}` : (isNew?'➕ Thêm hội viên':'Xem Thông tin và Sửa hồ sơ hội viên')}</h3><button class="modal-close preview-allow" id="mf-close">✕</button></div>
           <div class="modal-body">
             ${linkStatusHtml()}
             <div class="toolbar" style="margin-bottom:12px;">
@@ -1188,6 +1191,7 @@
         if(!m.currentHamlet){ alert('Vui lòng chọn Nơi ở hiện nay — chưa thể lưu khi còn để "(Chưa rõ)".'); return; }
         const prevBorrowerId = existing? (existing.borrowerId||null) : null;
         m.borrowerId = draftBorrowerId;
+        m.loanLinked = draftBorrowerId? 'Đã vay' : '';
         await saveMember(m);
         await syncMemberBorrowerLink(m.id, draftBorrowerId, prevBorrowerId);
         if(window.__instantRemoveModal) window.__instantRemoveModal(wrap); else close();
@@ -1695,7 +1699,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
               <thead><tr><th></th>${cols.map(c=>`<th style="text-align:${colTextAlign(c.label)};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
               <tbody>
                 ${sorted.length? sorted.map(m=>`<tr${rowSorting? ` draggable="true" data-drag-member="${m.id}" style="cursor:grab;"` : ''}>
-                  <td>${rowSorting? '☰' : `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-mb-edit="${m.id}">✏️</button>`}</td>
+                  <td>${rowSorting? '☰' : `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-mb-edit="${m.id}" title="Xem thông tin và sửa">👁️</button>`}</td>
                   ${cols.map(c=>`<td style="text-align:${colTextAlign(c.label)};">${c.get(m)}</td>`).join('')}
                 </tr>`).join('') : `<tr><td colspan="${cols.length+1}" style="text-align:center; padding:14px;">Không có hội viên theo bộ lọc hiện tại.</td></tr>`}
               </tbody>

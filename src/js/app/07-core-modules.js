@@ -1105,7 +1105,7 @@
     if(prevMemberId){
       const old = (state.members||[]).find(m=>m.id===prevMemberId);
       if(old && old.borrowerId===borrowerId){
-        const upd = {...old, borrowerId:null};
+        const upd = {...old, borrowerId:null, loanLinked:''};
         state.members = state.members.map(m=>m.id===old.id?upd:m);
         await cSetRecord('members', old.id, upd);
       }
@@ -1119,7 +1119,7 @@
       }
       const m = (state.members||[]).find(x=>x.id===newMemberId);
       if(m){
-        const updM = {...m, borrowerId};
+        const updM = {...m, borrowerId, loanLinked:'Đã vay'};
         state.members = state.members.map(x=>x.id===newMemberId?updM:x);
         await cSetRecord('members', newMemberId, updM);
       }
@@ -1141,7 +1141,7 @@
     if(newBorrowerId){
       const stolen = (state.members||[]).find(m=>m.borrowerId===newBorrowerId && m.id!==memberId);
       if(stolen){
-        const updS = {...stolen, borrowerId:null};
+        const updS = {...stolen, borrowerId:null, loanLinked:''};
         state.members = state.members.map(m=>m.id===stolen.id?updS:m);
         await cSetRecord('members', stolen.id, updS);
       }
