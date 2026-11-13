@@ -642,6 +642,7 @@
     if(!memberFieldFilterPass(f.techLevel, m.techLevel)) return false;
     if(!memberFieldFilterPass(f.activityLevel, m.activityLevel)) return false;
     if(!memberFieldFilterPass(f.goodFarmerTitle, m.goodFarmerTitle)) return false;
+    if(!memberFieldFilterPass(f.loanLinked, m.loanLinked)) return false;
     const q = (state.memberSearch||'').trim().toLowerCase();
     if(q){
       const hay = `${m.fullName||''} ${m.cccd||''} ${m.phone||''}`.toLowerCase();
@@ -1049,6 +1050,7 @@
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99997;';
     document.body.appendChild(wrap);
+    showCenterBriefToast('Chọn Hội viên để liên kết thông tin');
     const close = ()=> wrap.remove();
     let search = '';
     function render(){

@@ -292,14 +292,14 @@
     list = [...list].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
 
     el.innerHTML = `
-      <div class="panel"><div class="panel-head" style="cursor:pointer;" id="exp-period-toggle"><h3>Kỳ hạch toán đang xem ${state._expShowPeriod===true?'▴':'▾'}</h3></div>
-        ${state._expShowPeriod===true? `<div class="panel-body ${panelBodyAnimClass()}"><div class="toolbar" style="margin:0;">${acctPeriodSelectorHtml('exp')}
+      <div class="panel"><div class="panel-head" style="cursor:pointer;" id="exp-period-toggle"><h3>Kỳ hạch toán đang xem ${state._expShowPeriod===false?'▾':'▴'}</h3></div>
+        ${state._expShowPeriod===false? '' : `<div class="panel-body ${panelBodyAnimClass()}"><div class="toolbar" style="margin:0;">${acctPeriodSelectorHtml('exp')}
             <div class="spacer"></div>
             <button class="btn btn-sm preview-allow" id="exp-level-allocation-btn" style="background:linear-gradient(180deg, #ffffff 0%, #26c6da 45%, #00838f 100%); color:#000; border-color:#00acc1; font-weight:700;">📊 Thống kê phân bổ tiền lãi các cấp</button>
             <button class="btn btn-sm preview-allow" id="exp-stats-btn" style="background:linear-gradient(180deg, #ffffff 0%, #ba68c8 45%, #6a1b9a 100%); color:#000; border-color:#6a1b9a; font-weight:700;">📈 Thống kê Thu Chi chi tiết</button>
           </div>
           <div class="sub" style="margin-top:8px;">Khoảng áp dụng: <b>${fmtDate(from)} → ${fmtDate(to)}</b></div>
-        </div>` : ''}
+        </div>`}
       </div>
 
       <div class="grid3">
@@ -394,7 +394,7 @@
       </div>`;
 
     const expPeriodToggle = document.getElementById('exp-period-toggle');
-    if(expPeriodToggle) expPeriodToggle.onclick = ()=>{ state._expShowPeriod = state._expShowPeriod===true? false : true; markPanelJustToggled(); renderExpensesTab(el); };
+    if(expPeriodToggle) expPeriodToggle.onclick = ()=>{ state._expShowPeriod = state._expShowPeriod===false? true : false; markPanelJustToggled(); renderExpensesTab(el); };
     const expListToggle = document.getElementById('exp-list-toggle');
     if(expListToggle) expListToggle.onclick = ()=>{ state._expShowList = state._expShowList===true? false : true; markPanelJustToggled(); renderExpensesTab(el); };
     const expReconcileToggle = document.getElementById('exp-reconcile-toggle');
@@ -3646,6 +3646,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99997;';
     document.body.appendChild(wrap);
+    showCenterBriefToast('Chọn hộ vay để liên kết thông tin');
     const close = ()=> wrap.remove();
     let search = '';
     function render(){
