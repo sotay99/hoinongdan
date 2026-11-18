@@ -878,15 +878,15 @@
         ['👥','Giao việc và theo dõi người khác','Thấy được ai đang làm đến đâu, việc nào sắp trễ hạn để nhắc trước khi muộn.'],
       ], note:['Điều khác biệt','Đồng chí chỉ cần ném nguyên tài liệu hoặc đoạn chat vào, phần bóc tách để AI lo.'] },
     schedule: { icon:'📅', eyebrow:'QUẢN LÝ THỜI GIAN', title:'Lịch Công tác',
-      lead:'Lịch công tác của xã/phường thường phát ra dưới dạng một tệp chung cho tất cả cán bộ, mỗi người phải tự dò xem dòng nào là của mình. Module này để AI làm việc dò ấy thay đồng chí.',
+      lead:'Lịch công tác của xã/phường thường phát ra thành một tệp chung cho cả cơ quan, mỗi người phải tự dò xem buổi nào là của mình. Module này để AI làm việc dò ấy thay đồng chí, dựa trên các chức vụ đồng chí khai báo.',
       blocks:[
-        ['📤','Tải tệp lịch chung lên là xong','Nhận tệp Word, Excel, PDF hay kể cả ảnh chụp bảng lịch dán ở cơ quan.'],
-        ['🔍','AI tách riêng phần việc của đồng chí','Lọc ra đúng những buổi có tên đồng chí hoặc thuộc mảng đồng chí phụ trách.'],
-        ['🔔','Nhắc hẹn như Lịch Google','Báo trước theo mốc đồng chí đặt, qua thông báo trên điện thoại/máy tính hoặc email.'],
-        ['🗓️','Nhìn được cả tuần, cả tháng, cả quý','Thấy ngay chỗ trùng lịch hay tuần nào đang quá tải.'],
-        ['🤝','Chia sẻ lịch trong cơ quan','Cho phép đồng nghiệp xem lịch của đồng chí khi cần xếp họp.'],
-        ['🔗','Nối với các phần khác của Sổ tay','Buổi họp có tài liệu kèm theo thì mở thẳng từ Trung tâm dữ liệu; việc phát sinh đẩy sang Danh sách công việc.'],
-      ], note:['Vì sao cần AI ở đây?','Vì lịch công tác mỗi nơi trình bày một kiểu; AI đọc hiểu nội dung nên mẫu nào cũng dùng được.'] },
+        ['👥','Khai báo người dùng và chức vụ','Mỗi người có họ tên và tối đa 40 chức vụ (thành viên các ban chỉ đạo, hội đồng...). Lịch ghi "thành viên Hội đồng nghĩa vụ quân sự" hay "Ban chấp hành Hội Nông dân xã" thì AI đối chiếu với đúng các chức vụ này.'],
+        ['📤','Tải tệp lịch chung lên là xong','Nhận tệp Word, Excel, PDF hay ảnh chụp bảng lịch. AI đọc hiểu nội dung, không cần nhập lại từng dòng; chọn bao nhiêu người thì AI lập lịch riêng cho từng người.'],
+        ['🔍','AI tách phần việc của từng người, nói rõ lý do','Việc chắc chắn tham gia được xếp vào lịch kèm lý do khớp chức vụ nào; việc chưa chắc nằm riêng ở mục "Không rõ có tham gia không". Đồng chí có thể huấn luyện AI bằng các câu lệnh riêng.'],
+        ['⚠️','Báo trùng lịch','Hai việc trùng giờ hoặc sát giờ ở hai nơi khác nhau được tô nổi bật và gạch chân chữ "TRÙNG GIỜ", cả khi xem, in và xuất Excel.'],
+        ['📈','Thống kê theo tuần, theo tháng','Bao nhiêu cuộc họp, hội nghị, tập huấn... theo các loại sự kiện đồng chí tự quản lý.'],
+        ['🖨️','Xem bảng Excel, in và xuất file','Tiêu đề chỉ ghi họ tên người dùng, có cột nguyên văn đầy đủ để đối chiếu với lịch gốc.'],
+      ], note:['Dữ liệu riêng tư','Danh sách người dùng và lịch công tác chỉ lưu trên tài khoản Google của đồng chí, người khác không thấy.'] },
     drive: { icon:'🗂️', eyebrow:'TRUNG TÂM DỮ LIỆU', title:'Trung tâm dữ liệu',
       lead:'Nơi lưu và sắp xếp mọi thư mục, tệp và liên kết tài liệu của xã/phường, có cả kho dùng chung và kho cá nhân. Metadata canonical lưu trên Firebase; Google Drive chỉ dùng làm liên kết/import/export ở các bước tích hợp sau.',
       blocks:[
@@ -1279,6 +1279,7 @@
     else if(state.activeTab==='members') renderMembersTab(content);
     else if(state.activeTab==='strength') renderStrengthTab(content);
     else if(state.activeTab==='drive') renderDriveHubTab(content);
+    else if(state.activeTab==='schedule') renderScheduleTab(content);
     // docs/sheets/slides KHÔNG còn là tab: chúng mở overlay toàn màn hình từ menu thả xuống.
     else if(upcomingModules()[state.activeTab]) renderUpcomingModule(content, upcomingModules()[state.activeTab]);
     else if(state.activeTab==='survey') renderSurveyTab(content);

@@ -766,7 +766,7 @@
       XLSX.writeFile(wb, `${filenameBase}_${todayStr()}.xlsx`, {cellStyles:true});
     }).catch(e=>{ console.error('[Xuất Excel]', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); });
   }
-  function printSections(reportTitle, sections, bannerText){
+  function printSections(reportTitle, sections, bannerText, opts){
     const ncols = Math.max(1, ...sections.map(s=>s.cols.length));
     let fontSize = 12.5, pad = '6px 8px';
     if(ncols>16){ fontSize=7; pad='2px 3px'; }
@@ -781,11 +781,12 @@
         <tbody>${sec.totalRowHtml||''}${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
       </table>`).join('');
     const printInnerHtml = `
-      <div style="text-align:center;">
+      ${(opts&&opts.titleOnly)? '' : `<div style="text-align:center;">
         <div style="font-weight:800; font-size:14px;">${hoiNongDanTitleHtml()}</div>
         <div style="font-size:12.5px;">${escapeHtml(provinceTitle())}</div>
-      </div>
+      </div>`}
       <div class="print-title" style="margin:10px 0 4px; text-align:center;">${escapeHtml(reportTitle.toUpperCase())}</div>
+      ${(opts&&opts.subtitle)? `<div style="text-align:center; font-weight:800; color:#b71c1c; margin-bottom:4px;">${escapeHtml(opts.subtitle)}</div>` : ''}
       <div style="text-align:center; font-size:12px; margin-bottom:10px;">Thời gian xuất: ${new Date().toLocaleString('vi-VN')}</div>
       ${bannerText? `<p style="font-weight:800; color:#b71c1c; margin:0 0 10px;">Đang áp dụng lọc kết quả: ${escapeHtml(bannerText)}</p>` : ''}
       ${sectionsHtml}
@@ -2233,23 +2234,3 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
       });
     }
   }
-
-  // =====================================================================
-  // ĐIỂM KHỞI ĐỘNG ỨNG DỤNG — PHẢI LUÔN NẰM Ở CUỐI PHẦN CUỐI CÙNG trong
-  // manifest.json. Toàn bộ 16 phần được nối lại thành MỘT hàm bọc (IIFE)
-  // duy nhất mở ở 01-foundation.js và đóng ngay bên dưới, nhờ vậy mọi phần
-  // dùng chung được `state`, `render`, `escapeHtml`... Nếu sau này thêm
-  // phần 17, hãy CHUYỂN nguyên khối này xuống cuối phần đó — để mọi khai
-  // báo `let/const` đều đã khởi tạo xong trước khi boot() chạy (tránh lỗi
-  // "Cannot access before initialization").
-  // =====================================================================
-  const _publicReceiptId = publicReceiptRouteId();
-  const _publicSurveyId = publicSurveyRouteId();
-  if(_publicReceiptId){
-    renderPublicReceiptPage(_publicReceiptId);
-  } else if(_publicSurveyId){
-    renderPublicSurveyPage(_publicSurveyId);
-  } else {
-    boot();
-  }
-})();

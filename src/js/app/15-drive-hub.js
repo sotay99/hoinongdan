@@ -1213,7 +1213,7 @@
   }
 
   // =====================================================================
-  // BẢY MODULE ĐANG NÂNG CẤP — Lịch công tác, Danh sách công việc, Tập huấn bằng AI,
+  // CÁC MODULE ĐANG NÂNG CẤP — Danh sách công việc, Tập huấn bằng AI,
   // Phòng họp không giấy, Quản lý Fanpage, Chăm sóc hội viên, Công tác Chi hội.
   // Hiện mới có trang giới thiệu; dùng chung một hàm dựng để khỏi lặp mã.
   // =====================================================================
@@ -1247,25 +1247,6 @@
   // danh xưng động (đọc state.config), mà hằng tầng ngoài chạy NGAY lúc nạp tệp — lúc đó
   // `state` chưa khởi tạo, sẽ ném ReferenceError và làm trắng cả trang.
   function upcomingModules(){ return {
-    schedule: {
-      icon:'📅', eyebrow:'QUẢN LÝ THỜI GIAN', title:'Lịch Công tác',
-      lead:'Lịch công tác của xã/phường thường phát ra dưới dạng một tệp chung cho tất cả cán bộ, mỗi người phải tự dò xem dòng nào là của mình. Module này để AI làm việc dò ấy thay đồng chí.',
-      blocks:[
-        ['📤','Tải tệp lịch chung lên là xong',
-         'Nhận tệp Word, Excel, PDF hay kể cả ảnh chụp bảng lịch dán ở cơ quan. AI đọc hiểu nội dung, không cần đồng chí phải nhập lại từng dòng.'],
-        ['🔍','AI tách riêng phần việc của đồng chí',
-         'Từ lịch chung của cả cơ quan, AI lọc ra đúng những buổi có tên đồng chí hoặc thuộc mảng đồng chí phụ trách, rồi ghi vào lịch riêng: làm việc gì, ở đâu, lúc mấy giờ, đi cùng ai, cần chuẩn bị gì.'],
-        ['🔔','Nhắc hẹn như Lịch Google',
-         'Báo trước theo mốc đồng chí đặt — một ngày trước, một giờ trước, mười lăm phút trước. Nhắc qua thông báo trên điện thoại và máy tính, hoặc gửi email cho những việc quan trọng.'],
-        ['🗓️','Nhìn được cả tuần, cả tháng, cả quý',
-         'Xem theo ngày, tuần, tháng hoặc dạng danh sách. Thấy ngay chỗ trùng lịch, chỗ hai cuộc họp sát nhau không kịp di chuyển, hay tuần nào đang quá tải.'],
-        ['🤝','Chia sẻ lịch trong cơ quan',
-         'Cho phép đồng nghiệp xem lịch của đồng chí khi cần xếp họp, hoặc xem lịch chung của cả Ban Thường vụ để chọn khung giờ mọi người đều rảnh.'],
-        ['🔗','Nối với các phần khác của Sổ tay',
-         'Buổi họp có tài liệu kèm theo thì mở thẳng từ Trung tâm dữ liệu; việc phát sinh sau cuộc họp đẩy sang Danh sách công việc.'],
-      ],
-      note:['Vì sao cần AI ở đây?','Vì lịch công tác mỗi nơi trình bày một kiểu, có nơi làm bảng, có nơi gạch đầu dòng, có nơi viết thành đoạn văn. Nếu bắt phần mềm đọc theo khuôn cứng thì chỉ cần đổi mẫu là hỏng. AI đọc hiểu được nội dung nên mẫu nào cũng dùng được.'],
-    },
     tasks: {
       icon:'✅', eyebrow:'THEO DÕI TIẾN ĐỘ', title:'Danh sách Công việc',
       lead:'Nơi tập hợp tất cả đầu việc của đồng chí — dù nó đến từ một văn bản chỉ đạo, một cuộc họp, hay chỉ là câu dặn dò trong nhóm chat — rồi theo dõi đến khi xong.',
