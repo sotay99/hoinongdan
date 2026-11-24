@@ -157,9 +157,9 @@
   }
   function schedRowBg(conf){ return conf? (conf.level==='overlap'? 'background:#ffcdd2;' : 'background:#fff3e0;') : ''; }
   function schedCellStyle(c){ return `text-align:${c.align}; vertical-align:top; ` + (c.key==='when'? 'white-space:nowrap;' : `white-space:normal; word-break:break-word; overflow-wrap:anywhere; width:${c.width}px; min-width:${c.width}px; max-width:${c.width}px;`); }
-  function schedTableHtml(cols, list, conflicts, rowActionsFn){
+  function schedTableHtml(cols, list, conflicts, rowActionsFn, headActionHtml){
     return `<div class="table-wrap"><table>
-      <thead><tr>${rowActionsFn? '<th></th>' : ''}${cols.map(c=>`<th style="text-align:${c.align==='left'?'left':'center'};${c.key==='when'? '' : ` min-width:${c.width}px;`}">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
+      <thead><tr>${rowActionsFn? `<th>${headActionHtml||''}</th>` : ''}${cols.map(c=>`<th style="text-align:${c.align==='left'?'left':'center'};${c.key==='when'? '' : ` min-width:${c.width}px;`}">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
       <tbody>${list.length? list.map(e=>`<tr style="${schedRowBg(conflicts[e.id])}">${rowActionsFn? `<td style="white-space:nowrap; vertical-align:top;">${rowActionsFn(e)}</td>` : ''}${cols.map(c=>`<td style="${schedCellStyle(c)}">${c.get(e)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length+(rowActionsFn?1:0)}" style="text-align:center; padding:14px;">Không có dữ liệu.</td></tr>`}</tbody>
     </table></div>`;
   }
@@ -875,7 +875,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
           </div>
           <p style="font-weight:800; color:#b71c1c; margin:0 0 6px;">${escapeHtml(person.name)} — Tuần từ ${schedFmtDate(weekFrom)} đến ${schedFmtDate(weekTo)}</p>
           <div class="divider-lbl">Công việc chắc chắn tham gia (${mainList.length})</div>
-          ${schedTableHtml(cols, mainList, conflicts, e=>`<button class="btn btn-ghost btn-sm preview-allow" data-eedit="${e.id}" title="Sửa">✏️</button>`)}
+          ${schedTableHtml(cols, mainList, conflicts, e=>`<button class="btn btn-ghost btn-sm preview-allow" data-eedit="${e.id}" title="Sửa">✏️</button>`, `<button class="btn btn-sm preview-allow" id="sch-wipe" title="Xoá lịch tuần này của người này" style="background:#d32f2f; border-color:#b71c1c; color:#fff; font-weight:800;">🗑️</button>`)}
           <div class="divider-lbl">Không rõ có tham gia không (${unclearList.length})</div>
           <p class="sub" style="margin:0 0 6px;">Những nội dung dưới đây AI không chắc ${escapeHtml(person.name)} có thuộc thành phần tham dự hay không. Bấm "Có"/"Không" để chốt — app tự ghi nhớ vào mục Huấn luyện AI cho lần sau.</p>
           ${schedTableHtml(colsUnclear, unclearList, {}, e=>`<button class="btn btn-ghost btn-sm preview-allow" data-eedit="${e.id}" title="Sửa">✏️</button><br><button class="btn btn-primary btn-sm preview-allow" data-teach-yes="${e.id}" style="margin-top:4px;">Có</button><button class="btn btn-ghost btn-sm preview-allow" data-teach-no="${e.id}" style="margin-top:4px;">Không</button>`)}
@@ -936,6 +936,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
     const thisW = el.querySelector('#sch-this'); if(thisW) thisW.onclick = ()=> go(schedIsoDate(new Date()));
     const jump = el.querySelector('#sch-jump'); if(jump) jump.onchange = ()=>{ if(jump.value) go(jump.value); };
     const colsBtn = el.querySelector('#sch-cols'); if(colsBtn) colsBtn.onclick = ()=> schedColsModal(again);
+    const wipe = el.querySelector('#sch-wipe'); if(wipe) wipe.onclick = ()=> schedWipeModal(ctx, again);
     const addEv = el.querySelector('#sch-addev'); if(addEv) addEv.onclick = ()=> schedEventModal(null, ctx.person.id, again);
     el.querySelectorAll('[data-eedit]').forEach(b=> b.onclick = ()=>{ const e = S.events.find(x=>x.id===b.dataset.eedit); if(e) schedEventModal(e, e.personId, again); });
     const teach = async (id, yes)=>{
@@ -960,6 +961,47 @@ ${AI_DRAFT_REMINDER_RULE}`;
     const sPerson = el.querySelector('#sch-stat-person'); if(sPerson) sPerson.onchange = ()=>{ state._schedStatPersonId = sPerson.value; again(); };
     const sMode = el.querySelector('#sch-stat-mode'); if(sMode) sMode.onchange = ()=>{ state._schedStatMode = sMode.value; again(); };
     const sDate = el.querySelector('#sch-stat-date'); if(sDate) sDate.onchange = ()=>{ if(sDate.value){ state._schedStatDate = sDate.value; again(); } };
+  }
+  // Xoá lịch cả tuần của 1 người: bước 1 chọn phạm vi (1 trong 3), bước 2 cảnh báo xác nhận rồi xoá vĩnh viễn.
+  function schedWipeModal(ctx, onDone){
+    const S = schedState(); const person = ctx.person; if(!person) return;
+    const nMain = ctx.mainList.length, nUnc = ctx.unclearList.length;
+    if(!nMain && !nUnc){ alert('Tuần này chưa có sự kiện nào để xoá.'); return; }
+    const range = `từ ${schedFmtDate(ctx.weekFrom)} đến ${schedFmtDate(ctx.weekTo)}`;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const opts = [
+      ['both', `Xoá CẢ HAI bảng (chắc chắn và không rõ) — xoá sạch cả tuần`, nMain+nUnc],
+      ['main', `Chỉ xoá các sự kiện trong bảng "Công việc chắc chắn tham gia"`, nMain],
+      ['unclear', `Chỉ xoá các sự kiện trong bảng "Không rõ có tham gia không"`, nUnc],
+    ];
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:520px;">
+        <div class="modal-head"><h3>🗑️ Xoá lịch tuần</h3><button class="modal-close preview-allow" id="swp-close">✕</button></div>
+        <div class="modal-body">
+          <p style="margin:0 0 10px;"><b>${escapeHtml(person.name)}</b> — tuần ${range}. Chọn phạm vi cần xoá (chọn 1 mục):</p>
+          ${opts.map(([k,label,n])=>`<label style="display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; ${n? 'cursor:pointer;' : 'opacity:.45;'}"><input type="radio" name="swp" value="${k}" ${n? '' : 'disabled'}><span>${escapeHtml(label)} <b>(${n} sự kiện)</b></span></label>`).join('')}
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="swp-cancel">Đóng</button><button class="btn btn-primary preview-allow" id="swp-next" disabled style="opacity:.5;">Tiếp tục ▶</button></div>
+      </div>`;
+    wrap.querySelector('#swp-close').onclick = close;
+    wrap.querySelector('#swp-cancel').onclick = close;
+    const next = wrap.querySelector('#swp-next');
+    wrap.querySelectorAll('input[name="swp"]').forEach(r=> r.onchange = ()=>{ next.disabled = false; next.style.opacity = ''; });
+    next.onclick = async ()=>{
+      const picked = wrap.querySelector('input[name="swp"]:checked'); if(!picked) return;
+      const kind = picked.value;
+      const ids = new Set((kind==='main'? ctx.mainList : kind==='unclear'? ctx.unclearList : ctx.mainList.concat(ctx.unclearList)).map(e=>e.id));
+      const what = kind==='main'? 'các sự kiện trong bảng "Công việc chắc chắn tham gia"' : kind==='unclear'? 'các sự kiện trong bảng "Không rõ có tham gia không"' : 'TOÀN BỘ sự kiện (cả hai bảng)';
+      close();
+      if(!confirm(`⚠️ Đồng chí chắc chắn muốn XOÁ VĨNH VIỄN ${what} của ${person.name} trong tuần ${range} (${ids.size} sự kiện)?\n\nDữ liệu sẽ bị xoá khỏi cơ sở dữ liệu trên Firebase và KHÔNG thể khôi phục lại.`)) return;
+      S.events = S.events.filter(e=> !ids.has(e.id));
+      await schedSave('events');
+      showToast(`Đã xoá ${ids.size} sự kiện.`);
+      if(onDone) onDone();
+    };
   }
   function schedColsModal(onDone){
     const S = schedState();
