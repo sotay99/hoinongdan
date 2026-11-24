@@ -1594,7 +1594,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
             <div style="text-align:center; margin-bottom:8px;">
               <button type="button" class="btn btn-sm preview-allow" id="lqai-view-file" style="background:#fff9c4; border:1px solid #fbc02d; color:#5a4300; font-weight:700;">📋 Hồ sơ đang soạn — ${draft.entries.length} dòng (bấm để xem/sửa)</button>
             </div>
-            <p class="sub" style="margin:0 0 8px;">${hasDigestedOnce? 'Hệ thống đã đọc được nội dung bên trên. Nhắn tiếp nếu muốn bổ sung/sửa.' : 'Chưa tiêu hoá tài liệu nào — nhắn/đính kèm xong thì bấm nút bên dưới.'}</p>
+            <p class="sub" style="margin:0 0 8px;">${hasDigestedOnce? 'AI đã đọc xong. Đồng chí cứ nhắn tiếp hoặc đính kèm thêm — AI tự cập nhật lại Hồ sơ đang soạn, không cần bấm nút nào nữa.' : 'Chưa tiêu hoá tài liệu nào — nhắn/đính kèm xong thì bấm nút bên dưới.'}</p>
             ${pendingAttachments.length? `<div class="ai-attach-row" style="padding:0 0 8px;">${pendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button type="button" class="preview-allow" data-remove-att="${i}">✕</button></span>`).join('')}</div>` : ''}
             <input type="file" id="lqai-file-input" multiple accept="*/*" style="display:none;">
             <div class="ai-inputbar">
@@ -1614,7 +1614,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost preview-allow" id="lqai-close2">Đóng bảng</button>
-            <button type="button" class="btn btn-sm preview-allow" id="lqai-digest" ${(busy || !hasAnyUserContent())?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent())?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>
+            ${hasDigestedOnce? '' : `<button type="button" class="btn btn-sm preview-allow" id="lqai-digest" ${(busy || !hasAnyUserContent())?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent())?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>`}
             <button class="btn btn-primary preview-allow" id="lqai-add" ${!draft.entries.length?'disabled':''} style="${!draft.entries.length?'opacity:.45; cursor:not-allowed;':'display:inline-block; animation: bigMoneyPulse 1.4s ease-in-out infinite;'}">➕ Thêm vào Sổ</button>
           </div>
         </div>`;
@@ -1654,7 +1654,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
           const base64 = await fileToBase64(f);
           pendingAttachments.push({ name:f.name, mimeType:f.type||'application/octet-stream', base64 });
         }
-        render();
+        if(hasDigestedOnce) doSend(); else render();
       };
       wrap.querySelectorAll('[data-remove-att]').forEach(btn=> btn.onclick = ()=>{ pendingAttachments.splice(+btn.dataset.removeAtt,1); render(); });
       wrap.querySelector('#lqai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };

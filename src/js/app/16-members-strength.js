@@ -777,8 +777,8 @@
       ${(sec.bannerLines||[]).map(line=>`<p style="font-weight:800; color:#b71c1c; margin:0 0 4px;">${escapeHtml(line)}</p>`).join('')}
       <p style="font-weight:800; font-size:13px; margin:16px 0 6px;">${escapeHtml(sec.title)} (${sec.list.length})</p>
       <table class="print-table" style="font-size:${fontSize}px;${sec.cols.some(c=>c.widthPct)? ' table-layout:fixed; width:100%;' : ''}">
-        <thead><tr>${sec.cols.map(c=>`<th style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};${c.widthPct? ` width:${c.widthPct}%;` : ''}">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
-        <tbody>${sec.totalRowHtml||''}${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};${c.widthPct? ' word-break:break-word; overflow-wrap:anywhere;' : ''}">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
+        <thead><tr>${sec.cols.map(c=>`<th style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};${c.widthPct? ` width:${c.widthPct}%; white-space:normal;` : ''}">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
+        <tbody>${sec.totalRowHtml||''}${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};${c.widthPct? ' white-space:normal; word-break:break-word; overflow-wrap:anywhere;' : ''}">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
       </table>`).join('');
     const printInnerHtml = `
       ${(opts&&opts.titleOnly)? '' : `<div style="text-align:center;">
@@ -1441,7 +1441,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
             <div style="text-align:center; margin-bottom:8px;">
               <button type="button" class="btn btn-sm preview-allow" id="mqai-view-file" style="background:#fff9c4; border:1px solid #fbc02d; color:#5a4300; font-weight:700;">📋 Hồ sơ đang soạn — ${(latestResult.members||[]).length} hội viên (bấm để xem/sửa)</button>
             </div>
-            <p class="sub" style="margin:0 0 8px;">${hasDigestedOnce? 'Hệ thống đã đọc được nội dung bên trên. Nếu muốn bổ sung/sửa gì thì nhắn tiếp, AI sẽ tự cập nhật lại Hồ sơ đang soạn.' : 'Chưa tiêu hoá tài liệu nào — nhắn/đính kèm xong thì bấm nút bên dưới.'}</p>
+            <p class="sub" style="margin:0 0 8px;">${hasDigestedOnce? 'AI đã đọc xong. Đồng chí cứ nhắn tiếp hoặc đính kèm thêm — AI tự cập nhật lại Hồ sơ đang soạn, không cần bấm nút nào nữa.' : 'Chưa tiêu hoá tài liệu nào — nhắn/đính kèm xong thì bấm nút bên dưới.'}</p>
             ${pendingAttachments.length? `<div class="ai-attach-row" style="padding:0 0 8px;">${pendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button type="button" class="preview-allow" data-remove-att="${i}">✕</button></span>`).join('')}</div>` : ''}
             <input type="file" id="mqai-file-input" multiple accept="*/*" style="display:none;">
             <div class="ai-inputbar">
@@ -1459,7 +1459,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost preview-allow" id="mqai-close2">Đóng bảng</button>
-            <button type="button" class="btn btn-sm preview-allow" id="mqai-digest" ${(busy||!hasAnyUserContent)?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent)?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>
+            ${hasDigestedOnce? '' : `<button type="button" class="btn btn-sm preview-allow" id="mqai-digest" ${(busy||!hasAnyUserContent)?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent)?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>`}
             <button class="btn btn-primary preview-allow" id="mqai-add" ${resultIsEmpty()?'disabled':''} style="${resultIsEmpty()?'opacity:.45; cursor:not-allowed;':'display:inline-block; animation: bigMoneyPulse 1.4s ease-in-out infinite;'}">➕ Thêm vào Hồ sơ hội viên</button>
           </div>
         </div>`;
@@ -1496,7 +1496,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
       wrap.querySelector('#mqai-file-input').onchange = async (e)=>{
         const files = Array.from(e.target.files||[]);
         for(const f of files){ const base64 = await fileToBase64(f); pendingAttachments.push({ name:f.name, mimeType:f.type||'application/octet-stream', base64 }); }
-        render();
+        if(hasDigestedOnce) doSend(); else render();
       };
       wrap.querySelector('#mqai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };
       wireAutoResizeTextarea('mqai-input');

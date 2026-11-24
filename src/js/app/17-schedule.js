@@ -688,7 +688,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
           </div>
           <div style="padding:8px 16px 0; background:var(--paper-2);">
             <div style="text-align:center; margin-bottom:8px;"><button type="button" class="btn btn-sm preview-allow" id="sai-view" style="background:#fff9c4; border:1px solid #fbc02d; color:#5a4300; font-weight:700;">📋 Hồ sơ đang soạn — ${draft.events.length} sự kiện (bấm để xem/sửa)</button></div>
-            <p class="sub" style="margin:0 0 8px;">${digested? 'AI đã đọc xong. Muốn bổ sung/sửa gì thì nhắn tiếp, AI sẽ cập nhật lại Hồ sơ đang soạn.' : 'Chưa tiêu hoá tài liệu nào — đính kèm/nhắn xong thì bấm nút bên dưới.'}</p>
+            <p class="sub" style="margin:0 0 8px;">${digested? 'AI đã đọc xong. Đồng chí cứ nhắn tiếp hoặc đính kèm thêm — AI tự cập nhật lại Hồ sơ đang soạn, không cần bấm nút nào nữa.' : 'Chưa tiêu hoá tài liệu nào — đính kèm/nhắn xong thì bấm nút bên dưới.'}</p>
             ${pending.length? `<div class="ai-attach-row" style="padding:0 0 8px;">${pending.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button type="button" class="preview-allow" data-rm="${i}">✕</button></span>`).join('')}</div>` : ''}
             <input type="file" id="sai-file" multiple accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,image/*" style="display:none;">
             <div style="display:flex; gap:8px; align-items:flex-end; padding-bottom:8px;">
@@ -699,7 +699,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost preview-allow" id="sai-close2">Đóng bảng</button>
-            <button type="button" class="btn btn-sm preview-allow" id="sai-digest" ${(busy||!hasContent)?'disabled':''} style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasContent)?'opacity:.5;':''}">${busy? '⏳ AI đang xử lý...' : '🧠 Tiêu hoá tài liệu bằng AI'}</button>
+            ${digested? '' : `<button type="button" class="btn btn-sm preview-allow" id="sai-digest" ${(busy||!hasContent)?'disabled':''} style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasContent)?'opacity:.5;':''}">${busy? '⏳ AI đang xử lý...' : '🧠 Tiêu hoá tài liệu bằng AI'}</button>`}
             <button class="btn btn-primary preview-allow" id="sai-save" ${draft.events.length?'':'disabled'} style="${draft.events.length?'':'opacity:.45;'}">💾 Lưu vào lịch của từng người</button>
           </div>
         </div>`;
@@ -719,7 +719,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
         for(const f of Array.from(e.target.files||[])){
           try{ const a = await schedReadFile(f); if(a) pending.push(a); }catch(err){ console.error(err); alert(`Không đọc được tệp "${f.name}": ${err&&err.message||err}`); }
         }
-        render();
+        if(digested) doSend(); else render();
       };
       wrap.querySelector('#sai-send').onclick = doSend;
       wrap.querySelector('#sai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
