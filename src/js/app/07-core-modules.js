@@ -3054,6 +3054,23 @@
     autoResizeTextarea(el); // tính đúng ngay khi vừa gắn (phòng trường hợp đã có sẵn nội dung, VD vừa khôi phục lại chữ đang gõ dở sau khi mở menu "Thêm thành phần")
     el.addEventListener('input', ()=> autoResizeTextarea(el));
   }
+  // ---- Dùng chung cho các khung "Thêm nhanh bằng AI" ----
+  // Dòng nhắc nằm NGAY DƯỚI tin nhắn gần nhất của người dùng, chỉ hiện khi đã có ít nhất 1 tin nhắn
+  // mà AI CHƯA tiêu hoá lần nào (trước đó AI im lặng chờ bấm nút) — dù gửi bao nhiêu tin vẫn hiện.
+  function aiPreDigestHintHtml(what){
+    return `<div class="ai-predigest-hint" style="align-self:flex-end; max-width:75%; margin:-4px 4px 10px; text-align:right; font-size:12.5px; font-style:italic; color:#5e35b1;">(Đồng chí có thể nhắn thêm ${what}, hoặc bấm nút "🧠 TIÊU HOÁ TÀI LIỆU BẰNG AI" bên dưới để AI bắt đầu đọc và xử lý…)</div>`;
+  }
+  // Nhấp nháy nút "📋 Hồ sơ đang soạn" vài lần rồi đứng yên mỗi khi nội dung hồ sơ đổi (do AI hoặc do
+  // người dùng sửa tay). `holder` là đối tượng giữ chữ ký lần trước của riêng từng khung chat; lần vẽ
+  // đầu tiên chỉ ghi nhớ, không nháy.
+  function flashDraftButtonIfChanged(holder, btn, signature){
+    if(!holder) return;
+    const prev = holder.sig; holder.sig = signature;
+    if(prev===undefined || prev===signature || !btn) return;
+    btn.classList.remove('draft-btn-flash'); void btn.offsetWidth; btn.classList.add('draft-btn-flash');
+  }
+  // Câu dặn AI nhắc người dùng mở "Hồ sơ đang soạn" sau mỗi lần thay đổi — nối vào lệnh hệ thống.
+  const AI_DRAFT_REMINDER_RULE = 'QUY TẮC NHẮC NHỞ: mỗi khi bạn vừa tiêu hoá xong tài liệu, hoặc vừa thêm/sửa/xoá bất cứ thứ gì trong "Hồ sơ đang soạn", câu trả lời PHẢI kết thúc bằng 1 câu nhắc ngắn: đồng chí vui lòng bấm vào nút "📋 Hồ sơ đang soạn" để xem những thay đổi vừa rồi.';
   function toggleMicGeneric(prefix, rerenderFn){
     const targetInputId = prefix+'-input';
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;

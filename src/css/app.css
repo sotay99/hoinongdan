@@ -402,6 +402,9 @@
   .new-field-flash{ animation: newFieldBgFlash 0.35s ease-in-out 10; }
   /* Nhảy múa (phóng to 1,1 lần rồi về lại) đúng 5 lần rồi đứng yên hẳn — dùng cho tiêu đề phương án vay
      khi có người vay bên trong phương án đó vừa bị xoá đi. */
+  /* Nút "Hồ sơ đang soạn" nhấp nháy nhẹ (vàng nhạt <-> cam nhạt) vài lần rồi đứng yên khi hồ sơ thay đổi. */
+  @keyframes draftBtnFlash{ 50%{ background:#ffcc80; border-color:#e65100; box-shadow:0 0 0 3px rgba(230,81,0,.25); } }
+  .draft-btn-flash{ animation: draftBtnFlash 0.45s ease-in-out 6; }
   @keyframes projectTitleDanceOnDelete{ 50%{ transform:scale(1.1); } }
   .project-title-dance{ display:inline-block; animation: projectTitleDanceOnDelete 0.3s ease-in-out 10; }
   @keyframes dragHintBlinkTwice{

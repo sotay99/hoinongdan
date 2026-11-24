@@ -1563,6 +1563,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
     const messages = [];
     let pendingAttachments = [];
     let hasDigestedOnce = false;
+    const draftFlash = {};
     const draft = { entries: [] };
     let busy = false;
 
@@ -1587,7 +1588,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
         <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
           <div class="modal-head"><h3>✨ Thêm nhanh dòng Thu/Chi bằng chat với AI</h3><button class="modal-close preview-allow" id="lqai-close">✕</button></div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column;" id="lqai-thread">
-            ${messages.length? messages.map(bubbleHtml).join('') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh hoá đơn, sổ ghi chép tay...) — AI sẽ đợi đến khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc. Hoặc bấm thẳng "📋 Hồ sơ đang soạn" bên dưới để tự thêm dòng bằng tay, không cần chat.</p>`}
+            ${messages.length? messages.map(bubbleHtml).join('')+(!hasDigestedOnce && messages.some(m=>m.role==='user')? aiPreDigestHintHtml('các khoản thu/chi') : '') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh hoá đơn, sổ ghi chép tay...) — AI sẽ đợi đến khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc. Hoặc bấm thẳng "📋 Hồ sơ đang soạn" bên dưới để tự thêm dòng bằng tay, không cần chat.</p>`}
           </div>
           <div style="padding:8px 16px 0; background:var(--paper-2);">
             <div style="text-align:center; margin-bottom:8px;">
@@ -1658,6 +1659,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
       wrap.querySelectorAll('[data-remove-att]').forEach(btn=> btn.onclick = ()=>{ pendingAttachments.splice(+btn.dataset.removeAtt,1); render(); });
       wrap.querySelector('#lqai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };
       wireAutoResizeTextarea('lqai-input');
+      flashDraftButtonIfChanged(draftFlash, wrap.querySelector('#lqai-view-file'), JSON.stringify(draft));
       wrap.querySelector('#lqai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
       wrap.querySelector('#lqai-input').addEventListener('focus', ()=> scrollNearestModalToBottom(wrap));
       wrap.querySelector('#lqai-digest').onclick = ()=> runAiTurn();
@@ -1679,7 +1681,7 @@ Nếu thiếu trường bắt buộc (date, content, amount) hoặc có chỗ m�
       messages.push(streamMsg);
       render();
       try{
-        const aiMessages = [{ role:'user', text: ilQuickAddSystemPrompt() }, { role:'assistant', text:'Đã hiểu, tôi sẽ tuân thủ đúng định dạng trả lời yêu cầu.' }];
+        const aiMessages = [{ role:'user', text: ilQuickAddSystemPrompt()+'\n'+AI_DRAFT_REMINDER_RULE }, { role:'assistant', text:'Đã hiểu, tôi sẽ tuân thủ đúng định dạng trả lời yêu cầu.' }];
         messages.forEach(m=>{
           if(m===streamMsg) return;
           let t = m.text||'';

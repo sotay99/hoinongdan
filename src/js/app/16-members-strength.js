@@ -776,9 +776,9 @@
     const sectionsHtml = sections.map(sec=>`
       ${(sec.bannerLines||[]).map(line=>`<p style="font-weight:800; color:#b71c1c; margin:0 0 4px;">${escapeHtml(line)}</p>`).join('')}
       <p style="font-weight:800; font-size:13px; margin:16px 0 6px;">${escapeHtml(sec.title)} (${sec.list.length})</p>
-      <table class="print-table" style="font-size:${fontSize}px;">
-        <thead><tr>${sec.cols.map(c=>`<th style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
-        <tbody>${sec.totalRowHtml||''}${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
+      <table class="print-table" style="font-size:${fontSize}px;${sec.cols.some(c=>c.widthPct)? ' table-layout:fixed; width:100%;' : ''}">
+        <thead><tr>${sec.cols.map(c=>`<th style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};${c.widthPct? ` width:${c.widthPct}%;` : ''}">${htmlLabel(c.label)}</th>`).join('')}</tr></thead>
+        <tbody>${sec.totalRowHtml||''}${sec.list.length? sec.list.map(item=>`<tr>${sec.cols.map(c=>`<td style="padding:${pad}; text-align:${c.align||colTextAlign(c.label)};${c.widthPct? ' word-break:break-word; overflow-wrap:anywhere;' : ''}">${c.get(item)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${sec.cols.length}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
       </table>`).join('');
     const printInnerHtml = `
       ${(opts&&opts.titleOnly)? '' : `<div style="text-align:center;">
@@ -1388,6 +1388,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
     const messages = [];
     let pendingAttachments = [];
     let hasDigestedOnce = false;
+    const draftFlash = {};
     let latestResult = { members:[] };
     function resultIsEmpty(){ return !(latestResult.members||[]).length; }
     let busy = false;
@@ -1434,7 +1435,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
         <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
           <div class="modal-head"><h3>✨ Thêm nhanh Hội viên bằng chat với AI</h3><button class="modal-close preview-allow" id="mqai-close">✕</button></div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column;" id="mqai-thread">
-            ${messages.length? messages.map(bubbleHtml).join('') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh CCCD, đơn xin vào Hội, sổ ghi chép cũ...) — AI sẽ đợi đến khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc. Đồng chí cũng có thể tự thêm/sửa hội viên bằng tay ngay trong "Hồ sơ đang soạn" bên dưới, không cần chờ chat với AI.</p>`}
+            ${messages.length? messages.map(bubbleHtml).join('')+(!hasDigestedOnce && messages.some(m=>m.role==='user')? aiPreDigestHintHtml('thông tin về hội viên') : '') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh CCCD, đơn xin vào Hội, sổ ghi chép cũ...) — AI sẽ đợi đến khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc. Đồng chí cũng có thể tự thêm/sửa hội viên bằng tay ngay trong "Hồ sơ đang soạn" bên dưới, không cần chờ chat với AI.</p>`}
           </div>
           <div style="padding:8px 16px 0; background:var(--paper-2);">
             <div style="text-align:center; margin-bottom:8px;">
@@ -1499,6 +1500,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
       };
       wrap.querySelector('#mqai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };
       wireAutoResizeTextarea('mqai-input');
+      flashDraftButtonIfChanged(draftFlash, wrap.querySelector('#mqai-view-file'), JSON.stringify(latestResult));
       wrap.querySelector('#mqai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
       wrap.querySelector('#mqai-input').addEventListener('focus', ()=> scrollNearestModalToBottom(wrap));
       wrap.querySelector('#mqai-digest').onclick = ()=> runAiTurn();
@@ -1520,7 +1522,7 @@ Nếu chưa đủ dữ liệu để trích xuất, KHÔNG thêm khối này, ch�
       const streamMsg = { role:'ai', text:'', streaming:true };
       messages.push(streamMsg); render();
       try{
-        const aiMessages = [{ role:'user', text: memberQuickAddSystemPrompt() }, { role:'assistant', text:'Đã hiểu, tôi sẽ tuân thủ đúng định dạng trả lời yêu cầu.' }];
+        const aiMessages = [{ role:'user', text: memberQuickAddSystemPrompt()+'\n'+AI_DRAFT_REMINDER_RULE }, { role:'assistant', text:'Đã hiểu, tôi sẽ tuân thủ đúng định dạng trả lời yêu cầu.' }];
         messages.forEach(mm=>{
           if(mm===streamMsg) return;
           if(mm.isFileCard) return;

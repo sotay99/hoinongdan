@@ -811,6 +811,7 @@
     const keepTop = sameTab ? currentScrollTop() : null;
     if(!sameTab) rememberTabScroll();
     state.activeTab = tabId;
+    if(!sameTab) state._schedIntroShown = false; // vào lại module Lịch công tác thì cho phép hiện lại Bản giới thiệu (khi chưa có người nào)
     state.bellOpen = false;
     render();
     if(sameTab) scrollWindowTo(keepTop);
@@ -2903,6 +2904,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
     const messages = []; // { role:'user'|'ai', text, attachments:[{name,mimeType,base64}], isFileCard, result, streaming }
     let pendingAttachments = [];
     let hasDigestedOnce = false;
+    const draftFlash = {};
     // "Hồ sơ đang soạn" — LUÔN tồn tại ngay từ khi mở modal (khởi tạo RỖNG, không phải null) — đây là
     // file DUY NHẤT mà cả người dùng lẫn AI cùng thao tác, không có file nào khác. AI luôn đọc + chỉnh
     // sửa TRỰC TIẾP lên đúng object này qua từng lượt trò chuyện (xem cách gửi kèm trong aiMessages).
@@ -2954,7 +2956,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
         <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
           <div class="modal-head"><h3>✨ Thêm nhanh Người vay (Phương án vay) bằng chat với AI</h3><button class="modal-close preview-allow" id="qai-close">✕</button></div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column;" id="qai-thread">
-            ${messages.length? messages.map(bubbleHtml).join('') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh CCCD, đơn xin vay, sổ ghi chép cũ...) — AI sẽ đợi đến khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc.</p>`}
+            ${messages.length? messages.map(bubbleHtml).join('')+(!hasDigestedOnce && messages.some(m=>m.role==='user')? aiPreDigestHintHtml('thông tin về người vay/phương án vay') : '') : `<p class="sub" style="text-align:center; margin:auto;">Hãy nhắn tin hoặc đính kèm tài liệu (ảnh CCCD, đơn xin vay, sổ ghi chép cũ...) — AI sẽ đợi đến khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu đọc.</p>`}
           </div>
           <div style="padding:8px 16px 0; background:var(--paper-2);">
             <div style="text-align:center; margin-bottom:8px;">
@@ -3055,6 +3057,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       };
       wrap.querySelector('#qai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };
       wireAutoResizeTextarea('qai-input');
+      flashDraftButtonIfChanged(draftFlash, wrap.querySelector('#qai-view-file'), JSON.stringify(latestResult));
       // Không tự động focus — đồng bộ với các module AI khác (Chat AI/Ghi chú nhanh/Tuyên truyền): mặc
       // định KHÔNG có con trỏ văn bản, chỉ khi người dùng TỰ bấm vào khung chat mới có con trỏ để nhập.
       wrap.querySelector('#qai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
@@ -3084,7 +3087,7 @@ Nếu chưa có đủ dữ liệu để trích xuất, KHÔNG thêm khối mã n
       messages.push(streamMsg);
       render();
       try{
-        const aiMessages = [{ role:'user', text: quickAddSystemPrompt() }, { role:'assistant', text:'Đã hiểu, tôi sẽ tuân thủ đúng định dạng trả lời yêu cầu.' }];
+        const aiMessages = [{ role:'user', text: quickAddSystemPrompt()+'\n'+AI_DRAFT_REMINDER_RULE }, { role:'assistant', text:'Đã hiểu, tôi sẽ tuân thủ đúng định dạng trả lời yêu cầu.' }];
         messages.forEach(m=>{
           if(m===streamMsg) return;
           if(m.isFileCard) return; // thẻ file không phải là 1 lượt hội thoại thật, bỏ qua ở đây — sẽ chèn riêng bản MỚI NHẤT bên dưới

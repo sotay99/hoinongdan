@@ -15,6 +15,8 @@
   const SCHED_SESSION_LABEL = { sang:'Sáng', chieu:'Chiều', toi:'Tối', cangay:'Cả ngày' };
   const SCHED_STATUS_LABEL = { normal:'Bình thường', added:'BỔ SUNG', postponed:'HOÃN', cancelled:'HỦY' };
   const SCHED_WEEKDAYS = ['Chủ nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
+  // Độ rộng cố định (px) của từng cột; chữ vượt quá thì tự xuống dòng. Cột Ngày giờ ngắn nên không ép.
+  const SCHED_COL_W = { when:118, place:150, content:280, participants:220, type:120, note:210, fullText:320 };
   const SCHED_XLSX_STYLE_URL = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
 
   function schedDefaultTypes(){
@@ -118,6 +120,12 @@
     ['when','Ngày giờ',true], ['place','Địa điểm',false], ['content','Nội dung công việc',true], ['participants','Thành phần tham gia',false],
     ['type','Loại sự kiện',false], ['note','Ghi chú',false], ['fullText','Nguyên văn đầy đủ',false],
   ];
+  function schedOrderedMeta(prefs){
+    const keys = SCHED_COLS_META.map(m=>m[0]);
+    const ord = ((prefs && prefs.order)||[]).filter(k=>keys.includes(k));
+    keys.forEach(k=>{ if(!ord.includes(k)) ord.push(k); });
+    return ord.map(k=> SCHED_COLS_META.find(m=>m[0]===k));
+  }
   function schedWhenPlain(e){
     const t = e.start? (e.start + (e.end? '-'+e.end : '')) : (SCHED_SESSION_LABEL[e.session]||'');
     return `${schedWeekday(e.date)} ${schedFmtDate(e.date)}${t? ' '+t : ''}`;
@@ -145,13 +153,13 @@
         getPlain:e=> schedNoteParts(e, (conflicts||{})[e.id]).map(p=>p.text).join('\n') },
       fullText: { label:'Nguyên văn đầy đủ', align:'left', wrap:true, get:e=> escapeHtml(e.fullText||''), getPlain:e=> e.fullText||'' },
     };
-    return SCHED_COLS_META.filter(([k,,fixed])=> fixed || (k==='fullText'? showFull : (!prefs || !prefs.cols || prefs.cols[k]!==false))).map(([k])=> ({ key:k, ...defs[k] }));
+    return schedOrderedMeta(prefs).filter(([k,,fixed])=> fixed || (k==='fullText'? showFull : (!prefs || !prefs.cols || prefs.cols[k]!==false))).map(([k])=> ({ key:k, width:SCHED_COL_W[k], ...defs[k] }));
   }
   function schedRowBg(conf){ return conf? (conf.level==='overlap'? 'background:#ffcdd2;' : 'background:#fff3e0;') : ''; }
-  function schedCellStyle(c){ return `text-align:${c.align}; vertical-align:top; ${c.wrap? 'white-space:normal; word-break:break-word; min-width:240px; max-width:360px;' : (c.key==='content'||c.key==='participants'||c.key==='note'? 'white-space:normal; min-width:200px; max-width:320px;' : 'white-space:nowrap;')}`; }
+  function schedCellStyle(c){ return `text-align:${c.align}; vertical-align:top; ` + (c.key==='when'? 'white-space:nowrap;' : `white-space:normal; word-break:break-word; overflow-wrap:anywhere; width:${c.width}px; min-width:${c.width}px; max-width:${c.width}px;`); }
   function schedTableHtml(cols, list, conflicts, rowActionsFn){
     return `<div class="table-wrap"><table>
-      <thead><tr>${rowActionsFn? '<th></th>' : ''}${cols.map(c=>`<th style="text-align:${c.align==='left'?'left':'center'};">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
+      <thead><tr>${rowActionsFn? '<th></th>' : ''}${cols.map(c=>`<th style="text-align:${c.align==='left'?'left':'center'};${c.key==='when'? '' : ` min-width:${c.width}px;`}">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
       <tbody>${list.length? list.map(e=>`<tr style="${schedRowBg(conflicts[e.id])}">${rowActionsFn? `<td style="white-space:nowrap; vertical-align:top;">${rowActionsFn(e)}</td>` : ''}${cols.map(c=>`<td style="${schedCellStyle(c)}">${c.get(e)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length+(rowActionsFn?1:0)}" style="text-align:center; padding:14px;">Không có dữ liệu.</td></tr>`}</tbody>
     </table></div>`;
   }
@@ -214,7 +222,8 @@ CÁCH TRẢ LỜI: trò chuyện tự nhiên trước (không bọc JSON), nêu 
 \`\`\`schedule-result
 {"events":[{"date":"","start":"","end":"","session":"","place":"","content":"","fullText":"","participants":"","typeId":"","status":"normal","replaces":"","note":"","verdicts":{"<personId>":{"v":"yes","reason":""}}}]}
 \`\`\`
-Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi lại.`;
+Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi lại.
+${AI_DRAFT_REMINDER_RULE}`;
   }
   function schedNormalizeEvents(arr, people){
     const S = schedState();
@@ -303,12 +312,15 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
   }
 
   // ---------- Modal Loại sự kiện ----------
-  function schedTypesModal(onDone){
+  function schedTypesModal(onDone, onCancel){
     const S = schedState();
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
+    wrap.style.zIndex = '99999';
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
+    const cancel = ()=>{ close(); if(onCancel) onCancel(); };
+    const oldIds = new Set(S.types.map(t=>t.id));
     let types = S.types.map(t=>({...t}));
     function render(){
       wrap.innerHTML = `
@@ -321,8 +333,8 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
           </div>
           <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="spt-cancel">Đóng (không lưu)</button><button class="btn btn-primary preview-allow" id="spt-save">💾 Lưu</button></div>
         </div>`;
-      wrap.querySelector('#spt-close').onclick = close;
-      wrap.querySelector('#spt-cancel').onclick = close;
+      wrap.querySelector('#spt-close').onclick = cancel;
+      wrap.querySelector('#spt-cancel').onclick = cancel;
       wrap.querySelectorAll('[data-ti]').forEach(inp=> inp.oninput = ()=>{ types[+inp.dataset.ti].name = inp.value; });
       wrap.querySelectorAll('[data-tdel]').forEach(b=> b.onclick = ()=>{ types.splice(+b.dataset.tdel,1); render(); });
       wrap.querySelector('#spt-add').onclick = ()=>{ if(types.length<SCHED_MAX_TYPES){ types.splice(types.length-1, 0, { id:schedUid('t'), name:'' }); render(); } };
@@ -337,7 +349,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
         orphans.forEach(e=>{ e.typeId = SCHED_OTHER_TYPE_ID; });
         S.types = clean;
         await schedSave('types'); if(orphans.length) await schedSave('events');
-        close(); if(onDone) onDone();
+        close(); if(onDone) onDone(clean.filter(t=>!oldIds.has(t.id)).map(t=>t.id));
       };
     }
     render();
@@ -384,6 +396,10 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
     return true;
   }
 
+  // Danh sách chọn loại sự kiện có dòng cuối "+ Thêm loại sự kiện" (giá trị __add__).
+  function schedTypeOptionsHtml(cur){
+    return schedState().types.map(t=>`<option value="${t.id}" ${cur===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('') + '<option value="__add__">+ Thêm loại sự kiện</option>';
+  }
   // ---------- Modal sửa 1 sự kiện đã lưu ----------
   function schedEventModal(ev, personId, onDone){
     const S = schedState();
@@ -406,7 +422,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
             <div class="field full"><label>Địa điểm</label><input id="sev-place" value="${escapeHtml(e.place||'')}"></div>
             <div class="field full"><label>Nội dung công việc *</label><textarea id="sev-content" rows="2">${escapeHtml(e.content||'')}</textarea></div>
             <div class="field full"><label>Thành phần tham gia</label><textarea id="sev-part" rows="2">${escapeHtml(e.participants||'')}</textarea></div>
-            <div class="field"><label>Loại sự kiện</label><select id="sev-type">${S.types.map(t=>`<option value="${t.id}" ${e.typeId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>
+            <div class="field"><label>Loại sự kiện</label><select id="sev-type">${schedTypeOptionsHtml(e.typeId)}</select></div>
             <div class="field"><label>Trạng thái</label><select id="sev-status">${opt(SCHED_STATUS_LABEL, e.status||'normal')}</select></div>
             <div class="field"><label>Có tham gia không</label><select id="sev-verdict"><option value="yes" ${e.verdict!=='unclear'?'selected':''}>Chắc chắn tham gia</option><option value="unclear" ${e.verdict==='unclear'?'selected':''}>Không rõ</option></select></div>
             <div class="field full"><label>Ghi chú</label><textarea id="sev-note" rows="2">${escapeHtml(e.note||'')}</textarea></div>
@@ -415,6 +431,15 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
         </div>
         <div class="modal-foot">${!isNew? `<button class="btn btn-danger preview-allow" id="sev-del" style="margin-right:auto;">Xoá</button>` : ''}<button class="btn btn-ghost preview-allow" id="sev-cancel">Đóng (không lưu)</button><button class="btn btn-primary preview-allow" id="sev-save">💾 Lưu</button></div>
       </div>`;
+    const typeSel = wrap.querySelector('#sev-type'); let lastType = typeSel.value;
+    typeSel.onchange = ()=>{
+      if(typeSel.value!=='__add__'){ lastType = typeSel.value; return; }
+      schedTypesModal((added)=>{
+        const keep = S.types.some(t=>t.id===lastType)? lastType : SCHED_OTHER_TYPE_ID;
+        typeSel.innerHTML = schedTypeOptionsHtml(added.length? added[added.length-1] : keep);
+        lastType = typeSel.value;
+      }, ()=>{ typeSel.value = lastType; });
+    };
     wrap.querySelector('#sev-close').onclick = close;
     wrap.querySelector('#sev-cancel').onclick = close;
     const delBtn = wrap.querySelector('#sev-del');
@@ -469,7 +494,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
     render();
   }
   function schedPrint(title, subtitle, sections){
-    const prepared = sections.map(sec=>({ title:sec.title, list:sec.list, cols: sec.cols.map(c=>({ label:c.label, align:c.align, get: e=> (sec.conflicts[e.id]? `<span style="background:${sec.conflicts[e.id].level==='overlap'?'#ffcdd2':'#ffe0b2'}; padding:1px 3px;">${c.get(e)}</span>` : c.get(e)) })) }));
+    const prepared = sections.map(sec=>{ const tot = sec.cols.reduce((a,c)=>a+(c.width||SCHED_COL_W[c.key]||150),0)||1; return { title:sec.title, list:sec.list, cols: sec.cols.map(c=>({ label:c.label, align:c.align, widthPct:Math.round((c.width||SCHED_COL_W[c.key]||150)/tot*1000)/10, get: e=> (sec.conflicts[e.id]? `<span style="background:${sec.conflicts[e.id].level==='overlap'?'#ffcdd2':'#ffe0b2'}; padding:1px 3px;">${c.get(e)}</span>` : c.get(e)) })) }; });
     printSections(title, prepared, '', { titleOnly:true, subtitle });
   }
   async function schedLoadXlsxStyle(){
@@ -516,9 +541,8 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
     });
     const ws = X.utils.aoa_to_sheet(aoa);
     if(styled){ styles.forEach(({r,c,s})=>{ const a = X.utils.encode_cell({r,c}); if(ws[a]) ws[a].s = Object.assign({}, ws[a].s, s); }); }
-    const widthOf = { when:20, place:26, content:44, participants:38, type:16, note:46, fullText:60 };
     const first = sections[0];
-    ws['!cols'] = (first? first.cols : []).map(c=>({ wch: widthOf[c.key]||24 }));
+    ws['!cols'] = (first? first.cols : []).map(c=>({ wch: Math.round((SCHED_COL_W[c.key]||150)/6.5) }));
     ws['!merges'] = merges;
     const wb = X.utils.book_new();
     X.utils.book_append_sheet(wb, ws, 'Lich cong tac');
@@ -557,13 +581,13 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
   }
 
   // ---------- Hồ sơ đang soạn (bảng sửa tay) ----------
-  function schedDraftModal(draft, getPeople){
+  function schedDraftModal(draft, getPeople, onClose){
     const S = schedState();
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99997;';
     document.body.appendChild(wrap);
-    const close = ()=> wrap.remove();
+    const close = ()=>{ wrap.remove(); if(onClose) onClose(); };
     let zoomPct = 100;
     const opt = (map, cur)=> Object.entries(map).map(([k,v])=>`<option value="${k}" ${cur===k?'selected':''}>${escapeHtml(v)}</option>`).join('');
     function render(){
@@ -574,22 +598,23 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
           <div style="padding:8px 14px; border-bottom:1px solid var(--line);"><button type="button" class="btn btn-primary btn-sm preview-allow" id="sdr-add">➕ Thêm sự kiện (nhập tay, không cần chat với AI)</button></div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:0;">
             <div style="zoom:${zoomPct}%;"><div class="table-wrap"><table>
-              <thead><tr><th></th><th>#</th><th>Ngày</th><th>Bắt đầu</th><th>Kết thúc</th><th>Buổi</th><th>Địa điểm</th><th>Nội dung (tóm tắt)</th><th>Thành phần tham gia</th><th>Loại</th><th>Trạng thái</th><th>Ghi chú</th><th>Nguyên văn</th>${people.map(p=>`<th style="background:#e3f2fd;">${escapeHtml(p.name)}<br><span class="sub">có tham gia?</span></th>`).join('')}</tr></thead>
+              <thead><tr><th></th><th>#</th><th>Ngày</th><th>Thứ</th><th>Bắt đầu</th><th>Kết thúc</th><th>Buổi</th><th>Địa điểm</th><th>Nội dung (tóm tắt)</th><th>Thành phần tham gia</th><th>Loại</th><th>Trạng thái</th><th>Ghi chú</th><th>Nguyên văn</th>${people.map(p=>`<th style="background:#e3f2fd;">${escapeHtml(p.name)}<br><span class="sub">có tham gia?</span></th>`).join('')}</tr></thead>
               <tbody>${draft.events.length? draft.events.map((e,i)=>`<tr>
                 <td><button type="button" class="btn btn-ghost btn-sm preview-allow" data-del="${i}">🗑️</button></td><td>${i+1}</td>
                 <td><input type="date" data-i="${i}" data-f="date" value="${escapeHtml(e.date)}"></td>
+                <td data-wd="${i}" style="white-space:nowrap; text-align:center; font-weight:700;">${escapeHtml(schedWeekday(e.date))}</td>
                 <td><input type="time" data-i="${i}" data-f="start" value="${escapeHtml(e.start)}"></td>
                 <td><input type="time" data-i="${i}" data-f="end" value="${escapeHtml(e.end)}"></td>
                 <td><select data-i="${i}" data-f="session"><option value="">—</option>${opt(SCHED_SESSION_LABEL, e.session)}</select></td>
                 <td><input data-i="${i}" data-f="place" value="${escapeHtml(e.place)}" style="min-width:140px;"></td>
                 <td><textarea data-i="${i}" data-f="content" rows="3" style="min-width:220px;">${escapeHtml(e.content)}</textarea></td>
                 <td><textarea data-i="${i}" data-f="participants" rows="3" style="min-width:200px;">${escapeHtml(e.participants)}</textarea></td>
-                <td><select data-i="${i}" data-f="typeId">${S.types.map(t=>`<option value="${t.id}" ${e.typeId===t.id?'selected':''}>${escapeHtml(t.name)}</option>`).join('')}</select></td>
+                <td><select data-i="${i}" data-f="typeId">${schedTypeOptionsHtml(e.typeId)}</select></td>
                 <td><select data-i="${i}" data-f="status">${opt(SCHED_STATUS_LABEL, e.status)}</select></td>
                 <td><textarea data-i="${i}" data-f="note" rows="3" style="min-width:160px;">${escapeHtml(e.note)}</textarea></td>
                 <td><textarea data-i="${i}" data-f="fullText" rows="3" style="min-width:220px;">${escapeHtml(e.fullText)}</textarea></td>
                 ${people.map(p=>{ const v = (e.verdicts&&e.verdicts[p.id])||{v:'no',reason:''}; return `<td style="background:#f3f9ff; min-width:150px;"><select data-i="${i}" data-p="${p.id}"><option value="yes" ${v.v==='yes'?'selected':''}>Có</option><option value="unclear" ${v.v==='unclear'?'selected':''}>Không rõ</option><option value="no" ${v.v==='no'?'selected':''}>Không</option></select><div class="sub" style="font-size:11px; max-width:200px;">${escapeHtml(v.reason||'')}</div></td>`; }).join('')}
-              </tr>`).join('') : `<tr><td colspan="${13+people.length}" style="text-align:center; padding:14px;">Chưa có sự kiện nào — bấm "➕ Thêm sự kiện" hoặc chat với AI.</td></tr>`}</tbody>
+              </tr>`).join('') : `<tr><td colspan="${14+people.length}" style="text-align:center; padding:14px;">Chưa có sự kiện nào — bấm "➕ Thêm sự kiện" hoặc chat với AI.</td></tr>`}</tbody>
             </table></div></div>
           </div>
           <div class="modal-foot">
@@ -609,6 +634,11 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
     const onEdit = (ev)=>{
       const t = ev.target; if(t.dataset.i==null) return;
       const e = draft.events[+t.dataset.i]; if(!e) return;
+      if(t.dataset.f==='typeId' && t.value==='__add__'){
+        schedTypesModal((added)=>{ if(added.length) e.typeId = added[added.length-1]; render(); }, ()=> render());
+        return;
+      }
+      if(t.dataset.f==='date'){ const c = wrap.querySelector(`[data-wd="${t.dataset.i}"]`); if(c) c.textContent = schedWeekday(t.value); }
       if(t.dataset.f) e[t.dataset.f] = t.value;
       else if(t.dataset.p){ e.verdicts = e.verdicts || {}; e.verdicts[t.dataset.p] = Object.assign({}, e.verdicts[t.dataset.p], { v:t.value }); }
     };
@@ -629,6 +659,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
     const messages = [];
     let pending = [];
     let busy = false, digested = false;
+    const draftFlash = {};
     const closeImmediate = ()=> wrap.remove();
     const close = ()=>{
       if(!draft.events.length){ closeImmediate(); return; }
@@ -641,6 +672,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
       return `<div style="display:flex; flex-direction:column; align-items:${isUser?'flex-end':'flex-start'}; margin-bottom:10px;"><div style="max-width:75%; background:${isUser?'#dcedc8':'#e3f2fd'}; border-radius:12px; padding:10px 14px; font-size:13.5px; line-height:1.6;">${isUser? escapeHtml(m.text||'') : renderMarkdownLite(m.text||'')}${attach}</div></div>`;
     }
     function render(){
+      const prevInput = (wrap.querySelector('#sai-input')||{}).value || '';
       const hasContent = messages.some(m=>m.role==='user') || pending.length>0;
       wrap.innerHTML = `
         <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
@@ -649,10 +681,10 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
             <span style="font-weight:700;">Đang lập lịch cho:</span><span style="color:#b71c1c; font-weight:800;">${people.map(p=>escapeHtml(p.name)).join(', ')}</span>
             <button type="button" class="btn btn-ghost btn-sm preview-allow" id="sai-change">Đổi người</button>
             <button type="button" class="btn btn-ghost btn-sm preview-allow" id="sai-train">🧠 Huấn luyện AI</button>
-            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="sai-types">🏷️ Loại sự kiện</button>
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="sai-types">🏷️ Cài đặt các loại sự kiện</button>
           </div>
           <div class="modal-body" style="flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column;" id="sai-thread">
-            ${messages.length? messages.map(bubble).join('') : `<p class="sub" style="text-align:center; margin:auto;">Hãy đính kèm lịch công tác (PDF, Word, Excel, ảnh chụp) và/hoặc nhắn tin — AI chỉ bắt đầu đọc khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI". Đồng chí cũng có thể tự thêm/sửa sự kiện ngay trong "Hồ sơ đang soạn" bên dưới mà không cần chat với AI.</p>`}
+            ${messages.length? messages.map(bubble).join('')+(!digested && messages.some(m=>m.role==='user')? aiPreDigestHintHtml('về lịch công tác') : '') : `<p class="sub" style="text-align:center; margin:auto;">Hãy đính kèm lịch công tác (PDF, Word, Excel, ảnh chụp) và/hoặc nhắn tin — AI chỉ bắt đầu đọc khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI". Đồng chí cũng có thể tự thêm/sửa sự kiện ngay trong "Hồ sơ đang soạn" bên dưới mà không cần chat với AI.</p>`}
           </div>
           <div style="padding:8px 16px 0; background:var(--paper-2);">
             <div style="text-align:center; margin-bottom:8px;"><button type="button" class="btn btn-sm preview-allow" id="sai-view" style="background:#fff9c4; border:1px solid #fbc02d; color:#5a4300; font-weight:700;">📋 Hồ sơ đang soạn — ${draft.events.length} sự kiện (bấm để xem/sửa)</button></div>
@@ -661,7 +693,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
             <input type="file" id="sai-file" multiple accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,image/*" style="display:none;">
             <div style="display:flex; gap:8px; align-items:flex-end; padding-bottom:8px;">
               <button type="button" class="btn btn-ghost preview-allow" id="sai-attach" title="Đính kèm tệp">📎 Đính kèm</button>
-              <textarea id="sai-input" rows="2" placeholder="Nhắn tin cho AI... (Ctrl+Enter để gửi)" style="flex:1;"></textarea>
+              <textarea id="sai-input" rows="1" placeholder="Nhắn tin cho AI... (Enter để xuống dòng, Ctrl+Enter để gửi)" style="flex:1; resize:none; max-height:65vh; overflow-y:auto;"></textarea>
               <button type="button" class="btn btn-primary preview-allow" id="sai-send">➤</button>
             </div>
           </div>
@@ -672,12 +704,15 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
           </div>
         </div>`;
       const th = wrap.querySelector('#sai-thread'); if(th) th.scrollTop = th.scrollHeight;
+      const inpEl = wrap.querySelector('#sai-input'); if(inpEl) inpEl.value = prevInput;
+      wireAutoResizeTextarea('sai-input');
+      flashDraftButtonIfChanged(draftFlash, wrap.querySelector('#sai-view'), JSON.stringify(draft.events));
       wrap.querySelector('#sai-close').onclick = close;
       wrap.querySelector('#sai-close2').onclick = close;
       wrap.querySelector('#sai-change').onclick = ()=> schedPickPeopleModal(people.map(p=>p.id), (ps)=>{ people = ps; draft.events.forEach(e=>{ const v = {}; people.forEach(p=>{ v[p.id] = (e.verdicts&&e.verdicts[p.id]) || {v:'no',reason:''}; }); e.verdicts = v; }); render(); });
       wrap.querySelector('#sai-train').onclick = ()=> schedTrainingModal();
       wrap.querySelector('#sai-types').onclick = ()=> schedTypesModal(()=>{});
-      wrap.querySelector('#sai-view').onclick = ()=> schedDraftModal(draft, ()=>people);
+      wrap.querySelector('#sai-view').onclick = ()=> schedDraftModal(draft, ()=>people, render);
       wrap.querySelector('#sai-attach').onclick = ()=> wrap.querySelector('#sai-file').click();
       wrap.querySelectorAll('[data-rm]').forEach(b=> b.onclick = ()=>{ pending.splice(+b.dataset.rm,1); render(); });
       wrap.querySelector('#sai-file').onchange = async (e)=>{
@@ -819,7 +854,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
         ${open('ai')? `<div class="panel-body ${panelBodyAnimClass()}"><div class="toolbar" style="flex-wrap:wrap; gap:8px;">
           <button class="btn btn-sm preview-allow" id="sch-ai-open" style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; font-weight:700;">✨ Thêm nhanh bằng AI (đọc lịch công tác)</button>
           <button class="btn btn-ghost btn-sm preview-allow" id="sch-train-open">🧠 Huấn luyện AI${(S.training||[]).length? ` (${S.training.length})` : ''}</button>
-          <button class="btn btn-ghost btn-sm preview-allow" id="sch-types-open">🏷️ Loại sự kiện</button>
+          <button class="btn btn-ghost btn-sm preview-allow" id="sch-types-open">🏷️ Cài đặt các loại sự kiện</button>
         </div><p class="sub" style="margin-top:8px;">Chọn người cần lập lịch, đính kèm lịch công tác của cơ quan (PDF, Word, Excel, ảnh chụp) — AI tách ra những việc liên quan tới từng người dựa trên chức vụ đã khai báo.</p></div>` : ''}
       </div>
       <div class="panel">
@@ -853,8 +888,6 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
             <select id="sch-stat-person">${personOpts}</select>
             <select id="sch-stat-mode"><option value="week" ${state._schedStatMode==='week'?'selected':''}>Theo tuần</option><option value="month" ${state._schedStatMode==='month'?'selected':''}>Theo tháng</option></select>
             <input type="date" id="sch-stat-date" value="${state._schedStatDate}">
-            <div class="spacer"></div>
-            <button class="btn btn-ghost btn-sm preview-allow" id="sch-types-open2">🏷️ Loại sự kiện</button>
           </div>
           <p style="font-weight:800; color:#b71c1c; margin:0 0 8px;">${escapeHtml(statPerson.name)} — từ ${schedFmtDate(st.from)} đến ${schedFmtDate(st.to)}</p>
           <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin-bottom:12px;">
@@ -867,6 +900,11 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
     ['sch-person'].forEach(id=>{ const s = el.querySelector('#'+id); if(s) s.value = state._schedPersonId; });
     const sp = el.querySelector('#sch-stat-person'); if(sp) sp.value = statPerson? statPerson.id : '';
     wireScheduleTab(el, { person, weekFrom, weekTo, mainList, unclearList, conflicts, cols, colsUnclear });
+    // Chưa có người nào: mỗi lần VÀO module (không phải mỗi lần vẽ lại) hiện Bản giới thiệu, đóng được.
+    if(!S.people.length && !state._schedIntroShown){
+      state._schedIntroShown = true;
+      if(MODULE_INTRO_CONTENT && MODULE_INTRO_CONTENT.schedule) openModuleIntroModal(MODULE_INTRO_CONTENT.schedule);
+    }
   }
   function wireScheduleTab(el, ctx){
     const S = schedState();
@@ -890,7 +928,7 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
       schedPickPeopleModal(state._schedPersonId? [state._schedPersonId] : [], (ps)=> schedAiModal(ps));
     };
     const tr = el.querySelector('#sch-train-open'); if(tr) tr.onclick = ()=> schedTrainingModal(again);
-    ['sch-types-open','sch-types-open2'].forEach(id=>{ const b = el.querySelector('#'+id); if(b) b.onclick = ()=> schedTypesModal(again); });
+    ['sch-types-open'].forEach(id=>{ const b = el.querySelector('#'+id); if(b) b.onclick = ()=> schedTypesModal(again); });
     const personSel = el.querySelector('#sch-person'); if(personSel) personSel.onchange = ()=>{ state._schedPersonId = personSel.value; again(); };
     const go = (iso)=>{ state._schedWeek = schedMondayOf(iso); again(); };
     const prev = el.querySelector('#sch-prev'); if(prev) prev.onclick = ()=> go(schedAddDays(ctx.weekFrom,-7));
@@ -929,21 +967,44 @@ Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi
     wrap.className = 'modal-bg';
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
-    wrap.innerHTML = `
-      <div class="modal" style="max-width:96vw; width:420px;">
-        <div class="modal-head"><h3>🧩 Tuỳ chỉnh cột</h3><button class="modal-close preview-allow" id="scm-close">✕</button></div>
-        <div class="modal-body">
-          <p class="sub" style="margin:0 0 8px;">"Ngày giờ" và "Nội dung công việc" luôn hiện. Các cột còn lại tuỳ ý ẩn/hiện (áp dụng cả khi xem bảng Excel, in và xuất file).</p>
-          ${SCHED_COLS_META.filter(([,,fixed])=>!fixed).map(([k,label])=>`<label class="sv-filter-item" style="display:flex; cursor:pointer;"><input type="checkbox" data-ck="${k}" ${S.prefs.cols[k]!==false?'checked':''}><span>${escapeHtml(label)}</span></label>`).join('')}
-        </div>
-        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="scm-cancel">Đóng</button><button class="btn btn-primary preview-allow" id="scm-save">💾 Lưu</button></div>
-      </div>`;
-    wrap.querySelector('#scm-close').onclick = close;
-    wrap.querySelector('#scm-cancel').onclick = close;
-    wrap.querySelector('#scm-save').onclick = async ()=>{
-      wrap.querySelectorAll('[data-ck]').forEach(cb=>{ S.prefs.cols[cb.dataset.ck] = cb.checked; });
-      await schedSave('prefs'); close(); if(onDone) onDone();
-    };
+    let order = schedOrderedMeta(S.prefs).map(m=>m[0]);
+    const vis = {}; SCHED_COLS_META.forEach(([k,,fixed])=>{ vis[k] = fixed || S.prefs.cols[k]!==false; });
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:440px;">
+          <div class="modal-head"><h3>🧩 Tuỳ chỉnh cột</h3><button class="modal-close preview-allow" id="scm-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin:0 0 8px;">"Ngày giờ" và "Nội dung công việc" luôn hiện (📌). Các cột còn lại tuỳ ý ẩn/hiện. Áp dụng cả khi xem bảng Excel, in và xuất file.</p>
+            <p class="sub" style="margin:0 0 8px;">💡 Đổi vị trí cột: nhấn giữ biểu tượng ⠿ ở đầu mỗi dòng, kéo lên/xuống rồi thả vào đúng chỗ.</p>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              ${order.map(k=>{ const m = SCHED_COLS_META.find(x=>x[0]===k); const fixed = m[2];
+                return `<label class="col-pick-row" draggable="true" data-col-key="${k}" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:${fixed?'var(--paper-2)':'var(--white)'}; cursor:move; font-size:12.5px;"><span style="opacity:.5;">${fixed?'📌':'⠿'}</span><input type="checkbox" class="preview-allow" data-ck="${k}" ${vis[k]?'checked':''} ${fixed?'disabled':''}><span data-col-name-label="${k}">${escapeHtml(m[1])}</span></label>`; }).join('')}
+            </div>
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="scm-default" style="margin-right:auto;">↺ Khôi phục mặc định</button><button class="btn btn-ghost preview-allow" id="scm-cancel">Đóng</button><button class="btn btn-primary preview-allow" id="scm-save">💾 Lưu</button></div>
+        </div>`;
+      wrap.querySelector('#scm-close').onclick = close;
+      wrap.querySelector('#scm-cancel').onclick = close;
+      wrap.querySelector('#scm-default').onclick = ()=>{ order = SCHED_COLS_META.map(m=>m[0]); SCHED_COLS_META.forEach(([k])=>{ vis[k] = true; }); render(); };
+      wrap.querySelectorAll('[data-ck]').forEach(cb=> cb.onchange = ()=>{ vis[cb.dataset.ck] = cb.checked; });
+      wireDragReorderWithIndicator(
+        Array.from(wrap.querySelectorAll('.col-pick-row')),
+        row=> row.dataset.colKey,
+        (dragged, target, before)=>{
+          order = order.filter(k=>k!==dragged);
+          const ti = order.indexOf(target);
+          order.splice(before? ti : ti+1, 0, dragged);
+          render();
+          setTimeout(()=>{ const l = wrap.querySelector(`[data-col-name-label="${dragged}"]`); if(l){ l.classList.remove('col-name-pulse'); void l.offsetWidth; l.classList.add('col-name-pulse'); } }, 70);
+        }
+      );
+      wrap.querySelector('#scm-save').onclick = async ()=>{
+        SCHED_COLS_META.forEach(([k,,fixed])=>{ if(!fixed) S.prefs.cols[k] = !!vis[k]; });
+        S.prefs.order = order.slice();
+        await schedSave('prefs'); close(); if(onDone) onDone();
+      };
+    }
+    render();
   }
 
   // =====================================================================
