@@ -13,6 +13,7 @@ const files = [
   "js/app/07-core-modules.js",
   "js/app/09-ai-chat-notes.js",
   "js/app/14-accounting-settings-bootstrap.js",
+  "js/app/14c-survey.js",
   "js/app/15-drive-hub.js",
 ];
 const source = files.map((file) => fs.readFileSync(path.join(sourceRoot, file), "utf8")).join("\n");
