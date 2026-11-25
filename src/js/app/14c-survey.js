@@ -25,10 +25,17 @@
       title:'Biểu mẫu không có tiêu đề', description:'',
       isQuiz:false, sections:[sec], questions:[emptySurveyQuestion(sec.id)], createdAt:null, updatedAt:null, deleted:false, responseCount:0 };
   }
+  // Thứ tự câu hỏi trong mảng luôn khớp thứ tự hiển thị (theo thứ tự Phần) — để số thứ tự câu,
+  // di chuyển lên/xuống và xuất kết quả đều đúng sau khi di chuyển/nhân bản phần.
+  function surveyNormalizeOrder(draft){
+    draft.questions = draft.sections.flatMap(sec=> draft.questions.filter(q=> q.sectionId===sec.id));
+  }
+  function surveyQCanBranch(q){ return q.type==='radio' || q.type==='checkbox'; }
   function hasSurveyPersonalAccount(){ return !!(state.identity && state.identity.email); }
   // Đảm bảo biểu mẫu (kể cả biểu mẫu cũ tạo trước khi có tính năng "Phần") luôn có sections hợp lệ
   // và mỗi câu hỏi có đủ optionBranches/numericOnly — tránh lỗi khi mở sửa/điền phiếu.
   function ensureSurveySections(draft){
+    if(!Array.isArray(draft.questions)) draft.questions = draft.questions? Object.values(draft.questions) : [];
     if(!draft.sections || !draft.sections.length){
       const sec = emptySurveySection(1);
       draft.sections = [sec];
@@ -41,7 +48,11 @@
     (draft.questions||[]).forEach(q=>{
       if(q.numericOnly==null) q.numericOnly = false;
       if(!q.optionBranches || q.optionBranches.length!==(q.options||[]).length) q.optionBranches = (q.options||[]).map(()=>'__next__');
+      // Biểu mẫu cũ đã cài rẽ nhánh thì tự bật "Chuyển đến phần dựa trên câu trả lời" — không mất cài đặt.
+      if(q.branchEnabled==null) q.branchEnabled = (q.optionBranches||[]).some(b=> b && b!=='__next__');
+      if(q.description==null) q.description = '';
     });
+    surveyNormalizeOrder(draft);
     return draft;
   }
   // ---- Phân quyền: Bộ DÙNG CHUNG theo publicPerms/grants['survey'] (Cài đặt & Chia sẻ); Bộ CÁ
@@ -267,23 +278,33 @@
 
   function renderSurveyQuestionCardHtml(q, idx, isQuiz, canEdit, sections){
     const isFreeText = (q.type==='short' || q.type==='paragraph');
-    const hasBranch = surveyQTypeHasOptions(q.type) && q.type!=='dropdown' && sections && sections.length>1;
+    const branchOn = surveyQCanBranch(q) && sections && sections.length>1 && q.branchEnabled;
+    const showDesc = q.showDesc || !!q.description;
+    const pills = [
+      branchOn? '🔀 Chuyển phần theo câu trả lời' : '',
+      (surveyQTypeHasOptions(q.type) && q.shuffleOptions)? '🔀 Xáo trộn thứ tự phương án' : '',
+    ].filter(Boolean);
     return `
-    <div class="panel" style="margin-bottom:10px; border:1px solid var(--line);">
+    <div class="panel" style="margin-bottom:10px; border:1px solid var(--line);" data-qcard="${q.id}">
       <div class="panel-body">
         <div style="display:flex; gap:10px; align-items:flex-start;">
           <b style="padding-top:10px;">${idx+1}.</b>
           <div style="flex:1; min-width:0;">
-            <input class="q-text" data-qid="${q.id}" value="${escapeHtml(q.text)}" placeholder="Nội dung câu hỏi..." style="width:100%; font-weight:700; margin-bottom:8px;" ${canEdit?'':'disabled'}>
+            <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">
+              <input class="q-text" data-qid="${q.id}" value="${escapeHtml(q.text)}" placeholder="Nội dung câu hỏi..." style="flex:1; min-width:0; font-weight:700;" ${canEdit?'':'disabled'}>
+              ${canEdit? `<button type="button" class="btn btn-ghost btn-sm sv-kebab preview-allow" data-qmenu="${q.id}" data-pop-anchor title="Thêm tuỳ chọn cho câu hỏi này">⋮</button>` : ''}
+            </div>
+            ${showDesc? `<input class="q-desc" data-qid="${q.id}" value="${escapeHtml(q.description||'')}" placeholder="Mô tả câu hỏi (không bắt buộc)" style="width:100%; font-size:12.5px; margin-bottom:8px;" ${canEdit?'':'disabled'}>` : ''}
+            ${pills.length? `<div>${pills.map(p=>`<span class="sv-pill">${p}</span>`).join('')}</div>` : ''}
             <div class="form-grid">
               <div class="field"><label>Loại câu hỏi</label>
                 <select class="q-type" data-qid="${q.id}" ${canEdit?'':'disabled'}>${SURVEY_QTYPES.map(t=>`<option value="${t.key}" ${q.type===t.key?'selected':''}>${t.label}</option>`).join('')}</select>
               </div>
               <div class="field"><label>&nbsp;</label>
-                <div class="checkbox-row"><input type="checkbox" class="q-required" data-qid="${q.id}" ${q.required?'checked':''} ${canEdit?'':'disabled'}> <label style="margin:0;">Bắt buộc trả lời</label></div>
+                <label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" class="q-required" data-qid="${q.id}" ${q.required?'checked':''} ${canEdit?'':'disabled'}><span>Bắt buộc trả lời</span></label>
               </div>
               ${isFreeText? `<div class="field"><label>&nbsp;</label>
-                <div class="checkbox-row"><input type="checkbox" class="q-numeric" data-qid="${q.id}" ${q.numericOnly?'checked':''} ${canEdit?'':'disabled'}> <label style="margin:0;">🔢 Chỉ nhập số</label></div>
+                <label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" class="q-numeric" data-qid="${q.id}" ${q.numericOnly?'checked':''} ${canEdit?'':'disabled'}><span>🔢 Chỉ nhập số</span></label>
               </div>` : ''}
             </div>
             ${isFreeText? `<p class="sub" style="margin:4px 0;">${q.numericOnly? '🔢 Người trả lời chỉ được nhập chữ số và dấu phẩy (,) — tự động tách cụm 3 số khi gõ.' : ''}</p>` : ''}
@@ -292,9 +313,9 @@
               <div class="q-options-list">
                 ${(q.options||[]).map((opt,oi)=>`
                   <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap;">
-                    ${isQuiz? `<input type="checkbox" class="q-correct" data-qid="${q.id}" data-oi="${oi}" ${(q.correctAnswers||[]).includes(opt)?'checked':''} title="Đánh dấu là đáp án đúng" ${canEdit?'':'disabled'}>` : ''}
+                    ${isQuiz? `<label class="sv-filter-item sv-opt sv-opt-fit sv-opt-correct" title="Đánh dấu là đáp án đúng"><input type="checkbox" class="q-correct" data-qid="${q.id}" data-oi="${oi}" ${(q.correctAnswers||[]).includes(opt)?'checked':''} ${canEdit?'':'disabled'}><span>Đúng</span></label>` : ''}
                     <input class="q-option-text" data-qid="${q.id}" data-oi="${oi}" value="${escapeHtml(opt)}" style="flex:1; min-width:120px;" placeholder="Phương án ${oi+1}" ${canEdit?'':'disabled'}>
-                    ${hasBranch? `<select class="q-option-branch" data-qid="${q.id}" data-oi="${oi}" style="font-size:11.5px;" ${canEdit?'':'disabled'}>
+                    ${branchOn? `<select class="q-option-branch" data-qid="${q.id}" data-oi="${oi}" style="font-size:11.5px;" ${canEdit?'':'disabled'}>
                       <option value="__next__" ${(q.optionBranches&&q.optionBranches[oi])==='__next__'||!q.optionBranches?'selected':''}>→ Tiếp tục sang phần tiếp theo</option>
                       ${sections.map(s=>`<option value="${s.id}" ${(q.optionBranches&&q.optionBranches[oi])===s.id?'selected':''}>→ Chuyển đến "${escapeHtml(s.title)}"</option>`).join('')}
                       <option value="__submit__" ${(q.optionBranches&&q.optionBranches[oi])==='__submit__'?'selected':''}>→ Gửi biểu mẫu</option>
@@ -306,10 +327,6 @@
               ${isQuiz? `<div class="field" style="max-width:180px; margin-top:8px;"><label>Số điểm câu này</label><input type="number" class="q-points" data-qid="${q.id}" value="${q.points||0}" ${canEdit?'':'disabled'}></div>` : ''}
             ` : ''}
           </div>
-          ${canEdit? `<div style="display:flex; flex-direction:column; gap:6px;">
-            <button class="btn btn-ghost btn-sm q-duplicate" data-qid="${q.id}" title="Sao chép câu hỏi">📋</button>
-            <button class="btn btn-ghost btn-sm q-delete" data-qid="${q.id}" title="Xoá câu hỏi" style="color:var(--red);">🗑️</button>
-          </div>` : ''}
         </div>
       </div>
     </div>`;
@@ -322,15 +339,15 @@
         <div class="field full"><label>Tiêu đề biểu mẫu *</label><input id="sv-title" value="${escapeHtml(draft.title)}" ${canEdit?'':'disabled'}></div>
         <div class="field full"><label>Mô tả biểu mẫu</label><textarea id="sv-desc" rows="2" ${canEdit?'':'disabled'}>${escapeHtml(draft.description)}</textarea></div>
       </div>
-      <div class="checkbox-row" style="margin:10px 0;"><input type="checkbox" id="sv-isquiz" ${draft.isQuiz?'checked':''} ${canEdit?'':'disabled'}> <label style="margin:0;">📋 Đặt làm bài kiểm tra (cho phép chấm điểm đáp án đúng)</label></div>
+      <div style="margin:10px 0;"><label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" id="sv-isquiz" ${draft.isQuiz?'checked':''} ${canEdit?'':'disabled'}><span>📋 Đặt làm bài kiểm tra (cho phép chấm điểm đáp án đúng)</span></label></div>
       <div id="sv-sections-list">
         ${draft.sections.map((sec, si)=>{
           const secQuestions = draft.questions.filter(q=>q.sectionId===sec.id);
           return `
           <div class="panel" style="margin-bottom:16px; border:2px solid var(--gold);" data-section-card="${sec.id}">
-            <div class="panel-head" style="background:rgba(199,154,43,.08);">
-              <h3 style="font-size:13.5px;">📑 Phần ${si+1}/${draft.sections.length}</h3>
-              ${canEdit && draft.sections.length>1? `<button class="btn btn-ghost btn-sm sec-delete" data-secid="${sec.id}" style="margin-left:auto; color:var(--red);">Xoá phần này</button>` : ''}
+            <div class="panel-head" style="background:rgba(199,154,43,.08); display:flex; align-items:center; gap:8px;">
+              <h3 style="font-size:13.5px;">📑 Phần ${si+1}/${draft.sections.length}${secQuestions.length? '' : ' <span class="sub" style="font-weight:400;">(chưa có câu hỏi)</span>'}</h3>
+              ${canEdit? `<button type="button" class="btn btn-ghost btn-sm sv-kebab preview-allow" data-secmenu="${sec.id}" data-pop-anchor title="Thêm tuỳ chọn cho phần này" style="margin-left:auto;">⋮</button>` : ''}
             </div>
             <div class="panel-body">
               <div class="form-grid">
@@ -345,7 +362,6 @@
       </div>
       ${canEdit? `<div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" id="sv-add-section-btn">➕ Thêm phần</button>
-        <button class="btn btn-ghost" id="sv-import-question-btn">📥 Nhập câu hỏi từ biểu mẫu khác</button>
       </div>` : ''}`;
   }
 
@@ -442,6 +458,7 @@
       const quizToggle = document.getElementById('sv-isquiz'); if(quizToggle) quizToggle.onchange = e=>{ draft.isQuiz = e.target.checked; renderSurveyTab(el); };
 
       el.querySelectorAll('.q-text').forEach(inp=> inp.oninput = ()=>{ const q=draft.questions.find(x=>x.id===inp.dataset.qid); if(q) q.text = inp.value; });
+      el.querySelectorAll('.q-desc').forEach(inp=> inp.oninput = ()=>{ const q=draft.questions.find(x=>x.id===inp.dataset.qid); if(q) q.description = inp.value; });
       el.querySelectorAll('.q-type').forEach(sel=> sel.onchange = ()=>{
         const q=draft.questions.find(x=>x.id===sel.dataset.qid);
         if(q){
@@ -482,38 +499,13 @@
         q.correctAnswers = (q.correctAnswers||[]).filter(a=>a!==removedOpt);
         renderSurveyTab(el);
       });
-      el.querySelectorAll('.q-duplicate').forEach(btn=> btn.onclick = ()=>{
-        const idx = draft.questions.findIndex(x=>x.id===btn.dataset.qid);
-        if(idx<0) return;
-        const copy = JSON.parse(JSON.stringify(draft.questions[idx]));
-        copy.id = 'q_'+uid();
-        draft.questions.splice(idx+1,0,copy);
-        renderSurveyTab(el);
-      });
-      el.querySelectorAll('.q-delete').forEach(btn=> btn.onclick = ()=>{
-        if(draft.questions.length<=1){ alert('Biểu mẫu cần có ít nhất 1 câu hỏi.'); return; }
-        draft.questions = draft.questions.filter(x=>x.id!==btn.dataset.qid);
-        renderSurveyTab(el);
-      });
       // ---- Quản lý Phần (Section) — giống Google Forms: nhiều phần, mỗi phần nhiều câu hỏi ----
       el.querySelectorAll('.sec-title').forEach(inp=> inp.oninput = ()=>{ const s=draft.sections.find(x=>x.id===inp.dataset.secid); if(s) s.title = inp.value; });
       el.querySelectorAll('.sec-desc').forEach(inp=> inp.oninput = ()=>{ const s=draft.sections.find(x=>x.id===inp.dataset.secid); if(s) s.description = inp.value; });
       el.querySelectorAll('.sec-add-question').forEach(btn=> btn.onclick = ()=>{ draft.questions.push(emptySurveyQuestion(btn.dataset.secid)); renderSurveyTab(el); });
-      el.querySelectorAll('.sec-delete').forEach(btn=> btn.onclick = ()=>{
-        if(draft.sections.length<=1){ alert('Biểu mẫu cần có ít nhất 1 phần.'); return; }
-        const secIdx = draft.sections.findIndex(s=>s.id===btn.dataset.secid);
-        if(secIdx<0) return;
-        if(!confirm('Xoá phần này? Các câu hỏi trong phần sẽ được chuyển sang phần liền trước (hoặc phần đầu tiên).')) return;
-        const fallbackSec = draft.sections[secIdx>0? secIdx-1 : 1];
-        draft.questions.forEach(q=>{ if(q.sectionId===btn.dataset.secid) q.sectionId = fallbackSec.id; });
-        // Mọi phân nhánh đang trỏ tới phần bị xoá -> chuyển về "Tiếp tục sang phần tiếp theo"
-        draft.questions.forEach(q=>{ if(q.optionBranches) q.optionBranches = q.optionBranches.map(b=> b===btn.dataset.secid? '__next__' : b); });
-        draft.sections.splice(secIdx,1);
-        renderSurveyTab(el);
-      });
+      wireSurveyStructureMenus(el, draft);
       const addSectionBtn = document.getElementById('sv-add-section-btn');
       if(addSectionBtn) addSectionBtn.onclick = ()=>{ draft.sections.push(emptySurveySection(draft.sections.length+1)); renderSurveyTab(el); };
-      const importBtn = document.getElementById('sv-import-question-btn'); if(importBtn) importBtn.onclick = ()=> renderImportQuestionsModal(el);
       const saveBtn = document.getElementById('sv-save-btn'); if(saveBtn) saveBtn.onclick = async ()=>{ if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); renderSurveyTab(el); } };
     } else {
       const toggleBtn = document.getElementById('sv-toggle-detail');
@@ -525,7 +517,154 @@
     }
   }
 
-  function renderImportQuestionsModal(el){
+  // ---- Menu "⋮" của từng câu hỏi và từng phần (kiểu Google Biểu mẫu) ----
+  function wireSurveyStructureMenus(el, draft){
+    const rerender = ()=> renderSurveyTab(el);
+    const stillEditing = ()=> state.activeTab==='survey' && state.surveyView==='editor' && state.surveyDraft===draft;
+    const rerenderIfOpen = ()=>{ if(stillEditing()){ const c = document.getElementById('content'); if(c) renderSurveyTab(c); } };
+    const clone = x=> JSON.parse(JSON.stringify(x));
+    const secIdx = id=> draft.sections.findIndex(s=>s.id===id);
+    const qsOf = secId=> draft.questions.filter(q=>q.sectionId===secId);
+    // Chụp lại cấu trúc để Hoàn tác các thao tác cấp Phần (xoá/hợp nhất).
+    const snapshot = ()=> ({ sections: clone(draft.sections), questions: clone(draft.questions) });
+    const restore = (snap)=>{ draft.sections = snap.sections; draft.questions = snap.questions; rerenderIfOpen(); };
+
+    // ===== Câu hỏi =====
+    function qMove(q, dir){
+      surveyNormalizeOrder(draft);
+      const list = draft.questions, i = list.indexOf(q), si = secIdx(q.sectionId);
+      const nb = list[i+dir];
+      if(nb && nb.sectionId===q.sectionId){ list[i] = nb; list[i+dir] = q; }
+      else {
+        const target = draft.sections[si+dir]; if(!target) return;
+        q.sectionId = target.id;
+        // Lên: thành câu cuối của phần trên. Xuống: thành câu đầu của phần dưới.
+        list.splice(i,1);
+        const others = list.filter(x=>x.sectionId===target.id);
+        if(dir<0) list.splice(others.length? list.indexOf(others[others.length-1])+1 : list.length, 0, q);
+        else list.splice(others.length? list.indexOf(others[0]) : list.length, 0, q);
+      }
+      surveyNormalizeOrder(draft); rerender();
+    }
+    function qDelete(q){
+      if(draft.questions.length<=1){ alert('Biểu mẫu cần có ít nhất 1 câu hỏi.'); return; }
+      const idx = draft.questions.indexOf(q), secId = q.sectionId;
+      draft.questions.splice(idx,1);
+      rerender();
+      showUndoToast('Đã xoá câu hỏi', ()=>{
+        if(!draft.sections.some(s=>s.id===secId)) q.sectionId = draft.sections[0].id;
+        draft.questions.splice(Math.min(idx, draft.questions.length), 0, q);
+        surveyNormalizeOrder(draft); rerenderIfOpen();
+      });
+    }
+    el.querySelectorAll('[data-qmenu]').forEach(btn=> btn.onclick = (e)=>{
+      e.stopPropagation();
+      const q = draft.questions.find(x=>x.id===btn.dataset.qmenu); if(!q) return;
+      surveyNormalizeOrder(draft);
+      const si = secIdx(q.sectionId), inSec = qsOf(q.sectionId), pos = inSec.indexOf(q);
+      const canUp = pos>0 || si>0, canDown = pos<inSec.length-1 || si<draft.sections.length-1;
+      const items = [
+        { icon:'📋', label:'Nhân bản câu hỏi', onClick:()=>{ const c = clone(q); c.id = 'q_'+uid(); draft.questions.splice(draft.questions.indexOf(q)+1, 0, c); rerender(); } },
+        { icon:'➕', label:'Chèn câu hỏi mới ngay bên dưới', onClick:()=>{ draft.questions.splice(draft.questions.indexOf(q)+1, 0, emptySurveyQuestion(q.sectionId)); rerender(); } },
+        { icon:'⬆️', label: (pos===0 && si>0)? 'Di chuyển lên (sang phần phía trên)' : 'Di chuyển lên', disabled:!canUp, onClick:()=> qMove(q,-1) },
+        { icon:'⬇️', label: (pos===inSec.length-1 && si<draft.sections.length-1)? 'Di chuyển xuống (sang phần phía dưới)' : 'Di chuyển xuống', disabled:!canDown, onClick:()=> qMove(q,1) },
+      ];
+      if(draft.sections.length>1) items.push({ icon:'📑', label:'Chuyển sang phần khác…', onClick:()=>{
+        openPopMenu(btn, draft.sections.map((s,k)=>({ icon:'→', label:`Phần ${k+1}: ${s.title||'(chưa đặt tên)'}`, disabled: s.id===q.sectionId, onClick:()=>{
+          draft.questions.splice(draft.questions.indexOf(q),1); q.sectionId = s.id; draft.questions.push(q); surveyNormalizeOrder(draft); rerender();
+          showToast(`Đã chuyển câu hỏi sang Phần ${k+1}.`);
+        } })));
+      } });
+      items.push('sep');
+      const descOn = !!(q.showDesc || q.description);
+      items.push({ label:'Mô tả câu hỏi', checked:descOn, onClick:()=>{ if(descOn){ q.showDesc = false; q.description = ''; } else q.showDesc = true; rerender();
+        if(!descOn) setTimeout(()=>{ const d = document.querySelector(`.q-desc[data-qid="${q.id}"]`); if(d) d.focus(); }, 0); } });
+      if(surveyQCanBranch(q) && draft.sections.length>1) items.push({ label:'Chuyển đến phần dựa trên câu trả lời', checked:!!q.branchEnabled, onClick:()=>{
+        q.branchEnabled = !q.branchEnabled; if(!q.branchEnabled) q.optionBranches = (q.options||[]).map(()=>'__next__'); rerender(); } });
+      if(surveyQTypeHasOptions(q.type)) items.push({ label:'Xáo trộn thứ tự phương án khi người khác điền', checked:!!q.shuffleOptions, onClick:()=>{ q.shuffleOptions = !q.shuffleOptions; rerender(); } });
+      items.push('sep');
+      items.push({ icon:'🗑️', label:'Xoá câu hỏi', danger:true, onClick:()=> qDelete(q) });
+      openPopMenu(btn, items);
+    });
+
+    // ===== Phần =====
+    function secMove(sec, dir){
+      const i = secIdx(sec.id), j = i+dir; if(j<0 || j>=draft.sections.length) return;
+      const arr = draft.sections; [arr[i], arr[j]] = [arr[j], arr[i]];
+      surveyNormalizeOrder(draft); rerender();
+    }
+    function secDuplicate(sec){
+      const i = secIdx(sec.id);
+      const ns = { ...clone(sec), id:'sec_'+uid(), title: (sec.title||'Phần')+' (bản sao)' };
+      draft.sections.splice(i+1, 0, ns);
+      qsOf(sec.id).forEach(q=>{ const c = clone(q); c.id = 'q_'+uid(); c.sectionId = ns.id; draft.questions.push(c); });
+      surveyNormalizeOrder(draft); rerender();
+    }
+    function secMergeUp(sec){
+      const i = secIdx(sec.id); if(i<=0) return;
+      const snap = snapshot(), prev = draft.sections[i-1];
+      draft.questions.forEach(q=>{
+        if(q.sectionId===sec.id) q.sectionId = prev.id;
+        if(q.optionBranches) q.optionBranches = q.optionBranches.map(b=> b===sec.id? prev.id : b);
+      });
+      draft.sections.splice(i,1);
+      surveyNormalizeOrder(draft); rerender();
+      showUndoToast(`Đã hợp nhất với Phần ${i}`, ()=> restore(snap));
+    }
+    function secDelete(sec){
+      if(draft.sections.length<=1){ alert('Biểu mẫu cần có ít nhất 1 phần.'); return; }
+      const i = secIdx(sec.id), inSec = qsOf(sec.id);
+      const doDelete = (mode)=>{
+        if(mode==='drop' && inSec.length>=draft.questions.length){ alert('Không thể xoá luôn các câu hỏi: biểu mẫu cần còn lại ít nhất 1 câu hỏi. Hãy chọn chuyển câu hỏi sang phần khác.'); return; }
+        const snap = snapshot();
+        const fallback = draft.sections[i>0? i-1 : 1];
+        if(mode==='drop') draft.questions = draft.questions.filter(q=>q.sectionId!==sec.id);
+        else draft.questions.forEach(q=>{ if(q.sectionId===sec.id) q.sectionId = fallback.id; });
+        // Phân nhánh đang trỏ tới phần bị xoá -> về "Tiếp tục sang phần tiếp theo"
+        draft.questions.forEach(q=>{ if(q.optionBranches) q.optionBranches = q.optionBranches.map(b=> b===sec.id? '__next__' : b); });
+        draft.sections.splice(i,1);
+        surveyNormalizeOrder(draft); rerender();
+        showUndoToast(mode==='drop'? `Đã xoá phần và ${inSec.length} câu hỏi` : 'Đã xoá phần', ()=> restore(snap));
+      };
+      if(!inSec.length){ doDelete('move'); return; }
+      const where = i>0? 'phần phía trên' : 'phần phía dưới';
+      const wrap = document.createElement('div');
+      wrap.className = 'modal-bg';
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:480px;">
+          <div class="modal-head"><h3>🗑️ Xoá Phần ${i+1}</h3><button class="modal-close preview-allow" id="svsd-close">✕</button></div>
+          <div class="modal-body"><p style="margin:0;">Phần này đang có <b>${inSec.length} câu hỏi</b>. Đồng chí muốn xử lý các câu hỏi đó thế nào?</p></div>
+          <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+            <button class="btn btn-ghost preview-allow" id="svsd-cancel">Huỷ</button>
+            <button class="btn btn-primary preview-allow" id="svsd-move">Chuyển câu hỏi sang ${where}</button>
+            <button class="btn btn-danger preview-allow" id="svsd-drop">Xoá luôn ${inSec.length} câu hỏi</button>
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+      const close = ()=> wrap.remove();
+      wrap.querySelector('#svsd-close').onclick = close;
+      wrap.querySelector('#svsd-cancel').onclick = close;
+      wrap.querySelector('#svsd-move').onclick = ()=>{ close(); doDelete('move'); };
+      wrap.querySelector('#svsd-drop').onclick = ()=>{ close(); doDelete('drop'); };
+    }
+    el.querySelectorAll('[data-secmenu]').forEach(btn=> btn.onclick = (e)=>{
+      e.stopPropagation();
+      const sec = draft.sections.find(x=>x.id===btn.dataset.secmenu); if(!sec) return;
+      const i = secIdx(sec.id), n = draft.sections.length;
+      openPopMenu(btn, [
+        { icon:'📋', label:'Nhân bản phần (kèm các câu hỏi)', onClick:()=> secDuplicate(sec) },
+        { icon:'➕', label:'Chèn phần mới ngay sau phần này', onClick:()=>{ draft.sections.splice(i+1, 0, emptySurveySection(n+1)); rerender(); } },
+        { icon:'⬆️', label:'Di chuyển phần lên', disabled:i===0, onClick:()=> secMove(sec,-1) },
+        { icon:'⬇️', label:'Di chuyển phần xuống', disabled:i===n-1, onClick:()=> secMove(sec,1) },
+        { icon:'📥', label:'Nhập câu hỏi từ biểu mẫu khác vào phần này', onClick:()=> renderImportQuestionsModal(el, sec.id) },
+        { icon:'🔗', label:'Hợp nhất với phần phía trên', disabled:i===0, onClick:()=> secMergeUp(sec) },
+        'sep',
+        { icon:'🗑️', label:'Xoá phần', danger:true, disabled:n<=1, onClick:()=> secDelete(sec) },
+      ]);
+    });
+  }
+
+  function renderImportQuestionsModal(el, targetSectionId){
     const others = state.surveys.filter(s=> s.id !== state.surveyEditingId);
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
@@ -536,7 +675,7 @@
           ${others.length? others.map(s=>`
             <div class="divider-lbl">${escapeHtml(s.title)}</div>
             ${(s.questions||[]).map(q=>`
-              <label class="checkbox-row" style="display:flex; align-items:flex-start; gap:8px; margin-bottom:6px;">
+              <label class="sv-filter-item sv-opt sv-opt-full">
                 <input type="checkbox" class="svi-check" data-sid="${s.id}" data-qid="${q.id}">
                 <span>${escapeHtml(q.text)} <span class="sub">(${surveyQTypeLabel(q.type)})</span></span>
               </label>`).join('')}
@@ -563,7 +702,9 @@
           const copy = JSON.parse(JSON.stringify(q));
           copy.id = 'q_'+uid();
           ensureSurveySections(state.surveyDraft);
-          copy.sectionId = state.surveyDraft.sections[state.surveyDraft.sections.length-1].id; // thêm vào phần cuối cùng
+          const secs = state.surveyDraft.sections;
+          copy.sectionId = (targetSectionId && secs.some(x=>x.id===targetSectionId))? targetSectionId : secs[secs.length-1].id; // đúng phần đã chọn ở menu ⋮
+          copy.branchEnabled = false;
           copy.optionBranches = (copy.options||[]).map(()=>'__next__'); // reset phân nhánh (phần của biểu mẫu gốc không tồn tại ở đây)
           state.surveyDraft.questions.push(copy);
         }
@@ -669,6 +810,17 @@
     let surveyLoadError = '';
     let currentSectionIdx = 0;
     const collected = {}; // câu trả lời đã thu thập được, giữ lại xuyên suốt các Phần
+    const shuffledOrder = {}; // thứ tự phương án đã xáo trộn — cố định suốt 1 lượt điền phiếu
+    function publicOptions(q){
+      const opts = q.options||[];
+      if(!q.shuffleOptions) return opts;
+      if(!shuffledOrder[q.id]){
+        const a = opts.slice();
+        for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; }
+        shuffledOrder[q.id] = a;
+      }
+      return shuffledOrder[q.id];
+    }
 
     function renderPublicQuestionHtml(q, qi){
       const label = `${qi+1}. ${escapeHtml(q.text)}${q.required? ' <span style="color:var(--red);">*</span>' : ''}`;
@@ -677,10 +829,11 @@
       let field = '';
       if(q.type==='short') field = `<input class="ps-answer" data-qid="${q.id}" data-type="short" ${isNumeric?'data-numeric="1" inputmode="decimal"':''} value="${escapeHtml(prevVal||'')}">${isNumeric? `<div class="sub" data-numeric-disp="${q.id}" style="text-align:right; font-weight:700; margin-top:4px;"></div>` : ''}`;
       else if(q.type==='paragraph') field = `<textarea class="ps-answer" data-qid="${q.id}" data-type="paragraph" rows="3" ${isNumeric?'data-numeric="1" inputmode="decimal"':''}>${escapeHtml(prevVal||'')}</textarea>${isNumeric? `<div class="sub" data-numeric-disp="${q.id}" style="text-align:right; font-weight:700; margin-top:4px;"></div>` : ''}`;
-      else if(q.type==='dropdown') field = `<select class="ps-answer" data-qid="${q.id}" data-type="dropdown"><option value="">-- Chọn --</option>${(q.options||[]).map(o=>`<option value="${escapeHtml(o)}" ${prevVal===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}</select>`;
-      else if(q.type==='radio') field = `<div>${(q.options||[]).map(o=>`<label class="checkbox-row" style="display:flex; gap:8px; margin-bottom:4px; font-weight:400;"><input type="radio" name="ps-q-${q.id}" class="ps-answer" data-qid="${q.id}" data-type="radio" value="${escapeHtml(o)}" ${prevVal===o?'checked':''}> ${escapeHtml(o)}</label>`).join('')}</div>`;
-      else if(q.type==='checkbox') field = `<div>${(q.options||[]).map(o=>`<label class="checkbox-row" style="display:flex; gap:8px; margin-bottom:4px; font-weight:400;"><input type="checkbox" class="ps-answer" data-qid="${q.id}" data-type="checkbox" value="${escapeHtml(o)}" ${(Array.isArray(prevVal)&&prevVal.includes(o))?'checked':''}> ${escapeHtml(o)}</label>`).join('')}</div>`;
-      return `<div class="field full" style="margin-bottom:18px;"><label>${label}</label>${field}</div>`;
+      else if(q.type==='dropdown') field = `<select class="ps-answer" data-qid="${q.id}" data-type="dropdown"><option value="">-- Chọn --</option>${publicOptions(q).map(o=>`<option value="${escapeHtml(o)}" ${prevVal===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}</select>`;
+      else if(q.type==='radio') field = `<div>${publicOptions(q).map(o=>`<label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="ps-q-${q.id}" class="ps-answer" data-qid="${q.id}" data-type="radio" value="${escapeHtml(o)}" ${prevVal===o?'checked':''}><span>${escapeHtml(o)}</span></label>`).join('')}</div>`;
+      else if(q.type==='checkbox') field = `<div>${publicOptions(q).map(o=>`<label class="sv-filter-item sv-opt sv-opt-full"><input type="checkbox" class="ps-answer" data-qid="${q.id}" data-type="checkbox" value="${escapeHtml(o)}" ${(Array.isArray(prevVal)&&prevVal.includes(o))?'checked':''}><span>${escapeHtml(o)}</span></label>`).join('')}</div>`;
+      const desc = q.description? `<div class="sub" style="margin:-2px 0 8px; font-size:12.5px; white-space:pre-wrap;">${escapeHtml(q.description)}</div>` : '';
+      return `<div class="field full" style="margin-bottom:18px;"><label>${label}</label>${desc}${field}</div>`;
     }
 
     function renderFillForm(){
@@ -741,7 +894,7 @@
           else { const x=document.querySelector(`.ps-answer[data-qid="${q.id}"]`); val = x? x.value.trim() : ''; if(isNumeric) val = val.replace(/\s/g,''); }
           collected[q.id] = val;
           if(q.required && (val==null || val==='' || (Array.isArray(val)&&val.length===0))) missingRequired = true;
-          if(branchTarget===null && (q.type==='radio'||q.type==='checkbox') && q.optionBranches && q.optionBranches.length){
+          if(branchTarget===null && (q.type==='radio'||q.type==='checkbox') && q.branchEnabled!==false && q.optionBranches && q.optionBranches.length){
             const selectedOpts = Array.isArray(val) ? val : (val? [val] : []);
             for(const so of selectedOpts){
               const oi = (q.options||[]).indexOf(so);

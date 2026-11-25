@@ -1288,3 +1288,72 @@
     if(btn) btn.textContent = '⏹ Dừng đọc';
   }
 
+  // =====================================================================
+  // MENU THẢ XUỐNG "⋮" DÙNG CHUNG — gắn thẳng vào document.body (position:fixed) để không bị khung
+  // cuộn cắt mất. Tự mở xuống dưới nút; sát đáy màn hình thì tự lật lên trên; không tràn mép phải.
+  // items: mảng { icon, label, onClick, danger, disabled, checked } hoặc chuỗi 'sep' (đường kẻ).
+  // checked: true/false -> mục dạng bật/tắt (hiện ✓ khi bật); undefined -> mục hành động thường.
+  // Nút mở menu cần có thuộc tính data-pop-anchor để bấm lại chính nó thì đóng menu.
+  // =====================================================================
+  function positionPopMenu(menu){
+    const anchor = menu.__anchor;
+    if(!anchor || !anchor.isConnected){ closePopMenu(); return; }
+    const r = anchor.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight, gap = 4, pad = 8;
+    if(r.bottom < 0 || r.top > vh){ closePopMenu(); return; }
+    menu.style.maxHeight = '';
+    const w = menu.offsetWidth, h = menu.scrollHeight;
+    const below = vh - r.bottom - gap - pad, above = r.top - gap - pad;
+    const openUp = h > below && above > below;
+    const room = Math.max(120, openUp? above : below);
+    const realH = Math.min(h, room);
+    if(h > room) menu.style.maxHeight = room + 'px';
+    menu.style.top = (openUp? r.top - gap - realH : r.bottom + gap) + 'px';
+    menu.style.left = Math.max(pad, Math.min(r.right - w, vw - w - pad)) + 'px';
+  }
+  function closePopMenu(){ const m = document.getElementById('__popMenu'); if(m) m.remove(); }
+  function openPopMenu(anchor, items){
+    const already = document.getElementById('__popMenu');
+    if(already && already.__anchor===anchor){ closePopMenu(); return; }
+    closePopMenu();
+    const menu = document.createElement('div');
+    menu.id = '__popMenu';
+    menu.className = 'pop-menu';
+    menu.__anchor = anchor;
+    menu.innerHTML = items.map((it,i)=> it==='sep'? '<div class="pop-menu-sep"></div>'
+      : `<button type="button" class="pop-menu-item${it.danger?' danger':''}" data-pm="${i}" ${it.disabled?'disabled':''}><span class="pop-menu-ico">${it.checked===true? '✓' : (it.icon||'')}</span><span>${escapeHtml(it.label)}</span></button>`).join('');
+    document.body.appendChild(menu);
+    positionPopMenu(menu);
+    menu.addEventListener('click', (e)=>{
+      const b = e.target.closest('[data-pm]'); if(!b || b.disabled) return;
+      e.stopPropagation();
+      const it = items[parseInt(b.dataset.pm,10)];
+      closePopMenu();
+      if(it && it.onClick) it.onClick();
+    });
+    if(!window.__popMenuBound){
+      window.__popMenuBound = true;
+      document.addEventListener('mousedown', (e)=>{ if(!e.target.closest('#__popMenu') && !e.target.closest('[data-pop-anchor]')) closePopMenu(); }, true);
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closePopMenu(); });
+      // Trang/khung cuộn thì menu BÁM THEO nút ⋮ (không đóng — app có chỗ tự cuộn nhẹ sau khi bấm);
+      // chỉ đóng khi nút đã bị cuộn khuất hẳn khỏi màn hình.
+      const follow = (e)=>{ const m = document.getElementById('__popMenu'); if(!m || (e && e.target && e.target.closest && e.target.closest('#__popMenu'))) return; positionPopMenu(m); };
+      window.addEventListener('resize', follow);
+      window.addEventListener('scroll', follow, true);
+    }
+  }
+  // Thông báo "Đã xoá … · ↩️ Hoàn tác" ở cuối màn hình (giống Google Biểu mẫu). Chỉ hoàn tác được lần
+  // gần nhất: gọi lại khi thông báo cũ còn hiện thì thông báo mới thay thế, việc xoá trước coi như xong.
+  function showUndoToast(msg, onUndo, ms){
+    const old = document.getElementById('__undoToast');
+    if(old){ clearTimeout(old.__timer); old.remove(); }
+    const t = document.createElement('div');
+    t.id = '__undoToast';
+    t.className = 'undo-toast';
+    t.innerHTML = `<span>${escapeHtml(msg)}</span><button type="button" class="undo-toast-btn">↩️ Hoàn tác</button>`;
+    document.body.appendChild(t);
+    requestAnimationFrame(()=> t.classList.add('show'));
+    const dismiss = ()=>{ clearTimeout(t.__timer); t.classList.remove('show'); setTimeout(()=>{ if(t.parentNode) t.remove(); }, 250); };
+    t.querySelector('.undo-toast-btn').onclick = ()=>{ dismiss(); if(onUndo) onUndo(); };
+    t.__timer = setTimeout(dismiss, ms || 8000);
+  }

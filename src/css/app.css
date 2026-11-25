@@ -872,6 +872,35 @@
   /* Toast thông báo nhanh */
   .hnd-toast{ position:fixed; left:50%; bottom:30px; transform:translate(-50%, 16px); background:var(--rice-dark); color:#fff; padding:10px 22px; border-radius:24px; font-size:13.5px; font-weight:700; box-shadow:var(--shadow); z-index:1000; opacity:0; transition:opacity .25s ease, transform .25s ease; pointer-events:none; max-width:80vw; text-align:center; }
   .hnd-toast.show{ opacity:1; transform:translate(-50%, 0); }
+  /* Thông báo kèm nút "↩️ Hoàn tác" (showUndoToast) */
+  .undo-toast{ position:fixed; left:50%; bottom:24px; transform:translate(-50%, 16px); opacity:0; display:flex; align-items:center; gap:14px; max-width:calc(100vw - 32px); background:#323232; color:#fff; padding:10px 12px 10px 18px; border-radius:8px; font-size:13.5px; box-shadow:0 4px 14px rgba(0,0,0,.35); z-index:100001; transition:opacity .2s, transform .2s; }
+  .undo-toast.show{ opacity:1; transform:translate(-50%, 0); }
+  .undo-toast-btn{ background:none; border:none; color:#ffd54f; font-weight:800; font-size:13.5px; cursor:pointer; padding:4px 6px; white-space:nowrap; }
+  /* Menu thả xuống "⋮" dùng chung (openPopMenu) */
+  .pop-menu{ position:fixed; z-index:100000; min-width:220px; max-width:min(340px, calc(100vw - 16px)); overflow-y:auto; background:var(--white); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.18); padding:6px 0; }
+  .pop-menu-item{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:none; padding:8px 14px; font-size:13.5px; color:var(--ink); cursor:pointer; font-family:inherit; }
+  .pop-menu-item:hover:not(:disabled){ background:var(--paper-2); }
+  .pop-menu-item:disabled{ opacity:.38; cursor:not-allowed; }
+  .pop-menu-item.danger{ color:var(--red); font-weight:700; }
+  .pop-menu-ico{ width:20px; flex-shrink:0; text-align:center; font-weight:800; color:#2e7d32; }
+  .pop-menu-item.danger .pop-menu-ico{ color:var(--red); }
+  .pop-menu-sep{ height:1px; background:var(--line); margin:5px 0; }
+  /* Nút tròn "⋮" mở menu */
+  .sv-kebab{ width:34px; height:34px; min-width:34px; border-radius:50%; border:1px solid var(--line) !important; background:var(--white); font-size:18px; font-weight:900; line-height:1; padding:0 !important; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .sv-kebab:hover{ background:var(--paper-2); }
+  /* Ô chọn ĐÓNG KHUNG cho module Biểu mẫu/Khảo sát — dựa trên .sv-filter-item sẵn có, thêm: chữ dài tự
+     xuống dòng BÊN TRONG khung, ô chọn luôn ở đầu dòng thứ nhất, khung nổi bật khi đã chọn. */
+  .sv-filter-item.sv-opt{ white-space:normal; align-items:flex-start; margin:0 0 6px; font-size:13.5px; font-weight:400; color:var(--ink); }
+  .sv-filter-item.sv-opt > span{ flex:1; min-width:0; overflow-wrap:anywhere; line-height:1.45; }
+  .sv-filter-item.sv-opt input[type="checkbox"], .sv-filter-item.sv-opt input[type="radio"]{ width:18px !important; height:18px !important; min-width:18px !important; max-width:18px !important; flex-shrink:0; margin:1px 0 0 !important; padding:0 !important; accent-color:var(--gold); }
+  .sv-filter-item.sv-opt-fit{ display:inline-flex; width:auto; max-width:100%; margin:0 6px 6px 0; vertical-align:top; }
+  .sv-filter-item.sv-opt-full{ display:flex; width:100%; }
+  .sv-filter-item.sv-opt:has(input:checked){ border-color:var(--gold); background:rgba(199,154,43,.13); }
+  .sv-filter-item.sv-opt-correct{ padding:5px 9px; margin:0; font-size:12.5px; }
+  .sv-filter-item.sv-opt-correct:has(input:checked){ border-color:#2e7d32; background:#e8f5e9; color:#1b5e20; font-weight:700; }
+  .sv-filter-item.sv-opt-correct input[type="checkbox"]{ accent-color:#2e7d32; }
+  .sv-pill{ display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:10px; background:var(--paper-2); color:var(--rice-dark); margin:0 6px 6px 0; }
+
   /* Thông báo LỚN (gia hạn thành công / phê duyệt đóng lãi thành công) — nhảy sổ ra giữa màn hình,
      "nhảy múa" (phóng to/xoay nhẹ) trong 1 giây, đứng im 4 giây, rồi mờ dần và biến mất. */
   @keyframes bigToastPopDance{
