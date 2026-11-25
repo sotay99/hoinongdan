@@ -155,7 +155,7 @@
     };
     return schedOrderedMeta(prefs).filter(([k,,fixed])=> fixed || (k==='fullText'? showFull : (!prefs || !prefs.cols || prefs.cols[k]!==false))).map(([k])=> ({ key:k, width:SCHED_COL_W[k], ...defs[k] }));
   }
-  function schedRowBg(conf){ return conf? (conf.level==='overlap'? 'background:#ffcdd2;' : 'background:#fff3e0;') : ''; }
+  function schedRowBg(conf){ return ''; } // không tô nền dòng trùng/sát giờ — chỉ chữ ở cột Ghi chú báo
   function schedCellStyle(c){ return `text-align:${c.align}; vertical-align:top; ` + (c.key==='when'? 'white-space:nowrap;' : `white-space:normal; word-break:break-word; overflow-wrap:anywhere; width:${c.width}px; min-width:${c.width}px; max-width:${c.width}px;`); }
   function schedTableHtml(cols, list, conflicts, rowActionsFn, headActionHtml){
     return `<div class="table-wrap"><table>
@@ -494,7 +494,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
     render();
   }
   function schedPrint(title, subtitle, sections){
-    const prepared = sections.map(sec=>{ const tot = sec.cols.reduce((a,c)=>a+(c.width||SCHED_COL_W[c.key]||150),0)||1; return { title:sec.title, list:sec.list, cols: sec.cols.map(c=>({ label:c.label, align:c.align, widthPct:Math.round((c.width||SCHED_COL_W[c.key]||150)/tot*1000)/10, get: e=> (sec.conflicts[e.id]? `<span style="background:${sec.conflicts[e.id].level==='overlap'?'#ffcdd2':'#ffe0b2'}; padding:1px 3px;">${c.get(e)}</span>` : c.get(e)) })) }; });
+    const prepared = sections.map(sec=>{ const tot = sec.cols.reduce((a,c)=>a+(c.width||SCHED_COL_W[c.key]||150),0)||1; return { title:sec.title, list:sec.list, cols: sec.cols.map(c=>({ label:c.label, align:c.align, widthPct:Math.round((c.width||SCHED_COL_W[c.key]||150)/tot*1000)/10, get: e=> c.get(e) })) }; });
     printSections(title, prepared, '', { titleOnly:true, subtitle });
   }
   async function schedLoadXlsxStyle(){
@@ -534,7 +534,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
           const isNote = c.key==='note' && conf;
           styles.push({ r, c:ci, s:{ alignment:{ horizontal: c.align==='left'? 'left' : 'center', vertical:'top', wrapText:true },
             ...(isNote? { font:{ bold:true, underline:true, color:{rgb: conf.level==='overlap'? 'B71C1C' : 'E65100'} } } : {}),
-            ...(conf && conf.level==='overlap'? { fill:{fgColor:{rgb:'FFCDD2'}} } : (conf? { fill:{fgColor:{rgb:'FFF3E0'}} } : {})) } });
+          } });
         });
       });
       aoa.push([]);
@@ -862,6 +862,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
         ${open('view')? `<div class="panel-body ${panelBodyAnimClass()}">${person? `
           <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:10px;">
             <select id="sch-person">${personOpts}</select>
+            <button class="btn btn-ghost btn-sm preview-allow" id="sch-weeks">📚 Danh sách tuần</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="sch-prev">◀ Tuần trước</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="sch-this">Tuần này</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="sch-next">Tuần sau ▶</button>
@@ -873,7 +874,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
             <button class="btn btn-ghost btn-sm preview-allow" id="sch-print">🖨️ In</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="sch-xexp">⬇️ Xuất file</button>
           </div>
-          <p style="font-weight:800; color:#b71c1c; margin:0 0 6px;">${escapeHtml(person.name)} — Tuần từ ${schedFmtDate(weekFrom)} đến ${schedFmtDate(weekTo)}</p>
+          <p style="margin:0 0 6px;"><span class="${state._schedFlashTitle? 'project-title-dance' : ''}" style="font-weight:800; color:#b71c1c;">${escapeHtml(person.name)} — Tuần từ ${schedFmtDate(weekFrom)} đến ${schedFmtDate(weekTo)}</span></p>
           <div class="divider-lbl">Công việc chắc chắn tham gia (${mainList.length})</div>
           ${schedTableHtml(cols, mainList, conflicts, e=>`<button class="btn btn-ghost btn-sm preview-allow" data-eedit="${e.id}" title="Sửa">✏️</button>`, `<button class="btn btn-sm preview-allow" id="sch-wipe" title="Xoá lịch tuần này của người này" style="background:#d32f2f; border-color:#b71c1c; color:#fff; font-weight:800;">🗑️</button>`)}
           <div class="divider-lbl">Không rõ có tham gia không (${unclearList.length})</div>
@@ -897,6 +898,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
             ${S.types.map(t=>`<tr><td style="text-align:left;">${escapeHtml(t.name)}</td><td style="text-align:center; font-weight:700;">${st.byType[t.id]||0}</td><td><div style="background:#a5d6a7; height:12px; border-radius:6px; width:${Math.round(((st.byType[t.id]||0)/maxType)*100)}%; min-width:${(st.byType[t.id]||0)? 6 : 0}px;"></div></td></tr>`).join('')}
           </tbody></table></div>` : `<div class="empty-state"><div class="e-ico">📈</div>Chưa có người dùng nào để thống kê.</div>`}</div>` : ''}
       </div>`;
+    state._schedFlashTitle = false;
     ['sch-person'].forEach(id=>{ const s = el.querySelector('#'+id); if(s) s.value = state._schedPersonId; });
     const sp = el.querySelector('#sch-stat-person'); if(sp) sp.value = statPerson? statPerson.id : '';
     wireScheduleTab(el, { person, weekFrom, weekTo, mainList, unclearList, conflicts, cols, colsUnclear });
@@ -936,6 +938,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
     const thisW = el.querySelector('#sch-this'); if(thisW) thisW.onclick = ()=> go(schedIsoDate(new Date()));
     const jump = el.querySelector('#sch-jump'); if(jump) jump.onchange = ()=>{ if(jump.value) go(jump.value); };
     const colsBtn = el.querySelector('#sch-cols'); if(colsBtn) colsBtn.onclick = ()=> schedColsModal(again);
+    const wk = el.querySelector('#sch-weeks'); if(wk) wk.onclick = ()=> schedWeeksModal(ctx.person, again);
     const wipe = el.querySelector('#sch-wipe'); if(wipe) wipe.onclick = ()=> schedWipeModal(ctx, again);
     const addEv = el.querySelector('#sch-addev'); if(addEv) addEv.onclick = ()=> schedEventModal(null, ctx.person.id, again);
     el.querySelectorAll('[data-eedit]').forEach(b=> b.onclick = ()=>{ const e = S.events.find(x=>x.id===b.dataset.eedit); if(e) schedEventModal(e, e.personId, again); });
@@ -963,6 +966,71 @@ ${AI_DRAFT_REMINDER_RULE}`;
     const sDate = el.querySelector('#sch-stat-date'); if(sDate) sDate.onchange = ()=>{ if(sDate.value){ state._schedStatDate = sDate.value; again(); } };
   }
   // Xoá lịch cả tuần của 1 người: bước 1 chọn phạm vi (1 trong 3), bước 2 cảnh báo xác nhận rồi xoá vĩnh viễn.
+  function schedWeekCtx(person, weekFrom){
+    const S = schedState(); const weekTo = schedAddDays(weekFrom, 6);
+    const mine = schedSortEvents(S.events.filter(e=> e.personId===person.id && e.date>=weekFrom && e.date<=weekTo));
+    return { person, weekFrom, weekTo, mainList: mine.filter(e=>e.verdict!=='unclear'), unclearList: mine.filter(e=>e.verdict==='unclear') };
+  }
+  // Danh sách các tuần CÓ dữ liệu của 1 người; lọc theo ngày HOẶC theo năm (không cùng lúc) + tìm chữ.
+  function schedWeeksModal(person, onChanged){
+    const S = schedState(); if(!person) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const f = { date:'', year:'', text:'' };
+    const redBorder = 'border:2px solid #d32f2f;';
+    function allWeeks(){
+      const m = {};
+      S.events.filter(e=> e.personId===person.id && /^\d{4}-\d{2}-\d{2}$/.test(e.date||'')).forEach(e=>{ const k = schedMondayOf(e.date); (m[k] = m[k] || []).push(e); });
+      return Object.keys(m).sort().reverse().map(k=>({ monday:k, events:m[k] }));
+    }
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:640px;">
+        <div class="modal-head"><h3>📚 Danh sách tuần — ${escapeHtml(person.name)}</h3><button class="modal-close preview-allow" id="swk-close">✕</button></div>
+        <div class="modal-body">
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+            <label class="sub">Lọc theo ngày<br><input type="date" id="swk-date"></label>
+            <label class="sub">Lọc theo năm<br><select id="swk-year"></select></label>
+            <label class="sub" style="flex:1; min-width:180px;">Tìm theo nội dung công việc<br><input type="text" id="swk-text" placeholder="Gõ chữ cần tìm…" style="width:100%;"></label>
+          </div>
+          <p class="sub" style="margin:0 0 8px;">Ngày và năm không dùng cùng lúc: bật bộ lọc này thì bộ lọc kia tự tắt. Bộ lọc nào đang áp dụng có viền đỏ. Bấm vào 1 tuần để mở tuần đó.</p>
+          <div id="swk-list"></div>
+        </div>
+        <div class="modal-foot"><button class="btn btn-primary preview-allow" id="swk-close2">Đóng</button></div>
+      </div>`;
+    const q = id=> wrap.querySelector('#'+id);
+    q('swk-close').onclick = close; q('swk-close2').onclick = close;
+    function paint(){
+      const weeks = allWeeks();
+      const years = Array.from(new Set(weeks.map(w=>w.monday.slice(0,4)))).sort().reverse();
+      q('swk-year').innerHTML = `<option value="">Chưa chọn năm</option>` + years.map(y=>`<option value="${y}" ${f.year===y?'selected':''}>${y}</option>`).join('');
+      q('swk-date').style.cssText = f.date? redBorder : ''; q('swk-year').style.cssText = f.year? redBorder : ''; q('swk-text').style.cssText = (f.text? redBorder : '') + 'width:100%;';
+      const tx = schedNorm(f.text);
+      const shown = weeks.filter(w=>{
+        if(f.date && w.monday!==schedMondayOf(f.date)) return false;
+        if(f.year && w.monday.slice(0,4)!==f.year) return false;
+        if(tx && !w.events.some(e=> schedNorm([e.content,e.place,e.participants,e.fullText,e.note].join(' ')).includes(tx))) return false;
+        return true;
+      });
+      q('swk-list').innerHTML = !weeks.length? '<div class="empty-state">Chưa có tuần nào có dữ liệu</div>'
+        : !shown.length? '<div class="empty-state">Không có tuần nào khớp bộ lọc.</div>'
+        : shown.map(w=>{ const nU = w.events.filter(e=>e.verdict==='unclear').length; const to = schedAddDays(w.monday,6);
+          return `<div class="swk-row" data-w="${w.monday}" style="display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; cursor:pointer;"><div style="flex:1;"><b>Tuần từ ${schedFmtDate(w.monday)} đến ${schedFmtDate(to)}</b><div class="sub">${w.events.length-nU} chắc chắn tham gia · ${nU} không rõ</div></div><button type="button" class="btn btn-sm preview-allow" data-wdel="${w.monday}" title="Xoá tuần này" style="background:#d32f2f; border-color:#b71c1c; color:#fff;">🗑️</button></div>`; }).join('');
+      q('swk-list').querySelectorAll('[data-wdel]').forEach(b=> b.onclick = (ev)=>{
+        ev.stopPropagation();
+        schedWipeModal(schedWeekCtx(person, b.dataset.wdel), ()=>{ paint(); if(onChanged) onChanged(); });
+      });
+      q('swk-list').querySelectorAll('.swk-row').forEach(r=> r.onclick = ()=>{
+        state._schedPersonId = person.id; state._schedWeek = r.dataset.w; state._schedFlashTitle = true;
+        close(); if(onChanged) onChanged();
+      });
+    }
+    q('swk-date').onchange = ()=>{ f.date = q('swk-date').value; if(f.date) f.year = ''; paint(); };
+    q('swk-year').onchange = ()=>{ f.year = q('swk-year').value; if(f.year){ f.date = ''; q('swk-date').value = ''; } paint(); };
+    q('swk-text').oninput = ()=>{ f.text = q('swk-text').value.trim(); paint(); };
+    paint();
+  }
   function schedWipeModal(ctx, onDone){
     const S = schedState(); const person = ctx.person; if(!person) return;
     const nMain = ctx.mainList.length, nUnc = ctx.unclearList.length;
