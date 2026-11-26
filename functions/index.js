@@ -215,14 +215,23 @@ exports.receiptMeta = functions.https.onRequest(async (req, res) => {
 // trong src/js/app/14c-survey.js. Trang kết quả bài làm KHÔNG để lộ điểm trong khung xem trước.
 // ============================================================================
 const SITE_ORIGIN = "https://hoinongdan.sotay.org";
+// desc: câu mô tả dùng khi biểu mẫu KHÔNG có mô tả riêng (dòng chữ dưới tiêu đề trong khung xem trước).
 const SURVEY_KINDS = {
-  kiemtra: { label: "Bài kiểm tra", alias: ["bài kiểm tra", "kiểm tra"], act: "làm bài kiểm tra" },
-  cuocthi: { label: "Cuộc thi", alias: ["bài cuộc thi", "cuộc thi"], act: "tham gia cuộc thi" },
-  khaosat: { label: "Khảo sát", alias: ["bài khảo sát", "khảo sát"], act: "tham gia khảo sát" },
-  layykien: { label: "Khảo sát lấy ý kiến", alias: ["khảo sát lấy ý kiến", "lấy ý kiến"], act: "góp ý kiến" },
-  thuthap: { label: "Khảo sát thu thập thông tin", alias: ["khảo sát thu thập thông tin", "thu thập thông tin"], act: "cung cấp thông tin" },
-  trinhbao: { label: "Thu thập đơn trình báo", alias: ["thu thập đơn trình báo", "đơn trình báo"], act: "gửi đơn trình báo" },
+  kiemtra: { label: "Bài kiểm tra", alias: ["bài kiểm tra", "kiểm tra"], desc: "Mời bạn làm bài kiểm tra trực tuyến, làm và nộp bài ngay trên điện thoại." },
+  cuocthi: { label: "Cuộc thi", alias: ["bài cuộc thi", "cuộc thi"], desc: "Mời bạn tham gia cuộc thi trực tuyến, trả lời câu hỏi và nộp bài dự thi ngay trên điện thoại." },
+  khaosat: { label: "Khảo sát", alias: ["bài khảo sát", "khảo sát"], desc: "Mời bạn tham gia khảo sát trực tuyến. Ý kiến của bạn giúp chúng tôi nắm bắt tình hình và phục vụ tốt hơn." },
+  layykien: { label: "Khảo sát lấy ý kiến", alias: ["khảo sát lấy ý kiến", "lấy ý kiến"], desc: "Mời bạn đóng góp ý kiến. Mọi ý kiến đều được ghi nhận và tổng hợp đầy đủ." },
+  thuthap: { label: "Khảo sát thu thập thông tin", alias: ["khảo sát thu thập thông tin", "thu thập thông tin"], desc: "Mời bạn cung cấp thông tin theo mẫu, điền trực tiếp trên điện thoại chỉ trong vài phút." },
+  trinhbao: { label: "Thu thập đơn trình báo", alias: ["thu thập đơn trình báo", "đơn trình báo"], desc: "Gửi đơn trình báo trực tuyến: điền thông tin và gửi ngay trên điện thoại, không cần đến trực tiếp." },
 };
+const SURVEY_DEFAULT_DESC = "Mời bạn dành ít phút điền phiếu khảo sát trực tuyến ngay trên điện thoại.";
+// Cắt gọn mô tả ~160 ký tự ở ranh giới từ, thêm "…".
+function svShortDesc(t) {
+  const s = String(t || "").replace(/\s+/g, " ").trim();
+  if (s.length <= 160) return s;
+  const cut = s.slice(0, 160), sp = cut.lastIndexOf(" ");
+  return (sp > 100 ? cut.slice(0, sp) : cut).replace(/[\s,.;:–—-]+$/, "") + "…";
+}
 
 function svFoldChar(c) {
   return (c.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[đĐ]/g, "d").toLowerCase().charAt(0)) || c;
@@ -275,7 +284,7 @@ exports.surveyMeta = functions.https.onRequest(async (req, res) => {
 
     let pageTitle = "Biểu mẫu - Hoinongdan.sotay.org";
     let ogTitle = "Biểu mẫu khảo sát";
-    let description = "Hãy bấm vào đây để tham gia khảo sát.";
+    let description = SURVEY_DEFAULT_DESC;
     let ogImageUrl = `${SITE_ORIGIN}/og/khaosat-macdinh.png`;
 
     // Mã biểu mẫu do app sinh chỉ gồm chữ/số/gạch — chặn ký tự lạ trước khi đọc Database.
@@ -284,18 +293,16 @@ exports.surveyMeta = functions.https.onRequest(async (req, res) => {
       if (snap.exists() && !snap.val().deleted) {
         const s = snap.val();
         const kindKey = SURVEY_KINDS[s.formKind] ? s.formKind : "";
-        const act = kindKey ? SURVEY_KINDS[kindKey].act : (s.isQuiz ? "tham gia bài kiểm tra" : "tham gia khảo sát");
         const name = surveyFullName(s);
         ogImageUrl = `${SITE_ORIGIN}/og/khaosat-${kindKey || "macdinh"}.png`;
         if (isResult) {
           // KHÔNG đọc phiếu trả lời, KHÔNG hiện điểm — chỉ báo đây là link xem lại bài làm.
           ogTitle = `Kết quả bài làm — ${name}`;
-          description = "Bấm vào đây để xem lại bài làm của bạn.";
+          description = "Link xem lại bài làm và điểm của bạn.";
         } else {
           const status = svAcceptStatus(s);
           ogTitle = status ? `${name} (${status})` : name;
-          const desc = String(s.description || "").replace(/\s+/g, " ").trim();
-          description = desc ? (desc.length > 200 ? desc.slice(0, 197) + "…" : desc) : `Hãy bấm vào đây để ${act}.`;
+          description = svShortDesc(s.description) || (kindKey ? SURVEY_KINDS[kindKey].desc : SURVEY_DEFAULT_DESC);
         }
         pageTitle = `${isResult ? "Kết quả bài làm — " : ""}${name} - Hoinongdan.sotay.org`;
       }
@@ -308,6 +315,8 @@ exports.surveyMeta = functions.https.onRequest(async (req, res) => {
     <meta property="og:title" content="${escapeHtml(ogTitle)}">
     <meta property="og:description" content="${escapeHtml(description)}">
     <meta property="og:type" content="website">
+    <meta name="description" content="${escapeHtml(description)}">
+    <link rel="canonical" href="${escapeHtml(SITE_ORIGIN + req.originalUrl)}">
     <meta property="og:site_name" content="Sổ tay Công tác Hội Nông dân cấp xã/phường">
     <meta property="og:locale" content="vi_VN">
     <meta property="og:url" content="${escapeHtml(SITE_ORIGIN + req.originalUrl)}">
@@ -324,8 +333,11 @@ exports.surveyMeta = functions.https.onRequest(async (req, res) => {
     const headEnd = html.search(/<\/head>/i);
     const HEAD_SCAN_LIMIT = headEnd > 0 && headEnd < 20000 ? headEnd : 3000;
     let headPart = html.slice(0, HEAD_SCAN_LIMIT).replace(/<title>[\s\S]*?<\/title>/i, "");
-    // Bỏ các thẻ og:/twitter: mặc định sẵn có trong index.html để bot không đọc nhầm thẻ cũ.
-    headPart = headPart.replace(/<meta\s+(?:property|name)="(?:og:[^"]*|twitter:[^"]*)"[^>]*>\s*/gi, "");
+    // Bỏ các thẻ mô tả mặc định của app trong index.html (og:, twitter:, name="description", canonical)
+    // — Zalo đọc thẻ name="description" chứ không chỉ og:description, nên phải thay cả thẻ đó.
+    // (Chạy TRƯỚC khi chèn khối thẻ riêng nên không xoá nhầm thẻ của biểu mẫu.)
+    headPart = headPart.replace(/<meta\s+(?:property|name)="(?:og:[^"]*|twitter:[^"]*|description)"[^>]*>\s*/gi, "");
+    headPart = headPart.replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "");
     const headOpenIdx = headPart.search(/<head[^>]*>/i);
     if (headOpenIdx !== -1) {
       const insertAt = headPart.indexOf(">", headOpenIdx) + 1;

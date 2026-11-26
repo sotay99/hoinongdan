@@ -655,10 +655,10 @@
         <div class="panel-head"><h3>BIỂU MẪU/KHẢO SÁT/BÀI KIỂM TRA</h3></div>
         <div class="panel-body">
           <p class="sub" style="margin-top:0;">Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người, tạo cuộc thi trực tuyến và chấm điểm tự động, ... người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ được tham gia khảo sát / làm bài kiểm tra bằng đường link do đồng chí cung cấp!</p>
-          <div class="toolbar" style="margin-bottom:14px;">
-            <button class="btn ${isShared?'btn-primary':'btn-ghost'} btn-sm" id="sv-space-shared">🏛️ Biểu mẫu dùng chung xã/phường</button>
-            <button class="btn ${!isShared?'btn-primary':'btn-ghost'} btn-sm" id="sv-space-personal">🔒 Biểu mẫu cá nhân</button>
-          </div>
+          <div style="margin-bottom:14px;">${surveyTabsHtml([
+            { id:'sv-space-shared', label:`🏛️ Biểu mẫu dùng chung ${adminLevelLabelLower()}`, active:isShared },
+            { id:'sv-space-personal', label:'🔒 Biểu mẫu cá nhân', active:!isShared },
+          ])}</div>
           ${!canView? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared? 'Đồng chí không có quyền xem Biểu mẫu dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
           ${canEdit? `<div style="display:flex; flex-wrap:wrap; gap:8px;"><button class="btn btn-primary" id="sv-new-btn">➕ Tạo biểu mẫu mới</button><button class="btn preview-allow" id="sv-ai-new-btn" style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Tạo nhanh biểu mẫu bằng AI</button></div>` : `<p class="sub">Đồng chí chỉ có quyền xem ở ${isShared?'Biểu mẫu dùng chung này':'đây'}.</p>`}
           <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-top:14px;">
@@ -744,6 +744,11 @@
     });
   }
 
+  // Dải tab liền nhau (kiểu tab ở Kho biên lai): luôn MỘT hàng ngang, màn hình hẹp thì trải hết chiều
+  // ngang và chia đều, chữ dài xuống dòng NGAY TRONG nút chứ không đẩy nút xuống hàng dưới.
+  function surveyTabsHtml(items, extraCls){
+    return `<div class="sv-tabs ${extraCls||''}" role="tablist">${items.map(it=>`<button type="button" role="tab" aria-selected="${it.active?'true':'false'}" class="sv-tab preview-allow ${it.active?'active':''}" ${it.id? `id="${it.id}"` : ''} ${it.attrs||''} ${it.disabled?'disabled':''}>${escapeHtml(it.label)}</button>`).join('')}</div>`;
+  }
   // Thùng rác riêng của Biểu mẫu (theo không gian đang xem: dùng chung / cá nhân) — cùng kiểu với
   // Thùng rác Hội viên: nút "⋮ Thao tác" mở menu nổi Khôi phục / Xoá vĩnh viễn.
   function surveyTrashPanelHtml(){
@@ -1222,9 +1227,9 @@
     else if(view==='grade' && draft.isQuiz) content = surveyGradeByQuestionHtml(draft, list, canDel);
     else content = (draft.isQuiz? surveyQuizStatsHtml(draft, list) : '') + draft.questions.map((q,qi)=> surveyQuestionStatsHtml(q, qi, list)).join('');
     return `
+      <div style="margin-bottom:10px;">${surveyTabsHtml([['summary','📊 Tổng hợp'],['table','📋 Bảng'],['detail','👤 Từng phiếu']].concat(draft.isQuiz? [['grade','✍️ Chấm theo câu']] : []).map(([k,l])=>({ label:l, active: view===k, attrs:`data-resp-viewmode="${k}"` })), 'sv-tabs-sm')}</div>
       <div class="toolbar" style="flex-wrap:wrap; gap:8px;">
         <b>Tổng số phiếu: ${all.length}</b>
-        <div style="display:flex; gap:4px; flex-wrap:wrap;">${[['summary','📊 Tổng hợp'],['table','📋 Bảng'],['detail','👤 Từng phiếu']].concat(draft.isQuiz? [['grade','✍️ Chấm theo câu']] : []).map(([k,l])=>`<button class="btn btn-sm ${view===k?'btn-primary':'btn-ghost'} preview-allow" data-resp-viewmode="${k}">${l}</button>`).join('')}</div>
         <div class="spacer"></div>
         ${view==='table' && all.length? `<button class="btn btn-ghost btn-sm preview-allow" id="sv-resp-cols">🧩 Tuỳ chỉnh cột</button>` : ''}
         <button class="btn btn-ghost btn-sm preview-allow" id="sv-export-excel-btn" ${list.length?'':'disabled'}>⬇️ Xuất Excel</button>
@@ -1540,11 +1545,12 @@
           <h3 style="margin:0;">${state.surveyEditingId? 'Sửa biểu mẫu' : 'Tạo biểu mẫu mới'}${state.surveyEditingId? ` — <span style="font-weight:600;">${escapeHtml(surveyFullName(draft))}</span>` : ''}</h3>
         </div>
         <div class="panel-body">
-          <div class="toolbar" style="margin-bottom:14px; flex-wrap:wrap;">
-            <button class="btn ${state.surveyEditorTab==='questions'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-questions">📝 Câu hỏi</button>
-            <button class="btn ${state.surveyEditorTab==='settings'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-settings">⚙️ Cài đặt nhận phiếu</button>
-            <button class="btn ${state.surveyEditorTab==='answers'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-answers" ${!state.surveyEditingId?'disabled':''}>📊 Câu trả lời${draft.responseCount?` (${draft.responseCount})`:''}</button>
-            <div class="spacer"></div>
+          ${surveyTabsHtml([
+            { id:'sv-tab-questions', label:'📝 Câu hỏi', active: state.surveyEditorTab==='questions' },
+            { id:'sv-tab-settings', label:'⚙️ Cài đặt nhận phiếu', active: state.surveyEditorTab==='settings' },
+            { id:'sv-tab-answers', label:`📊 Câu trả lời${draft.responseCount?` (${draft.responseCount})`:''}`, active: state.surveyEditorTab==='answers', disabled: !state.surveyEditingId },
+          ])}
+          <div class="toolbar" style="margin:10px 0 14px; flex-wrap:wrap; gap:8px; justify-content:flex-end;">
             <button class="btn btn-ghost btn-sm preview-allow" id="sv-preview-btn" title="Xem đúng như người trả lời sẽ thấy, không gửi phiếu">👁️ Xem thử</button>
             ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button><button class="btn btn-ghost btn-sm preview-allow" id="sv-qr-btn" title="Mã QR để in dán hoặc gửi ảnh cho mọi người quét">📱 Mã QR</button>` : ''}
             ${canEdit && state.surveyEditorTab!=='answers'? `<button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
