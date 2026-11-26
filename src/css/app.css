@@ -887,7 +887,16 @@
   .pop-menu-sep{ height:1px; background:var(--line); margin:5px 0; }
   /* Nút tròn "⋮" mở menu */
   .sv-kebab{ width:34px; height:34px; min-width:34px; border-radius:50%; border:1px solid var(--line) !important; background:var(--white); font-size:18px; font-weight:900; line-height:1; padding:0 !important; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .sv-kebab:hover{ background:var(--paper-2); }
+  .sv-kebab:hover{ filter:brightness(1.1); }
+  /* Nút menu của CÂU HỎI (xanh dương) và của PHẦN (cam) — màu nền đậm, icon trắng cho nổi bật */
+  .sv-kebab.sv-kebab-q{ background:#1e88e5; color:#fff; border-color:#1565c0 !important; box-shadow:0 2px 6px rgba(21,101,192,.35); }
+  .sv-kebab.sv-kebab-sec{ background:#ef6c00; color:#fff; border-color:#e65100 !important; box-shadow:0 2px 6px rgba(230,81,0,.35); }
+  /* Modal "Thay đổi vị trí" phần/câu hỏi */
+  .sv-ro-row{ display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--white); cursor:move; font-size:13px; user-select:none; }
+  .sv-ro-row.sec{ background:#fff3e0; border-color:#ffb74d; font-weight:800; margin-top:6px; }
+  .sv-ro-row.q{ margin-left:24px; }
+  .sv-ro-row .sv-ro-grip{ opacity:.5; flex-shrink:0; }
+  .sv-ro-row .sv-ro-txt{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* Ô chọn ĐÓNG KHUNG cho module Biểu mẫu/Khảo sát — dựa trên .sv-filter-item sẵn có, thêm: chữ dài tự
      xuống dòng BÊN TRONG khung, ô chọn luôn ở đầu dòng thứ nhất, khung nổi bật khi đã chọn. */
   .sv-filter-item.sv-opt{ white-space:normal; align-items:flex-start; margin:0 0 6px; font-size:13.5px; font-weight:400; color:var(--ink); }

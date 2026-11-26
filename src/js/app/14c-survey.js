@@ -292,7 +292,7 @@
           <div style="flex:1; min-width:0;">
             <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">
               <input class="q-text" data-qid="${q.id}" value="${escapeHtml(q.text)}" placeholder="Nội dung câu hỏi..." style="flex:1; min-width:0; font-weight:700;" ${canEdit?'':'disabled'}>
-              ${canEdit? `<button type="button" class="btn btn-ghost btn-sm sv-kebab preview-allow" data-qmenu="${q.id}" data-pop-anchor title="Thêm tuỳ chọn cho câu hỏi này">⋮</button>` : ''}
+              ${canEdit? `<button type="button" class="btn btn-sm sv-kebab sv-kebab-q preview-allow" data-qmenu="${q.id}" data-pop-anchor title="Tuỳ chọn cho câu hỏi này">☰</button>` : ''}
             </div>
             ${showDesc? `<input class="q-desc" data-qid="${q.id}" value="${escapeHtml(q.description||'')}" placeholder="Mô tả câu hỏi (không bắt buộc)" style="width:100%; font-size:12.5px; margin-bottom:8px;" ${canEdit?'':'disabled'}>` : ''}
             ${pills.length? `<div>${pills.map(p=>`<span class="sv-pill">${p}</span>`).join('')}</div>` : ''}
@@ -347,7 +347,7 @@
           <div class="panel" style="margin-bottom:16px; border:2px solid var(--gold);" data-section-card="${sec.id}">
             <div class="panel-head" style="background:rgba(199,154,43,.08); display:flex; align-items:center; gap:8px;">
               <h3 style="font-size:13.5px;">📑 Phần ${si+1}/${draft.sections.length}${secQuestions.length? '' : ' <span class="sub" style="font-weight:400;">(chưa có câu hỏi)</span>'}</h3>
-              ${canEdit? `<button type="button" class="btn btn-ghost btn-sm sv-kebab preview-allow" data-secmenu="${sec.id}" data-pop-anchor title="Thêm tuỳ chọn cho phần này" style="margin-left:auto;">⋮</button>` : ''}
+              ${canEdit? `<button type="button" class="btn btn-sm sv-kebab sv-kebab-sec preview-allow" data-secmenu="${sec.id}" data-pop-anchor title="Tuỳ chọn cho phần này" style="margin-left:auto;">☰</button>` : ''}
             </div>
             <div class="panel-body">
               <div class="form-grid">
@@ -569,6 +569,7 @@
         { icon:'⬆️', label: (pos===0 && si>0)? 'Di chuyển lên (sang phần phía trên)' : 'Di chuyển lên', disabled:!canUp, onClick:()=> qMove(q,-1) },
         { icon:'⬇️', label: (pos===inSec.length-1 && si<draft.sections.length-1)? 'Di chuyển xuống (sang phần phía dưới)' : 'Di chuyển xuống', disabled:!canDown, onClick:()=> qMove(q,1) },
       ];
+      items.push({ icon:'🔀', label:'Thay đổi vị trí (kéo thả)…', onClick:()=> renderSurveyReorderModal(draft, rerender, 'Q|'+q.id) });
       if(draft.sections.length>1) items.push({ icon:'📑', label:'Chuyển sang phần khác…', onClick:()=>{
         openPopMenu(btn, draft.sections.map((s,k)=>({ icon:'→', label:`Phần ${k+1}: ${s.title||'(chưa đặt tên)'}`, disabled: s.id===q.sectionId, onClick:()=>{
           draft.questions.splice(draft.questions.indexOf(q),1); q.sectionId = s.id; draft.questions.push(q); surveyNormalizeOrder(draft); rerender();
@@ -656,12 +657,95 @@
         { icon:'➕', label:'Chèn phần mới ngay sau phần này', onClick:()=>{ draft.sections.splice(i+1, 0, emptySurveySection(n+1)); rerender(); } },
         { icon:'⬆️', label:'Di chuyển phần lên', disabled:i===0, onClick:()=> secMove(sec,-1) },
         { icon:'⬇️', label:'Di chuyển phần xuống', disabled:i===n-1, onClick:()=> secMove(sec,1) },
+        { icon:'🔀', label:'Thay đổi vị trí (kéo thả)…', onClick:()=> renderSurveyReorderModal(draft, rerender, 'S|'+sec.id) },
         { icon:'📥', label:'Nhập câu hỏi từ biểu mẫu khác vào phần này', onClick:()=> renderImportQuestionsModal(el, sec.id) },
         { icon:'🔗', label:'Hợp nhất với phần phía trên', disabled:i===0, onClick:()=> secMergeUp(sec) },
         'sep',
         { icon:'🗑️', label:'Xoá phần', danger:true, disabled:n<=1, onClick:()=> secDelete(sec) },
       ]);
     });
+  }
+
+  // ---- Modal "Thay đổi vị trí": kéo thả phần và câu hỏi (cùng cơ chế với "Tuỳ chỉnh cột" ở Sổ vay vốn
+  // / Hồ sơ hội viên: đường kẻ xanh chạy theo chuột, thả xong thì tên mục vừa đổi chỗ phóng to thu nhỏ).
+  // Kéo PHẦN thì cả khối (phần + câu hỏi của nó) đi theo; kéo CÂU HỎI thì đặt được vào phần bất kỳ.
+  // Mọi thay đổi chỉ trên bản nháp riêng của modal — bấm "Áp dụng" mới đưa vào biểu mẫu đang soạn.
+  function renderSurveyReorderModal(draft, onApplied, focusKey){
+    const initSecs = draft.sections.map(s=>({ id:s.id, title:s.title }));
+    const initQs = draft.questions.map(q=>({ id:q.id, text:q.text, sectionId:q.sectionId }));
+    let secs = initSecs.map(x=>({...x})), qs = initQs.map(x=>({...x}));
+    const isSec = k=> k.startsWith('S|'), idOf = k=> k.slice(2);
+    const flat = ()=> secs.flatMap(s=> ['S|'+s.id, ...qs.filter(q=>q.sectionId===s.id).map(q=>'Q|'+q.id)]);
+    function applyFlat(list){
+      const ns = [], nq = [], lead = []; let cur = null;
+      list.forEach(k=>{
+        if(isSec(k)){ cur = secs.find(s=>s.id===idOf(k)); ns.push(cur); }
+        else { const q = qs.find(x=>x.id===idOf(k)); if(cur){ q.sectionId = cur.id; nq.push(q); } else lead.push(q); }
+      });
+      lead.forEach(q=>{ q.sectionId = ns[0].id; });
+      secs = ns; qs = ns.flatMap(s=> lead.concat(nq).filter(q=>q.sectionId===s.id));
+    }
+    function reorder(dragged, target, before){
+      let list = flat();
+      if(!isSec(dragged)){
+        list = list.filter(k=>k!==dragged);
+        const i = list.indexOf(target); if(i<0) return;
+        list.splice(before? i : i+1, 0, dragged);
+      } else {
+        const tgtSecKey = isSec(target)? target : 'S|'+(qs.find(q=>q.id===idOf(target))||{}).sectionId;
+        if(tgtSecKey===dragged) return;
+        const block = ['S|'+idOf(dragged), ...qs.filter(q=>q.sectionId===idOf(dragged)).map(q=>'Q|'+q.id)];
+        list = list.filter(k=>!block.includes(k));
+        const start = list.indexOf(tgtSecKey); if(start<0) return;
+        let end = start+1; while(end<list.length && !isSec(list[end])) end++;
+        list.splice(before? start : end, 0, ...block);
+      }
+      applyFlat(list);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const pulse = (key)=> setTimeout(()=>{ const l = wrap.querySelector(`[data-col-name-label="${key}"]`); if(l){ l.classList.remove('col-name-pulse'); void l.offsetWidth; l.classList.add('col-name-pulse'); } }, 70);
+    function render(){
+      let qn = 0;
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:620px;">
+          <div class="modal-head"><h3>🔀 Thay đổi vị trí phần và câu hỏi</h3><button class="modal-close preview-allow" id="svro-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin:0 0 8px;">💡 Nhấn giữ vào biểu tượng ⠿ ở đầu mỗi dòng, kéo lên/xuống rồi thả vào đúng chỗ. Kéo <b>phần</b> thì các câu hỏi của phần đó đi theo; kéo <b>câu hỏi</b> sang dưới tiêu đề phần khác để chuyển câu hỏi sang phần đó.</p>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              ${secs.map((s,si)=>{
+                const inSec = qs.filter(q=>q.sectionId===s.id);
+                return `<div class="sv-ro-row sec col-pick-row" draggable="true" data-col-key="S|${s.id}"><span class="sv-ro-grip">⠿</span><span class="sv-ro-txt"><span data-col-name-label="S|${s.id}">📑 Phần ${si+1}: ${escapeHtml(s.title||'(chưa đặt tên)')} <span class="sub" style="font-weight:400;">(${inSec.length} câu)</span></span></span></div>`
+                  + inSec.map(q=>{ qn++; return `<div class="sv-ro-row q col-pick-row" draggable="true" data-col-key="Q|${q.id}"><span class="sv-ro-grip">⠿</span><span class="sv-ro-txt" title="${escapeHtml(q.text||'')}"><span data-col-name-label="Q|${q.id}">Câu ${qn}. ${escapeHtml((q.text||'').trim()||'(chưa nhập nội dung)')}</span></span></div>`; }).join('');
+              }).join('')}
+            </div>
+          </div>
+          <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+            <button class="btn btn-ghost preview-allow" id="svro-reset" style="margin-right:auto;">↺ Về như ban đầu</button>
+            <button class="btn btn-ghost preview-allow" id="svro-cancel">Đóng (không lưu)</button>
+            <button class="btn btn-primary preview-allow" id="svro-apply">✅ Áp dụng vị trí mới</button>
+          </div>
+        </div>`;
+      wrap.querySelector('#svro-close').onclick = close;
+      wrap.querySelector('#svro-cancel').onclick = close;
+      wrap.querySelector('#svro-reset').onclick = ()=>{ secs = initSecs.map(x=>({...x})); qs = initQs.map(x=>({...x})); render(); };
+      wrap.querySelector('#svro-apply').onclick = ()=>{
+        const secById = {}; draft.sections.forEach(s=>{ secById[s.id] = s; });
+        const qById = {}; draft.questions.forEach(q=>{ qById[q.id] = q; });
+        draft.sections = secs.map(s=> secById[s.id]).filter(Boolean);
+        draft.questions = qs.map(x=>{ const q = qById[x.id]; if(q) q.sectionId = x.sectionId; return q; }).filter(Boolean);
+        surveyNormalizeOrder(draft);
+        close(); if(onApplied) onApplied();
+        showToast('Đã áp dụng vị trí mới cho phần và câu hỏi.');
+      };
+      wireDragReorderWithIndicator(Array.from(wrap.querySelectorAll('.sv-ro-row')), row=> row.dataset.colKey, (dragged, target, before)=>{
+        reorder(dragged, target, before); render(); pulse(dragged);
+      });
+    }
+    render();
+    if(focusKey){ setTimeout(()=>{ const r = wrap.querySelector(`[data-col-key="${focusKey}"]`); if(r) r.scrollIntoView({block:'center'}); }, 0); pulse(focusKey); }
   }
 
   function renderImportQuestionsModal(el, targetSectionId){
