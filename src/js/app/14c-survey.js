@@ -234,11 +234,69 @@
     }
   }
 
+  // ---- Danh sách biểu mẫu: tìm theo tên (không cần dấu), lọc loại, sắp xếp; giữ lại trong phiên làm việc ----
+  const SURVEY_LIST_SORTS = [
+    ['created_desc','Mới tạo nhất'], ['created_asc','Cũ nhất'], ['updated_desc','Mới sửa gần nhất'],
+    ['name_asc','Tên A → Z'], ['name_desc','Tên Z → A'], ['resp_desc','Nhiều người trả lời nhất'], ['resp_asc','Ít người trả lời nhất'],
+  ];
+  function surveyListFilter(){ return state.surveyListFilter || (state.surveyListFilter = { q:'', type:'all', sort:'created_desc' }); }
+  function surveyListFilterLabels(F){
+    const out = [];
+    if(F.q.trim()) out.push(`Tên có chứa "${F.q.trim()}"`);
+    if(F.type!=='all') out.push(F.type==='quiz'? 'Chỉ Bài kiểm tra' : 'Chỉ Khảo sát');
+    return out;
+  }
+  function surveyApplyListFilter(list, F){
+    const term = surveyFold(F.q.trim());
+    let out = list.filter(s=> (!term || surveyFold(s.title||'').includes(term)) && (F.type==='all' || (F.type==='quiz')===!!s.isQuiz));
+    const by = {
+      created_desc:(a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''),
+      created_asc:(a,b)=> (a.createdAt||'').localeCompare(b.createdAt||''),
+      updated_desc:(a,b)=> (b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''),
+      name_asc:(a,b)=> (a.title||'').localeCompare(b.title||'', 'vi', {sensitivity:'base'}),
+      name_desc:(a,b)=> (b.title||'').localeCompare(a.title||'', 'vi', {sensitivity:'base'}),
+      resp_desc:(a,b)=> (b.responseCount||0)-(a.responseCount||0),
+      resp_asc:(a,b)=> (a.responseCount||0)-(b.responseCount||0),
+    }[F.sort] || ((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+    return out.sort(by);
+  }
+  // Tô vàng phần tên khớp chữ đang tìm (so khớp không dấu, tô trên chữ gốc).
+  function surveyHighlight(text, q){
+    const t = String(text||''), term = surveyFold(String(q||'').trim());
+    const pos = term? surveyFold(t).indexOf(term) : -1;
+    if(pos<0) return escapeHtml(t);
+    const ch = Array.from(t), n = Array.from(term).length;
+    return escapeHtml(ch.slice(0,pos).join('')) + '<mark style="background:#fff176; padding:0 1px;">' + escapeHtml(ch.slice(pos,pos+n).join('')) + '</mark>' + escapeHtml(ch.slice(pos+n).join(''));
+  }
+  // Nhân bản 1 biểu mẫu: chép toàn bộ phần + câu hỏi + cài đặt sang biểu mẫu MỚI (không chép câu trả lời),
+  // lưu ngay rồi mở trình soạn của bản sao.
+  async function duplicateSurvey(id, el){
+    if(!surveyCanEdit()){ alert('Đồng chí không có quyền tạo biểu mẫu ở đây.'); return; }
+    const src = state.surveys.find(x=>x.id===id); if(!src) return;
+    const now = new Date().toISOString();
+    const copy = JSON.parse(JSON.stringify(src));
+    Object.assign(copy, { id: uid(), title: `Bản sao của ${src.title||'biểu mẫu'}`.slice(0,300), createdAt: now, updatedAt: now, responseCount: 0, deleted: false,
+      scope: state.surveySpace, ownerEmail: (state.identity&&state.identity.email) || src.ownerEmail || null, wardId: wardId(), wardName: (state.config&&state.config.wardName)||'' });
+    try{
+      await rtdb.ref(`surveys/${copy.id}`).set(copy);
+      await pushLog('nhân bản biểu mẫu', `${src.title} -> ${copy.title}`);
+    }catch(e){ console.error('[Khảo sát] Nhân bản lỗi:', e); alert('Không nhân bản được biểu mẫu: '+(e&&e.message||e)); return; }
+    showToast('Đã nhân bản biểu mẫu — đang mở bản sao để chỉnh sửa.');
+    state.surveyDraft = ensureSurveySections(JSON.parse(JSON.stringify(copy)));
+    state.surveyEditingId = copy.id;
+    state.surveyEditorTab = 'questions';
+    state.surveyView = 'editor';
+    renderSurveyTab(el);
+  }
   function renderSurveyListView(el){
     const isShared = state.surveySpace==='shared';
     const canEdit = surveyCanEdit();
     const canView = surveyCanView();
-    const list = state.surveys.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+    const F = surveyListFilter();
+    const all = state.surveys.slice();
+    const list = surveyApplyListFilter(all, F);
+    const active = surveyListFilterLabels(F);
+    const red = 'border:2px solid #d32f2f;';
     el.innerHTML = `
       <div class="panel">
         <div class="panel-head"><h3>BIỂU MẪU/KHẢO SÁT/BÀI KIỂM TRA</h3></div>
@@ -250,21 +308,34 @@
           </div>
           ${!canView? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared? 'Đồng chí không có quyền xem Biểu mẫu dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
           ${canEdit? `<button class="btn btn-primary" id="sv-new-btn">➕ Tạo biểu mẫu mới</button>` : `<p class="sub">Đồng chí chỉ có quyền xem ở ${isShared?'Biểu mẫu dùng chung này':'đây'}.</p>`}
-          <div class="table-wrap" style="margin-top:14px;">
+          <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-top:14px;">
+            <input id="sv-f-q" value="${escapeHtml(F.q)}" placeholder="🔍 Tìm theo tên biểu mẫu (không cần gõ dấu)…" autocomplete="off" style="flex:1 1 240px; min-width:0; ${F.q.trim()? red : ''}">
+            <select id="sv-f-type" title="Lọc theo loại" style="${F.type!=='all'? red : ''}">
+              <option value="all" ${F.type==='all'?'selected':''}>Tất cả loại</option>
+              <option value="survey" ${F.type==='survey'?'selected':''}>📝 Khảo sát</option>
+              <option value="quiz" ${F.type==='quiz'?'selected':''}>📋 Bài kiểm tra</option>
+            </select>
+            <select id="sv-f-sort" title="Sắp xếp">${SURVEY_LIST_SORTS.map(([k,l])=>`<option value="${k}" ${F.sort===k?'selected':''}>${l}</option>`).join('')}</select>
+            ${active.length? `<button class="btn btn-ghost btn-sm preview-allow reset-filter-active" id="sv-f-reset">↺ Bỏ lọc</button>` : ''}
+          </div>
+          ${active.length? `<p style="color:#b71c1c; font-weight:800; margin:8px 0 0;">Đang áp dụng lọc kết quả: ${active.map(escapeHtml).join(', ')}</p>` : ''}
+          <p class="sub" style="margin:6px 0 0;">Đang hiện ${list.length}/${all.length} biểu mẫu.</p>
+          <div class="table-wrap" style="margin-top:8px;">
             <table>
               <thead><tr><th>Tên biểu mẫu</th><th>Ngày tạo</th><th>Số người đã trả lời</th><th></th></tr></thead>
               <tbody>
                 ${list.length? list.map(s=>`
                   <tr>
-                    <td><b>${escapeHtml(s.title)}</b>${s.isQuiz? ' <span class="pill pill-gray">Bài kiểm tra</span>' : ''}</td>
+                    <td><b>${surveyHighlight(s.title, F.q)}</b>${s.isQuiz? ' <span class="pill pill-gray">Bài kiểm tra</span>' : ''}</td>
                     <td>${s.createdAt? fmtDate(s.createdAt.slice(0,10)) : '—'}</td>
                     <td>${s.responseCount||0}</td>
                     <td style="white-space:nowrap; display:flex; gap:6px;">
                       <button class="btn btn-ghost btn-sm" data-sv-open="${s.id}">${canEdit? 'Sửa / Xem kết quả' : 'Xem kết quả'}</button>
                       <button class="btn btn-ghost btn-sm" data-sv-copy="${s.id}">🔗 Copy link</button>
+                      ${canEdit? `<button class="btn btn-ghost btn-sm preview-allow" data-sv-dup="${s.id}" title="Tạo 1 biểu mẫu mới giống hệt (không chép câu trả lời)">📑 Nhân bản</button>` : ''}
                       ${canEdit? `<button class="btn btn-ghost btn-sm" data-sv-delete="${s.id}" style="color:var(--red);">Xoá</button>` : ''}
                     </td>
-                  </tr>`).join('') : `<tr><td colspan="4"><div class="empty-state"><div class="e-ico">📝</div>Chưa có biểu mẫu nào${canEdit? ' — bấm "Tạo biểu mẫu mới" để bắt đầu' : ''}</div></td></tr>`}
+                  </tr>`).join('') : `<tr><td colspan="4"><div class="empty-state"><div class="e-ico">📝</div>${all.length? 'Không có biểu mẫu nào khớp bộ lọc.' : `Chưa có biểu mẫu nào${canEdit? ' — bấm "Tạo biểu mẫu mới" để bắt đầu' : ''}`}</div></td></tr>`}
               </tbody>
             </table>
           </div>`}
@@ -274,6 +345,12 @@
     if(spaceSharedBtn) spaceSharedBtn.onclick = ()=> switchSurveySpace('shared');
     const spacePersonalBtn = document.getElementById('sv-space-personal');
     if(spacePersonalBtn) spacePersonalBtn.onclick = ()=> switchSurveySpace('personal');
+    const fq = document.getElementById('sv-f-q');
+    if(fq) fq.oninput = ()=>{ const caret = fq.selectionStart; F.q = fq.value; renderSurveyListView(el); const again = document.getElementById('sv-f-q'); if(again){ again.focus(); try{ again.setSelectionRange(caret, caret); }catch(e){} } };
+    const ft = document.getElementById('sv-f-type'); if(ft) ft.onchange = ()=>{ F.type = ft.value; renderSurveyListView(el); };
+    const fs = document.getElementById('sv-f-sort'); if(fs) fs.onchange = ()=>{ F.sort = fs.value; renderSurveyListView(el); };
+    const fr = document.getElementById('sv-f-reset'); if(fr) fr.onclick = ()=>{ F.q = ''; F.type = 'all'; renderSurveyListView(el); };
+    document.querySelectorAll('[data-sv-dup]').forEach(btn=> btn.onclick = ()=> duplicateSurvey(btn.dataset.svDup, el));
     const newBtn = document.getElementById('sv-new-btn');
     if(newBtn) newBtn.onclick = ()=>{
       state.surveyDraft = emptySurveyDraft();
