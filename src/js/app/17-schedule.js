@@ -32,6 +32,8 @@
     if(!state._sched) state._sched = { key:null, loaded:false, loading:false, people:[], events:[], types:schedDefaultTypes(), training:[], prefs:{cols:{}} };
     return state._sched;
   }
+  // Người đang dùng = không nằm trong thùng rác. Người trong thùng rác ẩn khỏi mọi nơi, lịch của họ vẫn giữ nguyên.
+  function schedActivePeople(){ return schedState().people.filter(p=> !p.deleted); }
   function schedContentEl(){ return document.getElementById('content'); }
   function schedRerender(){ const el = schedContentEl(); if(el && state.activeTab==='schedule') renderScheduleTab(el); }
 
@@ -566,16 +568,16 @@ ${AI_DRAFT_REMINDER_RULE}`;
           <div class="modal-head"><h3>👥 Chọn người cần lập lịch</h3><button class="modal-close preview-allow" id="spk-close">✕</button></div>
           <div class="modal-body">
             <p class="sub" style="margin:0 0 8px;">Chọn bao nhiêu người thì AI trả về lịch công tác riêng cho từng người đó.</p>
-            <label class="sv-filter-item" style="display:flex; cursor:pointer; font-weight:800;"><input type="checkbox" id="spk-all" ${sel.size===S.people.length?'checked':''}><span>Chọn tất cả (${S.people.length})</span></label>
-            ${S.people.map(p=>`<label class="sv-filter-item" style="display:flex; cursor:pointer;"><input type="checkbox" data-pk="${p.id}" ${sel.has(p.id)?'checked':''}><span><b>${escapeHtml(p.name)}</b> <span class="sub">(${(p.positions||[]).length} chức vụ)</span></span></label>`).join('')}
+            <label class="sv-filter-item" style="display:flex; cursor:pointer; font-weight:800;"><input type="checkbox" id="spk-all" ${sel.size===schedActivePeople().length?'checked':''}><span>Chọn tất cả (${S.people.length})</span></label>
+            ${schedActivePeople().map(p=>`<label class="sv-filter-item" style="display:flex; cursor:pointer;"><input type="checkbox" data-pk="${p.id}" ${sel.has(p.id)?'checked':''}><span><b>${escapeHtml(p.name)}</b> <span class="sub">(${(p.positions||[]).length} chức vụ)</span></span></label>`).join('')}
           </div>
           <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="spk-cancel">Huỷ</button><button class="btn btn-primary preview-allow" id="spk-ok">Tiếp tục</button></div>
         </div>`;
       wrap.querySelector('#spk-close').onclick = close;
       wrap.querySelector('#spk-cancel').onclick = close;
-      wrap.querySelector('#spk-all').onchange = (e)=>{ if(e.target.checked) S.people.forEach(p=>sel.add(p.id)); else sel.clear(); render(); };
+      wrap.querySelector('#spk-all').onchange = (e)=>{ if(e.target.checked) schedActivePeople().forEach(p=>sel.add(p.id)); else sel.clear(); render(); };
       wrap.querySelectorAll('[data-pk]').forEach(cb=> cb.onchange = ()=>{ if(cb.checked) sel.add(cb.dataset.pk); else sel.delete(cb.dataset.pk); render(); });
-      wrap.querySelector('#spk-ok').onclick = ()=>{ if(!sel.size){ alert('Vui lòng chọn ít nhất 1 người.'); return; } close(); onPick(S.people.filter(p=>sel.has(p.id))); };
+      wrap.querySelector('#spk-ok').onclick = ()=>{ if(!sel.size){ alert('Vui lòng chọn ít nhất 1 người.'); return; } close(); onPick(schedActivePeople().filter(p=>sel.has(p.id))); };
     }
     render();
   }
@@ -795,18 +797,37 @@ ${AI_DRAFT_REMINDER_RULE}`;
     const open = S[id]!==false;
     return `<div class="panel-head" style="cursor:pointer;" id="sch-toggle-${id}"><h3>${title} ${open?'▴':'▾'}</h3>${extra||''}</div>`;
   }
-  function schedStats(person, mode, anchorIso){
+  // Khoảng thời gian thống kê theo chế độ đang chọn: tuần / tháng / năm / giai đoạn (từ ngày – đến ngày).
+  function schedStatRange(){
+    const mode = state._schedStatMode || 'week', a = state._schedStatDate || schedIsoDate(new Date());
+    if(mode==='month'){ const d = schedParseIso(a)||new Date(); return { ok:true, from: schedIsoDate(new Date(d.getFullYear(), d.getMonth(), 1)), to: schedIsoDate(new Date(d.getFullYear(), d.getMonth()+1, 0)) }; }
+    if(mode==='year'){ const y = parseInt(state._schedStatYear,10) || new Date().getFullYear(); return { ok:true, from:`${y}-01-01`, to:`${y}-12-31` }; }
+    if(mode==='period'){
+      const f = state._schedStatFrom, t = state._schedStatTo;
+      if(!f || !t) return { ok:false, msg:'Chọn "Từ ngày" và "đến ngày" để xem thống kê theo giai đoạn.' };
+      if(f > t) return { ok:false, msg:'"Từ ngày" phải trước hoặc bằng "đến ngày". Vui lòng chọn lại.' };
+      const days = Math.round((schedParseIso(t) - schedParseIso(f))/86400000) + 1;
+      return { ok:true, from:f, to:t, days };
+    }
+    const from = schedMondayOf(a); return { ok:true, from, to: schedAddDays(from, 6) };
+  }
+  function schedStats(person, from, to){
     const S = schedState();
-    let from, to;
-    if(mode==='month'){ const d = schedParseIso(anchorIso)||new Date(); from = schedIsoDate(new Date(d.getFullYear(), d.getMonth(), 1)); to = schedIsoDate(new Date(d.getFullYear(), d.getMonth()+1, 0)); }
-    else { from = schedMondayOf(anchorIso); to = schedAddDays(from, 6); }
     const mine = S.events.filter(e=> e.personId===person.id && e.date>=from && e.date<=to);
     const yes = mine.filter(e=> e.verdict!=='unclear');
     const counted = yes.filter(e=> !e.status || e.status==='normal' || e.status==='added');
     const conf = schedConflicts(yes);
     const byType = {}; S.types.forEach(t=>{ byType[t.id] = 0; });
     counted.forEach(e=>{ const id = byType[e.typeId]!=null? e.typeId : SCHED_OTHER_TYPE_ID; byType[id]++; });
-    return { from, to, total:counted.length, byType, unclear:mine.filter(e=>e.verdict==='unclear').length, postponed:yes.filter(e=>e.status==='postponed'||e.status==='cancelled').length, overlap:Object.values(conf).filter(c=>c.level==='overlap').length, near:Object.values(conf).filter(c=>c.level==='near').length };
+    // Chia theo từng tháng (dùng khi xem theo năm, hoặc giai đoạn dài hơn 2 tháng)
+    const months = [];
+    const days = Math.round((schedParseIso(to) - schedParseIso(from))/86400000) + 1;
+    if(days > 62){
+      let d = schedParseIso(from); d = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = schedParseIso(to);
+      while(d <= end){ const y = d.getFullYear(), m = d.getMonth()+1, key = `${y}-${String(m).padStart(2,'0')}`; months.push({ y, m, n: counted.filter(e=> e.date.slice(0,7)===key).length }); d = new Date(y, m, 1); }
+    }
+    return { from, to, total:counted.length, byType, months, unclear:mine.filter(e=>e.verdict==='unclear').length, postponed:yes.filter(e=>e.status==='postponed'||e.status==='cancelled').length, overlap:Object.values(conf).filter(c=>c.level==='overlap').length, near:Object.values(conf).filter(c=>c.level==='near').length };
   }
   function renderScheduleTab(el){
     if(!el) return;
@@ -823,11 +844,13 @@ ${AI_DRAFT_REMINDER_RULE}`;
     capturePanelAnimFlag();
     const shows = state._schedShow || (state._schedShow = {});
     const open = id=> shows[id]!==false;
-    if(!state._schedPersonId || !S.people.some(p=>p.id===state._schedPersonId)) state._schedPersonId = S.people[0]? S.people[0].id : null;
+    const people = schedActivePeople(), trash = S.people.filter(p=> p.deleted).sort((a,b)=> (b.deletedAt||'').localeCompare(a.deletedAt||''));
+    if(!state._schedPersonId || !people.some(p=>p.id===state._schedPersonId)) state._schedPersonId = people[0]? people[0].id : null;
     if(!state._schedWeek) state._schedWeek = schedMondayOf(schedIsoDate(new Date()));
     if(!state._schedStatMode) state._schedStatMode = 'week';
     if(!state._schedStatDate) state._schedStatDate = schedIsoDate(new Date());
-    const person = S.people.find(p=>p.id===state._schedPersonId) || null;
+    if(!state._schedStatYear) state._schedStatYear = new Date().getFullYear();
+    const person = people.find(p=>p.id===state._schedPersonId) || null;
     const weekFrom = state._schedWeek, weekTo = schedAddDays(weekFrom, 6);
     let mainList = [], unclearList = [], conflicts = {};
     if(person){
@@ -838,16 +861,18 @@ ${AI_DRAFT_REMINDER_RULE}`;
     const prefs = S.prefs;
     const cols = schedColDefs(prefs, conflicts);
     const colsUnclear = schedColDefs(prefs, {});
-    const statPerson = S.people.find(p=>p.id===(state._schedStatPersonId||state._schedPersonId)) || person;
-    const st = statPerson? schedStats(statPerson, state._schedStatMode, state._schedStatDate) : null;
+    const statPerson = people.find(p=>p.id===(state._schedStatPersonId||state._schedPersonId)) || person;
+    const statRange = schedStatRange();
+    const st = (statPerson && statRange.ok)? schedStats(statPerson, statRange.from, statRange.to) : null;
+    const yearsWithData = Array.from(new Set(S.events.map(e=> parseInt((e.date||'').slice(0,4),10)).filter(Boolean).concat([new Date().getFullYear(), state._schedStatYear]))).sort((a,b)=> b-a);
     const maxType = st? Math.max(1, ...Object.values(st.byType)) : 1;
-    const personOpts = S.people.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    const personOpts = people.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
     el.innerHTML = `
       <div class="panel">
-        ${schedPanelHead('people', `👥 Danh sách người dùng (${S.people.length})`, `<button class="btn btn-primary btn-sm preview-allow" id="sch-add-person">➕ Thêm người</button>`)}
-        ${open('people')? `<div class="panel-body ${panelBodyAnimClass()}">${S.people.length? `<div class="table-wrap"><table>
+        ${schedPanelHead('people', `👥 Danh sách người dùng (${people.length})`, `<button class="btn btn-primary btn-sm preview-allow" id="sch-add-person">➕ Thêm người</button>`)}
+        ${open('people')? `<div class="panel-body ${panelBodyAnimClass()}">${people.length? `<div class="table-wrap"><table>
           <thead><tr><th></th><th style="text-align:left;">Họ và tên</th><th>Số chức vụ</th><th style="text-align:left;">Chức vụ</th></tr></thead>
-          <tbody>${S.people.map(p=>`<tr><td style="white-space:nowrap;"><button class="btn btn-ghost btn-sm preview-allow" data-pedit="${p.id}" title="Sửa">✏️</button><button class="btn btn-ghost btn-sm preview-allow" data-pdel="${p.id}" title="Xoá">🗑️</button></td><td style="text-align:left;"><b>${escapeHtml(p.name)}</b></td><td style="text-align:center;">${(p.positions||[]).length}</td><td style="text-align:left; white-space:normal; max-width:520px;">${escapeHtml((p.positions||[]).join('; '))}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-state"><div class="e-ico">👥</div>Chưa có người dùng nào — bấm "➕ Thêm người" và khai báo họ tên + các chức vụ.</div>`}</div>` : ''}
+          <tbody>${people.map(p=>`<tr><td style="white-space:nowrap;"><button class="btn btn-ghost btn-sm preview-allow" data-pedit="${p.id}" title="Sửa">✏️</button><button class="btn btn-ghost btn-sm preview-allow" data-pdel="${p.id}" title="Xoá">🗑️</button></td><td style="text-align:left;"><b>${escapeHtml(p.name)}</b></td><td style="text-align:center;">${(p.positions||[]).length}</td><td style="text-align:left; white-space:normal; max-width:520px;">${escapeHtml((p.positions||[]).join('; '))}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-state"><div class="e-ico">👥</div>Chưa có người dùng nào — bấm "➕ Thêm người" và khai báo họ tên + các chức vụ.</div>`}</div>` : ''}
       </div>
       <div class="panel">
         ${schedPanelHead('ai', '✨ Thêm nhanh bằng AI')}
@@ -887,23 +912,42 @@ ${AI_DRAFT_REMINDER_RULE}`;
         ${open('stats')? `<div class="panel-body ${panelBodyAnimClass()}">${statPerson? `
           <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-bottom:10px;">
             <select id="sch-stat-person">${personOpts}</select>
-            <select id="sch-stat-mode"><option value="week" ${state._schedStatMode==='week'?'selected':''}>Theo tuần</option><option value="month" ${state._schedStatMode==='month'?'selected':''}>Theo tháng</option></select>
-            <input type="date" id="sch-stat-date" value="${state._schedStatDate}">
+            <select id="sch-stat-mode">${[['week','Theo tuần'],['month','Theo tháng'],['year','Theo năm'],['period','Theo giai đoạn']].map(([k,l])=>`<option value="${k}" ${state._schedStatMode===k?'selected':''}>${l}</option>`).join('')}</select>
+            ${state._schedStatMode==='year'? `<select id="sch-stat-year">${yearsWithData.map(y=>`<option value="${y}" ${+state._schedStatYear===y?'selected':''}>Năm ${y}</option>`).join('')}</select>`
+              : state._schedStatMode==='period'? `<label class="sub" style="display:flex; align-items:center; gap:4px;">Từ ngày <input type="date" id="sch-stat-from" value="${state._schedStatFrom||''}"></label><label class="sub" style="display:flex; align-items:center; gap:4px;">đến ngày <input type="date" id="sch-stat-to" value="${state._schedStatTo||''}"></label>`
+              : `<input type="date" id="sch-stat-date" value="${state._schedStatDate}">`}
           </div>
+          ${state._schedStatMode==='period' && statRange.ok? `<p style="font-weight:800; color:#b71c1c; margin:-4px 0 8px;">Thống kê theo giai đoạn ${statRange.days} ngày: từ ngày ${schedFmtDate(statRange.from)} đến ngày ${schedFmtDate(statRange.to)}</p>` : ''}
+          ${!statRange.ok? `<div class="empty-state" style="padding:20px;"><div class="e-ico">📅</div>${escapeHtml(statRange.msg)}</div>` : `
           <p style="font-weight:800; color:#b71c1c; margin:0 0 8px;">${escapeHtml(statPerson.name)} — từ ${schedFmtDate(st.from)} đến ${schedFmtDate(st.to)}</p>
           <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin-bottom:12px;">
             ${[['Tổng số công việc', st.total, ''], ['Lần trùng giờ', st.overlap, st.overlap? 'color:#b71c1c;' : ''], ['Sát giờ, khác nơi', st.near, st.near? 'color:#e65100;' : ''], ['Chưa rõ có tham gia', st.unclear, ''], ['Đã hoãn/hủy', st.postponed, '']].map(([l,v,sty])=>`<div style="border:1px solid var(--line); border-radius:8px; padding:8px 12px;"><div class="sub">${l}</div><div style="font-weight:800; font-size:18px; ${sty}">${v}</div></div>`).join('')}
           </div>
           <div class="table-wrap"><table><thead><tr><th style="text-align:left;">Loại sự kiện</th><th>Số lượng</th><th style="text-align:left; min-width:200px;"></th></tr></thead><tbody>
             ${S.types.map(t=>`<tr><td style="text-align:left;">${escapeHtml(t.name)}</td><td style="text-align:center; font-weight:700;">${st.byType[t.id]||0}</td><td><div style="background:#a5d6a7; height:12px; border-radius:6px; width:${Math.round(((st.byType[t.id]||0)/maxType)*100)}%; min-width:${(st.byType[t.id]||0)? 6 : 0}px;"></div></td></tr>`).join('')}
-          </tbody></table></div>` : `<div class="empty-state"><div class="e-ico">📈</div>Chưa có người dùng nào để thống kê.</div>`}</div>` : ''}
+          </tbody></table></div>
+          ${st.months.length>1? `<p style="font-weight:800; margin:14px 0 6px;">📆 Chia theo từng tháng</p><div class="table-wrap"><table><thead><tr><th style="text-align:left;">Tháng</th><th>Số công việc</th><th style="text-align:left; min-width:200px;"></th></tr></thead><tbody>
+            ${(()=>{ const mx = Math.max(1, ...st.months.map(m=> m.n)); return st.months.map(m=>`<tr><td style="text-align:left;">Tháng ${m.m}/${m.y}</td><td style="text-align:center; font-weight:700;">${m.n}</td><td><div style="background:#90caf9; height:12px; border-radius:6px; width:${Math.round(m.n/mx*100)}%; min-width:${m.n? 6 : 0}px;"></div></td></tr>`).join(''); })()}
+          </tbody></table></div>` : ''}`}` : `<div class="empty-state"><div class="e-ico">📈</div>Chưa có người dùng nào để thống kê.</div>`}</div>` : ''}
+      </div>
+      <div class="panel">
+        <div class="panel-head" style="cursor:pointer;" id="sch-trash-toggle"><h3>🗑️ Thùng rác (Lịch công tác) ${trash.length? `<span class="sub">(${trash.length})</span>` : ''} ${state._schedShowTrash?'▴':'▾'}</h3></div>
+        ${state._schedShowTrash? `<div class="panel-body ${panelBodyAnimClass()}">${trash.length? `<div class="table-wrap"><table>
+          <thead><tr><th></th><th style="text-align:left;">Họ và tên</th><th style="text-align:center;">Số chức vụ</th><th style="text-align:center;">Số sự kiện trong lịch</th><th style="text-align:center;">Thời điểm xoá</th></tr></thead>
+          <tbody>${trash.map(p=>`<tr>
+            <td><button type="button" class="btn btn-ghost btn-sm preview-allow sched-trash-menu-btn" data-floating-menu-trigger data-id="${p.id}">⋮ Thao tác</button></td>
+            <td style="text-align:left;">${escapeHtml(p.name||'')}</td>
+            <td style="text-align:center;">${(p.positions||[]).length}</td>
+            <td style="text-align:center;">${S.events.filter(e=> e.personId===p.id).length}</td>
+            <td class="sub" style="text-align:center;">${p.deletedAt? new Date(p.deletedAt).toLocaleString('vi-VN') : ''}</td>
+          </tr>`).join('')}</tbody></table></div>` : `<div class="empty-state"><div class="e-ico">🗑️</div>Thùng rác trống.</div>`}</div>` : ''}
       </div>`;
     state._schedFlashTitle = false;
     ['sch-person'].forEach(id=>{ const s = el.querySelector('#'+id); if(s) s.value = state._schedPersonId; });
     const sp = el.querySelector('#sch-stat-person'); if(sp) sp.value = statPerson? statPerson.id : '';
     wireScheduleTab(el, { person, weekFrom, weekTo, mainList, unclearList, conflicts, cols, colsUnclear });
     // Chưa có người nào: mỗi lần VÀO module (không phải mỗi lần vẽ lại) hiện Bản giới thiệu, đóng được.
-    if(!S.people.length && !state._schedIntroShown){
+    if(!people.length && !state._schedIntroShown){
       state._schedIntroShown = true;
       if(MODULE_INTRO_CONTENT && MODULE_INTRO_CONTENT.schedule) openModuleIntroModal(MODULE_INTRO_CONTENT.schedule);
     }
@@ -920,13 +964,13 @@ ${AI_DRAFT_REMINDER_RULE}`;
     el.querySelectorAll('[data-pdel]').forEach(b=> b.onclick = async ()=>{
       const p = S.people.find(x=>x.id===b.dataset.pdel); if(!p) return;
       const n = S.events.filter(e=>e.personId===p.id).length;
-      if(!confirm(`Xoá người dùng "${p.name}"${n? ` và ${n} sự kiện trong lịch của người này` : ''}? Không khôi phục lại được.`)) return;
-      S.people = S.people.filter(x=>x.id!==p.id); S.events = S.events.filter(e=>e.personId!==p.id);
-      await schedSave('people'); await schedSave('events'); again();
+      if(!confirm(`Chuyển "${p.name}" vào thùng rác?\n\nLịch công tác của người này${n? ` (${n} sự kiện)` : ''} được giữ nguyên và sẽ trở lại khi khôi phục.`)) return;
+      p.deleted = true; p.deletedAt = new Date().toISOString();
+      await schedSave('people'); showToast('Đã đưa vào thùng rác.'); again();
     });
     const aiOpen = el.querySelector('#sch-ai-open');
     if(aiOpen) aiOpen.onclick = ()=>{
-      if(!S.people.length){ alert('Hãy thêm ít nhất 1 người dùng ở panel "Danh sách người dùng" trước.'); return; }
+      if(!schedActivePeople().length){ alert('Hãy thêm ít nhất 1 người dùng ở panel "Danh sách người dùng" trước.'); return; }
       schedPickPeopleModal(state._schedPersonId? [state._schedPersonId] : [], (ps)=> schedAiModal(ps));
     };
     const tr = el.querySelector('#sch-train-open'); if(tr) tr.onclick = ()=> schedTrainingModal(again);
@@ -963,6 +1007,23 @@ ${AI_DRAFT_REMINDER_RULE}`;
     const xe = el.querySelector('#sch-xexp'); if(xe) xe.onclick = ()=> schedExportExcel(ctx.person.name, subtitle(), sections());
     const sPerson = el.querySelector('#sch-stat-person'); if(sPerson) sPerson.onchange = ()=>{ state._schedStatPersonId = sPerson.value; again(); };
     const sMode = el.querySelector('#sch-stat-mode'); if(sMode) sMode.onchange = ()=>{ state._schedStatMode = sMode.value; again(); };
+    const sYear = el.querySelector('#sch-stat-year'); if(sYear) sYear.onchange = ()=>{ state._schedStatYear = parseInt(sYear.value,10); again(); };
+    const sFrom = el.querySelector('#sch-stat-from'); if(sFrom) sFrom.onchange = ()=>{ state._schedStatFrom = sFrom.value; again(); };
+    const sTo = el.querySelector('#sch-stat-to'); if(sTo) sTo.onchange = ()=>{ state._schedStatTo = sTo.value; again(); };
+    const trT = el.querySelector('#sch-trash-toggle'); if(trT) trT.onclick = ()=>{ state._schedShowTrash = !state._schedShowTrash; markPanelJustToggled(); again(); };
+    el.querySelectorAll('.sched-trash-menu-btn').forEach(btn=> btn.onclick = (e)=>{
+      e.stopPropagation();
+      const p = S.people.find(x=> x.id===btn.dataset.id); if(!p) return;
+      openFloatingActionMenu(btn, [
+        { label:'↩ Khôi phục', onClick: async ()=>{ delete p.deleted; delete p.deletedAt; await schedSave('people'); showToast(`Đã khôi phục "${p.name}".`); again(); } },
+        { label:'Xoá vĩnh viễn', danger:true, onClick: async ()=>{
+          const n = S.events.filter(e2=> e2.personId===p.id).length;
+          if(!confirm(`XOÁ VĨNH VIỄN "${p.name}"${n? ` và ${n} sự kiện trong lịch của người này` : ''}?\n\nKhông khôi phục lại được.`)) return;
+          S.people = S.people.filter(x=> x.id!==p.id); S.events = S.events.filter(e2=> e2.personId!==p.id);
+          await schedSave('people'); if(n) await schedSave('events'); showToast('Đã xoá vĩnh viễn.'); again();
+        } },
+      ]);
+    });
     const sDate = el.querySelector('#sch-stat-date'); if(sDate) sDate.onchange = ()=>{ if(sDate.value){ state._schedStatDate = sDate.value; again(); } };
   }
   // Xoá lịch cả tuần của 1 người: bước 1 chọn phạm vi (1 trong 3), bước 2 cảnh báo xác nhận rồi xoá vĩnh viễn.

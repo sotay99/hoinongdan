@@ -25,6 +25,44 @@
       title:'Biểu mẫu không có tiêu đề', description:'',
       isQuiz:false, sections:[sec], questions:[emptySurveyQuestion(sec.id)], createdAt:null, updatedAt:null, deleted:false, responseCount:0 };
   }
+  // ---- "Biểu mẫu này được gọi là gì?" (draft.formKind) — CHỈ là cách gọi tên, độc lập với isQuiz
+  // (chấm điểm). Tên đầy đủ hiện ở mọi nơi: "Biểu mẫu: <Loại> <tiêu đề>", hoặc "Biểu mẫu khảo sát:
+  // <tiêu đề>" khi chưa chọn. Slug (og) trùng tên ảnh xem trước public/og/khaosat-<og>.png và trùng
+  // bảng loại trong functions/index.js (surveyMeta) — đổi một nơi phải đổi cả hai. ----
+  const SURVEY_FORM_KINDS = [
+    { k:'kiemtra',  opt:'Đây là Bài kiểm tra', label:'Bài kiểm tra', alias:['bài kiểm tra','kiểm tra'], act:'làm bài kiểm tra', done:'nộp bài', btn:'NỘP BÀI', icon:'📝' },
+    { k:'cuocthi',  opt:'Đây là Bài Cuộc thi', label:'Cuộc thi', alias:['bài cuộc thi','cuộc thi'], act:'tham gia cuộc thi', done:'nộp bài dự thi', btn:'NỘP BÀI DỰ THI', icon:'🏆' },
+    { k:'khaosat',  opt:'Đây là Bài Khảo sát', label:'Khảo sát', alias:['bài khảo sát','khảo sát'], act:'tham gia khảo sát', done:'gửi câu trả lời', btn:'GỬI BÀI', icon:'📊' },
+    { k:'layykien', opt:'Đây là Bài Khảo sát lấy ý kiến', label:'Khảo sát lấy ý kiến', alias:['khảo sát lấy ý kiến','lấy ý kiến'], act:'góp ý kiến', done:'gửi ý kiến', btn:'GỬI Ý KIẾN', icon:'💬' },
+    { k:'thuthap',  opt:'Đây là Bài Khảo sát thu thập thông tin', label:'Khảo sát thu thập thông tin', alias:['khảo sát thu thập thông tin','thu thập thông tin'], act:'cung cấp thông tin', done:'gửi thông tin', btn:'GỬI THÔNG TIN', icon:'🗂️' },
+    { k:'trinhbao', opt:'Đây là Bài Thu thập đơn trình báo', label:'Thu thập đơn trình báo', alias:['thu thập đơn trình báo','đơn trình báo'], act:'gửi đơn trình báo', done:'gửi đơn trình báo', btn:'GỬI ĐƠN', icon:'📨' },
+  ];
+  function surveyKindInfo(s){ const k = s && s.formKind; return (k && SURVEY_FORM_KINDS.find(x=> x.k===k)) || null; }
+  // Số ký tự đầu của t khớp (không dấu, không hoa thường) với cụm p, và ngay sau đó là hết chuỗi hoặc
+  // dấu cách/dấu câu — tránh "Cuộc thi" khớp nhầm "Cuộc thiết kế". Trả -1 nếu không khớp.
+  function surveyPrefixLen(t, p){
+    const ch = Array.from(t), fp = surveyFold(p), n = Array.from(fp).length;
+    if(ch.length < n || surveyFold(ch.slice(0,n).join('')) !== fp) return -1;
+    if(ch.length > n && !/[\s:.,;\-–—(]/.test(ch[n])) return -1;
+    return n;
+  }
+  function surveyFullName(s){
+    const t = String((s && s.title) || '').trim() || 'Biểu mẫu không có tiêu đề';
+    const k = surveyKindInfo(s);
+    if(!k) return surveyPrefixLen(t, 'biểu mẫu') >= 0 ? t : 'Biểu mẫu khảo sát: ' + t;
+    // Tiêu đề đã mở đầu bằng tên loại (hoặc cách gọi ngắn) -> chuẩn hoá chữ hoa theo tên loại, không lặp.
+    const aliases = k.alias.slice().sort((a,b)=> b.length-a.length);
+    for(const a of aliases){
+      const n = surveyPrefixLen(t, a);
+      if(n >= 0){ const rest = Array.from(t).slice(n).join('').replace(/^[\s:.,;\-–—]+/, ''); return 'Biểu mẫu: ' + k.label + (rest? ' ' + rest : ''); }
+    }
+    return 'Biểu mẫu: ' + k.label + ' ' + t;
+  }
+  // Cụm động từ dùng trong lời cảm ơn/lời mời ("Cảm ơn bạn đã ___").
+  function surveyKindAct(s){ const k = surveyKindInfo(s); return k? k.act : (s && s.isQuiz? 'tham gia bài kiểm tra' : 'tham gia khảo sát'); }
+  function surveyKindDone(s){ const k = surveyKindInfo(s); return k? k.done : 'gửi câu trả lời'; }
+  function surveyKindBtn(s){ const k = surveyKindInfo(s); return k? k.btn : 'GỬI BÀI'; }
+  function surveyKindOg(s){ const k = surveyKindInfo(s); return k? k.k : 'macdinh'; }
   // Thứ tự câu hỏi trong mảng luôn khớp thứ tự hiển thị (theo thứ tự Phần) — để số thứ tự câu,
   // di chuyển lên/xuống và xuất kết quả đều đúng sau khi di chuyển/nhân bản phần.
   function surveyNormalizeOrder(draft){
@@ -219,7 +257,9 @@
     surveysListenerRef = ref;
     surveysListenerRef.on('value', snap=>{
       const all = (snap && snap.exists()) ? Object.values(snap.val()) : [];
-      state.surveys = all.filter(s=> !s.deleted && ((state.surveySpace==='personal') ? s.scope==='personal' : s.scope!=='personal'));
+      const mine = all.filter(s=> (state.surveySpace==='personal') ? s.scope==='personal' : s.scope!=='personal');
+      state.surveys = mine.filter(s=> !s.deleted);
+      state.surveyTrash = mine.filter(s=> s.deleted).sort((a,b)=> (b.deletedAt||'').localeCompare(a.deletedAt||''));
       if(state.activeTab==='survey'){ const c = document.getElementById('content'); if(c) renderSurveyTab(c); }
     }, err=> console.error('[Khảo sát] Không tải được danh sách biểu mẫu (kiểm tra Firebase Rules ".indexOn":["wardId","ownerEmail"]):', err));
   }
@@ -252,24 +292,141 @@
     // không ghi đè bằng con số cũ trong bản nháp.
     if(d.id){ try{ const c = await rtdb.ref(`surveys/${id}/responseCount`).get(); if(c && c.exists()) toSave.responseCount = parseInt(c.val(),10)||0; }catch(e){} }
     await rtdb.ref(`surveys/${id}`).set(toSave);
-    await pushLog(d.id? 'sửa biểu mẫu':'tạo biểu mẫu', toSave.title);
+    await pushLog(d.id? 'sửa biểu mẫu':'tạo biểu mẫu', surveyFullName(toSave));
     state.surveyDraft = toSave;
     state.surveyEditingId = id;
     return true;
   }
+  // Xoá = chuyển vào Thùng rác (deleted:true): GIỮ NGUYÊN câu trả lời, link công khai ngừng nhận phiếu.
+  // Chỉ "Xoá vĩnh viễn" trong Thùng rác mới xoá hẳn biểu mẫu + câu trả lời + bộ đếm người trả lời.
+  function surveyNoEditAlert(verb){ alert(state.surveySpace==='personal' ? 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : `Đồng chí không có quyền ${verb} Biểu mẫu dùng chung này.`); }
   async function deleteSurvey(id){
-    if(!surveyCanEdit()){ alert(state.surveySpace==='personal' ? 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : 'Đồng chí không có quyền xoá Biểu mẫu dùng chung này.'); return; }
+    if(!surveyCanEdit()){ surveyNoEditAlert('xoá'); return; }
     const s = state.surveys.find(x=>x.id===id);
     if(!s) return;
-    if(!confirm(`Xoá biểu mẫu "${s.title}"? Toàn bộ câu trả lời đã thu thập cũng sẽ bị xoá theo và KHÔNG THỂ khôi phục. Đồng chí có chắc chắn?`)) return;
-    await rtdb.ref(`surveys/${id}`).remove();
-    await rtdb.ref(`survey_responses/${id}`).remove();
-    await pushLog('xoá biểu mẫu', s.title);
+    const name = surveyFullName(s);
+    if(!confirm(`Chuyển "${name}" vào Thùng rác?\n\nCâu trả lời đã thu thập vẫn được giữ nguyên; link chia sẻ sẽ ngừng nhận phiếu. Đồng chí có thể khôi phục lại trong mục "Thùng rác" ở cuối danh sách.`)) return;
+    try{
+      await rtdb.ref(`surveys/${id}`).update({ deleted:true, deletedAt:new Date().toISOString(),
+        deletedByName: (state.identity && (state.identity.name || state.identity.email)) || '' });
+      await pushLog('chuyển biểu mẫu vào thùng rác', name);
+    }catch(e){ console.error('[Khảo sát] Xoá lỗi:', e); alert('Không xoá được biểu mẫu: '+(e&&e.message||e)); return; }
     if(state.surveyEditingId===id){ state.surveyView='list'; state.surveyEditingId=null; state.surveyDraft=null; }
+    showToast('Đã chuyển biểu mẫu vào Thùng rác.');
     render();
   }
+  async function restoreSurvey(id){
+    if(!surveyCanEdit()){ surveyNoEditAlert('khôi phục'); return; }
+    const s = (state.surveyTrash||[]).find(x=> x.id===id); if(!s) return;
+    try{
+      await rtdb.ref(`surveys/${id}`).update({ deleted:false, deletedAt:null, deletedByName:null });
+      await pushLog('khôi phục biểu mẫu', surveyFullName(s));
+    }catch(e){ alert('Không khôi phục được: '+(e&&e.message||e)); return; }
+    showToast(`Đã khôi phục "${surveyFullName(s)}".`);
+  }
+  async function purgeSurvey(id){
+    if(!surveyCanEdit()){ surveyNoEditAlert('xoá'); return; }
+    const s = (state.surveyTrash||[]).find(x=> x.id===id); if(!s) return;
+    const n = s.responseCount||0;
+    if(!confirm(`XOÁ VĨNH VIỄN "${surveyFullName(s)}"${n? ` cùng ${n} câu trả lời đã thu thập` : ''}?\n\nKhông khôi phục lại được.`)) return;
+    try{
+      await rtdb.ref(`survey_responses/${id}`).remove();
+      try{ await rtdb.ref(`survey_respondents/${id}`).remove(); }catch(e){ console.warn('[Khảo sát] Không xoá được bộ đếm người trả lời:', e); }
+      await rtdb.ref(`surveys/${id}`).remove();
+      await pushLog('xoá vĩnh viễn biểu mẫu', surveyFullName(s));
+    }catch(e){ console.error('[Khảo sát] Xoá vĩnh viễn lỗi:', e); alert('Không xoá được: '+(e&&e.message||e)); return; }
+    showToast('Đã xoá vĩnh viễn.');
+  }
+  // Link chia sẻ dạng ĐƯỜNG DẪN (không có #): https://hoinongdan.sotay.org/khaosat/{mã}. Máy chủ chuyển
+  // /khaosat/** qua Cloud Function surveyMeta để Zalo/Messenger đọc được tiêu đề + ảnh xem trước.
+  // Bản xem trước của nhánh phụ (tên miền có "--") và máy chạy thử cục bộ KHÔNG có function đó (trên
+  // bản xem trước, /khaosat/** còn chạy function của production) -> ở đó vẫn tạo link dạng # cũ.
+  function surveyUsesHashLinks(){ const h = location.hostname||''; return h.includes('--') || h==='localhost' || h==='127.0.0.1' || location.protocol==='file:'; }
+  function surveyLinkBase(){ return surveyUsesHashLinks()? `${location.origin}/#/khaosat/` : `${location.origin}/khaosat/`; }
   function surveyShareUrl(surveyId){
-    return `${location.origin}${location.pathname}#/khaosat/${surveyId}`;
+    return surveyLinkBase() + encodeURIComponent(surveyId);
+  }
+  // ---- Mã QR của link chia sẻ: xem to, tải ảnh PNG (có tên biểu mẫu + link), in áp phích A4. ----
+  function surveyFileSlug(t){ return surveyFold(t).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60) || 'bieu-mau'; }
+  function surveyQrWrapLines(ctx, text, maxW){
+    const words = String(text).split(/\s+/), lines = []; let cur = '';
+    words.forEach(w=>{ const t = cur? cur+' '+w : w; if(ctx.measureText(t).width <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; } });
+    if(cur) lines.push(cur);
+    return lines;
+  }
+  // Ảnh PNG ngang 1080 (cao tự co theo nội dung): dải màu + tên đầy đủ, mã QR lớn, lời mời quét mã, đường link.
+  function surveyQrPosterCanvas(survey, qrCanvas, url){
+    const W = 1080, font = '"Be Vietnam Pro", Arial, sans-serif', accent = surveyAccent(survey);
+    const m = document.createElement('canvas').getContext('2d'); m.font = `800 50px ${font}`;
+    const lines = surveyQrWrapLines(m, surveyFullName(survey), W-140).slice(0,4);
+    m.font = `400 28px ${font}`;
+    const urlLines = surveyQrWrapLines(m, url.replace(/^https?:\/\//,''), W-120).slice(0,2);
+    const bandH = 90 + lines.length*64, qs = 760;
+    const H = bandH + 50 + qs + 110 + urlLines.length*36 + 50;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0,0,W,H);
+    x.font = `800 50px ${font}`;
+    x.fillStyle = accent; x.fillRect(0,0,W,bandH);
+    x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'top';
+    lines.forEach((ln,i)=> x.fillText(ln, W/2, 45 + i*64));
+    const qx = (W-qs)/2, qy = bandH + 50;
+    x.imageSmoothingEnabled = false;
+    x.drawImage(qrCanvas, qx, qy, qs, qs);
+    x.fillStyle = '#1b1b1b'; x.font = `700 40px ${font}`;
+    x.fillText(`Quét mã để ${surveyKindAct(survey)}`, W/2, qy + qs + 40);
+    x.fillStyle = '#555555'; x.font = `400 28px ${font}`;
+    urlLines.forEach((ln,i)=> x.fillText(ln, W/2, qy + qs + 110 + i*36));
+    return c;
+  }
+  async function surveyQrModal(survey){
+    if(!survey || !survey.id) return;
+    const url = surveyShareUrl(survey.id), name = surveyFullName(survey);
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `<div class="modal" style="max-width:460px;">
+      <div class="modal-head"><h3>📱 Mã QR — ${escapeHtml(name)}</h3><button class="modal-close preview-allow" id="svqr-close">✕</button></div>
+      <div class="modal-body" style="text-align:center;">
+        <div id="svqr-box" class="sv-qr-box"><div class="sub" style="padding:40px 0;">Đang tạo mã QR…</div></div>
+        <p class="sub" style="margin:10px 0 4px;">Mọi người dùng Zalo hoặc Camera điện thoại quét mã này để mở biểu mẫu.</p>
+        <div style="word-break:break-all; font-size:13px;"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></div>
+      </div>
+      <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+        <button class="btn btn-primary btn-sm preview-allow" id="svqr-png" disabled>⬇️ Tải ảnh PNG</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="svqr-print" disabled>🖨️ In áp phích A4</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="svqr-copy">📋 Sao chép link</button>
+      </div></div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#svqr-close').onclick = close;
+    wrap.addEventListener('click', e=>{ if(e.target===wrap) close(); });
+    wrap.querySelector('#svqr-copy').onclick = ()=> copyMessageText(url);
+    const box = wrap.querySelector('#svqr-box');
+    try{ await loadOptionalLibrary('qrcode'); }
+    catch(e){ box.innerHTML = `<div style="color:#b71c1c; padding:24px 0;">⚠️ Không tải được bộ tạo mã QR. Vui lòng kiểm tra kết nối mạng rồi thử lại.<div class="sub">${escapeHtml(String(e&&e.message||e))}</div></div>`; return; }
+    const holder = document.createElement('div');
+    new window.QRCode(holder, { text:url, width:1024, height:1024, colorDark:'#000000', colorLight:'#ffffff', correctLevel: window.QRCode.CorrectLevel.M });
+    const qrCanvas = holder.querySelector('canvas');
+    if(!qrCanvas){ box.innerHTML = '<div style="color:#b71c1c; padding:24px 0;">⚠️ Trình duyệt không vẽ được mã QR.</div>'; return; }
+    const qrUrl = qrCanvas.toDataURL('image/png');
+    box.innerHTML = `<img src="${qrUrl}" alt="Mã QR" class="sv-qr-img">`;
+    const png = wrap.querySelector('#svqr-png'), pr = wrap.querySelector('#svqr-print');
+    png.disabled = false; pr.disabled = false;
+    png.onclick = ()=>{
+      const c = surveyQrPosterCanvas(survey, qrCanvas, url);
+      c.toBlob(b=>{ if(b) downloadBlob(`QR_${surveyFileSlug(name)}.png`, b, 'image/png'); }, 'image/png');
+    };
+    pr.onclick = ()=>{
+      const area = document.getElementById('print-area'); if(!area) return;
+      area.innerHTML = `<div class="sv-qr-poster" style="--ps-accent:${surveyAccent(survey)};">
+        <div class="sv-qr-poster-title">${escapeHtml(name)}</div>
+        ${survey.description? `<div class="sv-qr-poster-desc">${escapeHtml(String(survey.description).slice(0,300))}</div>` : ''}
+        <img src="${qrUrl}" alt="Mã QR" class="sv-qr-poster-img">
+        <div class="sv-qr-poster-cta">📱 Quét mã QR bằng Zalo hoặc Camera điện thoại để ${escapeHtml(surveyKindAct(survey))}</div>
+        <div class="sv-qr-poster-url">${escapeHtml(url)}</div>
+      </div>`;
+      printAreaNow(false);
+    };
   }
   async function loadSurveyResponses(surveyId){
     try{
@@ -438,18 +595,19 @@
   function surveyListFilterLabels(F){
     const out = [];
     if(F.q.trim()) out.push(`Tên có chứa "${F.q.trim()}"`);
-    if(F.type!=='all') out.push(F.type==='quiz'? 'Chỉ Bài kiểm tra' : 'Chỉ Khảo sát');
+    if(F.type!=='all'){ const k = SURVEY_FORM_KINDS.find(x=> 'k:'+x.k===F.type); out.push(k? 'Loại: '+k.label : F.type==='k:'? 'Loại: Chưa chọn' : F.type==='quiz'? 'Chỉ biểu mẫu có chấm điểm' : 'Chỉ biểu mẫu không chấm điểm'); }
     return out;
   }
   function surveyApplyListFilter(list, F){
     const term = surveyFold(F.q.trim());
-    let out = list.filter(s=> (!term || surveyFold(s.title||'').includes(term)) && (F.type==='all' || (F.type==='quiz')===!!s.isQuiz));
+    const typeOk = s=> F.type==='all' || (F.type.startsWith('k:')? (s.formKind||'')===F.type.slice(2) : (F.type==='quiz')===!!s.isQuiz);
+    let out = list.filter(s=> (!term || surveyFold(surveyFullName(s)).includes(term)) && typeOk(s));
     const by = {
       created_desc:(a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''),
       created_asc:(a,b)=> (a.createdAt||'').localeCompare(b.createdAt||''),
       updated_desc:(a,b)=> (b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''),
-      name_asc:(a,b)=> (a.title||'').localeCompare(b.title||'', 'vi', {sensitivity:'base'}),
-      name_desc:(a,b)=> (b.title||'').localeCompare(a.title||'', 'vi', {sensitivity:'base'}),
+      name_asc:(a,b)=> surveyFullName(a).localeCompare(surveyFullName(b), 'vi', {sensitivity:'base'}),
+      name_desc:(a,b)=> surveyFullName(b).localeCompare(surveyFullName(a), 'vi', {sensitivity:'base'}),
       resp_desc:(a,b)=> (b.responseCount||0)-(a.responseCount||0),
       resp_asc:(a,b)=> (a.responseCount||0)-(b.responseCount||0),
     }[F.sort] || ((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
@@ -507,8 +665,14 @@
             <input id="sv-f-q" value="${escapeHtml(F.q)}" placeholder="🔍 Tìm theo tên biểu mẫu (không cần gõ dấu)…" autocomplete="off" style="flex:1 1 240px; min-width:0; ${F.q.trim()? red : ''}">
             <select id="sv-f-type" title="Lọc theo loại" style="${F.type!=='all'? red : ''}">
               <option value="all" ${F.type==='all'?'selected':''}>Tất cả loại</option>
-              <option value="survey" ${F.type==='survey'?'selected':''}>📝 Khảo sát</option>
-              <option value="quiz" ${F.type==='quiz'?'selected':''}>📋 Bài kiểm tra</option>
+              <optgroup label="Theo cách gọi tên">
+                ${SURVEY_FORM_KINDS.map(k=>`<option value="k:${k.k}" ${F.type==='k:'+k.k?'selected':''}>${k.icon} ${escapeHtml(k.label)}</option>`).join('')}
+                <option value="k:" ${F.type==='k:'?'selected':''}>📋 Chưa chọn cách gọi</option>
+              </optgroup>
+              <optgroup label="Theo chấm điểm">
+                <option value="quiz" ${F.type==='quiz'?'selected':''}>✅ Có chấm điểm (đặt làm bài kiểm tra)</option>
+                <option value="survey" ${F.type==='survey'?'selected':''}>📝 Không chấm điểm</option>
+              </optgroup>
             </select>
             <select id="sv-f-sort" title="Sắp xếp">${SURVEY_LIST_SORTS.map(([k,l])=>`<option value="${k}" ${F.sort===k?'selected':''}>${l}</option>`).join('')}</select>
             ${active.length? `<button class="btn btn-ghost btn-sm preview-allow reset-filter-active" id="sv-f-reset">↺ Bỏ lọc</button>` : ''}
@@ -521,12 +685,13 @@
               <tbody>
                 ${list.length? list.map(s=>`
                   <tr>
-                    <td><b>${surveyHighlight(s.title, F.q)}</b>${s.isQuiz? ' <span class="pill pill-gray">Bài kiểm tra</span>' : ''}<div class="sub" style="margin-top:2px;">${surveyAcceptLabel(surveyAcceptState(s))}${s.closeAt? ' · hạn '+escapeHtml(surveyFmtDateTime(s.closeAt)) : ''}</div></td>
+                    <td><b>${surveyHighlight(surveyFullName(s), F.q)}</b>${s.isQuiz? ' <span class="pill pill-gray">Có chấm điểm</span>' : ''}<div class="sub" style="margin-top:2px;">${surveyAcceptLabel(surveyAcceptState(s))}${s.closeAt? ' · hạn '+escapeHtml(surveyFmtDateTime(s.closeAt)) : ''}</div></td>
                     <td>${s.createdAt? fmtDate(s.createdAt.slice(0,10)) : '—'}</td>
                     <td>${s.responseCount||0}</td>
                     <td style="white-space:nowrap; display:flex; gap:6px;">
                       <button class="btn btn-ghost btn-sm" data-sv-open="${s.id}">${canEdit? 'Sửa / Xem kết quả' : 'Xem kết quả'}</button>
                       <button class="btn btn-ghost btn-sm" data-sv-copy="${s.id}">🔗 Copy link</button>
+                      <button class="btn btn-ghost btn-sm preview-allow" data-sv-qr="${s.id}" title="Mã QR để in dán hoặc gửi ảnh cho mọi người quét">📱 Mã QR</button>
                       ${canEdit? `<button class="btn btn-ghost btn-sm preview-allow" data-sv-dup="${s.id}" title="Tạo 1 biểu mẫu mới giống hệt (không chép câu trả lời)">📑 Nhân bản</button>` : ''}
                       ${canEdit? `<button class="btn btn-ghost btn-sm" data-sv-delete="${s.id}" style="color:var(--red);">Xoá</button>` : ''}
                     </td>
@@ -535,7 +700,10 @@
             </table>
           </div>`}
         </div>
-      </div>`;
+      </div>
+      ${canView? surveyTrashPanelHtml() : ''}`;
+    surveyWireTrashPanel(el);
+    document.querySelectorAll('[data-sv-qr]').forEach(btn=> btn.onclick = ()=>{ const s = state.surveys.find(x=> x.id===btn.dataset.svQr); if(s) surveyQrModal(s); });
     const spaceSharedBtn = document.getElementById('sv-space-shared');
     if(spaceSharedBtn) spaceSharedBtn.onclick = ()=> switchSurveySpace('shared');
     const spacePersonalBtn = document.getElementById('sv-space-personal');
@@ -573,6 +741,37 @@
     });
     document.querySelectorAll('[data-sv-delete]').forEach(btn=>{
       btn.onclick = ()=> deleteSurvey(btn.dataset.svDelete);
+    });
+  }
+
+  // Thùng rác riêng của Biểu mẫu (theo không gian đang xem: dùng chung / cá nhân) — cùng kiểu với
+  // Thùng rác Hội viên: nút "⋮ Thao tác" mở menu nổi Khôi phục / Xoá vĩnh viễn.
+  function surveyTrashPanelHtml(){
+    const trash = state.surveyTrash || [];
+    return `<div class="panel">
+        <div class="panel-head" style="cursor:pointer;" id="sv-trash-toggle"><h3>🗑️ Thùng rác (Biểu mẫu) ${trash.length? `<span class="sub">(${trash.length})</span>` : ''} ${state._svShowTrash?'▴':'▾'}</h3></div>
+        ${state._svShowTrash? `<div class="panel-body ${panelBodyAnimClass()}">${trash.length? `<p class="sub" style="margin-top:0;">Biểu mẫu trong Thùng rác vẫn giữ nguyên câu trả lời đã thu thập nhưng link chia sẻ ngừng nhận phiếu.</p><div class="table-wrap"><table>
+          <thead><tr><th></th><th style="text-align:left;">Tên biểu mẫu</th><th style="text-align:center;">Số người đã trả lời</th><th style="text-align:center;">Xoá bởi</th><th style="text-align:center;">Thời điểm xoá</th></tr></thead>
+          <tbody>${trash.map(s=>`<tr>
+            <td><button type="button" class="btn btn-ghost btn-sm preview-allow sv-trash-menu-btn" data-floating-menu-trigger data-id="${s.id}">⋮ Thao tác</button></td>
+            <td style="text-align:left;">${escapeHtml(surveyFullName(s))}</td>
+            <td style="text-align:center;">${s.responseCount||0}</td>
+            <td style="text-align:center;">${escapeHtml(s.deletedByName||'')}</td>
+            <td class="sub" style="text-align:center;">${s.deletedAt? new Date(s.deletedAt).toLocaleString('vi-VN') : ''}</td>
+          </tr>`).join('')}</tbody></table></div>` : `<div class="empty-state"><div class="e-ico">🗑️</div>Thùng rác trống.</div>`}</div>` : ''}
+      </div>`;
+  }
+  function surveyWireTrashPanel(el){
+    const t = document.getElementById('sv-trash-toggle');
+    if(t) t.onclick = ()=>{ state._svShowTrash = !state._svShowTrash; markPanelJustToggled(); renderSurveyListView(el); };
+    document.querySelectorAll('.sv-trash-menu-btn').forEach(btn=> btn.onclick = (e)=>{
+      e.stopPropagation();
+      if(!surveyCanEdit()){ surveyNoEditAlert('thao tác trên'); return; }
+      const id = btn.dataset.id;
+      openFloatingActionMenu(btn, [
+        { label:'↩ Khôi phục', onClick: ()=> restoreSurvey(id) },
+        { label:'Xoá vĩnh viễn', danger:true, onClick: ()=> purgeSurvey(id) },
+      ]);
     });
   }
 
@@ -727,6 +926,9 @@
         <div class="field full"><label>Tiêu đề biểu mẫu *</label><input id="sv-title" value="${escapeHtml(draft.title)}" ${canEdit?'':'disabled'}></div>
         <div class="field full"><label>Mô tả biểu mẫu</label><textarea id="sv-desc" rows="2" ${canEdit?'':'disabled'}>${escapeHtml(draft.description)}</textarea></div>
       </div>
+      <div class="field" style="margin:10px 0 0; max-width:460px;"><label>Biểu mẫu này được gọi là gì?</label>
+        <select id="sv-formkind" ${canEdit?'':'disabled'}><option value="">Chưa chọn</option>${SURVEY_FORM_KINDS.map(k=>`<option value="${k.k}" ${draft.formKind===k.k?'selected':''}>${k.icon} ${escapeHtml(k.opt)}</option>`).join('')}</select></div>
+      <p class="sub" style="margin:4px 0 0;">Tên đầy đủ hiển thị cho mọi người: <b id="sv-fullname">${escapeHtml(surveyFullName(draft))}</b></p>
       <div style="margin:10px 0;"><label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" id="sv-isquiz" ${draft.isQuiz?'checked':''} ${canEdit?'':'disabled'}><span>📋 Đặt làm bài kiểm tra (cho phép chấm điểm đáp án đúng)</span></label></div>
       ${draft.isQuiz? surveyQuizSettingsHtml(draft, canEdit) : ''}
       <div id="sv-sections-list">
@@ -1110,7 +1312,7 @@
       draft.questions.filter(q=> q.type==='file').forEach(q=> surveyFileList(r.answers && r.answers[q.id]).forEach(f=>{ if(f.path && typeof storage!=='undefined'){ try{ storage.ref(f.path).delete().catch(()=>{}); }catch(e){} } }));
       await rtdb.ref(`surveys/${sid}/responseCount`).transaction(c=> Math.max(0, (parseInt(c,10)||0)-1));
       if(r.respondentKey) await rtdb.ref(`survey_respondents/${sid}/${r.respondentKey}`).transaction(c=> Math.max(0, (parseInt(c,10)||0)-1));
-      await pushLog('xoá 1 phiếu trả lời', draft.title);
+      await pushLog('xoá 1 phiếu trả lời', surveyFullName(draft));
     }catch(e){ console.error('[Khảo sát] Xoá phiếu lỗi:', e); alert('Không xoá được phiếu: '+(e&&e.message||e)); return; }
     state.surveyResponses = (state.surveyResponses||[]).filter(x=> x.id!==r.id);
     draft.responseCount = Math.max(0, (draft.responseCount||0)-1);
@@ -1156,7 +1358,7 @@
     let X = null, styled = false;
     try{ X = await schedLoadXlsxStyle(); styled = true; }
     catch(e){ try{ await loadOptionalLibrary('xlsx'); X = window.XLSX; }catch(e2){ alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); return; } }
-    const head = [['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [`KẾT QUẢ KHẢO SÁT: ${draft.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`]];
+    const head = [['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [`KẾT QUẢ — ${surveyFullName(draft)}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`]];
     if(banner) head.push([`Đang áp dụng lọc kết quả: ${banner}`]);
     head.push([]);
     const hr = head.length;
@@ -1182,7 +1384,7 @@
     const tot = cols.reduce((a,c)=> a+c.w, 0) || 1;
     const items = list.map((r,i)=> ({ r, i }));
     const pcols = cols.map(c=> ({ label:c.label, align:c.align, widthPct: Math.round(c.w/tot*1000)/10, get: it=> escapeHtml(c.get(it.r, it.i)) }));
-    printSections(`KẾT QUẢ KHẢO SÁT: ${draft.title}`, [{ title:'Danh sách phiếu trả lời', list:items, cols:pcols }], banner||'');
+    printSections(`KẾT QUẢ — ${surveyFullName(draft)}`, [{ title:'Danh sách phiếu trả lời', list:items, cols:pcols }], banner||'');
   }
 
 
@@ -1335,7 +1537,7 @@
       <div class="panel">
         <div class="panel-head" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" id="sv-back-btn">◀ Danh sách</button>
-          <h3 style="margin:0;">${state.surveyEditingId? 'Sửa biểu mẫu' : 'Tạo biểu mẫu mới'}</h3>
+          <h3 style="margin:0;">${state.surveyEditingId? 'Sửa biểu mẫu' : 'Tạo biểu mẫu mới'}${state.surveyEditingId? ` — <span style="font-weight:600;">${escapeHtml(surveyFullName(draft))}</span>` : ''}</h3>
         </div>
         <div class="panel-body">
           <div class="toolbar" style="margin-bottom:14px; flex-wrap:wrap;">
@@ -1344,7 +1546,7 @@
             <button class="btn ${state.surveyEditorTab==='answers'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-answers" ${!state.surveyEditingId?'disabled':''}>📊 Câu trả lời${draft.responseCount?` (${draft.responseCount})`:''}</button>
             <div class="spacer"></div>
             <button class="btn btn-ghost btn-sm preview-allow" id="sv-preview-btn" title="Xem đúng như người trả lời sẽ thấy, không gửi phiếu">👁️ Xem thử</button>
-            ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button>` : ''}
+            ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button><button class="btn btn-ghost btn-sm preview-allow" id="sv-qr-btn" title="Mã QR để in dán hoặc gửi ảnh cho mọi người quét">📱 Mã QR</button>` : ''}
             ${canEdit && state.surveyEditorTab!=='answers'? `<button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
           </div>
           <div id="sv-tab-content">
@@ -1371,9 +1573,13 @@
     const pvBtn = document.getElementById('sv-preview-btn'); if(pvBtn) pvBtn.onclick = ()=> surveyOpenPreview(draft);
     const copyBtn = document.getElementById('sv-copylink-btn');
     if(copyBtn) copyBtn.onclick = ()=> copyMessageText(surveyShareUrl(state.surveyEditingId));
+    const qrBtn = document.getElementById('sv-qr-btn');
+    if(qrBtn) qrBtn.onclick = ()=> surveyQrModal(draft);
 
     if(state.surveyEditorTab==='questions'){
-      const titleInput = document.getElementById('sv-title'); if(titleInput) titleInput.oninput = e=> draft.title = e.target.value;
+      const fullNameEl = ()=> document.getElementById('sv-fullname');
+      const titleInput = document.getElementById('sv-title'); if(titleInput) titleInput.oninput = e=>{ draft.title = e.target.value; const f = fullNameEl(); if(f) f.textContent = surveyFullName(draft); };
+      const kindSel = document.getElementById('sv-formkind'); if(kindSel) kindSel.onchange = ()=>{ draft.formKind = kindSel.value || null; const f = fullNameEl(); if(f) f.textContent = surveyFullName(draft); };
       const descInput = document.getElementById('sv-desc'); if(descInput) descInput.oninput = e=> draft.description = e.target.value;
       const quizToggle = document.getElementById('sv-isquiz'); if(quizToggle) quizToggle.onchange = e=>{
         draft.isQuiz = e.target.checked;
@@ -1865,11 +2071,12 @@ QUY TẮC:
 2) Câu chọn phương án phải có "options" đầy đủ, không trùng; câu thang điểm có "scaleMin" (0/1), "scaleMax" (2–10), nhãn 2 đầu; câu lưới có "rows" và "cols".
 3) "required": true với câu quan trọng.
 4) Nếu là BÀI KIỂM TRA ("isQuiz": true): mỗi câu có "points"; câu chọn phương án/thang điểm có "correctAnswers" (giá trị đúng y như trong options); câu trả lời ngắn có "correctAnswers" là các đáp án chấp nhận; câu lưới có "gridAnswers" (đáp án theo từng hàng); có thể thêm "feedbackCorrect"/"feedbackWrong". Câu tự luận (paragraph) không có đáp án (chấm tay).
+4b) "formKind" là CÁCH GỌI TÊN biểu mẫu (độc lập với isQuiz), chọn 1 trong: ${SURVEY_FORM_KINDS.map(k=> `"${k.k}" (${k.label})`).join(', ')}; để "" nếu không rõ. "title" KHÔNG cần lặp lại tên loại.
 5) Thiếu thông tin quan trọng (mục đích, đối tượng, số câu mong muốn...) thì HỎI LẠI ngắn gọn thay vì tự bịa; nhưng nếu người dùng đã mô tả đủ thì soạn luôn.
 CÁCH LÀM VIỆC: luôn có 1 "Hồ sơ đang soạn" (bản phác thảo biểu mẫu, người dùng có thể đã tự sửa). Cuối mỗi lượt bạn nhận đúng bản phác thảo hiện tại — hãy chỉnh sửa TRỰC TIẾP lên đó và LUÔN trả về TOÀN BỘ bản phác thảo.
 CÁCH TRẢ LỜI: trò chuyện tự nhiên trước (không bọc JSON), nói ngắn gọn đã soạn bao nhiêu phần/câu và gợi ý điều cần đồng chí kiểm tra. Nếu đã có ít nhất 1 câu hỏi, thêm NGAY CUỐI câu trả lời khối sau (đúng định dạng):
 \`\`\`survey-result
-{"title":"","description":"","isQuiz":false,"sections":[{"title":"","description":"","questions":[{"text":"","description":"","type":"radio","required":false,"options":[],"scaleMin":1,"scaleMax":5,"scaleMinLabel":"","scaleMaxLabel":"","rows":[],"cols":[],"points":0,"correctAnswers":[],"gridAnswers":[],"markOthersWrong":false,"feedbackCorrect":"","feedbackWrong":"","fileKind":"any"}]}]}
+{"title":"","description":"","formKind":"","isQuiz":false,"sections":[{"title":"","description":"","questions":[{"text":"","description":"","type":"radio","required":false,"options":[],"scaleMin":1,"scaleMax":5,"scaleMinLabel":"","scaleMaxLabel":"","rows":[],"cols":[],"points":0,"correctAnswers":[],"gridAnswers":[],"markOthersWrong":false,"feedbackCorrect":"","feedbackWrong":"","fileKind":"any"}]}]}
 \`\`\`
 Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi lại.
 ${AI_DRAFT_REMINDER_RULE}`;
@@ -1910,11 +2117,12 @@ ${AI_DRAFT_REMINDER_RULE}`;
         if(q.text) questions.push(q);
       });
     });
-    return { title: String((obj && obj.title)||'').trim(), description: String((obj && obj.description)||''), isQuiz: !!(obj && obj.isQuiz), sections, questions };
+    const fk = String((obj && obj.formKind)||'').trim();
+    return { title: String((obj && obj.title)||'').trim(), description: String((obj && obj.description)||''), formKind: SURVEY_FORM_KINDS.some(k=> k.k===fk)? fk : '', isQuiz: !!(obj && obj.isQuiz), sections, questions };
   }
   // Rút gọn bản phác thảo để gửi lại cho AI (bỏ id, bỏ trường rỗng)
   function surveyAiCompact(res){
-    return { title:res.title, description:res.description, isQuiz:res.isQuiz, sections: res.sections.map(s=>({ title:s.title, description:s.description, questions: res.questions.filter(q=> q.sectionId===s.id).map(q=>{
+    return { title:res.title, description:res.description, formKind:res.formKind||'', isQuiz:res.isQuiz, sections: res.sections.map(s=>({ title:s.title, description:s.description, questions: res.questions.filter(q=> q.sectionId===s.id).map(q=>{
       const o = { text:q.text, type:q.type, required:!!q.required };
       if(q.description) o.description = q.description;
       if(surveyQTypeHasOptions(q.type)) o.options = q.options;
@@ -1997,7 +2205,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
         </div>
         <div class="modal-body" style="flex:1; overflow:auto;">
           <div style="zoom:${zoomPct}%;">
-          <div class="form-grid"><div class="field full"><label>Tiêu đề biểu mẫu</label><input id="sfd-title" value="${escapeHtml(res.title)}"></div><div class="field full"><label>Mô tả</label><textarea id="sfd-desc" rows="2">${escapeHtml(res.description)}</textarea></div></div>
+          <div class="form-grid"><div class="field full"><label>Tiêu đề biểu mẫu</label><input id="sfd-title" value="${escapeHtml(res.title)}"></div><div class="field full"><label>Biểu mẫu này được gọi là gì?</label><select id="sfd-kind"><option value="">Chưa chọn</option>${SURVEY_FORM_KINDS.map(k=>`<option value="${k.k}" ${res.formKind===k.k?'selected':''}>${k.icon} ${escapeHtml(k.opt)}</option>`).join('')}</select></div><div class="field full"><label>Mô tả</label><textarea id="sfd-desc" rows="2">${escapeHtml(res.description)}</textarea></div></div>
           ${res.sections.map((sc,si)=>{ const qs = res.questions.filter(q=> q.sectionId===sc.id);
             return `<div class="panel" style="margin-bottom:12px; border:2px solid #1565c0;"><div class="panel-head sv-sec-head" style="gap:8px;"><h3 style="white-space:nowrap;">📑 Phần ${si+1}/${res.sections.length}</h3>
                 <input class="sfd-sectitle" data-sid="${sc.id}" value="${escapeHtml(sc.title||'')}" placeholder="Tiêu đề phần" style="flex:1; min-width:0;">
@@ -2034,6 +2242,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
       $('#sfd-zin').onclick = ()=>{ zoomPct = Math.min(ZOOM_MAX, zoomPct+ZOOM_STEP); render(); };
       $('#sfd-zout').onclick = ()=>{ zoomPct = Math.max(ZOOM_MIN, zoomPct-ZOOM_STEP); render(); };
       $('#sfd-title').oninput = e=>{ res.title = e.target.value; };
+      $('#sfd-kind').onchange = e=>{ res.formKind = e.target.value; };
       $('#sfd-desc').oninput = e=>{ res.description = e.target.value; };
       $('#sfd-quiz').onchange = e=>{ res.isQuiz = e.target.checked; if(res.isQuiz) res.questions.forEach(q=>{ if(!surveyQPoints(q)) q.points = 1; }); render(); };
       $('#sfd-add-q').onclick = ()=> addQuestion(null);
@@ -2072,7 +2281,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
       $$('.sfd-gkey').forEach(sel=> sel.onchange = ()=>{ const q = qById(sel.dataset.qid); if(!q) return; q.gridAnswers = (q.rows||[]).map((_,i)=> (q.gridAnswers||[])[i] || ''); q.gridAnswers[+sel.dataset.row] = sel.value; });
       $$('.sfd-shortkey').forEach(t=> t.oninput = ()=>{ const q = qById(t.dataset.qid); if(q) q.correctAnswers = lines(t.value); });
       $$('[data-sfd-del]').forEach(b=> b.onclick = ()=>{ const i = res.questions.findIndex(x=> x.id===b.dataset.sfdDel); if(i<0) return; const [rm] = res.questions.splice(i,1); render(); showUndoToast('Đã xoá câu hỏi khỏi Hồ sơ đang soạn', ()=>{ if(!res.sections.some(x=> x.id===rm.sectionId)) rm.sectionId = res.sections[0].id; res.questions.splice(Math.min(i, res.questions.length), 0, rm); render(); }); });
-      $('#sfd-preview').onclick = ()=> surveyOpenPreview(Object.assign(emptySurveyDraft(), { title: res.title||'Biểu mẫu', description: res.description, isQuiz: res.isQuiz, sections: clone(res.sections), questions: clone(res.questions) }));
+      $('#sfd-preview').onclick = ()=> surveyOpenPreview(Object.assign(emptySurveyDraft(), { title: res.title||'Biểu mẫu', description: res.description, formKind: res.formKind||null, isQuiz: res.isQuiz, sections: clone(res.sections), questions: clone(res.questions) }));
     }
     render();
   }
@@ -2092,7 +2301,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
       return;
     }
     const d = emptySurveyDraft();
-    Object.assign(d, { title: res.title || 'Biểu mẫu không có tiêu đề', description: res.description||'', isQuiz: !!res.isQuiz, sections: res.sections.filter(s=> res.questions.some(q=> q.sectionId===s.id)), questions: res.questions });
+    Object.assign(d, { title: res.title || 'Biểu mẫu không có tiêu đề', description: res.description||'', formKind: res.formKind || d.formKind || null, isQuiz: !!res.isQuiz, sections: res.sections.filter(s=> res.questions.some(q=> q.sectionId===s.id)), questions: res.questions });
     if(!d.sections.length) d.sections = [emptySurveySection(1)];
     ensureSurveySections(d);
     surveyBaselines.set(d, '__ai_chua_luu__'); // bản mới do AI soạn: tính là "chưa lưu" để rời trình soạn sẽ được cảnh báo
@@ -2262,7 +2471,7 @@ ${AI_DRAFT_REMINDER_RULE}`;
 
   // ---- (2) AI tóm tắt kết quả ----
   function surveyAiSummaryData(draft, list){
-    const out = [`BIỂU MẪU: "${draft.title}"${draft.description? ' — '+draft.description : ''}`, `SỐ PHIẾU ĐƯỢC PHÂN TÍCH: ${list.length}`];
+    const out = [`TÊN BIỂU MẪU: "${surveyFullName(draft)}"${draft.description? ' — '+draft.description : ''}`, `SỐ PHIẾU ĐƯỢC PHÂN TÍCH: ${list.length}`];
     if(draft.isQuiz){
       const g = list.map(r=> surveyGradeResponse(draft, r)), sc = g.map(x=> x.score).sort((a,b)=> a-b);
       if(sc.length) out.push(`ĐIỂM BÀI KIỂM TRA: trung bình ${surveyFmtNum(sc.reduce((a,b)=>a+b,0)/sc.length)}/${surveyFmtNum(g[0].max)}, thấp nhất ${surveyFmtNum(sc[0])}, cao nhất ${surveyFmtNum(sc[sc.length-1])}, ${g.filter(x=> x.pending).length} bài còn chờ chấm tay.`);
@@ -2309,7 +2518,7 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
     let busy = false;
     function render(){
       wrap.innerHTML = `<div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
-        <div class="modal-head"><h3>🧠 AI tóm tắt kết quả — ${escapeHtml(draft.title)} (${list.length} phiếu${filterText? ', đang lọc' : ''})</h3><button class="modal-close preview-allow" id="sas-close">✕</button></div>
+        <div class="modal-head"><h3>🧠 AI tóm tắt kết quả — ${escapeHtml(surveyFullName(draft))} (${list.length} phiếu${filterText? ', đang lọc' : ''})</h3><button class="modal-close preview-allow" id="sas-close">✕</button></div>
         <div class="modal-body" style="flex:1; overflow:auto; padding:16px;" id="sas-body">
           ${turns.map((t,i)=>`${i? `<div style="display:flex; justify-content:flex-end; margin:10px 0;"><div style="max-width:75%; background:#dcedc8; border-radius:12px; padding:8px 12px;">${escapeHtml(t.q)}</div></div>` : ''}<div class="sas-answer" ${t.streaming? 'id="sas-stream"' : ''}>${t.a? surveyMd(t.a) : waveTextHtml('Chàng đang đọc số liệu và viết tóm tắt…')}</div>`).join('')}
         </div>
@@ -2330,8 +2539,8 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
       const allText = ()=> turns.map((t,i)=> (i? `\n\n### Hỏi thêm: ${t.q}\n\n` : '') + (t.a||'')).join('');
       const allHtml = ()=> turns.map((t,i)=> (i? `<h3>Hỏi thêm: ${escapeHtml(t.q)}</h3>` : '') + surveyMd(t.a||'')).join('');
       $('#sas-copy').onclick = ()=>{ writeClipboardSilent(allText()); showToast('Đã sao chép bản tóm tắt.'); };
-      $('#sas-word').onclick = ()=> downloadBlob(`Tom-tat-khao-sat_${todayStr()}.doc`, htmlToWordDoc(`Tóm tắt kết quả: ${draft.title}`, `<h2>TÓM TẮT KẾT QUẢ KHẢO SÁT: ${escapeHtml(draft.title)}</h2><p><i>${list.length} phiếu${filterText? ' — đang lọc: '+escapeHtml(filterText) : ''} · ${new Date().toLocaleString('vi-VN')}</i></p>${allHtml()}`), 'application/msword');
-      $('#sas-print').onclick = ()=>{ const area = document.getElementById('print-area'); if(!area) return; area.innerHTML = `<div class="print-title" style="text-align:center;">TÓM TẮT KẾT QUẢ KHẢO SÁT: ${escapeHtml(draft.title.toUpperCase())}</div><div style="text-align:center; font-size:12px; margin-bottom:10px;">${list.length} phiếu${filterText? ' — đang lọc: '+escapeHtml(filterText) : ''} · ${new Date().toLocaleString('vi-VN')}</div>${allHtml()}`; printAreaNow(false); };
+      $('#sas-word').onclick = ()=> downloadBlob(`Tom-tat-khao-sat_${todayStr()}.doc`, htmlToWordDoc(`Tóm tắt kết quả: ${surveyFullName(draft)}`, `<h2>TÓM TẮT KẾT QUẢ — ${escapeHtml(surveyFullName(draft))}</h2><p><i>${list.length} phiếu${filterText? ' — đang lọc: '+escapeHtml(filterText) : ''} · ${new Date().toLocaleString('vi-VN')}</i></p>${allHtml()}`), 'application/msword');
+      $('#sas-print').onclick = ()=>{ const area = document.getElementById('print-area'); if(!area) return; area.innerHTML = `<div class="print-title" style="text-align:center;">TÓM TẮT KẾT QUẢ — ${escapeHtml(surveyFullName(draft).toUpperCase())}</div><div style="text-align:center; font-size:12px; margin-bottom:10px;">${list.length} phiếu${filterText? ' — đang lọc: '+escapeHtml(filterText) : ''} · ${new Date().toLocaleString('vi-VN')}</div>${allHtml()}`; printAreaNow(false); };
       $('#sas-redo').onclick = ()=>{ turns.length = 0; convo.length = 3; ask(null); };
       const send = ()=>{ const t = ($('#sas-input').value||'').trim(); if(!t || busy) return; ask(t); };
       $('#sas-send').onclick = send;
@@ -2356,6 +2565,9 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
   // https://.../#/khaosat/{surveyId}, KHÔNG cần đăng nhập, KHÔNG hiện menu/nút Admin.
   // =====================================================================
   function publicSurveyRouteId(){
+    // Dạng MỚI: /khaosat/{mã}[/ketqua/{phiếu}/{mã bí mật}] — Dạng CŨ #/khaosat/... vẫn chạy.
+    const p = (window.location.pathname||'').match(/^\/khaosat\/(.+?)\/?$/);
+    if(p) return decodeURIComponent(p[1]);
     const m = (window.location.hash||'').match(/^#\/khaosat\/(.+)$/);
     return m ? decodeURIComponent(m[1]) : null;
   }
@@ -2380,10 +2592,10 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
     return `<div class="ps-cover" style="background:${p.bg};"><span>${p.icon}</span></div>`;
   }
   function surveyAppRoot(){ return root; }
-  function surveyResultUrl(sid, rid, token){ return `${location.origin}${location.pathname}#/khaosat/${encodeURIComponent(sid)}/ketqua/${encodeURIComponent(rid)}/${encodeURIComponent(token)}`; }
+  function surveyResultUrl(sid, rid, token){ return `${surveyLinkBase()}${encodeURIComponent(sid)}/ketqua/${encodeURIComponent(rid)}/${encodeURIComponent(token)}`; }
   function surveyLinkify(t){ return escapeHtml(t||'').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g,'<br>'); }
   function surveyRememberResult(survey, entry){
-    try{ const k = 'hnd_sv_results'; const arr = JSON.parse(localStorage.getItem(k)||'[]'); arr.unshift({ sid:survey.id, title:survey.title, rid:entry.id, token:entry.resultToken, at:entry.submittedAt }); localStorage.setItem(k, JSON.stringify(arr.slice(0,50))); }catch(e){}
+    try{ const k = 'hnd_sv_results'; const arr = JSON.parse(localStorage.getItem(k)||'[]'); arr.unshift({ sid:survey.id, title:surveyFullName(survey), rid:entry.id, token:entry.resultToken, at:entry.submittedAt }); localStorage.setItem(k, JSON.stringify(arr.slice(0,50))); }catch(e){}
   }
   // Kết quả bài làm cho NGƯỜI LÀM BÀI — hiện theo đúng cài đặt "Người làm bài được xem" của biểu mẫu.
   function surveyResultHtml(survey, r){
@@ -2421,7 +2633,8 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
     }catch(e){ console.error('[Khảo sát] Không tải được bài làm:', e); root.innerHTML = card('<div class="rice-badge">⚠️</div><h1>Không tải được bài làm</h1><p class="sub">Vui lòng kiểm tra kết nối mạng rồi tải lại trang.</p>'); return; }
     if(!survey || survey.deleted || !r || !r.resultToken || r.resultToken!==token){ root.innerHTML = card('<div class="rice-badge">🔎</div><h1>Không tìm thấy bài làm</h1><p class="sub">Đường link không đúng, hoặc bài làm đã bị xoá.</p>'); return; }
     ensureSurveySections(survey);
-    const head = `<h1>${escapeHtml(survey.title)}</h1><p class="sub">Nộp lúc ${escapeHtml(new Date(r.submittedAt).toLocaleString('vi-VN'))}${r.respondentName? ' — '+escapeHtml(r.respondentName) : ''}</p>`;
+    try{ document.title = surveyFullName(survey); }catch(e){}
+    const head = `<h1>${escapeHtml(surveyFullName(survey))}</h1><p class="sub">Nộp lúc ${escapeHtml(new Date(r.submittedAt).toLocaleString('vi-VN'))}${r.respondentName? ' — '+escapeHtml(r.respondentName) : ''}</p>`;
     if(!survey.isQuiz){ root.innerHTML = card(head + `<div class="panel"><div class="panel-body">${(survey.questions||[]).map((q,qi)=>`<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b>${escapeHtml(surveyAnswerText(r.answers && r.answers[q.id], q)||'(không trả lời)')}</b></div>`).join('')}</div></div>`); return; }
     if(survey.quizRelease==='manual' && !r.released){ root.innerHTML = card(head + '<div class="rice-badge">⏳</div><p style="font-weight:700;">Bài làm của '+surveyAddress(survey)+' đang chờ chấm.</p><p class="sub">Khi người tạo bài kiểm tra công bố điểm, '+surveyAddress(survey)+' mở lại đúng đường link này để xem điểm.</p>'); return; }
     root.innerHTML = card(head + surveyResultHtml(survey, r), 680);
@@ -2552,11 +2765,11 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
       }
       if(surveyLoadState==='closed'){
         const why = { expired:`Biểu mẫu đã hết hạn nộp${survey.closeAt? ' (hạn: '+escapeHtml(surveyFmtDateTime(survey.closeAt))+')' : ''}.`, full:'Biểu mẫu đã nhận đủ số phiếu tối đa.' }[closedReason] || 'Người tạo biểu mẫu đã ngừng nhận câu trả lời.';
-        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">⛔</div><h1>${escapeHtml(survey.title)}</h1><p style="font-weight:700; color:#b71c1c;">Biểu mẫu này đã ngừng nhận câu trả lời.</p><p class="sub">${why}</p>${survey.closedMessage? `<p style="white-space:pre-wrap; margin-top:10px;">${escapeHtml(survey.closedMessage)}</p>` : ''}</div></div>`;
+        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">⛔</div><h1>${escapeHtml(surveyFullName(survey))}</h1><p style="font-weight:700; color:#b71c1c;">Biểu mẫu này đã ngừng nhận câu trả lời.</p><p class="sub">${why}</p>${survey.closedMessage? `<p style="white-space:pre-wrap; margin-top:10px;">${escapeHtml(survey.closedMessage)}</p>` : ''}</div></div>`;
         return;
       }
       if(surveyLoadState==='needLogin'){
-        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">🔒</div><h1>${escapeHtml(survey.title)}</h1><p class="sub">Biểu mẫu này yêu cầu đăng nhập bằng tài khoản Google để điền phiếu (mỗi tài khoản được trả lời ${(parseInt(survey.perPersonLimit,10)||0)>0? 'tối đa '+parseInt(survey.perPersonLimit,10)+' lần' : 'nhiều lần'}).</p><button class="btn btn-primary btn-block" id="ps-login-btn" style="margin-top:14px;">🔒 Đăng nhập Google để điền phiếu</button></div></div>`;
+        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">🔒</div><h1>${escapeHtml(surveyFullName(survey))}</h1><p class="sub">Biểu mẫu này yêu cầu đăng nhập bằng tài khoản Google để điền phiếu (mỗi tài khoản được trả lời ${(parseInt(survey.perPersonLimit,10)||0)>0? 'tối đa '+parseInt(survey.perPersonLimit,10)+' lần' : 'nhiều lần'}).</p><button class="btn btn-primary btn-block" id="ps-login-btn" style="margin-top:14px;">🔒 Đăng nhập Google để điền phiếu</button></div></div>`;
         document.getElementById('ps-login-btn').onclick = async ()=>{
           const b = document.getElementById('ps-login-btn'); b.disabled = true; b.textContent = 'Đang mở cửa sổ đăng nhập Google…';
           try{ await auth.signInWithPopup(googleProvider); loadSurvey(); }
@@ -2565,7 +2778,7 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
         return;
       }
       if(surveyLoadState==='limit'){
-        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">✋</div><h1>${escapeHtml(survey.title)}</h1><p style="font-weight:700;">${surveyAddress(survey,true)} đã trả lời ${respondent.count}/${respondent.limit} lần cho biểu mẫu này, không thể gửi thêm.</p>${respondent.email? `<p class="sub">Tài khoản: ${escapeHtml(respondent.email)}</p>` : ''}<p class="sub">Cảm ơn ${surveyAddress(survey)} đã tham gia.</p></div></div>`;
+        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">✋</div><h1>${escapeHtml(surveyFullName(survey))}</h1><p style="font-weight:700;">${surveyAddress(survey,true)} đã trả lời ${respondent.count}/${respondent.limit} lần cho biểu mẫu này, không thể gửi thêm.</p>${respondent.email? `<p class="sub">Tài khoản: ${escapeHtml(respondent.email)}</p>` : ''}<p class="sub">Cảm ơn ${surveyAddress(survey)} đã ${surveyKindAct(survey)}.</p></div></div>`;
         return;
       }
       if(submitted){
@@ -2575,8 +2788,8 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
           <div class="center-screen"><div class="auth-card ps-card" style="max-width:${survey.isQuiz? 680 : 520}px; --ps-accent:${surveyAccent(survey)};">
             ${surveyCoverHtml(survey)}
             <div class="rice-badge">✅</div>
-            <h1>${surveyAddress(survey,true)} đã gửi câu trả lời thành công!</h1>
-            ${survey.thanksMessage? `<p style="white-space:pre-wrap;">${surveyLinkify(survey.thanksMessage)}</p>` : `<p class="sub">Cảm ơn ${surveyAddress(survey)} đã tham gia ${survey.isQuiz? 'bài kiểm tra':'khảo sát'} "${escapeHtml(survey.title)}".</p>`}
+            <h1>${surveyAddress(survey,true)} đã ${surveyKindDone(survey)} thành công!</h1>
+            ${survey.thanksMessage? `<p style="white-space:pre-wrap;">${surveyLinkify(survey.thanksMessage)}</p>` : `<p class="sub">Cảm ơn ${surveyAddress(survey)} đã ${surveyKindAct(survey)} — <b>${escapeHtml(surveyFullName(survey))}</b>.</p>`}
             ${PREVIEW? '<p class="ps-preview-note">👁️ Đây là bản xem thử — phiếu KHÔNG được gửi đi.</p>' : ''}
             ${survey.isQuiz? (()=>{ if(PREVIEW) return surveyResultHtml(survey, lastResult); const url = surveyResultUrl(survey.id, lastResult.id, lastResult.resultToken);
               const linkBox = `<div class="ps-meta" style="margin-top:12px;"><div>🔖 Mã bài làm: <b>${escapeHtml(lastResult.id)}</b></div><div style="word-break:break-all;">🔗 <a href="${escapeHtml(url)}" target="_blank" rel="noopener">Link xem lại bài làm và điểm</a></div><button type="button" class="btn btn-ghost btn-sm" id="ps-copy-result" style="margin-top:6px;">📋 Sao chép link</button><div class="sub" style="margin-top:4px;">${surveyAddress(survey,true)} nên lưu lại link này${survey.quizRelease==='manual'? ' — khi người tạo công bố điểm, mở link để xem điểm' : ''}.</div></div>`;
@@ -2597,13 +2810,13 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
           <div class="auth-card ps-card" style="max-width:640px; text-align:left; --ps-accent:${surveyAccent(survey)};">
             ${surveyCoverHtml(survey)}
             ${PREVIEW? '<p class="ps-preview-note">👁️ Bản xem thử — đúng như người trả lời sẽ thấy; phiếu điền ở đây KHÔNG được gửi đi.</p>' : ''}
-            <h1>${escapeHtml(survey.title)}</h1>
+            <h1>${escapeHtml(surveyFullName(survey))}</h1>
             ${(survey.closeAt || respondent.limit>0 || respondent.email)? `<div class="ps-meta">${survey.closeAt? `<div>⏰ Hạn nộp: <b>${escapeHtml(surveyFmtDateTime(survey.closeAt))}</b></div>` : ''}${respondent.limit>0? `<div>📝 Đây là lần trả lời thứ <b>${respondent.count+1}/${respondent.limit}</b> của ${surveyAddress(survey)}.</div>` : ''}${respondent.email? `<div>👤 Đang điền với tài khoản <b>${escapeHtml(respondent.email)}</b> · <a href="#" id="ps-switch-acc">Đổi tài khoản</a></div>` : ''}</div>` : ''}
             ${survey.description? `<p class="sub" style="white-space:pre-wrap;">${escapeHtml(survey.description)}</p>` : ''}
             ${sections.length>1? `<div class="ps-progress"><div class="ps-progress-top"><b>Phần ${currentSectionIdx+1}/${sections.length}</b>${sec.title? ' — '+escapeHtml(sec.title) : ''}<span>${progress}%</span></div><div class="ps-progress-track"><div class="ps-progress-fill" style="width:${progress}%;"></div></div>${sec.description? `<div class="sub" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(sec.description)}</div>` : ''}</div>` : ''}
             ${survey.collectName && currentSectionIdx===0? `<div class="field full" style="margin-bottom:18px;"><label>Họ và tên <span style="color:var(--red);">*</span></label><input id="ps-name" value="${escapeHtml(respondentName)}" placeholder="Nhập đầy đủ họ và tên" autocomplete="name"></div>` : ''}
             <div id="ps-questions">${secQuestions.map((q,qi)=> renderPublicQuestionHtml(q, qi)).join('')}</div>
-            <div class="ps-nav">${sectionHistory.length? '<button class="btn btn-ghost" id="ps-back-btn" type="button">◀ Quay lại</button>' : ''}<button class="btn btn-primary" id="ps-next-btn" style="flex:1;">${isLastSection? 'GỬI BÀI' : 'TIẾP ▶'}</button></div>
+            <div class="ps-nav">${sectionHistory.length? '<button class="btn btn-ghost" id="ps-back-btn" type="button">◀ Quay lại</button>' : ''}<button class="btn btn-primary" id="ps-next-btn" style="flex:1;">${isLastSection? surveyKindBtn(survey) : 'TIẾP ▶'}</button></div>
             ${survey.wardName? `<p class="sub" style="text-align:center; margin-top:14px;">Biểu mẫu bởi Hội Nông dân ${escapeHtml(survey.wardName)}</p>` : ''}
           </div>
         </div>`;
@@ -2862,6 +3075,7 @@ TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung c
         }else{
           ensureSurveySections(nextSurvey);
           survey = nextSurvey;
+          try{ document.title = surveyFullName(survey); }catch(e){}
           surveyLoadState = 'ready';
           await prepareAccess();
         }

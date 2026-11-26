@@ -51,12 +51,25 @@
             "value": "no-cache,no-store,must-revalidate"
           }
         ]
+      },
+      {
+        "source": "/og/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public,max-age=86400"
+          }
+        ]
       }
     ],
     "rewrites": [
       {
         "source": "/bienlai/**",
         "function": "receiptMeta"
+      },
+      {
+        "source": "/khaosat/**",
+        "function": "surveyMeta"
       },
       {
         "source": "**",

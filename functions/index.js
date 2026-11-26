@@ -205,3 +205,143 @@ exports.receiptMeta = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
+// ============================================================================
+// Cloud Function: surveyMeta
+// Giống receiptMeta nhưng cho link Biểu mẫu: https://<domain>/khaosat/<mã>[/ketqua/<phiếu>/<mã bí mật>]
+// Chèn <title> + og:title/og:description/og:image đúng biểu mẫu đó để Zalo/Messenger/Facebook hiện
+// khung xem trước. Ảnh xem trước là ảnh CỐ ĐỊNH theo "loại biểu mẫu" (formKind), nằm ở
+// /og/khaosat-<loại>.png (build chép từ src/og/). Bảng loại dưới đây PHẢI khớp SURVEY_FORM_KINDS
+// trong src/js/app/14c-survey.js. Trang kết quả bài làm KHÔNG để lộ điểm trong khung xem trước.
+// ============================================================================
+const SITE_ORIGIN = "https://hoinongdan.sotay.org";
+const SURVEY_KINDS = {
+  kiemtra: { label: "Bài kiểm tra", alias: ["bài kiểm tra", "kiểm tra"], act: "làm bài kiểm tra" },
+  cuocthi: { label: "Cuộc thi", alias: ["bài cuộc thi", "cuộc thi"], act: "tham gia cuộc thi" },
+  khaosat: { label: "Khảo sát", alias: ["bài khảo sát", "khảo sát"], act: "tham gia khảo sát" },
+  layykien: { label: "Khảo sát lấy ý kiến", alias: ["khảo sát lấy ý kiến", "lấy ý kiến"], act: "góp ý kiến" },
+  thuthap: { label: "Khảo sát thu thập thông tin", alias: ["khảo sát thu thập thông tin", "thu thập thông tin"], act: "cung cấp thông tin" },
+  trinhbao: { label: "Thu thập đơn trình báo", alias: ["thu thập đơn trình báo", "đơn trình báo"], act: "gửi đơn trình báo" },
+};
+
+function svFoldChar(c) {
+  return (c.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[đĐ]/g, "d").toLowerCase().charAt(0)) || c;
+}
+function svFold(s) { return Array.from(String(s || "")).map(svFoldChar).join(""); }
+function svPrefixLen(t, p) {
+  const ch = Array.from(t), fp = svFold(p), n = Array.from(fp).length;
+  if (ch.length < n || svFold(ch.slice(0, n).join("")) !== fp) return -1;
+  if (ch.length > n && !/[\s:.,;\-–—(]/.test(ch[n])) return -1;
+  return n;
+}
+// Tên đầy đủ — cùng quy tắc với surveyFullName() trong app.
+function surveyFullName(s) {
+  const t = String((s && s.title) || "").trim() || "Biểu mẫu không có tiêu đề";
+  const k = s && SURVEY_KINDS[s.formKind];
+  if (!k) return svPrefixLen(t, "biểu mẫu") >= 0 ? t : "Biểu mẫu khảo sát: " + t;
+  const aliases = k.alias.slice().sort((a, b) => b.length - a.length);
+  for (const a of aliases) {
+    const n = svPrefixLen(t, a);
+    if (n >= 0) {
+      const rest = Array.from(t).slice(n).join("").replace(/^[\s:.,;\-–—]+/, "");
+      return "Biểu mẫu: " + k.label + (rest ? " " + rest : "");
+    }
+  }
+  return "Biểu mẫu: " + k.label + " " + t;
+}
+function svFmtDateTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+function svAcceptStatus(s) {
+  if (s.acceptResponses === false) return "Đã đóng, ngừng nhận câu trả lời";
+  if (s.closeAt && new Date(s.closeAt).getTime() <= Date.now()) return "Đã hết hạn nộp";
+  const max = parseInt(s.maxResponses, 10) || 0;
+  if (max > 0 && (s.responseCount || 0) >= max) return "Đã nhận đủ số phiếu";
+  if (s.closeAt) return "Hạn nộp: " + svFmtDateTime(s.closeAt);
+  return "";
+}
+
+exports.surveyMeta = functions.https.onRequest(async (req, res) => {
+  try {
+    // req.path: "/khaosat/<mã>" hoặc "/khaosat/<mã>/ketqua/<phiếu>/<mã bí mật>"
+    const parts = req.path.split("/").filter(Boolean);
+    const code = decodeURIComponent(parts[1] || "");
+    const isResult = parts[2] === "ketqua";
+    console.log("[surveyMeta] Nhận request:", req.method, req.originalUrl);
+    delete req.headers.range;
+    delete req.headers["if-range"];
+
+    let pageTitle = "Biểu mẫu - Hoinongdan.sotay.org";
+    let ogTitle = "Biểu mẫu khảo sát";
+    let description = "Hãy bấm vào đây để tham gia khảo sát.";
+    let ogImageUrl = `${SITE_ORIGIN}/og/khaosat-macdinh.png`;
+
+    // Mã biểu mẫu do app sinh chỉ gồm chữ/số/gạch — chặn ký tự lạ trước khi đọc Database.
+    if (code && /^[A-Za-z0-9_-]{1,128}$/.test(code)) {
+      const snap = await admin.database().ref("surveys/" + code).once("value");
+      if (snap.exists() && !snap.val().deleted) {
+        const s = snap.val();
+        const kindKey = SURVEY_KINDS[s.formKind] ? s.formKind : "";
+        const act = kindKey ? SURVEY_KINDS[kindKey].act : (s.isQuiz ? "tham gia bài kiểm tra" : "tham gia khảo sát");
+        const name = surveyFullName(s);
+        ogImageUrl = `${SITE_ORIGIN}/og/khaosat-${kindKey || "macdinh"}.png`;
+        if (isResult) {
+          // KHÔNG đọc phiếu trả lời, KHÔNG hiện điểm — chỉ báo đây là link xem lại bài làm.
+          ogTitle = `Kết quả bài làm — ${name}`;
+          description = "Bấm vào đây để xem lại bài làm của bạn.";
+        } else {
+          const status = svAcceptStatus(s);
+          ogTitle = status ? `${name} (${status})` : name;
+          const desc = String(s.description || "").replace(/\s+/g, " ").trim();
+          description = desc ? (desc.length > 200 ? desc.slice(0, 197) + "…" : desc) : `Hãy bấm vào đây để ${act}.`;
+        }
+        pageTitle = `${isResult ? "Kết quả bài làm — " : ""}${name} - Hoinongdan.sotay.org`;
+      }
+      // Không thấy / đã vào Thùng rác -> giữ tiêu đề mặc định; app tự hiện màn hình "Không tìm thấy".
+    }
+
+    const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+    const metaBlock = `
+    <title>${escapeHtml(pageTitle)}</title>
+    <meta property="og:title" content="${escapeHtml(ogTitle)}">
+    <meta property="og:description" content="${escapeHtml(description)}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Sổ tay Công tác Hội Nông dân cấp xã/phường">
+    <meta property="og:locale" content="vi_VN">
+    <meta property="og:url" content="${escapeHtml(SITE_ORIGIN + req.originalUrl)}">
+    <meta property="og:image" content="${escapeHtml(ogImageUrl)}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
+    <meta name="twitter:description" content="${escapeHtml(description)}">
+    <meta name="twitter:image" content="${escapeHtml(ogImageUrl)}">
+    `;
+    // Chỉ thao tác trong phần <head> thật (index.html nay đã mỏng, JS nằm ở tệp riêng nên </head> đầu
+    // tiên chính là thẻ thật); phòng hờ không thấy thì quay về 3000 ký tự đầu như receiptMeta.
+    const headEnd = html.search(/<\/head>/i);
+    const HEAD_SCAN_LIMIT = headEnd > 0 && headEnd < 20000 ? headEnd : 3000;
+    let headPart = html.slice(0, HEAD_SCAN_LIMIT).replace(/<title>[\s\S]*?<\/title>/i, "");
+    // Bỏ các thẻ og:/twitter: mặc định sẵn có trong index.html để bot không đọc nhầm thẻ cũ.
+    headPart = headPart.replace(/<meta\s+(?:property|name)="(?:og:[^"]*|twitter:[^"]*)"[^>]*>\s*/gi, "");
+    const headOpenIdx = headPart.search(/<head[^>]*>/i);
+    if (headOpenIdx !== -1) {
+      const insertAt = headPart.indexOf(">", headOpenIdx) + 1;
+      headPart = headPart.slice(0, insertAt) + metaBlock + headPart.slice(insertAt);
+    } else {
+      headPart = metaBlock + headPart;
+    }
+    const bodyBuffer = Buffer.from(headPart + html.slice(HEAD_SCAN_LIMIT), "utf8");
+    res.status(200);
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.set("Content-Length", String(bodyBuffer.length));
+    res.set("Cache-Control", "no-store");
+    res.removeHeader("ETag");
+    res.end(bodyBuffer);
+  } catch (err) {
+    console.error("[surveyMeta] Lỗi:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});

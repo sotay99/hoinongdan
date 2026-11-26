@@ -173,6 +173,18 @@ html = replaceExactlyOnce(
   "app",
 );
 
+// Ảnh xem trước link (og:image) khi chia sẻ Biểu mẫu qua Zalo/Messenger — chép nguyên src/og/*.png
+// sang public/og/ (tên cố định, không gắn vân tay: Cloud Function surveyMeta trỏ thẳng tới tên này).
+const ogSourceRoot = path.join(root, "src/og");
+const ogPublicRoot = path.join(root, "public/og");
+if (fs.existsSync(ogSourceRoot)) {
+  fs.rmSync(ogPublicRoot, { recursive: true, force: true });
+  fs.mkdirSync(ogPublicRoot, { recursive: true });
+  for (const name of fs.readdirSync(ogSourceRoot)) {
+    if (/^[a-z0-9-]+\.png$/.test(name)) fs.copyFileSync(path.join(ogSourceRoot, name), path.join(ogPublicRoot, name));
+  }
+}
+
 const htmlBuffer = Buffer.from(html);
 fs.writeFileSync(indexPath, htmlBuffer);
 fs.writeFileSync(path.join(root, "public/index.html"), htmlBuffer);
