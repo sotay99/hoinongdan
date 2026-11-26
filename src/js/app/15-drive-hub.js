@@ -279,6 +279,46 @@
     const link = el.querySelector('#drive-file-download');
     if(link) link.href = source;
   }
+  // Word giữ bố cục bằng docx-preview: dựng từng trang A4 như Word rồi thu nhỏ cho vừa khung (điện thoại
+  // vẫn phóng to bằng hai ngón được). Ngắt trang theo dấu ngắt trang Word đã lưu ở lần mở gần nhất
+  // (ignoreLastRenderedPageBreak:false) nên chia trang gần khớp Word; tệp chưa từng mở bằng Word (tạo bằng
+  // phần mềm khác) thì chỉ ngắt ở chỗ ngắt trang cứng. Lỗi (tệp .doc cũ, tệp hỏng, mất mạng khi nạp thư viện) thì trả false
+  // để quay về bộ đọc chữ đơn giản mammoth như trước.
+  async function driveRenderDocxPages(el, buffer){
+    try{
+      await loadOptionalLibrary('jszip');
+      await loadOptionalLibrary('docxpreview');
+      const host = document.createElement('div');
+      host.className = 'drive-viewer-docx-pages';
+      await window.docx.renderAsync(buffer, host, null, {
+        className:'docx', inWrapper:true, breakPages:true, ignoreLastRenderedPageBreak:false,
+        ignoreWidth:false, ignoreHeight:false, ignoreFonts:false,
+        renderHeaders:true, renderFooters:true, renderFootnotes:true, renderEndnotes:true,
+        useBase64URL:true, experimental:false,
+      });
+      if(!host.querySelector('section')) return false;
+      el.innerHTML = '';
+      el.appendChild(host);
+      driveFitDocxPages(host);
+      if(!window.__driveDocxResize){
+        window.__driveDocxResize = true;
+        window.addEventListener('resize', ()=> document.querySelectorAll('.drive-viewer-docx-pages').forEach(driveFitDocxPages));
+      }
+      return true;
+    }catch(e){
+      console.warn('[Xem Word] docx-preview không đọc được tệp, chuyển sang bộ đọc đơn giản:', e);
+      return false;
+    }
+  }
+  // Trang Word rộng ~794px (A4) — khung hẹp hơn (điện thoại) thì thu nhỏ cả cụm trang cho vừa chiều ngang.
+  function driveFitDocxPages(host){
+    const wrap = host.querySelector('.docx-wrapper'); if(!wrap) return;
+    wrap.style.zoom = '';
+    const page = wrap.querySelector('section'); if(!page) return;
+    const need = page.offsetWidth + 24, have = host.clientWidth;
+    if(!need || !have || need <= have) return;
+    wrap.style.zoom = String(Math.max(0.3, have/need));
+  }
   async function drivePopulateFileViewer(el, node){
     const source = driveFileSource(node);
     const kind = driveFileKind(node);
@@ -314,6 +354,7 @@
         return;
       }
       if(kind==='docx'){
+        if(await driveRenderDocxPages(el, buffer)) return;
         await loadOptionalLibrary('mammoth');
         const result = await mammoth.convertToHtml({arrayBuffer:buffer});
         el.innerHTML = `<article class="drive-viewer-docx">${result.value||'<p>Không có nội dung để xem.</p>'}</article>`;

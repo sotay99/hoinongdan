@@ -1441,3 +1441,15 @@ body.mtp-viewer-open{overflow:hidden;}
 #mtd-q{padding:9px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:14px; background:var(--white);}
 /* Nút "← Danh sách …" trong trình sửa (Biểu mẫu, Phòng họp): chữ đỏ cho dễ thấy lối quay lại. */
 .btn.btn-back-list{color:var(--red); font-weight:700;}
+
+/* ---- Xem Word giữ bố cục (docx-preview): nền nhạt thay cho nền xám mặc định của thư viện ---- */
+.drive-viewer-docx-pages{width:100%; overflow-x:auto;}
+.drive-viewer-docx-pages .docx-wrapper{background:#e9ece7; padding:12px; align-items:center;}
+.drive-viewer-docx-pages .docx-wrapper > section.docx{box-shadow:0 1px 6px rgba(0,0,0,.18); margin-bottom:12px;}
+.drive-file-viewer > .drive-viewer-docx-pages{max-height:80vh; overflow:auto;}
+/* Chặn kiểu bảng chung của app (base.css: th/td có nền, đường kẻ dưới, khoảng đệm, không xuống dòng, chữ in
+   hoa) lọt vào văn bản Word. Lề ô và đường kẻ thật của tệp do docx-preview gắn thẳng vào từng ô (inline) nên
+   vẫn thắng các giá trị mặc định dưới đây; 5.4pt là lề ô mặc định của Word. */
+.drive-viewer-docx-pages .docx-wrapper table{width:auto; font-size:inherit; border-collapse:collapse;}
+.drive-viewer-docx-pages .docx-wrapper td, .drive-viewer-docx-pages .docx-wrapper th{padding:0 5.4pt; border-bottom:none; white-space:normal; background:transparent; color:inherit; font-size:inherit; font-weight:inherit; text-transform:none; letter-spacing:normal; text-align:inherit; position:static;}
+.drive-viewer-docx-pages .docx-wrapper tr:hover td{background:transparent;}

@@ -34,6 +34,13 @@
       ready:()=>!!window.QRCode,
       label:'QRCode.js (mã QR)',
     },
+    // docx-preview — hiện tệp Word GIỮ BỐ CỤC (khổ giấy, căn lề, phông, bảng, đầu/chân trang) theo
+    // từng trang. Cần JSZip nạp trước (thư viện 'jszip' bên trên). Mammoth vẫn giữ làm dự phòng.
+    docxpreview: {
+      url:'https://cdn.jsdelivr.net/npm/docx-preview@0.4.1/dist/docx-preview.min.js',
+      ready:()=>!!(window.docx && window.docx.renderAsync),
+      label:'docx-preview (Word)',
+    },
     // pdf.js — vẽ PDF thành ảnh từng trang cho trang tài liệu của Phòng họp không giấy (điện thoại
     // không hiển thị PDF trong khung nhúng). Tệp worker cùng phiên bản khai báo ở 18-meeting.js.
     pdfjs: {
