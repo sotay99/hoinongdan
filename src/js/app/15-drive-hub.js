@@ -347,6 +347,7 @@
       if(response && !response.ok) throw new Error(`HTTP ${response.status}`);
       let buffer = node.localDataUrl ? driveDataUrlToArrayBuffer(node.localDataUrl) : await response.arrayBuffer();
       if(kind==='xlsx'){
+        if(await driveRenderXlsxStyled(el, buffer)) return;
         await loadOptionalLibrary('xlsx');
         const workbook = XLSX.read(buffer,{type:'array'});
         const sheet = workbook.Sheets[workbook.SheetNames[0]];

@@ -34,6 +34,13 @@
       ready:()=>!!window.QRCode,
       label:'QRCode.js (mã QR)',
     },
+    // ExcelJS — đọc định dạng ô của Excel (phông, màu, đường kẻ, gộp ô, độ rộng cột) để hiện bảng tính GIỮ
+    // BỐ CỤC (15b-xlsx-viewer.js). SheetJS ở trên vẫn dùng cho xuất/nhập và định dạng số.
+    exceljs: {
+      url:'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
+      ready:()=>!!(window.ExcelJS && window.ExcelJS.Workbook),
+      label:'ExcelJS (Excel)',
+    },
     // docx-preview — hiện tệp Word GIỮ BỐ CỤC (khổ giấy, căn lề, phông, bảng, đầu/chân trang) theo
     // từng trang. Cần JSZip nạp trước (thư viện 'jszip' bên trên). Mammoth vẫn giữ làm dự phòng.
     docxpreview: {

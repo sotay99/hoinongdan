@@ -1453,3 +1453,21 @@ body.mtp-viewer-open{overflow:hidden;}
 .drive-viewer-docx-pages .docx-wrapper table{width:auto; font-size:inherit; border-collapse:collapse;}
 .drive-viewer-docx-pages .docx-wrapper td, .drive-viewer-docx-pages .docx-wrapper th{padding:0 5.4pt; border-bottom:none; white-space:normal; background:transparent; color:inherit; font-size:inherit; font-weight:inherit; text-transform:none; letter-spacing:normal; text-align:inherit; position:static;}
 .drive-viewer-docx-pages .docx-wrapper tr:hover td{background:transparent;}
+
+/* ---- Xem Excel giữ bố cục (15b-xlsx-viewer.js). Kiểu bảng chung của app (base.css: th/td có đệm, nền khi rê
+   chuột, chữ nhỏ) KHÔNG được áp vào đây — mọi định dạng lấy từ chính tệp Excel. ---- */
+.xv{background:#fff; border-radius:8px; color:#000;}
+.xv-bar{display:flex; align-items:flex-end; gap:6px; background:#f1f3f0; border-bottom:1px solid #c8d3c4; border-radius:8px 8px 0 0; padding-right:6px;}
+.xv-tabs{flex:1 1 auto; min-width:0; display:flex; flex-wrap:nowrap; overflow-x:auto; gap:2px; padding:6px 6px 0;}
+.xv-fit{flex:0 0 auto; margin:4px 0; border:1px solid #2e7d32; background:#fff; color:#1b5e20; border-radius:8px; padding:5px 10px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;}
+.xv-tab{flex:0 0 auto; border:1px solid #c8d3c4; border-bottom:none; background:#e4e9e2; color:#33402f; padding:6px 12px; border-radius:6px 6px 0 0; font:inherit; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;}
+.xv-tab.active{background:#fff; color:#1b5e20; font-weight:800; margin-bottom:-1px; padding-bottom:7px;}
+.xv-note{padding:8px 12px; background:#fff3e0; color:#e65100; font-size:12.5px; font-weight:600;}
+.xv-scroll{overflow:auto; max-height:75vh; padding:8px; -webkit-overflow-scrolling:touch;}
+.mtp-viewer-body .xv-scroll{max-height:none;}
+.xv-sheet{position:relative;}
+.xv-table{table-layout:fixed; border-collapse:collapse; font-family:"Calibri","Carlito",Arial,sans-serif; font-size:11pt; color:#000;}
+.xv-table td{padding:0 3px; overflow:visible; line-height:1.25; background:transparent; font-size:inherit; border-bottom:none; white-space:pre;}
+.xv-table tr:hover td{background:inherit;}
+.xv-img{position:absolute; pointer-events:none;}
+.xv-empty{padding:24px; text-align:center; color:#777;}
