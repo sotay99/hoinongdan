@@ -1216,6 +1216,39 @@
   // Tải lại trang / đóng tab khi đang soạn dở -> trình duyệt hiện hộp cảnh báo mặc định của nó.
   window.addEventListener('beforeunload', (e)=>{ if(surveyEditorDirtyNow()){ e.preventDefault(); e.returnValue = ''; } });
 
+  function surveyOpenPreview(draft){
+    if(!(draft.questions||[]).length){ alert('Biểu mẫu chưa có câu hỏi nào để xem thử.'); return; }
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99990;';
+    wrap.innerHTML = `<div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
+      <div class="modal-head"><h3>👁️ Xem thử biểu mẫu</h3><div style="display:flex; gap:6px; margin-left:auto;"><button class="btn btn-ghost btn-sm preview-allow" id="svpv-phone">📱 Khổ điện thoại</button><button class="modal-close preview-allow" id="svpv-close">✕</button></div></div>
+      <div class="modal-body" style="flex:1; overflow:auto; padding:0; background:var(--paper);"><div id="svpv-frame" class="svpv-frame"></div></div></div>`;
+    document.body.appendChild(wrap);
+    const frame = wrap.querySelector('#svpv-frame');
+    wrap.querySelector('#svpv-close').onclick = ()=> wrap.remove();
+    wrap.querySelector('#svpv-phone').onclick = (e)=>{ frame.classList.toggle('phone'); e.target.textContent = frame.classList.contains('phone')? '🖥️ Khổ máy tính' : '📱 Khổ điện thoại'; };
+    renderPublicSurveyPage(draft.id||'xem-thu', { preview:true, survey:draft, container:frame });
+  }
+  function surveyThemeCardHtml(d, canEdit){
+    const dis = canEdit? '' : 'disabled';
+    const cover = d.cover||'none';
+    return `<div class="panel sv-set-card"><div class="panel-head sv-sec-head"><h3>🎨 Giao diện trang điền phiếu</h3></div><div class="panel-body">
+      <p style="margin:0 0 6px; font-weight:700;">Ảnh bìa</p>
+      <div class="sv-cover-picks">${Object.entries(SURVEY_COVERS).map(([k,v])=>`<button type="button" class="sv-cover-pick preview-allow ${cover===k?'on':''}" data-cover="${k}" ${dis} style="${v.bg? `background:${v.bg};` : ''}"><span>${v.bg? v.icon : '∅'}</span><em>${escapeHtml(v.label)}</em></button>`).join('')}
+        <button type="button" class="sv-cover-pick preview-allow ${cover==='custom'?'on':''}" id="svs-cover-upload" ${dis} style="${d.coverUrl? `background-image:url('${escapeHtml(d.coverUrl)}'); background-size:cover;` : ''}"><span>📷</span><em>${d.coverUrl? 'Ảnh của tôi (bấm để đổi)' : 'Tải ảnh của tôi lên'}</em></button>
+        <input type="file" id="svs-cover-file" accept="image/*" style="display:none;"></div>
+      <p style="margin:12px 0 6px; font-weight:700;">Màu chủ đạo</p>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">${SURVEY_COLORS.map(([c,l])=>`<button type="button" class="sv-color-pick preview-allow ${surveyAccent(d)===c?'on':''}" data-color="${c}" title="${l}" ${dis} style="background:${c};">${surveyAccent(d)===c? '✓' : ''}</button>`).join('')}</div>
+      <div class="form-grid" style="margin-top:12px;">
+        <div class="field"><label>Cách xưng hô với người trả lời</label><select id="svs-address" ${dis}>${SURVEY_ADDRESS_TERMS.map(t=>`<option value="${t}" ${surveyAddress(d)===t?'selected':''}>${t}</option>`).join('')}</select>
+          <div class="sub" style="margin-top:4px;">VD: "Cảm ơn <b>${escapeHtml(surveyAddress(d))}</b> đã tham gia khảo sát".</div></div>
+        <div class="field full"><label>💬 Lời cảm ơn sau khi gửi (không bắt buộc — để trống thì dùng lời cảm ơn mặc định)</label><textarea id="svs-thanks" rows="2" placeholder="VD: Cảm ơn ${escapeHtml(surveyAddress(d))} đã dành thời gian! Kết quả khảo sát sẽ được công bố tại Hội nghị ngày …" ${dis}>${escapeHtml(d.thanksMessage||'')}</textarea></div>
+      </div>
+      <label class="sv-filter-item sv-opt sv-opt-full"><input type="checkbox" id="svs-another" ${d.allowAnother!==false?'checked':''} ${dis}><span>Hiện nút <b>"Gửi thêm câu trả lời khác"</b> sau khi gửi (vẫn theo giới hạn số lần ở trên)</span></label>
+      <p class="sub" style="margin:6px 0 0;">Bấm <b>👁️ Xem thử</b> ở thanh trên cùng để xem đúng như người trả lời sẽ thấy.</p>
+    </div></div>`;
+  }
   function renderSurveySettingsHtml(d, canEdit){
     const dis = canEdit? '' : 'disabled';
     const st = surveyAcceptState(d);
@@ -1233,7 +1266,7 @@
             <input type="number" id="svs-max" min="0" step="1" value="${(parseInt(d.maxResponses,10)||0) || ''}" placeholder="Không giới hạn" ${dis}>
             <div class="sub" style="margin-top:4px;">Đủ số phiếu thì tự đóng. Để trống hoặc 0 = không giới hạn.</div></div>
           <div class="field full"><label>💬 Lời nhắn hiện ra khi biểu mẫu đã đóng (không bắt buộc)</label>
-            <textarea id="svs-closedmsg" rows="2" placeholder="VD: Đợt khảo sát đã kết thúc, cảm ơn đồng chí đã quan tâm." ${dis}>${escapeHtml(d.closedMessage||'')}</textarea></div>
+            <textarea id="svs-closedmsg" rows="2" placeholder="VD: Đợt khảo sát đã kết thúc, cảm ơn bạn đã quan tâm." ${dis}>${escapeHtml(d.closedMessage||'')}</textarea></div>
         </div>
       </div></div>
       <div class="panel sv-set-card"><div class="panel-head sv-sec-head"><h3>👤 Người trả lời</h3></div><div class="panel-body">
@@ -1249,6 +1282,7 @@
           ${mode==='none'? '<div class="sub" style="margin-top:4px;">Chọn cách nhận biết người trả lời ở trên thì mới giới hạn số lần được.</div>' : ''}
         </div>
       </div></div>
+      ${surveyThemeCardHtml(d, canEdit)}
       <p class="sub" style="margin:4px 0 10px;">⚠️ Các giới hạn trên được kiểm tra trên trang điền phiếu. Vì luật bảo mật Firebase hiện đang mở, người rành kỹ thuật vẫn có thể ghi thẳng vào cơ sở dữ liệu; muốn chặn tuyệt đối cần siết luật Firebase.</p>
       ${canEdit? `<div style="display:flex; justify-content:flex-end;"><button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn-bottom">💾 Lưu biểu mẫu</button></div>` : ''}`;
   }
@@ -1265,6 +1299,25 @@
       if(r.value==='none') d.perPersonLimit = 0; else if(!(parseInt(d.perPersonLimit,10)>0)) d.perPersonLimit = 1;
       rerender();
     });
+    document.querySelectorAll('[data-cover]').forEach(b=> b.onclick = ()=>{ d.cover = b.dataset.cover; rerender(); });
+    document.querySelectorAll('[data-color]').forEach(b=> b.onclick = ()=>{ d.themeColor = b.dataset.color; rerender(); });
+    if(g('svs-address')) g('svs-address').onchange = ()=>{ d.addressTerm = g('svs-address').value; rerender(); };
+    if(g('svs-thanks')) g('svs-thanks').oninput = ()=>{ d.thanksMessage = g('svs-thanks').value; };
+    if(g('svs-another')) g('svs-another').onchange = ()=>{ d.allowAnother = g('svs-another').checked; };
+    if(g('svs-cover-upload')) g('svs-cover-upload').onclick = ()=>{ if(d.coverUrl && d.cover!=='custom'){ d.cover = 'custom'; rerender(); return; } g('svs-cover-file').click(); };
+    if(g('svs-cover-file')) g('svs-cover-file').onchange = async ()=>{
+      const f = (g('svs-cover-file').files||[])[0]; if(!f) return;
+      if(!(f.type||'').startsWith('image/')){ alert('Vui lòng chọn tệp ảnh.'); return; }
+      if(f.size > 5*1024*1024){ alert('Ảnh bìa không được lớn hơn 5 MB.'); return; }
+      const btn = g('svs-cover-upload'); btn.disabled = true; btn.querySelector('em').textContent = '⏳ Đang tải ảnh…';
+      try{
+        const path = `survey_covers/${d.id||'moi'}_${Date.now().toString(36)}_${(f.name||'anh').replace(/[^\w.\-]/g,'_').slice(-60)}`;
+        const ref = storage.ref(path); await ref.put(f);
+        d.coverUrl = await ref.getDownloadURL(); d.coverPath = path; d.cover = 'custom';
+        showToast('Đã tải ảnh bìa lên. Nhớ bấm Lưu biểu mẫu.');
+      }catch(e){ console.error('[Khảo sát] Tải ảnh bìa lỗi:', e); alert('Không tải được ảnh bìa: '+(e&&e.message||e)); }
+      rerender();
+    };
     if(g('svs-collectname')) g('svs-collectname').onchange = ()=>{ d.collectName = g('svs-collectname').checked; };
     if(g('svs-limit')) g('svs-limit').onchange = ()=>{ d.perPersonLimit = parseInt(g('svs-limit').value,10)||0; };
     el.querySelectorAll('.sv-save-action').forEach(btn=> btn.onclick = async ()=>{ if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); rerender(); } });
@@ -1286,6 +1339,7 @@
             <button class="btn ${state.surveyEditorTab==='settings'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-settings">⚙️ Cài đặt nhận phiếu</button>
             <button class="btn ${state.surveyEditorTab==='answers'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-answers" ${!state.surveyEditingId?'disabled':''}>📊 Câu trả lời${draft.responseCount?` (${draft.responseCount})`:''}</button>
             <div class="spacer"></div>
+            <button class="btn btn-ghost btn-sm preview-allow" id="sv-preview-btn" title="Xem đúng như người trả lời sẽ thấy, không gửi phiếu">👁️ Xem thử</button>
             ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button>` : ''}
             ${canEdit && state.surveyEditorTab!=='answers'? `<button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
           </div>
@@ -1310,6 +1364,7 @@
       await loadSurveyResponses(state.surveyEditingId);
       renderSurveyTab(el);
     };
+    const pvBtn = document.getElementById('sv-preview-btn'); if(pvBtn) pvBtn.onclick = ()=> surveyOpenPreview(draft);
     const copyBtn = document.getElementById('sv-copylink-btn');
     if(copyBtn) copyBtn.onclick = ()=> copyMessageText(surveyShareUrl(state.surveyEditingId));
 
@@ -1793,6 +1848,27 @@
     const m = (window.location.hash||'').match(/^#\/khaosat\/(.+)$/);
     return m ? decodeURIComponent(m[1]) : null;
   }
+  // ---- Xưng hô & giao diện trang điền phiếu (GĐ8). Người trả lời là người dân, học sinh, mọi tầng
+  // lớp — KHÔNG gọi là "đồng chí". Người tạo chọn cách xưng hô; mặc định "bạn".
+  const SURVEY_ADDRESS_TERMS = ['bạn','anh/chị','quý vị','ông/bà','em'];
+  function surveyAddress(survey, cap){ const t = (survey && SURVEY_ADDRESS_TERMS.includes(survey.addressTerm))? survey.addressTerm : 'bạn'; return cap? t.charAt(0).toUpperCase()+t.slice(1) : t; }
+  const SURVEY_COLORS = [['#2e7d32','Xanh lá'],['#1565c0','Xanh dương'],['#c62828','Đỏ'],['#ef6c00','Cam'],['#6a1b9a','Tím'],['#00838f','Xanh ngọc'],['#5d4037','Nâu']];
+  const SURVEY_COVERS = {
+    none:{ label:'Không có ảnh bìa' },
+    lua:{ label:'🌾 Cánh đồng lúa', bg:'linear-gradient(135deg,#9ccc65 0%,#558b2f 55%,#33691e 100%)', icon:'🌾🌾🌾' },
+    hoi:{ label:'⭐ Hội Nông dân', bg:'linear-gradient(135deg,#e53935 0%,#b71c1c 60%,#7f0000 100%)', icon:'⭐' },
+    xanh:{ label:'📋 Khảo sát', bg:'linear-gradient(135deg,#42a5f5 0%,#1565c0 60%,#0d47a1 100%)', icon:'📋' },
+    hoc:{ label:'📚 Học tập – kiểm tra', bg:'linear-gradient(135deg,#ab47bc 0%,#6a1b9a 60%,#4a148c 100%)', icon:'📚✏️' },
+    nong:{ label:'🚜 Nông nghiệp', bg:'linear-gradient(135deg,#ffb74d 0%,#ef6c00 60%,#bf360c 100%)', icon:'🚜🌱' },
+  };
+  function surveyAccent(survey){ const c = survey && survey.themeColor; return SURVEY_COLORS.some(x=> x[0]===c)? c : '#2e7d32'; }
+  function surveyCoverHtml(survey){
+    const c = survey && survey.cover;
+    if(c==='custom' && survey.coverUrl) return `<div class="ps-cover" style="background-image:url('${escapeHtml(survey.coverUrl)}');"></div>`;
+    const p = SURVEY_COVERS[c]; if(!p || !p.bg) return '';
+    return `<div class="ps-cover" style="background:${p.bg};"><span>${p.icon}</span></div>`;
+  }
+  function surveyAppRoot(){ return root; }
   function surveyResultUrl(sid, rid, token){ return `${location.origin}${location.pathname}#/khaosat/${encodeURIComponent(sid)}/ketqua/${encodeURIComponent(rid)}/${encodeURIComponent(token)}`; }
   function surveyLinkify(t){ return escapeHtml(t||'').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g,'<br>'); }
   function surveyRememberResult(survey, entry){
@@ -1810,14 +1886,14 @@
       const cls = graded && showMissed && g.status!=='pending'? g.status : '';
       return `<div class="sv-result-q ${cls}">
         <div style="display:flex; justify-content:space-between; gap:8px; font-weight:700;"><span>${qi+1}. ${escapeHtml(q.text)}</span>${graded && showPts? `<span style="white-space:nowrap;">${g.status==='pending'? '⏳' : surveyFmtNum(g.points)}/${surveyFmtNum(g.max)} điểm</span>` : ''}</div>
-        <div style="margin:4px 0;">Câu trả lời của đồng chí: <b>${ans}</b> ${graded && showMissed? `<span class="sv-grade-chip ${g.status}">${SURVEY_GRADE_ICON[g.status]} ${SURVEY_GRADE_LABEL[g.status]}</span>` : ''}</div>
+        <div style="margin:4px 0;">Câu trả lời của ${surveyAddress(survey)}: <b>${ans}</b> ${graded && showMissed? `<span class="sv-grade-chip ${g.status}">${SURVEY_GRADE_ICON[g.status]} ${SURVEY_GRADE_LABEL[g.status]}</span>` : ''}</div>
         ${graded && showCorrect && key && g.status!=='correct'? `<div class="sub">Đáp án đúng: <b>${escapeHtml(key)}</b></div>` : ''}
         ${fbQ? `<div class="sub" style="margin-top:4px;">💬 ${surveyLinkify(fbQ)}</div>` : ''}
         ${g.feedback? `<div class="sub" style="margin-top:4px;">✍️ Nhận xét của người chấm: ${surveyLinkify(g.feedback)}</div>` : ''}
       </div>`;
     }).join('');
     return `<div class="sv-result">
-      <div style="text-align:center; margin:6px 0 12px;"><div class="sub">Điểm của đồng chí</div><div style="font-size:34px; font-weight:800; color:#1b5e20;">${surveyFmtNum(G.score)} / ${surveyFmtNum(G.max)}</div>
+      <div style="text-align:center; margin:6px 0 12px;"><div class="sub">Điểm của ${surveyAddress(survey)}</div><div style="font-size:34px; font-weight:800; color:#1b5e20;">${surveyFmtNum(G.score)} / ${surveyFmtNum(G.max)}</div>
         ${G.pending? `<div class="sub" style="color:#0d47a1;">⏳ Còn ${G.pending} câu đang chờ chấm tay — điểm có thể thay đổi.</div>` : ''}</div>
       ${(showMissed || showCorrect || showPts)? detail : ''}
     </div>`;
@@ -1836,15 +1912,19 @@
     ensureSurveySections(survey);
     const head = `<h1>${escapeHtml(survey.title)}</h1><p class="sub">Nộp lúc ${escapeHtml(new Date(r.submittedAt).toLocaleString('vi-VN'))}${r.respondentName? ' — '+escapeHtml(r.respondentName) : ''}</p>`;
     if(!survey.isQuiz){ root.innerHTML = card(head + `<div class="panel"><div class="panel-body">${(survey.questions||[]).map((q,qi)=>`<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b>${escapeHtml(surveyAnswerText(r.answers && r.answers[q.id], q)||'(không trả lời)')}</b></div>`).join('')}</div></div>`); return; }
-    if(survey.quizRelease==='manual' && !r.released){ root.innerHTML = card(head + '<div class="rice-badge">⏳</div><p style="font-weight:700;">Bài làm của đồng chí đang chờ chấm.</p><p class="sub">Khi người tạo bài kiểm tra công bố điểm, đồng chí mở lại đúng đường link này để xem điểm.</p>'); return; }
+    if(survey.quizRelease==='manual' && !r.released){ root.innerHTML = card(head + '<div class="rice-badge">⏳</div><p style="font-weight:700;">Bài làm của '+surveyAddress(survey)+' đang chờ chấm.</p><p class="sub">Khi người tạo bài kiểm tra công bố điểm, '+surveyAddress(survey)+' mở lại đúng đường link này để xem điểm.</p>'); return; }
     root.innerHTML = card(head + surveyResultHtml(survey, r), 680);
   }
-  function renderPublicSurveyPage(surveyId){
-    const rm = String(surveyId||'').match(/^([^/]+)\/ketqua\/([^/]+)\/([^/]+)$/);
+  function renderPublicSurveyPage(surveyId, opts){
+    // opts.preview = true: "Xem thử" ngay trong trình soạn — dùng bản nháp, KHÔNG đọc/ghi máy chủ, vẽ vào opts.container.
+    const PREVIEW = !!(opts && opts.preview);
+    const root = (opts && opts.container) || surveyAppRoot();
+    const rm = PREVIEW? null : String(surveyId||'').match(/^([^/]+)\/ketqua\/([^/]+)\/([^/]+)$/);
     if(rm) return renderSurveyResultPage(decodeURIComponent(rm[1]), decodeURIComponent(rm[2]), decodeURIComponent(rm[3]));
-    document.body.classList.add('public-survey-mode');
+    if(!PREVIEW) document.body.classList.add('public-survey-mode');
     root.innerHTML = '<div class="center-screen">Đang tải biểu mẫu…</div>';
     let survey = null, submitted = false, lastResult = null;
+    let sectionHistory = []; // các phần đã đi qua — để nút "◀ Quay lại" về đúng phần trước (kể cả khi có rẽ nhánh)
     let surveyLoadState = 'loading';
     let surveyLoadError = '';
     let closedReason = null;
@@ -1875,7 +1955,7 @@
       if(respondent.limit>0 && respondent.key && respondent.count>=respondent.limit){ surveyLoadState = 'limit'; return; }
     }
     function resetForAnotherResponse(){
-      submitted = false; lastResult = null; currentSectionIdx = 0;
+      submitted = false; lastResult = null; currentSectionIdx = 0; sectionHistory = [];
       Object.keys(collected).forEach(k=> delete collected[k]);
       loadSurvey();
     }
@@ -1974,20 +2054,22 @@
         return;
       }
       if(surveyLoadState==='limit'){
-        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">✋</div><h1>${escapeHtml(survey.title)}</h1><p style="font-weight:700;">Đồng chí đã trả lời ${respondent.count}/${respondent.limit} lần cho biểu mẫu này, không thể gửi thêm.</p>${respondent.email? `<p class="sub">Tài khoản: ${escapeHtml(respondent.email)}</p>` : ''}<p class="sub">Cảm ơn đồng chí đã tham gia.</p></div></div>`;
+        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">✋</div><h1>${escapeHtml(survey.title)}</h1><p style="font-weight:700;">${surveyAddress(survey,true)} đã trả lời ${respondent.count}/${respondent.limit} lần cho biểu mẫu này, không thể gửi thêm.</p>${respondent.email? `<p class="sub">Tài khoản: ${escapeHtml(respondent.email)}</p>` : ''}<p class="sub">Cảm ơn ${surveyAddress(survey)} đã tham gia.</p></div></div>`;
         return;
       }
       if(submitted){
         const left = respondent.limit>0? respondent.limit - respondent.count : Infinity;
-        const canMore = left>0 && surveyAcceptState(survey).open;
+        const canMore = left>0 && (PREVIEW || surveyAcceptState(survey).open) && survey.allowAnother!==false;
         root.innerHTML = `
-          <div class="center-screen"><div class="auth-card" style="max-width:${survey.isQuiz? 680 : 520}px;">
+          <div class="center-screen"><div class="auth-card ps-card" style="max-width:${survey.isQuiz? 680 : 520}px; --ps-accent:${surveyAccent(survey)};">
+            ${surveyCoverHtml(survey)}
             <div class="rice-badge">✅</div>
-            <h1>Đồng chí đã gửi câu trả lời thành công!</h1>
-            <p class="sub">Cảm ơn đồng chí đã tham gia ${survey.isQuiz? 'bài kiểm tra':'khảo sát'} "${escapeHtml(survey.title)}".</p>
-            ${survey.isQuiz? (()=>{ const url = surveyResultUrl(survey.id, lastResult.id, lastResult.resultToken);
-              const linkBox = `<div class="ps-meta" style="margin-top:12px;"><div>🔖 Mã bài làm: <b>${escapeHtml(lastResult.id)}</b></div><div style="word-break:break-all;">🔗 <a href="${escapeHtml(url)}" target="_blank" rel="noopener">Link xem lại bài làm và điểm</a></div><button type="button" class="btn btn-ghost btn-sm" id="ps-copy-result" style="margin-top:6px;">📋 Sao chép link</button><div class="sub" style="margin-top:4px;">Đồng chí nên lưu lại link này${survey.quizRelease==='manual'? ' — khi người tạo công bố điểm, mở link để xem điểm' : ''}.</div></div>`;
-              return survey.quizRelease==='manual'? `<p style="font-weight:700; margin-top:12px;">⏳ Bài làm đang chờ chấm. Đồng chí sẽ xem được điểm sau khi người tạo công bố.</p>${linkBox}` : `${surveyResultHtml(survey, lastResult)}${linkBox}`; })() : ''}
+            <h1>${surveyAddress(survey,true)} đã gửi câu trả lời thành công!</h1>
+            ${survey.thanksMessage? `<p style="white-space:pre-wrap;">${surveyLinkify(survey.thanksMessage)}</p>` : `<p class="sub">Cảm ơn ${surveyAddress(survey)} đã tham gia ${survey.isQuiz? 'bài kiểm tra':'khảo sát'} "${escapeHtml(survey.title)}".</p>`}
+            ${PREVIEW? '<p class="ps-preview-note">👁️ Đây là bản xem thử — phiếu KHÔNG được gửi đi.</p>' : ''}
+            ${survey.isQuiz? (()=>{ if(PREVIEW) return surveyResultHtml(survey, lastResult); const url = surveyResultUrl(survey.id, lastResult.id, lastResult.resultToken);
+              const linkBox = `<div class="ps-meta" style="margin-top:12px;"><div>🔖 Mã bài làm: <b>${escapeHtml(lastResult.id)}</b></div><div style="word-break:break-all;">🔗 <a href="${escapeHtml(url)}" target="_blank" rel="noopener">Link xem lại bài làm và điểm</a></div><button type="button" class="btn btn-ghost btn-sm" id="ps-copy-result" style="margin-top:6px;">📋 Sao chép link</button><div class="sub" style="margin-top:4px;">${surveyAddress(survey,true)} nên lưu lại link này${survey.quizRelease==='manual'? ' — khi người tạo công bố điểm, mở link để xem điểm' : ''}.</div></div>`;
+              return survey.quizRelease==='manual'? `<p style="font-weight:700; margin-top:12px;">⏳ Bài làm đang chờ chấm. ${surveyAddress(survey,true)} sẽ xem được điểm sau khi người tạo công bố.</p>${linkBox}` : `${surveyResultHtml(survey, lastResult)}${linkBox}`; })() : ''}
             ${canMore? `<button class="btn btn-ghost btn-block" id="ps-another-btn" style="margin-top:10px;">📝 Gửi thêm câu trả lời khác${left!==Infinity? ` (còn ${left} lượt)` : ''}</button>` : ''}
           </div></div>`;
         const anotherBtn = document.getElementById('ps-another-btn'); if(anotherBtn) anotherBtn.onclick = resetForAnotherResponse;
@@ -1998,16 +2080,19 @@
       const sec = sections[currentSectionIdx] || sections[0];
       const secQuestions = (survey.questions||[]).filter(q=>q.sectionId===sec.id);
       const isLastSection = currentSectionIdx >= sections.length-1;
+      const progress = sections.length>1? Math.round((currentSectionIdx+1)/sections.length*100) : 0;
       root.innerHTML = `
         <div class="center-screen">
-          <div class="auth-card" style="max-width:640px; text-align:left;">
+          <div class="auth-card ps-card" style="max-width:640px; text-align:left; --ps-accent:${surveyAccent(survey)};">
+            ${surveyCoverHtml(survey)}
+            ${PREVIEW? '<p class="ps-preview-note">👁️ Bản xem thử — đúng như người trả lời sẽ thấy; phiếu điền ở đây KHÔNG được gửi đi.</p>' : ''}
             <h1>${escapeHtml(survey.title)}</h1>
-            ${(survey.closeAt || respondent.limit>0 || respondent.email)? `<div class="ps-meta">${survey.closeAt? `<div>⏰ Hạn nộp: <b>${escapeHtml(surveyFmtDateTime(survey.closeAt))}</b></div>` : ''}${respondent.limit>0? `<div>📝 Đây là lần trả lời thứ <b>${respondent.count+1}/${respondent.limit}</b> của đồng chí.</div>` : ''}${respondent.email? `<div>👤 Đang điền với tài khoản <b>${escapeHtml(respondent.email)}</b> · <a href="#" id="ps-switch-acc">Đổi tài khoản</a></div>` : ''}</div>` : ''}
+            ${(survey.closeAt || respondent.limit>0 || respondent.email)? `<div class="ps-meta">${survey.closeAt? `<div>⏰ Hạn nộp: <b>${escapeHtml(surveyFmtDateTime(survey.closeAt))}</b></div>` : ''}${respondent.limit>0? `<div>📝 Đây là lần trả lời thứ <b>${respondent.count+1}/${respondent.limit}</b> của ${surveyAddress(survey)}.</div>` : ''}${respondent.email? `<div>👤 Đang điền với tài khoản <b>${escapeHtml(respondent.email)}</b> · <a href="#" id="ps-switch-acc">Đổi tài khoản</a></div>` : ''}</div>` : ''}
             ${survey.description? `<p class="sub" style="white-space:pre-wrap;">${escapeHtml(survey.description)}</p>` : ''}
-            ${sections.length>1? `<div style="background:var(--paper-2); border-radius:8px; padding:8px 12px; margin:10px 0; font-size:12.5px;"><b>Phần ${currentSectionIdx+1}/${sections.length}</b>${sec.title? ' — '+escapeHtml(sec.title) : ''}${sec.description? `<div class="sub" style="margin-top:4px;">${escapeHtml(sec.description)}</div>` : ''}</div>` : ''}
+            ${sections.length>1? `<div class="ps-progress"><div class="ps-progress-top"><b>Phần ${currentSectionIdx+1}/${sections.length}</b>${sec.title? ' — '+escapeHtml(sec.title) : ''}<span>${progress}%</span></div><div class="ps-progress-track"><div class="ps-progress-fill" style="width:${progress}%;"></div></div>${sec.description? `<div class="sub" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(sec.description)}</div>` : ''}</div>` : ''}
             ${survey.collectName && currentSectionIdx===0? `<div class="field full" style="margin-bottom:18px;"><label>Họ và tên <span style="color:var(--red);">*</span></label><input id="ps-name" value="${escapeHtml(respondentName)}" placeholder="Nhập đầy đủ họ và tên" autocomplete="name"></div>` : ''}
             <div id="ps-questions">${secQuestions.map((q,qi)=> renderPublicQuestionHtml(q, qi)).join('')}</div>
-            <button class="btn btn-primary btn-block" id="ps-next-btn" style="margin-top:6px;">${isLastSection? 'GỬI BÀI' : 'TIẾP'}</button>
+            <div class="ps-nav">${sectionHistory.length? '<button class="btn btn-ghost" id="ps-back-btn" type="button">◀ Quay lại</button>' : ''}<button class="btn btn-primary" id="ps-next-btn" style="flex:1;">${isLastSection? 'GỬI BÀI' : 'TIẾP ▶'}</button></div>
             ${survey.wardName? `<p class="sub" style="text-align:center; margin-top:14px;">Biểu mẫu bởi Hội Nông dân ${escapeHtml(survey.wardName)}</p>` : ''}
           </div>
         </div>`;
@@ -2015,6 +2100,12 @@
       wirePublicOptionTools(root, secQuestions);
       wirePublicDropdowns(root, secQuestions);
       wirePublicFiles(root, secQuestions);
+      const back = document.getElementById('ps-back-btn');
+      if(back) back.onclick = ()=>{
+        // ghi tạm câu trả lời của phần đang điền (không kiểm tra bắt buộc) rồi quay về phần trước
+        secQuestions.forEach(q=>{ const v = readPublicAnswer(q); if(v!==undefined) collected[q.id] = v; });
+        currentSectionIdx = sectionHistory.pop(); renderFillForm(); window.scrollTo(0,0);
+      };
       const sw = document.getElementById('ps-switch-acc');
       if(sw) sw.onclick = async (e)=>{ e.preventDefault(); try{ await auth.signOut(); }catch(err){} loadSurvey(); };
 
@@ -2023,12 +2114,8 @@
         let branchTarget = null; // '__next__' | '__submit__' | sectionId | null (không có phân nhánh)
         secQuestions.forEach(q=>{
           const isNumeric = (q.type==='short' || q.type==='paragraph') && q.numericOnly;
-          let val;
-          if(q.type==='checkbox'){ val = Array.from(document.querySelectorAll(`.ps-answer[data-qid="${q.id}"]:checked`)).map(x=>x.value); }
-          else if(q.type==='radio' || q.type==='scale'){ const x=document.querySelector(`.ps-answer[data-qid="${q.id}"]:checked`); val = x? x.value : ''; }
-          else if(surveyIsGrid(q)){ val = (q.rows||[]).map((_,i)=> q.type==='grid_checkbox'? Array.from(document.querySelectorAll(`.ps-grid-in[data-qid="${q.id}"][data-row="${i}"]:checked`)).map(x=>x.value) : ((document.querySelector(`.ps-grid-in[data-qid="${q.id}"][data-row="${i}"]:checked`)||{}).value||'')); }
-          else if(q.type==='file'){ val = surveyFileList(collected[q.id]); }
-          else { const x=document.querySelector(`.ps-answer[data-qid="${q.id}"]`); val = x? x.value.trim() : ''; if(isNumeric) val = val.replace(/\s/g,''); }
+          let val = readPublicAnswer(q);
+          if(val===undefined) val = '';
           collected[q.id] = val;
           if(q.required){
             if(surveyIsGrid(q)){ if((q.rows||[]).some((_,i)=>{ const c = val[i]; return Array.isArray(c)? !c.length : !c; })) missingRequired = true; }
@@ -2047,6 +2134,10 @@
         if(uploadingNow>0){ alert('Tệp đang được tải lên, vui lòng chờ tải xong rồi bấm lại.'); return; }
         if(missingRequired){ alert('Vui lòng điền đầy đủ các câu hỏi bắt buộc (có dấu *) trước khi tiếp tục.'); return; }
 
+        if((isLastSection || branchTarget==='__submit__') && PREVIEW){
+          const entry = { id:'xem-thu', submittedAt:new Date().toISOString(), answers: JSON.parse(JSON.stringify(collected)), resultToken:'' };
+          submitted = true; lastResult = entry; renderFillForm(); return;
+        }
         if(isLastSection || branchTarget==='__submit__'){
           // Kiểm tra lại NGAY LÚC GỬI: biểu mẫu có thể vừa bị đóng / hết hạn / đủ phiếu trong lúc đang điền,
           // hoặc người này vừa dùng hết lượt ở tab khác.
@@ -2056,7 +2147,7 @@
             if(fv){ ['acceptResponses','closeAt','maxResponses','responseCount','closedMessage'].forEach(k=>{ survey[k] = fv[k]; }); }
           }catch(e){ console.warn('[Khảo sát công khai] Không kiểm tra lại được trạng thái biểu mẫu:', e); }
           const st = surveyAcceptState(survey);
-          if(!st.open){ surveyLoadState = 'closed'; closedReason = st.reason; renderFillForm(); alert('Rất tiếc, biểu mẫu vừa ngừng nhận câu trả lời nên phiếu của đồng chí chưa được gửi.'); return; }
+          if(!st.open){ surveyLoadState = 'closed'; closedReason = st.reason; renderFillForm(); alert('Rất tiếc, biểu mẫu vừa ngừng nhận câu trả lời nên phiếu của '+surveyAddress(survey)+' chưa được gửi.'); return; }
           if(respondent.key && respondent.limit>0){
             respondent.count = await surveyRespondentCount(survey.id, respondent.key);
             if(respondent.count>=respondent.limit){ surveyLoadState = 'limit'; renderFillForm(); return; }
@@ -2073,6 +2164,8 @@
           renderFillForm();
           return;
         }
+        sectionHistory.push(currentSectionIdx);
+        window.scrollTo(0,0);
         if(branchTarget && branchTarget!=='__next__'){
           const idx = sections.findIndex(s=>s.id===branchTarget);
           currentSectionIdx = idx>=0 ? idx : currentSectionIdx+1;
@@ -2084,6 +2177,15 @@
     }
 
     // Menu thả xuống: ô gọn bấm vào bung danh sách (có ô tìm khi nhiều phương án), chọn xong tự thu gọn.
+    function readPublicAnswer(q){
+      const isNumeric = (q.type==='short' || q.type==='paragraph') && q.numericOnly;
+      if(q.type==='checkbox') return Array.from(root.querySelectorAll(`.ps-answer[data-qid="${q.id}"]:checked`)).map(x=>x.value);
+      if(q.type==='radio' || q.type==='scale'){ const x = root.querySelector(`.ps-answer[data-qid="${q.id}"]:checked`); return x? x.value : ''; }
+      if(surveyIsGrid(q)) return (q.rows||[]).map((_,i)=> q.type==='grid_checkbox'? Array.from(root.querySelectorAll(`.ps-grid-in[data-qid="${q.id}"][data-row="${i}"]:checked`)).map(x=>x.value) : ((root.querySelector(`.ps-grid-in[data-qid="${q.id}"][data-row="${i}"]:checked`)||{}).value||''));
+      if(q.type==='file') return surveyFileList(collected[q.id]);
+      const x = root.querySelector(`.ps-answer[data-qid="${q.id}"]`); if(!x) return undefined;
+      let v = x.value.trim(); if(isNumeric) v = v.replace(/\s/g,''); return v;
+    }
     // Câu "Tải tệp lên": chọn tệp -> kiểm tra số lượng/dung lượng/loại -> tải ngay lên Firebase Storage
     // (có % tiến độ) -> lưu {name,url,size,path} vào câu trả lời; có nút ✕ để bỏ tệp đã tải.
     let uploadingNow = 0;
@@ -2112,6 +2214,7 @@
         btn.onclick = ()=> input.click();
         input.onchange = async ()=>{
           const picked = Array.from(input.files||[]); input.value = '';
+          if(PREVIEW){ alert('Bản xem thử không tải tệp lên thật. Người trả lời sẽ chọn tệp ở đây.'); return; }
           const have = surveyFileList(collected[q.id]);
           if(have.length + picked.length > maxFiles){ alert(`Câu này chỉ nhận tối đa ${maxFiles} tệp.`); return; }
           const bad = picked.find(f=> !okKind(f)); if(bad){ alert(`Tệp "${bad.name}" không đúng loại cho phép (${(SURVEY_FILE_KINDS[kind]||SURVEY_FILE_KINDS.any).label}).`); return; }
@@ -2230,6 +2333,11 @@
     }
 
     async function loadSurvey(){
+      if(PREVIEW){
+        survey = ensureSurveySections(JSON.parse(JSON.stringify(opts.survey)));
+        respondent = { key:null, email:null, count:0, limit:0 };
+        surveyLoadState = 'ready'; renderFillForm(); return;
+      }
       surveyLoadState = 'loading';
       surveyLoadError = '';
       survey = null;
