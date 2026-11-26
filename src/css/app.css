@@ -1471,3 +1471,8 @@ body.mtp-viewer-open{overflow:hidden;}
 .xv-table tr:hover td{background:inherit;}
 .xv-img{position:absolute; pointer-events:none;}
 .xv-empty{padding:24px; text-align:center; color:#777;}
+
+/* ---- Xem PowerPoint giữ bố cục (15c-pptx-viewer.js) ---- */
+.pv{background:#e9ece7; border-radius:8px; padding:10px;}
+.pv-stage{width:100%;}
+.drive-file-viewer > .pv{max-height:80vh; overflow:auto;}

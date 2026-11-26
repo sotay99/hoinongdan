@@ -362,6 +362,7 @@
         return;
       }
       if(kind==='pptx'){
+        if(await driveRenderPptxSlides(el, buffer)) return;
         await loadOptionalLibrary('jszip');
         const zip=await JSZip.loadAsync(buffer);
         const slideFiles=Object.keys(zip.files)

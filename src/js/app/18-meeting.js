@@ -943,6 +943,7 @@
       index: ()=> index,
       close(silent){
         if(closed) return; closed = true; wrap.remove();
+        drivePptxSweep();
         objectUrls.forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(e){} });
         if(!document.querySelector('.mtp-viewer')) document.body.classList.remove('mtp-viewer-open');
         if(onClose) onClose();
