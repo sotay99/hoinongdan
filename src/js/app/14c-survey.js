@@ -199,7 +199,39 @@
   // Nộp bài từ giao diện CÔNG KHAI (không cần đăng nhập) — ghi vào survey_responses/{id} (Rules
   // cho phép ai cũng GHI được ở đây) và tăng bộ đếm responseCount bằng transaction (an toàn với
   // nhiều người nộp cùng lúc).
-  async function submitPublicSurveyResponse(survey, answers){
+  // ---- GĐ4: Kiểm soát nhận phiếu ----
+  // acceptResponses (mặc định true) · closeAt (ISO, '' = không hạn) · maxResponses (0 = không giới hạn)
+  // closedMessage · identifyMode 'none'|'browser'|'google' · perPersonLimit 0 (không giới hạn)|1|2|3
+  // LƯU Ý: các giới hạn này chặn ở phía trang web; luật Firebase đang mở nên chưa chặn tuyệt đối.
+  function surveyAcceptState(s, now){
+    if(!s) return { open:false, reason:'closed' };
+    if(s.acceptResponses===false) return { open:false, reason:'closed' };
+    if(s.closeAt && new Date(s.closeAt).getTime() <= (now||Date.now())) return { open:false, reason:'expired' };
+    const max = parseInt(s.maxResponses,10)||0;
+    if(max>0 && (s.responseCount||0) >= max) return { open:false, reason:'full' };
+    return { open:true, reason:null };
+  }
+  function surveyAcceptLabel(st){
+    return st.open? '🟢 Đang nhận phiếu' : ({ closed:'🔴 Đã đóng', expired:'⏰ Đã hết hạn nộp', full:'🈵 Đã đủ số phiếu' }[st.reason] || '🔴 Đã đóng');
+  }
+  function surveyFmtDateTime(iso){ if(!iso) return ''; const d = new Date(iso); return isNaN(d)? '' : d.toLocaleString('vi-VN', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric' }); }
+  function surveyIsoToLocalInput(iso){ if(!iso) return ''; const d = new Date(iso); if(isNaN(d)) return ''; const p = n=> String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+  function surveyBrowserId(){
+    try{ let id = localStorage.getItem('hnd_sv_bid'); if(!id){ id = 'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); localStorage.setItem('hnd_sv_bid', id); } return id; }
+    catch(e){ return null; }
+  }
+  // Khoá định danh người trả lời theo chế độ của biểu mẫu (null = không nhận biết).
+  function surveyRespondentKey(survey, user){
+    if(survey.identifyMode==='google') return (user && user.email)? 'g_'+emailToKey(user.email.toLowerCase().trim()) : null;
+    if(survey.identifyMode==='browser'){ const b = surveyBrowserId(); return b? 'b_'+b : null; }
+    return null;
+  }
+  async function surveyRespondentCount(surveyId, key){
+    if(!key) return 0;
+    try{ const snap = await rtdb.ref(`survey_respondents/${surveyId}/${key}`).get(); return (snap && snap.exists())? (parseInt(snap.val(),10)||0) : 0; }
+    catch(e){ console.warn('[Khảo sát] Không đọc được số lần đã trả lời:', e); return 0; }
+  }
+  async function submitPublicSurveyResponse(survey, answers, meta){
     // Chỉ kiểm tra bắt buộc với câu hỏi CÓ mặt trong answers (tức thuộc Phần người dùng đã thực sự
     // đi qua) — câu hỏi ở Phần bị bỏ qua do phân nhánh sẽ không có key trong answers nên bỏ qua.
     const missing = (survey.questions||[]).some(q=>{
@@ -211,6 +243,8 @@
     if(missing) return { ok:false, reason:'missing' };
     const id = 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
     const entry = { id, submittedAt:new Date().toISOString(), answers };
+    if(meta && meta.respondentKey){ entry.respondentKey = meta.respondentKey; entry.attempt = meta.attempt||1; }
+    if(meta && meta.email) entry.respondentEmail = meta.email;
     if(survey.isQuiz){
       const { score, maxScore } = computeSurveyScore(survey, answers);
       entry.score = score; entry.maxScore = maxScore;
@@ -218,6 +252,7 @@
     try{
       await rtdb.ref(`survey_responses/${survey.id}/${id}`).set(entry);
       await rtdb.ref(`surveys/${survey.id}/responseCount`).transaction(cur=> (cur||0)+1);
+      if(meta && meta.respondentKey) await rtdb.ref(`survey_respondents/${survey.id}/${meta.respondentKey}`).transaction(cur=> (parseInt(cur,10)||0)+1);
       return { ok:true, entry };
     }catch(e){
       console.error('[Khảo sát] Gửi câu trả lời lỗi:', e);
@@ -326,7 +361,7 @@
               <tbody>
                 ${list.length? list.map(s=>`
                   <tr>
-                    <td><b>${surveyHighlight(s.title, F.q)}</b>${s.isQuiz? ' <span class="pill pill-gray">Bài kiểm tra</span>' : ''}</td>
+                    <td><b>${surveyHighlight(s.title, F.q)}</b>${s.isQuiz? ' <span class="pill pill-gray">Bài kiểm tra</span>' : ''}<div class="sub" style="margin-top:2px;">${surveyAcceptLabel(surveyAcceptState(s))}${s.closeAt? ' · hạn '+escapeHtml(surveyFmtDateTime(s.closeAt)) : ''}</div></td>
                     <td>${s.createdAt? fmtDate(s.createdAt.slice(0,10)) : '—'}</td>
                     <td>${s.responseCount||0}</td>
                     <td style="white-space:nowrap; display:flex; gap:6px;">
@@ -555,6 +590,58 @@
   // Tải lại trang / đóng tab khi đang soạn dở -> trình duyệt hiện hộp cảnh báo mặc định của nó.
   window.addEventListener('beforeunload', (e)=>{ if(surveyEditorDirtyNow()){ e.preventDefault(); e.returnValue = ''; } });
 
+  function renderSurveySettingsHtml(d, canEdit){
+    const dis = canEdit? '' : 'disabled';
+    const st = surveyAcceptState(d);
+    const mode = d.identifyMode || 'none';
+    const lim = parseInt(d.perPersonLimit,10)||0;
+    return `
+      <div class="sv-set-status ${st.open? 'open' : 'shut'}">Trạng thái hiện tại: <b>${surveyAcceptLabel(st)}</b>${d.closeAt? ` · Hạn nộp: <b>${escapeHtml(surveyFmtDateTime(d.closeAt))}</b>` : ''}${(parseInt(d.maxResponses,10)||0)>0? ` · Đã nhận <b>${d.responseCount||0}/${parseInt(d.maxResponses,10)}</b> phiếu` : ''}</div>
+      <div class="panel sv-set-card"><div class="panel-head sv-sec-head"><h3>📬 Nhận câu trả lời</h3></div><div class="panel-body">
+        <label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" id="svs-accept" ${d.acceptResponses!==false?'checked':''} ${dis}><span><b>Đang nhận câu trả lời</b> — bỏ tick để đóng biểu mẫu ngay, người mở link sẽ thấy thông báo đã ngừng nhận.</span></label>
+        <div class="form-grid" style="margin-top:8px;">
+          <div class="field"><label>⏰ Hạn nộp (tự đóng khi tới giờ)</label>
+            <div style="display:flex; gap:6px;"><input type="datetime-local" id="svs-closeat" value="${surveyIsoToLocalInput(d.closeAt)}" ${dis} style="flex:1; min-width:0;">${canEdit && d.closeAt? `<button type="button" class="btn btn-ghost btn-sm preview-allow" id="svs-closeat-clear" title="Bỏ hạn nộp">✕ Bỏ hạn</button>` : ''}</div>
+            <div class="sub" style="margin-top:4px;">Để trống = không có hạn nộp.</div></div>
+          <div class="field"><label>🈵 Giới hạn tổng số phiếu</label>
+            <input type="number" id="svs-max" min="0" step="1" value="${(parseInt(d.maxResponses,10)||0) || ''}" placeholder="Không giới hạn" ${dis}>
+            <div class="sub" style="margin-top:4px;">Đủ số phiếu thì tự đóng. Để trống hoặc 0 = không giới hạn.</div></div>
+          <div class="field full"><label>💬 Lời nhắn hiện ra khi biểu mẫu đã đóng (không bắt buộc)</label>
+            <textarea id="svs-closedmsg" rows="2" placeholder="VD: Đợt khảo sát đã kết thúc, cảm ơn đồng chí đã quan tâm." ${dis}>${escapeHtml(d.closedMessage||'')}</textarea></div>
+        </div>
+      </div></div>
+      <div class="panel sv-set-card"><div class="panel-head sv-sec-head"><h3>👤 Người trả lời</h3></div><div class="panel-body">
+        <p style="margin:0 0 6px; font-weight:700;">Cách nhận biết người trả lời</p>
+        <label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="svs-mode" value="none" ${mode==='none'?'checked':''} ${dis}><span><b>Không nhận biết</b> — ai có link cũng điền được, không giới hạn số lần.</span></label>
+        <label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="svs-mode" value="browser" ${mode==='browser'?'checked':''} ${dis}><span><b>Theo trình duyệt</b> — dễ dùng, không cần đăng nhập. Người cố tình đổi trình duyệt hoặc dùng chế độ ẩn danh vẫn lách được.</span></label>
+        <label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="svs-mode" value="google" ${mode==='google'?'checked':''} ${dis}><span><b>Theo tài khoản Google</b> — phải đăng nhập Google mới điền được, chặn chắc chắn, phiếu có ghi email người nộp. Người không có tài khoản Google sẽ không điền được.</span></label>
+        <div class="field" style="max-width:320px; margin-top:8px;"><label>Số lần mỗi người được trả lời</label>
+          <select id="svs-limit" ${(mode==='none'||!canEdit)?'disabled':''}>
+            ${[[1,'Giới hạn 1 lần'],[2,'Giới hạn 2 lần'],[3,'Giới hạn 3 lần'],[0,'Không giới hạn']].map(([v,l])=>`<option value="${v}" ${(mode==='none'? 0 : lim)===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+          ${mode==='none'? '<div class="sub" style="margin-top:4px;">Chọn cách nhận biết người trả lời ở trên thì mới giới hạn số lần được.</div>' : ''}
+        </div>
+      </div></div>
+      <p class="sub" style="margin:4px 0 10px;">⚠️ Các giới hạn trên được kiểm tra trên trang điền phiếu. Vì luật bảo mật Firebase hiện đang mở, người rành kỹ thuật vẫn có thể ghi thẳng vào cơ sở dữ liệu; muốn chặn tuyệt đối cần siết luật Firebase.</p>
+      ${canEdit? `<div style="display:flex; justify-content:flex-end;"><button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn-bottom">💾 Lưu biểu mẫu</button></div>` : ''}`;
+  }
+  function wireSurveySettings(el, d){
+    const rerender = ()=> renderSurveyTab(el);
+    const g = id=> document.getElementById(id);
+    if(g('svs-accept')) g('svs-accept').onchange = ()=>{ d.acceptResponses = g('svs-accept').checked; rerender(); };
+    if(g('svs-closeat')) g('svs-closeat').onchange = ()=>{ const v = g('svs-closeat').value; d.closeAt = v? new Date(v).toISOString() : ''; rerender(); };
+    if(g('svs-closeat-clear')) g('svs-closeat-clear').onclick = ()=>{ d.closeAt = ''; rerender(); };
+    if(g('svs-max')) g('svs-max').onchange = ()=>{ d.maxResponses = Math.max(0, parseInt(g('svs-max').value,10)||0); rerender(); };
+    if(g('svs-closedmsg')) g('svs-closedmsg').oninput = ()=>{ d.closedMessage = g('svs-closedmsg').value; };
+    document.querySelectorAll('input[name="svs-mode"]').forEach(r=> r.onchange = ()=>{
+      d.identifyMode = r.value;
+      if(r.value==='none') d.perPersonLimit = 0; else if(!(parseInt(d.perPersonLimit,10)>0)) d.perPersonLimit = 1;
+      rerender();
+    });
+    if(g('svs-limit')) g('svs-limit').onchange = ()=>{ d.perPersonLimit = parseInt(g('svs-limit').value,10)||0; };
+    el.querySelectorAll('.sv-save-action').forEach(btn=> btn.onclick = async ()=>{ if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); rerender(); } });
+  }
+
   function renderSurveyEditorView(el){
     const draft = state.surveyDraft;
     if(!surveyBaselines.has(draft)) surveyBaselines.set(draft, surveyDraftSig(draft));
@@ -568,13 +655,14 @@
         <div class="panel-body">
           <div class="toolbar" style="margin-bottom:14px; flex-wrap:wrap;">
             <button class="btn ${state.surveyEditorTab==='questions'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-questions">📝 Câu hỏi</button>
+            <button class="btn ${state.surveyEditorTab==='settings'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-settings">⚙️ Cài đặt nhận phiếu</button>
             <button class="btn ${state.surveyEditorTab==='answers'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-answers" ${!state.surveyEditingId?'disabled':''}>📊 Câu trả lời${draft.responseCount?` (${draft.responseCount})`:''}</button>
             <div class="spacer"></div>
             ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button>` : ''}
-            ${canEdit && state.surveyEditorTab==='questions'? `<button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
+            ${canEdit && state.surveyEditorTab!=='answers'? `<button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
           </div>
           <div id="sv-tab-content">
-            ${state.surveyEditorTab==='questions'? renderSurveyQuestionsEditorHtml(draft, canEdit) : renderSurveyAnswersTabHtml(draft)}
+            ${state.surveyEditorTab==='questions'? renderSurveyQuestionsEditorHtml(draft, canEdit) : state.surveyEditorTab==='settings'? renderSurveySettingsHtml(draft, canEdit) : renderSurveyAnswersTabHtml(draft)}
           </div>
         </div>
       </div>`;
@@ -585,6 +673,8 @@
     const draft = state.surveyDraft;
     document.getElementById('sv-back-btn').onclick = ()=> surveyConfirmLeave(()=>{ state.surveyView='list'; state.surveyDraft=null; state.surveyEditingId=null; renderSurveyTab(el); });
     document.getElementById('sv-tab-questions').onclick = ()=>{ state.surveyEditorTab='questions'; renderSurveyTab(el); };
+    document.getElementById('sv-tab-settings').onclick = ()=>{ state.surveyEditorTab='settings'; renderSurveyTab(el); };
+    if(state.surveyEditorTab==='settings') wireSurveySettings(el, draft);
     const tabAnswersBtn = document.getElementById('sv-tab-answers');
     if(tabAnswersBtn) tabAnswersBtn.onclick = async ()=>{
       if(!state.surveyEditingId) return;
@@ -1139,6 +1229,37 @@
     let survey = null, submitted = false, lastResult = null;
     let surveyLoadState = 'loading';
     let surveyLoadError = '';
+    let closedReason = null;
+    let respondent = { key:null, email:null, count:0, limit:0 };
+    function surveyCurrentUser(){
+      return new Promise(res=>{
+        if(typeof auth==='undefined' || !auth) return res(null);
+        if(auth.currentUser) return res(auth.currentUser);
+        let done = false;
+        const un = auth.onAuthStateChanged(u=>{ if(done) return; done = true; if(typeof un==='function') un(); res(u||null); });
+        setTimeout(()=>{ if(!done){ done = true; res(auth.currentUser||null); } }, 4000);
+      });
+    }
+    // Kiểm tra biểu mẫu còn nhận phiếu không, có cần đăng nhập Google không, người này còn lượt không.
+    async function prepareAccess(){
+      const st = surveyAcceptState(survey);
+      if(!st.open){ surveyLoadState = 'closed'; closedReason = st.reason; return; }
+      const mode = survey.identifyMode || 'none';
+      respondent = { key:null, email:null, count:0, limit: mode==='none'? 0 : (parseInt(survey.perPersonLimit,10)||0) };
+      if(mode==='google'){
+        const user = await surveyCurrentUser();
+        if(!user || !user.email){ surveyLoadState = 'needLogin'; return; }
+        respondent.email = user.email;
+      }
+      respondent.key = surveyRespondentKey(survey, respondent.email? { email:respondent.email } : null);
+      if(mode!=='none') respondent.count = await surveyRespondentCount(survey.id, respondent.key);
+      if(respondent.limit>0 && respondent.key && respondent.count>=respondent.limit){ surveyLoadState = 'limit'; return; }
+    }
+    function resetForAnotherResponse(){
+      submitted = false; lastResult = null; currentSectionIdx = 0;
+      Object.keys(collected).forEach(k=> delete collected[k]);
+      loadSurvey();
+    }
     let currentSectionIdx = 0;
     const collected = {}; // câu trả lời đã thu thập được, giữ lại xuyên suốt các Phần
     const shuffledOrder = {}; // thứ tự phương án đã xáo trộn — cố định suốt 1 lượt điền phiếu
@@ -1202,14 +1323,36 @@
         root.innerHTML = `<div class="center-screen"><div class="auth-card"><div class="rice-badge">📝</div><h1>Không tìm thấy biểu mẫu</h1><p class="sub">Đường link này có thể đã bị xoá hoặc không tồn tại.</p></div></div>`;
         return;
       }
+      if(surveyLoadState==='closed'){
+        const why = { expired:`Biểu mẫu đã hết hạn nộp${survey.closeAt? ' (hạn: '+escapeHtml(surveyFmtDateTime(survey.closeAt))+')' : ''}.`, full:'Biểu mẫu đã nhận đủ số phiếu tối đa.' }[closedReason] || 'Người tạo biểu mẫu đã ngừng nhận câu trả lời.';
+        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">⛔</div><h1>${escapeHtml(survey.title)}</h1><p style="font-weight:700; color:#b71c1c;">Biểu mẫu này đã ngừng nhận câu trả lời.</p><p class="sub">${why}</p>${survey.closedMessage? `<p style="white-space:pre-wrap; margin-top:10px;">${escapeHtml(survey.closedMessage)}</p>` : ''}</div></div>`;
+        return;
+      }
+      if(surveyLoadState==='needLogin'){
+        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">🔒</div><h1>${escapeHtml(survey.title)}</h1><p class="sub">Biểu mẫu này yêu cầu đăng nhập bằng tài khoản Google để điền phiếu (mỗi tài khoản được trả lời ${(parseInt(survey.perPersonLimit,10)||0)>0? 'tối đa '+parseInt(survey.perPersonLimit,10)+' lần' : 'nhiều lần'}).</p><button class="btn btn-primary btn-block" id="ps-login-btn" style="margin-top:14px;">🔒 Đăng nhập Google để điền phiếu</button></div></div>`;
+        document.getElementById('ps-login-btn').onclick = async ()=>{
+          const b = document.getElementById('ps-login-btn'); b.disabled = true; b.textContent = 'Đang mở cửa sổ đăng nhập Google…';
+          try{ await auth.signInWithPopup(googleProvider); loadSurvey(); }
+          catch(e){ console.error('[Khảo sát công khai] Đăng nhập lỗi:', e); if(!(e && e.code==='auth/popup-closed-by-user')) alert('Đăng nhập Google thất bại. Vui lòng thử lại.'); b.disabled = false; b.textContent = '🔒 Đăng nhập Google để điền phiếu'; }
+        };
+        return;
+      }
+      if(surveyLoadState==='limit'){
+        root.innerHTML = `<div class="center-screen"><div class="auth-card" style="max-width:520px;"><div class="rice-badge">✋</div><h1>${escapeHtml(survey.title)}</h1><p style="font-weight:700;">Đồng chí đã trả lời ${respondent.count}/${respondent.limit} lần cho biểu mẫu này, không thể gửi thêm.</p>${respondent.email? `<p class="sub">Tài khoản: ${escapeHtml(respondent.email)}</p>` : ''}<p class="sub">Cảm ơn đồng chí đã tham gia.</p></div></div>`;
+        return;
+      }
       if(submitted){
+        const left = respondent.limit>0? respondent.limit - respondent.count : Infinity;
+        const canMore = left>0 && surveyAcceptState(survey).open;
         root.innerHTML = `
           <div class="center-screen"><div class="auth-card" style="max-width:520px;">
             <div class="rice-badge">✅</div>
             <h1>Đồng chí đã gửi câu trả lời thành công!</h1>
             <p class="sub">Cảm ơn đồng chí đã tham gia ${survey.isQuiz? 'bài kiểm tra':'khảo sát'} "${escapeHtml(survey.title)}".</p>
             ${survey.isQuiz? `<button class="btn btn-primary btn-block" id="ps-viewscore-btn" style="margin-top:14px;">Xem điểm số</button><div id="ps-score-area" style="margin-top:14px;"></div>` : ''}
+            ${canMore? `<button class="btn btn-ghost btn-block" id="ps-another-btn" style="margin-top:10px;">📝 Gửi thêm câu trả lời khác${left!==Infinity? ` (còn ${left} lượt)` : ''}</button>` : ''}
           </div></div>`;
+        const anotherBtn = document.getElementById('ps-another-btn'); if(anotherBtn) anotherBtn.onclick = resetForAnotherResponse;
         const scoreBtn = document.getElementById('ps-viewscore-btn');
         if(scoreBtn) scoreBtn.onclick = ()=>{
           document.getElementById('ps-score-area').innerHTML = `<div class="kv-row"><span>Điểm số của đồng chí</span><b>${lastResult.score||0} / ${lastResult.maxScore||0}</b></div>`;
@@ -1225,6 +1368,7 @@
         <div class="center-screen">
           <div class="auth-card" style="max-width:640px; text-align:left;">
             <h1>${escapeHtml(survey.title)}</h1>
+            ${(survey.closeAt || respondent.limit>0 || respondent.email)? `<div class="ps-meta">${survey.closeAt? `<div>⏰ Hạn nộp: <b>${escapeHtml(surveyFmtDateTime(survey.closeAt))}</b></div>` : ''}${respondent.limit>0? `<div>📝 Đây là lần trả lời thứ <b>${respondent.count+1}/${respondent.limit}</b> của đồng chí.</div>` : ''}${respondent.email? `<div>👤 Đang điền với tài khoản <b>${escapeHtml(respondent.email)}</b> · <a href="#" id="ps-switch-acc">Đổi tài khoản</a></div>` : ''}</div>` : ''}
             ${survey.description? `<p class="sub" style="white-space:pre-wrap;">${escapeHtml(survey.description)}</p>` : ''}
             ${sections.length>1? `<div style="background:var(--paper-2); border-radius:8px; padding:8px 12px; margin:10px 0; font-size:12.5px;"><b>Phần ${currentSectionIdx+1}/${sections.length}</b>${sec.title? ' — '+escapeHtml(sec.title) : ''}${sec.description? `<div class="sub" style="margin-top:4px;">${escapeHtml(sec.description)}</div>` : ''}</div>` : ''}
             <div id="ps-questions">${secQuestions.map((q,qi)=> renderPublicQuestionHtml(q, qi)).join('')}</div>
@@ -1235,6 +1379,8 @@
       root.querySelectorAll('[data-numeric="1"]').forEach(inp=> attachPublicNumericMask(inp));
       wirePublicOptionTools(root, secQuestions);
       wirePublicDropdowns(root, secQuestions);
+      const sw = document.getElementById('ps-switch-acc');
+      if(sw) sw.onclick = async (e)=>{ e.preventDefault(); try{ await auth.signOut(); }catch(err){} loadSurvey(); };
 
       document.getElementById('ps-next-btn').onclick = async ()=>{
         let missingRequired = false;
@@ -1258,12 +1404,27 @@
         if(missingRequired){ alert('Vui lòng điền đầy đủ các câu hỏi bắt buộc (có dấu *) trước khi tiếp tục.'); return; }
 
         if(isLastSection || branchTarget==='__submit__'){
-          const result = await submitPublicSurveyResponse(survey, collected);
+          // Kiểm tra lại NGAY LÚC GỬI: biểu mẫu có thể vừa bị đóng / hết hạn / đủ phiếu trong lúc đang điền,
+          // hoặc người này vừa dùng hết lượt ở tab khác.
+          try{
+            const fresh = await rtdb.ref(`surveys/${survey.id}`).get();
+            const fv = (fresh && fresh.exists())? fresh.val() : null;
+            if(fv){ ['acceptResponses','closeAt','maxResponses','responseCount','closedMessage'].forEach(k=>{ survey[k] = fv[k]; }); }
+          }catch(e){ console.warn('[Khảo sát công khai] Không kiểm tra lại được trạng thái biểu mẫu:', e); }
+          const st = surveyAcceptState(survey);
+          if(!st.open){ surveyLoadState = 'closed'; closedReason = st.reason; renderFillForm(); alert('Rất tiếc, biểu mẫu vừa ngừng nhận câu trả lời nên phiếu của đồng chí chưa được gửi.'); return; }
+          if(respondent.key && respondent.limit>0){
+            respondent.count = await surveyRespondentCount(survey.id, respondent.key);
+            if(respondent.count>=respondent.limit){ surveyLoadState = 'limit'; renderFillForm(); return; }
+          }
+          const result = await submitPublicSurveyResponse(survey, collected, { respondentKey: respondent.key, attempt: respondent.count+1, email: respondent.email });
           if(!result.ok){
             alert(result.reason==='missing' ? 'Vui lòng điền đầy đủ các câu hỏi bắt buộc (có dấu *) trước khi gửi.' : 'Gửi câu trả lời thất bại, vui lòng kiểm tra kết nối mạng và thử lại.');
             return;
           }
           submitted = true; lastResult = result.entry;
+          if(respondent.key) respondent.count += 1;
+          survey.responseCount = (survey.responseCount||0) + 1;
           renderFillForm();
           return;
         }
@@ -1385,6 +1546,7 @@
           ensureSurveySections(nextSurvey);
           survey = nextSurvey;
           surveyLoadState = 'ready';
+          await prepareAccess();
         }
       }catch(e){
         console.error('[Khảo sát công khai] Không tải được biểu mẫu:', e);
