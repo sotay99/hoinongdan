@@ -962,6 +962,29 @@
   .sv-meter-fill{ height:100%; background:#257de0; border-radius:0 4px 4px 0; min-width:0; }
   .sv-meter-val{ white-space:nowrap; min-width:72px; text-align:right; }
   @media (max-width:600px){ .sv-meter-row{ grid-template-columns:1fr auto; } .sv-meter-track{ grid-column:1 / -1; grid-row:2; } }
+  /* GĐ6: loại câu mới */
+  .sv-grid-edit{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:4px 0; }
+  @media (max-width:700px){ .sv-grid-edit{ grid-template-columns:1fr; } }
+  .sv-scale-pv{ display:inline-block; min-width:22px; text-align:center; border:1px solid var(--line); border-radius:4px; margin:0 2px; padding:0 4px; }
+  .ps-scale{ display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; }
+  .ps-scale-end{ font-size:12.5px; color:var(--rice-dark); max-width:120px; padding-bottom:6px; }
+  .ps-scale-opts{ display:flex; gap:4px; flex-wrap:wrap; }
+  .ps-scale-opt{ display:flex !important; flex-direction:column; align-items:center; gap:4px; min-width:38px; padding:6px 4px; border:1px solid var(--line); border-radius:8px; cursor:pointer; font-weight:700 !important; margin:0 !important; }
+  .ps-scale-opt:has(input:checked){ border-color:var(--gold); background:rgba(199,154,43,.13); }
+  .ps-scale-opt input{ width:18px !important; height:18px !important; margin:0 !important; accent-color:var(--gold); }
+  .ps-grid-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+  .ps-grid{ border-collapse:collapse; width:100%; font-size:13px; }
+  .ps-grid th, .ps-grid td{ padding:6px 8px; border-bottom:1px solid var(--line); text-align:center; white-space:normal; }
+  .ps-grid tbody th{ text-align:left; font-weight:600; min-width:120px; position:sticky; left:0; background:var(--white); }
+  .ps-grid thead th{ font-weight:700; font-size:12px; min-width:70px; }
+  .ps-grid-cell{ display:flex !important; justify-content:center; align-items:center; min-height:32px; cursor:pointer; margin:0 !important; }
+  .ps-grid-cell input{ width:18px !important; height:18px !important; margin:0 !important; accent-color:var(--gold); }
+  .ps-grid tr:has(input:checked) th{ color:#1b5e20; }
+  .ps-file-item{ display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .ps-file-rm{ border:none; background:none; color:var(--red); cursor:pointer; font-size:14px; }
+  .sv-matrix th, .sv-matrix td{ text-align:center; white-space:normal; }
+  .ps-grid th, .sv-matrix th{ text-transform:none; letter-spacing:normal; }
+  .sv-matrix tbody th{ text-align:left; }
   .ps-opt mark{ background:#fff176; color:inherit; padding:0 1px; border-radius:2px; }
   .sv-pill{ display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:10px; background:var(--paper-2); color:var(--rice-dark); margin:0 6px 6px 0; }
 

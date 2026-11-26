@@ -1094,6 +1094,12 @@
     { key:'radio', label:'Trắc nghiệm (chỉ chọn 1 phương án)' },
     { key:'checkbox', label:'Hộp kiểm (được chọn nhiều phương án)' },
     { key:'dropdown', label:'Menu thả xuống (chỉ chọn 1 phương án)' },
+    { key:'scale', label:'Thang điểm (chọn 1 mức, ví dụ 1 – 5)' },
+    { key:'grid_radio', label:'Lưới trắc nghiệm (mỗi hàng chọn 1)' },
+    { key:'grid_checkbox', label:'Lưới hộp kiểm (mỗi hàng chọn nhiều)' },
+    { key:'date', label:'Ngày (chọn ngày/tháng/năm)' },
+    { key:'time', label:'Giờ (chọn giờ:phút)' },
+    { key:'file', label:'Tải tệp lên (ảnh, PDF, tài liệu…)' },
   ];
   // ---------- LIÊN KẾT HỘ VAY (Sổ vay vốn) <-> HỘI VIÊN (Hồ sơ hội viên) ----------
   // Ràng buộc 1-1: 1 hội viên chỉ liên kết ĐÚNG 1 hộ vay tại 1 thời điểm (và ngược lại). Gọi hàm này

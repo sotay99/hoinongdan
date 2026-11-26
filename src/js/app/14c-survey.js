@@ -30,6 +30,28 @@
   function surveyNormalizeOrder(draft){
     draft.questions = draft.sections.flatMap(sec=> draft.questions.filter(q=> q.sectionId===sec.id));
   }
+  // ---- GĐ6: loại câu hỏi mới — thang điểm, lưới trắc nghiệm, lưới hộp kiểm, ngày, giờ, tải tệp ----
+  // Lưới: q.rows (các hàng/ý cần đánh giá) × q.cols (các mức lựa chọn); câu trả lời là MẢNG theo thứ tự
+  // hàng (lưới trắc nghiệm: chuỗi; lưới hộp kiểm: mảng chuỗi). "Bắt buộc" ở câu lưới = phải chọn MỌI hàng.
+  // Tải tệp: tệp lưu ở Firebase Storage survey_uploads/{biểu mẫu}/…; câu trả lời là mảng {name,url,size,path}.
+  const SURVEY_FILE_KINDS = { any:{label:'Mọi loại tệp', accept:''}, image:{label:'Chỉ ảnh', accept:'image/*'},
+    pdf:{label:'Chỉ PDF', accept:'.pdf,application/pdf'}, doc:{label:'Tài liệu (PDF, Word, Excel)', accept:'.pdf,.doc,.docx,.xls,.xlsx'} };
+  function surveyIsGrid(q){ return q && (q.type==='grid_radio' || q.type==='grid_checkbox'); }
+  function surveyEnsureTypeDefaults(q){
+    if(q.type==='scale'){ if(q.scaleMin==null) q.scaleMin = 1; if(q.scaleMax==null) q.scaleMax = 5; if(q.scaleMinLabel==null) q.scaleMinLabel = ''; if(q.scaleMaxLabel==null) q.scaleMaxLabel = ''; }
+    if(surveyIsGrid(q)){ if(!Array.isArray(q.rows) || !q.rows.length) q.rows = ['Hàng 1']; if(!Array.isArray(q.cols) || !q.cols.length) q.cols = ['Cột 1']; }
+    if(q.type==='file'){ if(!q.maxFiles) q.maxFiles = 1; if(!q.maxSizeMb) q.maxSizeMb = 10; if(!q.fileKind) q.fileKind = 'any'; }
+  }
+  function surveyScaleValues(q){ const a = [], lo = parseInt(q.scaleMin,10)||0, hi = parseInt(q.scaleMax,10)||5; for(let v=lo; v<=hi; v++) a.push(String(v)); return a; }
+  function surveyGridCell(v, i){ if(v==null) return undefined; const c = v[i]; return c===undefined? v[String(i)] : c; }
+  function surveyFileList(v){ return (Array.isArray(v)? v : (v && typeof v==='object'? Object.values(v) : [])).filter(f=> f && f.name); }
+  function surveyHasAnswer(q, v){
+    if(v==null) return false;
+    if(surveyIsGrid(q)) return (q.rows||[]).some((_,i)=>{ const c = surveyGridCell(v,i); return Array.isArray(c)? c.length>0 : (c!=null && c!==''); });
+    if(q.type==='file') return surveyFileList(v).length>0;
+    if(Array.isArray(v)) return v.length>0;
+    return v!=='';
+  }
   function surveyQCanBranch(q){ return q.type==='radio' || q.type==='checkbox' || q.type==='dropdown'; }
   // ---- Chú thích loại câu hỏi (1 dòng ngắn dưới ô "Loại câu hỏi") + bản giải thích đầy đủ khi bấm nút "i"
   // (cùng kiểu nút tròn qbox-info-btn của Sổ vay vốn: bấm hiện khung giải thích ngay bên dưới, bấm lại ẩn).
@@ -37,6 +59,9 @@
     radio:'🔘 Hiện sẵn mọi phương án, người trả lời chỉ chọn được 1.',
     checkbox:'☑️ Hiện sẵn mọi phương án, người trả lời chọn được nhiều.',
     dropdown:'🔽 Thu gọn trong 1 ô, bấm vào mới hiện danh sách để chọn 1.',
+    scale:'⭐ Một dãy số liền nhau (VD 1 → 5), người trả lời chọn 1 mức.',
+    grid_radio:'🔲 Bảng nhiều hàng × nhiều cột, MỖI HÀNG chọn đúng 1 cột.',
+    grid_checkbox:'☑️ Bảng nhiều hàng × nhiều cột, mỗi hàng chọn được NHIỀU cột.',
   };
   const SURVEY_TYPE_HELP = {
     radio:{ title:'🔘 Trắc nghiệm', items:[
@@ -52,11 +77,25 @@
       '<b>Nên dùng khi:</b> danh sách <b>dài</b>, người trả lời <i>đã biết sẵn</i> đáp án của mình, muốn trang gọn. Ví dụ: chọn ấp, năm sinh, dân tộc.',
       'Câu có từ 6 phương án thì trong danh sách có ô tìm nhanh phương án. Chuyển phần theo câu trả lời được. Bài kiểm tra: đặt 1 đáp án đúng.' ] },
   };
+  Object.assign(SURVEY_TYPE_HELP, {
+    scale:{ title:'⭐ Thang điểm', items:[
+      '<b>Người trả lời thấy:</b> một hàng các con số (VD 1 2 3 4 5), hai đầu có nhãn (VD "Rất không hài lòng" … "Rất hài lòng"). Bấm chọn 1 số.',
+      '<b>Nên dùng khi:</b> đo <i>mức độ</i> — hài lòng, đồng ý, quan tâm, chất lượng… Phần thống kê tự tính <b>điểm trung bình</b>.',
+      'Đặt mức thấp nhất (0 hoặc 1), mức cao nhất (2 đến 10) và nhãn cho 2 đầu ở ngay bên dưới.' ] },
+    grid_radio:{ title:'🔲 Lưới trắc nghiệm', items:[
+      '<b>Người trả lời thấy:</b> một bảng — mỗi <b>hàng</b> là 1 ý cần đánh giá, mỗi <b>cột</b> là 1 mức. Ở MỖI hàng chọn đúng 1 ô.',
+      '<b>Nên dùng khi:</b> nhiều ý cùng dùng chung 1 thang. Ví dụ: đánh giá "Thủ tục vay", "Thái độ cán bộ", "Thời gian giải ngân" theo các mức "Tốt / Khá / Trung bình / Kém".',
+      'Bật "Bắt buộc trả lời" thì người trả lời phải chọn ở <b>mọi hàng</b>.' ] },
+    grid_checkbox:{ title:'☑️ Lưới hộp kiểm', items:[
+      '<b>Người trả lời thấy:</b> một bảng như lưới trắc nghiệm, nhưng ở mỗi hàng tick được <b>nhiều</b> ô.',
+      '<b>Nên dùng khi:</b> mỗi ý có thể ứng với nhiều lựa chọn. Ví dụ: hàng là các loại cây trồng, cột là các mùa vụ "Đông Xuân / Hè Thu / Thu Đông".',
+      'Bật "Bắt buộc trả lời" thì người trả lời phải tick ít nhất 1 ô ở <b>mọi hàng</b>.' ] },
+  });
   const surveyTypeTipOpen = {}; // khung giải thích của câu nào đang mở — giữ nguyên qua các lần vẽ lại
   function surveyTypeHelpHtml(type){
     const h = SURVEY_TYPE_HELP[type]; if(!h) return '';
     return `<b>${h.title}</b><ul style="margin:4px 0 6px; padding-left:18px;">${h.items.map(x=>`<li style="margin-bottom:3px;">${x}</li>`).join('')}</ul>
-      <div style="border-top:1px dashed var(--line); padding-top:5px;"><b>So sánh nhanh 3 loại:</b> 🔘 Trắc nghiệm: hiện sẵn, chọn <b>1</b> · ☑️ Hộp kiểm: hiện sẵn, chọn <b>nhiều</b> · 🔽 Menu thả xuống: <b>thu gọn</b>, chọn <b>1</b></div>`;
+      ${surveyIsGrid({type}) ? `<div style="border-top:1px dashed var(--line); padding-top:5px;"><b>So sánh nhanh:</b> 🔲 Lưới trắc nghiệm: mỗi hàng chọn <b>1</b> · ☑️ Lưới hộp kiểm: mỗi hàng chọn <b>nhiều</b></div>` : type==='scale'? '' : `<div style="border-top:1px dashed var(--line); padding-top:5px;"><b>So sánh nhanh 3 loại:</b> 🔘 Trắc nghiệm: hiện sẵn, chọn <b>1</b> · ☑️ Hộp kiểm: hiện sẵn, chọn <b>nhiều</b> · 🔽 Menu thả xuống: <b>thu gọn</b>, chọn <b>1</b></div>`}`;
   }
   function hasSurveyPersonalAccount(){ return !!(state.identity && state.identity.email); }
   // Đảm bảo biểu mẫu (kể cả biểu mẫu cũ tạo trước khi có tính năng "Phần") luôn có sections hợp lệ
@@ -78,6 +117,7 @@
       // Biểu mẫu cũ đã cài rẽ nhánh thì tự bật "Chuyển đến phần dựa trên câu trả lời" — không mất cài đặt.
       if(q.branchEnabled==null) q.branchEnabled = (q.optionBranches||[]).some(b=> b && b!=='__next__');
       if(q.description==null) q.description = '';
+      surveyEnsureTypeDefaults(q);
     });
     surveyNormalizeOrder(draft);
     return draft;
@@ -129,6 +169,8 @@
     if(!d.questions.length){ alert('Vui lòng thêm ít nhất 1 câu hỏi.'); return false; }
     for(const q of d.questions){
       if(!q.text || !q.text.trim()){ alert('Có câu hỏi chưa nhập nội dung. Vui lòng kiểm tra lại.'); return false; }
+      if(surveyIsGrid(q) && (!(q.rows||[]).some(x=>String(x).trim()) || !(q.cols||[]).some(x=>String(x).trim()))){ alert(`Câu hỏi lưới "${q.text}" cần ít nhất 1 hàng và 1 cột có nội dung.`); return false; }
+      if(q.type==='scale' && (parseInt(q.scaleMin,10)||0) >= (parseInt(q.scaleMax,10)||0)){ alert(`Câu hỏi thang điểm "${q.text}": mức cao nhất phải lớn hơn mức thấp nhất.`); return false; }
       if(surveyQTypeHasOptions(q.type) && (!q.options || q.options.filter(o=>o.trim()).length<1)){ alert(`Câu hỏi "${q.text}" cần ít nhất 1 phương án.`); return false; }
     }
     const id = d.id || uid();
@@ -455,12 +497,42 @@
               ${canEdit? `<div style="display:flex; flex-wrap:wrap; gap:6px;"><button class="btn btn-ghost btn-sm q-add-option" data-qid="${q.id}">➕ Thêm phương án</button><button class="btn btn-ghost btn-sm q-paste-options preview-allow" data-qid="${q.id}">📋 Dán nhiều phương án</button><span class="sub" style="align-self:center;">${(q.options||[]).length} phương án</span></div>` : ''}
               ${isQuiz? `<div class="field" style="max-width:180px; margin-top:8px;"><label>Số điểm câu này</label><input type="number" class="q-points" data-qid="${q.id}" value="${q.points||0}" ${canEdit?'':'disabled'}></div>` : ''}
             ` : ''}
+            ${surveyNewTypeEditorHtml(q, canEdit)}
           </div>
         </div>
       </div>
     </div>`;
   }
 
+  function surveyNewTypeEditorHtml(q, canEdit){
+    const dis = canEdit? '' : 'disabled';
+    if(q.type==='scale'){
+      const lo = parseInt(q.scaleMin,10)||0, hi = parseInt(q.scaleMax,10)||5;
+      return `<div class="form-grid" style="margin-top:4px;">
+          <div class="field"><label>Mức thấp nhất</label><select class="q-scale" data-qid="${q.id}" data-f="scaleMin" ${dis}>${[0,1].map(v=>`<option value="${v}" ${lo===v?'selected':''}>${v}</option>`).join('')}</select></div>
+          <div class="field"><label>Mức cao nhất</label><select class="q-scale" data-qid="${q.id}" data-f="scaleMax" ${dis}>${[2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}" ${hi===v?'selected':''}>${v}</option>`).join('')}</select></div>
+          <div class="field"><label>Nhãn ở mức ${lo} (không bắt buộc)</label><input class="q-scale-lbl" data-qid="${q.id}" data-f="scaleMinLabel" value="${escapeHtml(q.scaleMinLabel||'')}" placeholder="VD: Rất không hài lòng" ${dis}></div>
+          <div class="field"><label>Nhãn ở mức ${hi} (không bắt buộc)</label><input class="q-scale-lbl" data-qid="${q.id}" data-f="scaleMaxLabel" value="${escapeHtml(q.scaleMaxLabel||'')}" placeholder="VD: Rất hài lòng" ${dis}></div>
+        </div>
+        <div class="sub" style="margin:2px 0 8px;">Người trả lời sẽ thấy: ${escapeHtml(q.scaleMinLabel||'')} ${surveyScaleValues(q).map(v=>`<span class="sv-scale-pv">${v}</span>`).join('')} ${escapeHtml(q.scaleMaxLabel||'')}</div>`;
+    }
+    if(surveyIsGrid(q)){
+      const list = (kind, title, ph)=> `<div><p style="margin:0 0 6px; font-weight:700;">${title}</p>
+        ${(q[kind]||[]).map((v,i)=>`<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;"><span class="sub" style="min-width:20px;">${i+1}.</span><input class="q-grid-item" data-qid="${q.id}" data-kind="${kind}" data-i="${i}" value="${escapeHtml(v)}" placeholder="${ph} ${i+1}" style="flex:1; min-width:0;" ${dis}>${canEdit? `<button type="button" class="btn btn-ghost btn-sm q-grid-del preview-allow" data-qid="${q.id}" data-kind="${kind}" data-i="${i}" title="Xoá">✕</button>` : ''}</div>`).join('')}
+        ${canEdit? `<button type="button" class="btn btn-ghost btn-sm q-grid-add preview-allow" data-qid="${q.id}" data-kind="${kind}">➕ Thêm ${kind==='rows'? 'hàng' : 'cột'}</button>` : ''}</div>`;
+      return `<div class="sv-grid-edit">${list('rows','Hàng — các ý cần đánh giá','Hàng')}${list('cols','Cột — các mức lựa chọn','Cột')}</div>
+        <p class="sub" style="margin:4px 0 8px;">Bật "Bắt buộc trả lời" thì người trả lời phải chọn ở <b>mọi hàng</b>.</p>`;
+    }
+    if(q.type==='file'){
+      return `<div class="form-grid" style="margin-top:4px;">
+          <div class="field"><label>Số tệp tối đa</label><select class="q-file" data-qid="${q.id}" data-f="maxFiles" ${dis}>${[1,2,3,5,10].map(v=>`<option value="${v}" ${(+q.maxFiles||1)===v?'selected':''}>${v} tệp</option>`).join('')}</select></div>
+          <div class="field"><label>Dung lượng tối đa mỗi tệp</label><select class="q-file" data-qid="${q.id}" data-f="maxSizeMb" ${dis}>${[1,5,10,20].map(v=>`<option value="${v}" ${(+q.maxSizeMb||10)===v?'selected':''}>${v} MB</option>`).join('')}</select></div>
+          <div class="field"><label>Loại tệp cho phép</label><select class="q-file" data-qid="${q.id}" data-f="fileKind" ${dis}>${Object.entries(SURVEY_FILE_KINDS).map(([k,v])=>`<option value="${k}" ${(q.fileKind||'any')===k?'selected':''}>${v.label}</option>`).join('')}</select></div>
+        </div>
+        <p class="sub" style="margin:2px 0 8px;">⚠️ Tệp được lưu trên Firebase Storage (thư mục survey_uploads). Nếu luật Storage chưa cho phép người ngoài tải tệp lên thư mục này, người trả lời sẽ thấy báo lỗi khi tải tệp.</p>`;
+    }
+    return '';
+  }
   function renderSurveyQuestionsEditorHtml(draft, canEdit){
     ensureSurveySections(draft);
     return `
@@ -504,13 +576,19 @@
   // thứ tự cố định theo thứ tự phương án (màu đi theo phương án, không theo thứ hạng).
   // =====================================================================
   const SURVEY_CHART_COLORS = ['#257de0','#f47230','#00b894','#f2a600','#ee7fac','#008a17'];
-  const SURVEY_QTYPE_COLW = { short:200, paragraph:280, radio:180, dropdown:180, checkbox:230 };
+  const SURVEY_QTYPE_COLW = { short:200, paragraph:280, radio:180, dropdown:180, checkbox:230, scale:90, grid_radio:280, grid_checkbox:300, date:120, time:90, file:220 };
   function surveyRespFilter(){
     const id = state.surveyEditingId;
     if(!state.surveyRespFilter || state.surveyRespFilter.forId!==id) state.surveyRespFilter = { forId:id, q:'', from:'', to:'', qid:'', opt:'' };
     return state.surveyRespFilter;
   }
-  function surveyAnswerText(v){ return Array.isArray(v)? v.join(', ') : (v==null? '' : String(v)); }
+  function surveyAnswerText(v, q){
+    if(v==null) return '';
+    if(surveyIsGrid(q)) return (q.rows||[]).map((row,i)=>{ const c = surveyGridCell(v,i); const t = Array.isArray(c)? c.join(', ') : (c||''); return t? `${row}: ${t}` : ''; }).filter(Boolean).join('; ');
+    if(q && q.type==='file') return surveyFileList(v).map(f=> f.name).join(', ');
+    if(q && q.type==='date' && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) return fmtDate(String(v));
+    return Array.isArray(v)? v.join(', ') : String(v);
+  }
   function surveyLocalDay(iso){ const d = new Date(iso); if(isNaN(d)) return ''; const p = n=> String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
   function surveyWhoText(r){
     const lan = r.attempt? ` · Lần ${r.attempt}` : '';
@@ -532,7 +610,7 @@
       if(F.from && day < F.from) return false;
       if(F.to && day > F.to) return false;
       if(F.qid && F.opt){ const v = r.answers && r.answers[F.qid]; const arr = Array.isArray(v)? v : (v? [v] : []); if(!arr.includes(F.opt)) return false; }
-      if(term){ const hay = surveyFold([surveyWhoText(r), ...draft.questions.map(q=> surveyAnswerText(r.answers && r.answers[q.id]))].join(' ')); if(!hay.includes(term)) return false; }
+      if(term){ const hay = surveyFold([surveyWhoText(r), ...draft.questions.map(q=> surveyAnswerText(r.answers && r.answers[q.id], q))].join(' ')); if(!hay.includes(term)) return false; }
       return true;
     });
   }
@@ -543,7 +621,7 @@
       { key:'time', label:'Thời gian nộp', w:140, align:'center', get:r=> new Date(r.submittedAt).toLocaleString('vi-VN') },
     ];
     if(responses.some(r=> r.respondentKey || r.respondentEmail)) cols.push({ key:'who', label:'Người nộp', w:190, align:'left', get:r=> surveyWhoText(r) });
-    draft.questions.forEach((q,qi)=> cols.push({ key:'q:'+q.id, label:`${qi+1}. ${q.text||''}`, w:SURVEY_QTYPE_COLW[q.type]||200, align:'left', get:r=> surveyAnswerText(r.answers && r.answers[q.id]) }));
+    draft.questions.forEach((q,qi)=> cols.push({ key:'q:'+q.id, label:`${qi+1}. ${q.text||''}`, w:SURVEY_QTYPE_COLW[q.type]||200, align:'left', get:r=> surveyAnswerText(r.answers && r.answers[q.id], q) }));
     if(draft.isQuiz) cols.push({ key:'score', label:'Điểm', w:80, align:'center', get:r=> `${r.score||0}/${r.maxScore||0}` });
     return cols;
   }
@@ -562,10 +640,28 @@
 
   // ---- 📊 Tổng hợp ----
   function surveyQuestionStatsHtml(q, qi, list){
-    const has = v=> Array.isArray(v)? v.length>0 : (v!=null && v!=='');
-    const answered = list.filter(r=> has(r.answers && r.answers[q.id]));
+    const answered = list.filter(r=> surveyHasAnswer(q, r.answers && r.answers[q.id]));
     let body;
-    if(surveyQTypeHasOptions(q.type)){
+    const meterRows = (pairs, base)=> pairs.map(([o,c])=>{ const pct = Math.round(c/(base||1)*100);
+      return `<div class="sv-meter-row" title="${escapeHtml(o)}: ${c} (${pct}%)"><div class="sv-meter-name"><span>${escapeHtml(o)}</span></div><div class="sv-meter-track"><div class="sv-meter-fill" style="width:${pct}%;"></div></div><div class="sv-meter-val"><b>${c}</b> <span class="sub">(${pct}%)</span></div></div>`; }).join('');
+    if(q.type==='scale'){
+      const vals = surveyScaleValues(q), counts = new Map(vals.map(v=>[v,0])); let sum = 0;
+      answered.forEach(r=>{ const v = String(r.answers[q.id]); counts.set(v, (counts.get(v)||0)+1); sum += parseFloat(v)||0; });
+      const avg = answered.length? (sum/answered.length) : 0;
+      body = `<p style="margin:0 0 10px;">Điểm trung bình: <b style="font-size:18px;">${answered.length? avg.toFixed(2).replace('.',',') : '—'}</b> / ${escapeHtml(String(q.scaleMax))}${q.scaleMinLabel||q.scaleMaxLabel? ` <span class="sub">(${escapeHtml(q.scaleMin+' = '+(q.scaleMinLabel||''))} · ${escapeHtml(q.scaleMax+' = '+(q.scaleMaxLabel||''))})</span>` : ''}</p><div class="sv-meters">${meterRows(Array.from(counts.entries()).map(([v,c])=>[`Mức ${v}`, c]), answered.length)}</div>`;
+    } else if(surveyIsGrid(q)){
+      const rows = q.rows||[], cols = q.cols||[];
+      const cnt = rows.map((_,i)=> cols.map(c=> answered.filter(r=>{ const x = surveyGridCell(r.answers[q.id], i); return Array.isArray(x)? x.includes(c) : x===c; }).length));
+      const mx = Math.max(1, ...cnt.flat());
+      body = `<div class="table-wrap"><table class="sv-matrix"><thead><tr><th></th>${cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${rows.map((rw,i)=>`<tr><th>${escapeHtml(rw)}</th>${cols.map((c,j)=>{ const n = cnt[i][j]; return `<td title="${escapeHtml(rw)} · ${escapeHtml(c)}: ${n}" style="background:rgba(37,125,224,${(n/mx*0.55).toFixed(3)});"><b>${n}</b>${answered.length? ` <span class="sub">(${Math.round(n/answered.length*100)}%)</span>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div><p class="sub" style="margin:6px 0 0;">Ô càng đậm màu thì càng nhiều người chọn.</p>`;
+    } else if(q.type==='date' || q.type==='time'){
+      const counts = new Map(); answered.forEach(r=>{ const v = String(r.answers[q.id]); counts.set(v, (counts.get(v)||0)+1); });
+      const pairs = Array.from(counts.entries()).sort((a,b)=> a[0].localeCompare(b[0])).map(([v,c])=> [q.type==='date'? fmtDate(v) : v, c]);
+      body = `<div class="sv-meters${pairs.length>15? ' scroll' : ''}">${meterRows(pairs, answered.length)}</div>`;
+    } else if(q.type==='file'){
+      const files = answered.flatMap(r=> surveyFileList(r.answers[q.id]));
+      body = files.length? `<div style="display:flex; flex-direction:column; gap:4px; max-height:260px; overflow:auto;">${files.map(f=>`<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a>`).join('')}</div>` : '<p class="sub" style="margin:0;">Chưa có tệp nào.</p>';
+    } else if(surveyQTypeHasOptions(q.type)){
       const opts = q.options||[];
       const counts = new Map(opts.map(o=>[o,0]));
       answered.forEach(r=>{ const v = r.answers[q.id]; (Array.isArray(v)? v : [v]).forEach(a=> counts.set(a, (counts.get(a)||0)+1)); });
@@ -578,7 +674,7 @@
         return `<div class="sv-meter-row" title="${escapeHtml(o)}: ${c} người (${pct}%)"><div class="sv-meter-name">${segOn? `<span class="sv-swatch" style="background:${colorOf(o)};"></span>` : ''}<span>${escapeHtml(o)}</span></div><div class="sv-meter-track"><div class="sv-meter-fill" style="width:${pct}%;"></div></div><div class="sv-meter-val"><b>${c}</b> <span class="sub">(${pct}%)</span></div></div>`; }).join('');
       body = `${seg}<div class="sv-meters${rows.length>15? ' scroll' : ''}">${meters}</div>${q.type==='checkbox'? '<p class="sub" style="margin:6px 0 0;">Mỗi người chọn được nhiều phương án nên tổng các % có thể vượt 100%.</p>' : ''}`;
     } else {
-      const texts = answered.map(r=> surveyAnswerText(r.answers[q.id]));
+      const texts = answered.map(r=> surveyAnswerText(r.answers[q.id], q));
       body = texts.length? `<div style="display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto;">${texts.map(t=>`<div class="kv-row" style="border:1px solid var(--line); border-radius:6px; padding:6px 10px; white-space:pre-wrap;">${escapeHtml(t)}</div>`).join('')}</div>` : '<p class="sub" style="margin:0;">Chưa có câu trả lời.</p>';
     }
     return `<div class="panel" style="margin-bottom:10px;"><div class="panel-head"><h3 style="font-size:14px;">${qi+1}. ${escapeHtml(q.text)}</h3><span class="sub">${answered.length}/${list.length} người trả lời</span></div><div class="panel-body">${body}</div></div>`;
@@ -604,7 +700,9 @@
       </div>
       <p class="sub" style="text-align:center;">Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}${who? ` — ${escapeHtml(who)}` : ''}${draft.isQuiz? ` — Điểm: <b>${r.score||0}/${r.maxScore||0}</b>` : ''}</p>
       <div class="panel"><div class="panel-body">
-        ${draft.questions.map((q,qi)=>{ const t = surveyAnswerText(r.answers? r.answers[q.id] : null); return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b style="white-space:pre-wrap; text-align:right;">${escapeHtml(t||'(không trả lời)')}</b></div>`; }).join('')}
+        ${draft.questions.map((q,qi)=>{ const v = r.answers? r.answers[q.id] : null;
+          if(q.type==='file'){ const fs = surveyFileList(v); return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b style="text-align:right;">${fs.length? fs.map(f=>`<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a>`).join('<br>') : '(không trả lời)'}</b></div>`; }
+          const t = surveyAnswerText(v, q); return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b style="white-space:pre-wrap; text-align:right;">${escapeHtml(t||'(không trả lời)')}</b></div>`; }).join('')}
       </div></div>`;
   }
   function renderSurveyAnswersTabHtml(draft){
@@ -667,6 +765,7 @@
     if(!confirm(`⚠️ Xoá VĨNH VIỄN phiếu nộp lúc ${new Date(r.submittedAt).toLocaleString('vi-VN')}${who? ' ('+who+')' : ''}?\n\nPhiếu sẽ bị xoá khỏi cơ sở dữ liệu và KHÔNG khôi phục được. Số phiếu đã nhận giảm đi 1${r.respondentKey? '; người này được trả lời thêm 1 lần' : ''}.`)) return;
     try{
       await rtdb.ref(`survey_responses/${sid}/${r.id}`).remove();
+      draft.questions.filter(q=> q.type==='file').forEach(q=> surveyFileList(r.answers && r.answers[q.id]).forEach(f=>{ if(f.path && typeof storage!=='undefined'){ try{ storage.ref(f.path).delete().catch(()=>{}); }catch(e){} } }));
       await rtdb.ref(`surveys/${sid}/responseCount`).transaction(c=> Math.max(0, (parseInt(c,10)||0)-1));
       if(r.respondentKey) await rtdb.ref(`survey_respondents/${sid}/${r.respondentKey}`).transaction(c=> Math.max(0, (parseInt(c,10)||0)-1));
       await pushLog('xoá 1 phiếu trả lời', draft.title);
@@ -883,12 +982,19 @@
         const q=draft.questions.find(x=>x.id===sel.dataset.qid);
         if(q){
           q.type = sel.value;
+          surveyEnsureTypeDefaults(q);
           if(surveyQTypeHasOptions(q.type) && (!q.options||!q.options.length)) q.options=['Phương án 1'];
           if(!surveyQTypeHasOptions(q.type)) q.numericOnly = q.numericOnly||false;
           q.optionBranches = (q.options||[]).map((_,i)=> (q.optionBranches&&q.optionBranches[i]) || '__next__');
         }
         renderSurveyTab(el);
       });
+      el.querySelectorAll('.q-scale').forEach(sel=> sel.onchange = ()=>{ const q = draft.questions.find(x=>x.id===sel.dataset.qid); if(!q) return; q[sel.dataset.f] = parseInt(sel.value,10); renderSurveyTab(el); });
+      el.querySelectorAll('.q-scale-lbl').forEach(inp=> inp.oninput = ()=>{ const q = draft.questions.find(x=>x.id===inp.dataset.qid); if(q) q[inp.dataset.f] = inp.value; });
+      el.querySelectorAll('.q-grid-item').forEach(inp=> inp.oninput = ()=>{ const q = draft.questions.find(x=>x.id===inp.dataset.qid); if(q) q[inp.dataset.kind][+inp.dataset.i] = inp.value; });
+      el.querySelectorAll('.q-grid-add').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(!q) return; const k = btn.dataset.kind; q[k] = q[k]||[]; q[k].push(`${k==='rows'? 'Hàng' : 'Cột'} ${q[k].length+1}`); renderSurveyTab(el); });
+      el.querySelectorAll('.q-grid-del').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(!q) return; const k = btn.dataset.kind; if((q[k]||[]).length<=1){ alert(`Câu hỏi lưới cần ít nhất 1 ${k==='rows'? 'hàng' : 'cột'}.`); return; } q[k].splice(+btn.dataset.i,1); renderSurveyTab(el); });
+      el.querySelectorAll('.q-file').forEach(sel=> sel.onchange = ()=>{ const q = draft.questions.find(x=>x.id===sel.dataset.qid); if(!q) return; q[sel.dataset.f] = sel.dataset.f==='fileKind'? sel.value : parseInt(sel.value,10); });
       el.querySelectorAll('.q-required').forEach(cb=> cb.onchange = ()=>{ const q=draft.questions.find(x=>x.id===cb.dataset.qid); if(q) q.required = cb.checked; });
       el.querySelectorAll('.q-numeric').forEach(cb=> cb.onchange = ()=>{ const q=draft.questions.find(x=>x.id===cb.dataset.qid); if(q) q.numericOnly = cb.checked; renderSurveyTab(el); });
       el.querySelectorAll('.q-option-text').forEach(inp=> inp.oninput = ()=>{ const q=draft.questions.find(x=>x.id===inp.dataset.qid); if(q) q.options[parseInt(inp.dataset.oi,10)] = inp.value; });
@@ -1406,6 +1512,22 @@
           ${many? `<div class="ps-opt-found" data-qid="${q.id}"></div>` : ''}
           <div class="ps-opt-list${opts.length>8? ' scroll' : ''}" data-qid="${q.id}">${opts.map((o,oi)=>`<label class="sv-filter-item sv-opt sv-opt-full ps-opt" data-idx="${oi}" data-norm="${escapeHtml(surveyFold(o))}"><input type="${isChk?'checkbox':'radio'}" ${isChk? '' : `name="ps-q-${q.id}"`} class="ps-answer" data-qid="${q.id}" data-type="${q.type}" value="${escapeHtml(o)}" ${isOn(o)?'checked':''}><span class="ps-opt-txt">${escapeHtml(o)}</span></label>`).join('')}</div>`;
       }
+      else if(q.type==='date') field = `<input type="date" class="ps-answer" data-qid="${q.id}" data-type="date" value="${escapeHtml(prevVal||'')}" style="max-width:230px;">`;
+      else if(q.type==='time') field = `<input type="time" class="ps-answer" data-qid="${q.id}" data-type="time" value="${escapeHtml(prevVal||'')}" style="max-width:170px;">`;
+      else if(q.type==='scale'){
+        field = `<div class="ps-scale">${q.scaleMinLabel? `<div class="ps-scale-end">${escapeHtml(q.scaleMinLabel)}</div>` : ''}<div class="ps-scale-opts">${surveyScaleValues(q).map(v=>`<label class="ps-scale-opt"><span>${v}</span><input type="radio" name="ps-q-${q.id}" class="ps-answer" data-qid="${q.id}" data-type="scale" value="${v}" ${String(prevVal)===v?'checked':''}></label>`).join('')}</div>${q.scaleMaxLabel? `<div class="ps-scale-end">${escapeHtml(q.scaleMaxLabel)}</div>` : ''}</div>`;
+      }
+      else if(surveyIsGrid(q)){
+        const isChk = q.type==='grid_checkbox';
+        field = `<div class="ps-grid-wrap"><table class="ps-grid"><thead><tr><th></th>${(q.cols||[]).map(c=>`<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${(q.rows||[]).map((rw,i)=>`<tr><th>${escapeHtml(rw)}</th>${(q.cols||[]).map(c=>{ const cur = surveyGridCell(prevVal, i); const on = isChk? (Array.isArray(cur) && cur.includes(c)) : cur===c; return `<td><label class="ps-grid-cell" title="${escapeHtml(rw)} · ${escapeHtml(c)}"><input type="${isChk?'checkbox':'radio'}" ${isChk? '' : `name="ps-g-${q.id}-${i}"`} class="ps-grid-in" data-qid="${q.id}" data-row="${i}" value="${escapeHtml(c)}" ${on?'checked':''}></label></td>`; }).join('')}</tr>`).join('')}</tbody></table></div>${isChk? '' : ''}`;
+      }
+      else if(q.type==='file'){
+        const kind = SURVEY_FILE_KINDS[q.fileKind] || SURVEY_FILE_KINDS.any;
+        field = `<div class="ps-file" data-qid="${q.id}"><input type="file" class="ps-file-in" data-qid="${q.id}" ${(+q.maxFiles||1)>1? 'multiple' : ''} ${kind.accept? `accept="${kind.accept}"` : ''} style="display:none;">
+          <button type="button" class="btn btn-ghost ps-file-btn" data-qid="${q.id}">📎 Chọn tệp để tải lên</button>
+          <div class="sub" style="margin-top:4px;">Tối đa ${+q.maxFiles||1} tệp, mỗi tệp không quá ${+q.maxSizeMb||10} MB${q.fileKind && q.fileKind!=='any'? ' · '+kind.label : ''}.</div>
+          <div class="ps-file-list" data-qid="${q.id}"></div></div>`;
+      }
       const desc = q.description? `<div class="sub" style="margin:-2px 0 8px; font-size:12.5px; white-space:pre-wrap;">${escapeHtml(q.description)}</div>` : '';
       return `<div class="field full" style="margin-bottom:18px;"><label>${label}</label>${desc}${field}</div>`;
     }
@@ -1481,6 +1603,7 @@
       root.querySelectorAll('[data-numeric="1"]').forEach(inp=> attachPublicNumericMask(inp));
       wirePublicOptionTools(root, secQuestions);
       wirePublicDropdowns(root, secQuestions);
+      wirePublicFiles(root, secQuestions);
       const sw = document.getElementById('ps-switch-acc');
       if(sw) sw.onclick = async (e)=>{ e.preventDefault(); try{ await auth.signOut(); }catch(err){} loadSurvey(); };
 
@@ -1491,10 +1614,15 @@
           const isNumeric = (q.type==='short' || q.type==='paragraph') && q.numericOnly;
           let val;
           if(q.type==='checkbox'){ val = Array.from(document.querySelectorAll(`.ps-answer[data-qid="${q.id}"]:checked`)).map(x=>x.value); }
-          else if(q.type==='radio'){ const x=document.querySelector(`.ps-answer[data-qid="${q.id}"]:checked`); val = x? x.value : ''; }
+          else if(q.type==='radio' || q.type==='scale'){ const x=document.querySelector(`.ps-answer[data-qid="${q.id}"]:checked`); val = x? x.value : ''; }
+          else if(surveyIsGrid(q)){ val = (q.rows||[]).map((_,i)=> q.type==='grid_checkbox'? Array.from(document.querySelectorAll(`.ps-grid-in[data-qid="${q.id}"][data-row="${i}"]:checked`)).map(x=>x.value) : ((document.querySelector(`.ps-grid-in[data-qid="${q.id}"][data-row="${i}"]:checked`)||{}).value||'')); }
+          else if(q.type==='file'){ val = surveyFileList(collected[q.id]); }
           else { const x=document.querySelector(`.ps-answer[data-qid="${q.id}"]`); val = x? x.value.trim() : ''; if(isNumeric) val = val.replace(/\s/g,''); }
           collected[q.id] = val;
-          if(q.required && (val==null || val==='' || (Array.isArray(val)&&val.length===0))) missingRequired = true;
+          if(q.required){
+            if(surveyIsGrid(q)){ if((q.rows||[]).some((_,i)=>{ const c = val[i]; return Array.isArray(c)? !c.length : !c; })) missingRequired = true; }
+            else if(!surveyHasAnswer(q, val)) missingRequired = true;
+          }
           if(branchTarget===null && (q.type==='radio'||q.type==='checkbox'||q.type==='dropdown') && q.branchEnabled!==false && q.optionBranches && q.optionBranches.length){
             const selectedOpts = Array.isArray(val) ? val : (val? [val] : []);
             for(const so of selectedOpts){
@@ -1503,6 +1631,7 @@
             }
           }
         });
+        if(uploadingNow>0){ alert('Tệp đang được tải lên, vui lòng chờ tải xong rồi bấm lại.'); return; }
         if(missingRequired){ alert('Vui lòng điền đầy đủ các câu hỏi bắt buộc (có dấu *) trước khi tiếp tục.'); return; }
 
         if(isLastSection || branchTarget==='__submit__'){
@@ -1541,6 +1670,59 @@
     }
 
     // Menu thả xuống: ô gọn bấm vào bung danh sách (có ô tìm khi nhiều phương án), chọn xong tự thu gọn.
+    // Câu "Tải tệp lên": chọn tệp -> kiểm tra số lượng/dung lượng/loại -> tải ngay lên Firebase Storage
+    // (có % tiến độ) -> lưu {name,url,size,path} vào câu trả lời; có nút ✕ để bỏ tệp đã tải.
+    let uploadingNow = 0;
+    function wirePublicFiles(root, qs){
+      qs.filter(q=> q.type==='file').forEach(q=>{
+        const box = root.querySelector(`.ps-file[data-qid="${q.id}"]`); if(!box) return;
+        const input = box.querySelector('.ps-file-in'), btn = box.querySelector('.ps-file-btn'), listEl = box.querySelector('.ps-file-list');
+        const maxFiles = +q.maxFiles||1, maxBytes = (+q.maxSizeMb||10)*1024*1024;
+        const kind = q.fileKind||'any';
+        const okKind = f=>{ const n = (f.name||'').toLowerCase(), t = f.type||'';
+          if(kind==='image') return t.startsWith('image/');
+          if(kind==='pdf') return t==='application/pdf' || n.endsWith('.pdf');
+          if(kind==='doc') return /\.(pdf|docx?|xlsx?)$/.test(n);
+          return true; };
+        const paint = ()=>{
+          const files = surveyFileList(collected[q.id]);
+          listEl.innerHTML = files.map((f,i)=>`<div class="ps-file-item"><a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a> <span class="sub">(${f.size>=1048576? (f.size/1048576).toFixed(1).replace('.',',')+' MB' : Math.max(1, Math.round(f.size/1024))+' KB'})</span><button type="button" class="ps-file-rm" data-i="${i}" title="Bỏ tệp này">✕</button></div>`).join('') + (box.__progress? `<div class="sub">${box.__progress}</div>` : '');
+          btn.disabled = files.length>=maxFiles || uploadingNow>0;
+          btn.textContent = files.length>=maxFiles? `Đã đủ ${maxFiles} tệp` : '📎 Chọn tệp để tải lên';
+          listEl.querySelectorAll('.ps-file-rm').forEach(b=> b.onclick = ()=>{
+            const arr = surveyFileList(collected[q.id]); const [rm] = arr.splice(+b.dataset.i, 1); collected[q.id] = arr;
+            if(rm && rm.path && typeof storage!=='undefined'){ try{ storage.ref(rm.path).delete().catch(()=>{}); }catch(e){} }
+            paint();
+          });
+        };
+        btn.onclick = ()=> input.click();
+        input.onchange = async ()=>{
+          const picked = Array.from(input.files||[]); input.value = '';
+          const have = surveyFileList(collected[q.id]);
+          if(have.length + picked.length > maxFiles){ alert(`Câu này chỉ nhận tối đa ${maxFiles} tệp.`); return; }
+          const bad = picked.find(f=> !okKind(f)); if(bad){ alert(`Tệp "${bad.name}" không đúng loại cho phép (${(SURVEY_FILE_KINDS[kind]||SURVEY_FILE_KINDS.any).label}).`); return; }
+          const big = picked.find(f=> f.size > maxBytes); if(big){ alert(`Tệp "${big.name}" lớn hơn ${+q.maxSizeMb||10} MB, không tải lên được.`); return; }
+          for(const f of picked){
+            uploadingNow++;
+            const safe = (f.name||'tep').replace(/[^\w.\-À-ỹ ]/g,'_').slice(-80);
+            const path = `survey_uploads/${survey.id}/${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}_${safe}`;
+            try{
+              const ref = storage.ref(path);
+              const task = ref.put(f);
+              if(task && task.on) task.on('state_changed', snap=>{ if(snap && snap.totalBytes){ box.__progress = `⏳ Đang tải "${f.name}"… ${Math.round(snap.bytesTransferred/snap.totalBytes*100)}%`; paint(); } });
+              await task;
+              const url = await ref.getDownloadURL();
+              collected[q.id] = surveyFileList(collected[q.id]).concat([{ name:f.name, size:f.size, type:f.type||'', path, url }]);
+            }catch(e){
+              console.error('[Khảo sát công khai] Tải tệp lỗi:', e);
+              alert(`Không tải được tệp "${f.name}".` + (e && /unauthorized|permission/i.test(String(e.code||e.message))? ' Máy chủ chưa cho phép tải tệp lên biểu mẫu này — vui lòng báo cho người tạo biểu mẫu.' : ' Vui lòng kiểm tra kết nối mạng rồi thử lại.'));
+            }
+            uploadingNow--; box.__progress = ''; paint();
+          }
+        };
+        paint();
+      });
+    }
     function wirePublicDropdowns(root, qs){
       qs.filter(q=> q.type==='dropdown').forEach(q=>{
         const dd = root.querySelector(`.ps-dd[data-qid="${q.id}"]`); if(!dd) return;
