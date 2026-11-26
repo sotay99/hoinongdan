@@ -475,7 +475,8 @@ exports.meetingMeta = functions.https.onRequest(async (req, res) => {
       if (snap.exists() && !snap.val().deleted) {
         const m = snap.val();
         const name = String(m.title || "Cuộc họp").trim();
-        const n = Array.isArray(m.docs) ? m.docs.filter(Boolean).length : Object.keys(m.docs || {}).length;
+        // Chỉ đếm tệp — thư mục (type:'folder') trong cây tài liệu không tính.
+        const n = (Array.isArray(m.docs) ? m.docs : Object.values(m.docs || {})).filter((d) => d && d.type !== "folder").length;
         ogTitle = mtIsOpen(m) ? `Tài liệu: ${name}` : `${name} (tài liệu đã đóng)`;
         const when = [mtFmtStart(m.startAt), m.place ? String(m.place) : ""].filter(Boolean).join(" · ");
         description = mtIsOpen(m)

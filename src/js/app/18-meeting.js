@@ -3,7 +3,9 @@
   //
   // Mỗi cuộc họp = một bản ghi meetings/{mã} ở CẤP GỐC (giống surveys/) để đại biểu bấm link công khai
   // /phonghop/{mã} (hoặc quét mã QR) là đọc được ngay — KHÔNG cần đăng nhập, KHÔNG cần biết mã xã.
-  // Bản ghi chứa thông tin cuộc họp + danh sách tài liệu ĐÃ SẮP THEO THỨ TỰ CHƯƠNG TRÌNH (mảng docs).
+  // Bản ghi chứa thông tin cuộc họp + danh sách tài liệu ĐÃ SẮP THEO THỨ TỰ CHƯƠNG TRÌNH (mảng docs). Trong
+  // mảng có cả THƯ MỤC (type:'folder', nhiều tầng qua parentId) — duyệt kiểu Google Drive: bấm thư mục là vào
+  // trong, thanh địa chỉ ở trên; mỗi cuộc họp vẫn chỉ MỘT link/mã QR cho toàn bộ cây thư mục.
   // Tệp tải lên nằm ở Storage: meeting_files/{mã cuộc họp}/{mã tài liệu}_{tên an toàn}. Tài liệu chọn
   // từ Trung tâm dữ liệu chỉ được THAM CHIẾU (không chép tệp), gỡ khỏi cuộc họp thì tệp gốc vẫn còn.
   //
@@ -17,7 +19,11 @@
   // Giới hạn ký tự: tên cuộc họp/tài liệu hiện ở nhiều chỗ chật (áp phích QR, màn hình chiếu, khung xem
   // trước Zalo, thẻ dán bàn) nên giữ ở mức 150.
   const MT_TITLE_MAX = 150, MT_PLACE_MAX = 100, MT_NOTE_MAX = 1000, MT_DOC_TITLE_MAX = 150;
-  const MT_MAX_DOCS = 60;
+  // Cây thư mục tài liệu: thư mục là một mục trong mảng docs có type:'folder'; mỗi mục có parentId (null = thư
+  // mục gốc "Tài liệu cuộc họp"). Thứ tự trong một thư mục = thứ tự trong mảng docs. Cuộc họp cũ không có
+  // parentId nên mọi tệp nằm ở gốc, giữ nguyên thứ tự.
+  const MT_MAX_FILES = 100, MT_MAX_FOLDERS = 50, MT_MAX_DEPTH = 5;
+  const MT_ROOT_NAME = 'Tài liệu cuộc họp';
   const MT_ID_RE = /^[A-Za-z0-9_-]{6,128}$/;
   const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
@@ -36,6 +42,70 @@
     return (Array.isArray(d) ? d : Object.values(d||{})).filter(x=> x && x.id);
   }
   function mtFind(id){ const S = mtS(); return S.list.find(m=> m.id===id) || null; }
+  // ---- Cây thư mục ----
+  function mtIsFolder(d){ return !!d && d.type==='folder'; }
+  function mtFileCount(m){ return mtDocs(m).filter(d=> !mtIsFolder(d)).length; }
+  function mtFolderCount(m){ return mtDocs(m).filter(mtIsFolder).length; }
+  function mtFolderMap(m){ const map = {}; mtDocs(m).forEach(d=>{ if(mtIsFolder(d)) map[d.id] = d; }); return map; }
+  // Thư mục cha hợp lệ của một mục (cha không còn tồn tại thì coi như nằm ở gốc).
+  function mtParentId(d, map){ return d && d.parentId && d.parentId!==d.id && map[d.parentId] ? d.parentId : null; }
+  function mtChildren(m, folderId){ const map = mtFolderMap(m); return mtDocs(m).filter(d=> mtParentId(d, map)===(folderId||null)); }
+  function mtChildFiles(m, folderId){ return mtChildren(m, folderId).filter(d=> !mtIsFolder(d)); }
+  // Đường dẫn từ gốc tới thư mục (không gồm gốc): [thư mục cấp 1, cấp 2, …, chính nó].
+  function mtFolderPath(m, folderId){
+    const map = mtFolderMap(m), out = [];
+    let cur = folderId ? map[folderId] : null, guard = 0;
+    while(cur && guard++ < 20){ out.unshift(cur); const pid = mtParentId(cur, map); cur = pid ? map[pid] : null; }
+    return out;
+  }
+  function mtDescendantIds(m, folderId){
+    const all = mtDocs(m), map = mtFolderMap(m), out = new Set();
+    const walk = id=>{ all.forEach(d=>{ if(mtParentId(d, map)===id && !out.has(d.id)){ out.add(d.id); if(mtIsFolder(d)) walk(d.id); } }); };
+    walk(folderId);
+    return out;
+  }
+  // Số tầng thư mục của cả nhánh, tính cả chính thư mục đó (để chặn vượt MT_MAX_DEPTH khi di chuyển).
+  function mtSubtreeHeight(m, folderId){
+    const all = mtDocs(m), map = mtFolderMap(m); let h = 1;
+    const walk = (id, depth)=>{ h = Math.max(h, depth); all.forEach(d=>{ if(mtIsFolder(d) && mtParentId(d, map)===id) walk(d.id, depth+1); }); };
+    walk(folderId, 1);
+    return h;
+  }
+  function mtCountsText(m, folderId){
+    const kids = mtChildren(m, folderId), f = kids.filter(d=> !mtIsFolder(d)).length, s = kids.filter(mtIsFolder).length;
+    return [f ? `${f} tệp` : '', s ? `${s} thư mục` : ''].filter(Boolean).join(' · ') || 'Thư mục trống';
+  }
+  // Thanh địa chỉ: gốc › … › thư mục đang mở (in đậm, không bấm). attr = tên data-* để gắn sự kiện.
+  function mtCrumbsHtml(path, attr){
+    const items = [{ id:'', title: MT_ROOT_NAME }].concat(path.map(f=> ({ id:f.id, title: mtDocTitle(f) })));
+    // Chữ chảy liền (inline) để tên dài tự xuống hàng; dấu "›" dính liền với tên PHÍA SAU nó (&nbsp;) nên
+    // không bao giờ đứng trơ trọi một mình ở cuối/đầu dòng.
+    return `<nav class="mt-crumbs" aria-label="Đường dẫn thư mục">${items.map((it,i)=>{
+      const label = `${i===0 ? '📁 ' : ''}${escapeHtml(it.title)}`;
+      const sep = i ? '<span class="mt-crumb-sep" aria-hidden="true">›&nbsp;</span>' : '';
+      return sep + (i===items.length-1
+        ? `<span class="mt-crumb cur" aria-current="page">${label}</span>`
+        : `<span role="button" tabindex="0" class="mt-crumb preview-allow" data-${attr}="${escapeHtml(it.id)}">${label}</span>`);
+    }).join(' ')}</nav>`;
+  }
+  // Mục trên thanh địa chỉ là <span role="button"> (thẻ <button> không ngắt dòng giữa chừng được, tên thư mục
+  // dài sẽ bị đẩy cả cụm xuống dòng) — bấm Enter/Space khi đang chọn bằng bàn phím cũng như bấm chuột.
+  if(!window.__mtCrumbKeys){
+    window.__mtCrumbKeys = true;
+    document.addEventListener('keydown', e=>{
+      const t = e.target;
+      if((e.key==='Enter' || e.key===' ') && t && t.matches && t.matches('.mt-crumb[role="button"]')){ e.preventDefault(); t.click(); }
+    });
+  }
+  // Thư mục đang đứng còn tồn tại không; mất (bị xoá/chuyển đi) thì lùi về thư mục cha gần nhất còn lại trên
+  // đường dẫn cũ. Trả về { id, notice }.
+  function mtResolveFolder(m, wantedId, oldPathIds){
+    const map = mtFolderMap(m);
+    if(!wantedId || map[wantedId]) return { id: wantedId || null, notice:'' };
+    const keep = (oldPathIds||[]).filter(id=> map[id]);
+    const id = keep.length ? keep[keep.length-1] : null;
+    return { id, notice:`Thư mục đang mở vừa bị xoá hoặc chuyển đi — đã quay về “${id ? mtDocTitle(map[id]) : MT_ROOT_NAME}”.` };
+  }
   // Nhãn ô nhập: dấu * đỏ cho ô bắt buộc, chữ xám "(không bắt buộc)" cho ô tuỳ chọn.
   function mtLabel(text, required, extra){
     return `<label>${escapeHtml(text)} ${required ? '<span style="color:var(--red);">*</span>' : '<span class="mt-hint">(không bắt buộc)</span>'}${extra ? ` <span class="mt-hint">${escapeHtml(extra)}</span>` : ''}</label>`;
@@ -133,8 +203,9 @@
       status:'open', closeAt:'', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(),
       docs:[
         txt('Chương trình hội nghị.txt', '1. Tuyên bố lý do, giới thiệu đại biểu\n2. Báo cáo sơ kết 6 tháng đầu năm\n3. Thảo luận\n4. Phát động thi đua 6 tháng cuối năm\n5. Bế mạc'),
-        txt('Dự thảo báo cáo sơ kết.txt', 'DỰ THẢO\n\nBÁO CÁO SƠ KẾT CÔNG TÁC HỘI 6 THÁNG ĐẦU NĂM\n\n(Nội dung mẫu trong môi trường tham quan.)'),
-        txt('Phụ lục số liệu.txt', 'Phụ lục số liệu mẫu — môi trường tham quan.'),
+        { id:'mtdemofolder1', type:'folder', parentId:null, title:'Báo cáo và phụ lục', addedAt:new Date().toISOString() },
+        { ...txt('Dự thảo báo cáo sơ kết.txt', 'DỰ THẢO\n\nBÁO CÁO SƠ KẾT CÔNG TÁC HỘI 6 THÁNG ĐẦU NĂM\n\n(Nội dung mẫu trong môi trường tham quan.)'), parentId:'mtdemofolder1' },
+        { ...txt('Phụ lục số liệu.txt', 'Phụ lục số liệu mẫu — môi trường tham quan.'), parentId:'mtdemofolder1' },
       ],
     }];
   }
@@ -226,10 +297,12 @@
     }
   }
   function mtSaveDocs(m, docs){ return mtUpdate(m.id, { docs: docs.map(d=> ({...d})) }); }
-  function mtDeleteStorage(doc){
-    if(doc && doc.source==='upload' && doc.storagePath && typeof storage!=='undefined'){
-      try{ storage.ref(doc.storagePath).delete().catch(e=> console.warn('[Phòng họp] Không xoá được tệp trên Storage (bỏ qua):', e)); }catch(e){}
-    }
+  // Xoá tệp trên Storage — chỉ tệp tải lên cho cuộc họp, và chỉ khi không còn bản sao nào (trong `remaining`)
+  // dùng chung đường dẫn đó. Tệp chọn từ Trung tâm dữ liệu không bao giờ bị xoá ở đây.
+  function mtDeleteStorage(doc, remaining){
+    if(!doc || mtIsFolder(doc) || doc.source!=='upload' || !doc.storagePath || typeof storage==='undefined') return;
+    if((remaining||[]).some(x=> x && x.id!==doc.id && x.storagePath===doc.storagePath)) return;
+    try{ storage.ref(doc.storagePath).delete().catch(e=> console.warn('[Phòng họp] Không xoá được tệp trên Storage (bỏ qua):', e)); }catch(e){}
   }
   function mtSetUploading(text){
     mtS().uploading = text || '';
@@ -260,12 +333,12 @@
     if(file.size > MT_MAX_FILE_MB*1024*1024){ alert(`Tệp "${file.name}" lớn hơn ${MT_MAX_FILE_MB} MB, không tải lên được. Đồng chí có thể nén hoặc tách nhỏ tệp rồi thử lại.`); return true; }
     return false;
   }
-  async function mtAddUploads(m){
+  async function mtAddUploads(m, folderId){
     if(!mtWriteOk()) return;
     const files = await mtPickFiles(true);
     if(!files.length) return;
     const fresh = mtFind(m.id) || m;
-    if(mtDocs(fresh).length + files.length > MT_MAX_DOCS){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_DOCS} tài liệu.`); return; }
+    if(mtFileCount(fresh) + files.length > MT_MAX_FILES){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_FILES} tệp.`); return; }
     const added = [];
     for(const f of files){
       if(mtFileTooBig(f)) continue;
@@ -273,7 +346,7 @@
       try{
         const up = await mtUploadOne(fresh, f, docId);
         const now = new Date().toISOString();
-        added.push({ id:docId, name:f.name, title:mtStripExt(f.name).slice(0, MT_DOC_TITLE_MAX), mimeType:f.type||'application/octet-stream', size:f.size, source:'upload', ...up, addedAt:now, updatedAt:now });
+        added.push({ id:docId, parentId: folderId || null, name:f.name, title:mtStripExt(f.name).slice(0, MT_DOC_TITLE_MAX), mimeType:f.type||'application/octet-stream', size:f.size, source:'upload', ...up, addedAt:now, updatedAt:now });
       }catch(e){
         console.error('[Phòng họp] Tải tệp lỗi:', e);
         alert(`Không tải lên được "${f.name}".\n\n${e && e.message ? e.message : 'Lỗi không xác định'}`);
@@ -300,32 +373,99 @@
     const old = docs[i];
     docs[i] = { ...old, name:f.name, mimeType:f.type||'application/octet-stream', size:f.size, source:'upload', ...up, updatedAt:new Date().toISOString(), replacedAt:new Date().toISOString() };
     delete docs[i].driveId; delete docs[i].driveSpace; delete docs[i].storageUrl;
-    if(await mtSaveDocs(latest, docs)){ mtDeleteStorage(old); showToast(`Đã thay tệp cho "${mtDocTitle(old)}". Đại biểu mở lại là thấy bản mới.`); }
+    if(await mtSaveDocs(latest, docs)){ mtDeleteStorage(old, docs); showToast(`Đã thay tệp cho "${mtDocTitle(old)}". Đại biểu mở lại là thấy bản mới.`); }
   }
-  async function mtRemoveDoc(m, docId){
+  // ---- Thao tác trên cây thư mục (đều đọc bản MỚI NHẤT trong danh sách trước khi ghi) ----
+  function mtLatest(m){ return mtFind(m.id) || m; }
+  function mtItem(m, id){ return mtDocs(m).find(d=> d.id===id) || null; }
+  async function mtCreateFolder(m, parentId){
+    if(!mtWriteOk()) return null;
+    const cur = mtLatest(m);
+    if(mtFolderCount(cur) >= MT_MAX_FOLDERS){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_FOLDERS} thư mục.`); return null; }
+    if(mtFolderPath(cur, parentId).length + 1 > MT_MAX_DEPTH){ alert(`Chỉ tạo được tối đa ${MT_MAX_DEPTH} tầng thư mục lồng nhau.`); return null; }
+    const name = await mtPromptModal('➕ Thư mục mới', 'Tên thư mục', 'Thư mục mới');
+    if(!name) return null;
+    const latest = mtLatest(m), now = new Date().toISOString();
+    const folder = { id: mtDocId(), type:'folder', parentId: parentId || null, title: name, addedAt: now, updatedAt: now };
+    return await mtSaveDocs(latest, mtDocs(latest).concat([folder])) ? folder : null;
+  }
+  async function mtRenameItem(m, id){
     if(!mtWriteOk()) return;
-    const docs = mtDocs(m), doc = docs.find(d=> d.id===docId);
-    if(!doc) return;
-    const note = doc.source==='drive' ? '\n\nTệp gốc trong Trung tâm dữ liệu vẫn được giữ nguyên.' : '\n\nTệp đã tải lên sẽ bị xoá hẳn.';
-    if(!confirm(`Gỡ "${mtDocTitle(doc)}" khỏi cuộc họp?${note}`)) return;
-    if(await mtSaveDocs(m, docs.filter(d=> d.id!==docId))) mtDeleteStorage(doc);
+    const it = mtItem(mtLatest(m), id); if(!it) return;
+    const name = await mtPromptModal(mtIsFolder(it) ? '✏️ Đổi tên thư mục' : '✏️ Đổi tên tài liệu', mtIsFolder(it) ? 'Tên thư mục' : 'Tên hiển thị cho đại biểu', mtDocTitle(it));
+    if(!name || name===mtDocTitle(it)) return;
+    const docs = mtDocs(mtLatest(m)), x = docs.find(d=> d.id===id); if(!x) return;
+    x.title = name; x.updatedAt = new Date().toISOString();
+    if(await mtSaveDocs(mtLatest(m), docs)) mtFlashSaved();
   }
-  async function mtMoveDoc(m, docId, toIndex){
+  // Tạo bản sao (giống Google Drive): "Bản sao của …", nằm ngay dưới bản gốc, DÙNG CHUNG tệp đã lưu.
+  async function mtDuplicateDoc(m, id){
     if(!mtWriteOk()) return;
-    const docs = mtDocs(m), from = docs.findIndex(d=> d.id===docId);
-    if(from<0 || toIndex<0 || toIndex>=docs.length || from===toIndex) return;
-    const [x] = docs.splice(from, 1);
-    docs.splice(toIndex, 0, x);
-    await mtSaveDocs(m, docs);
+    const latest = mtLatest(m), docs = mtDocs(latest), i = docs.findIndex(d=> d.id===id);
+    if(i<0 || mtIsFolder(docs[i])) return;
+    if(mtFileCount(latest) >= MT_MAX_FILES){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_FILES} tệp.`); return; }
+    const now = new Date().toISOString(), copy = { ...docs[i], id: mtDocId(), title: ('Bản sao của ' + mtDocTitle(docs[i])).slice(0, MT_DOC_TITLE_MAX), addedAt: now, updatedAt: now };
+    delete copy.replacedAt;
+    docs.splice(i+1, 0, copy);
+    if(await mtSaveDocs(latest, docs)) showToast('Đã tạo bản sao.');
   }
-  async function mtRenameDoc(m, docId, title){
-    const docs = mtDocs(m), doc = docs.find(d=> d.id===docId);
-    if(!doc) return;
-    const t = String(title||'').trim().slice(0, MT_DOC_TITLE_MAX);
-    if(!t){ alert('Tên tài liệu không được để trống.'); mtPaintEditorParts(document.getElementById('content')); return; }
-    if(!t || t===mtDocTitle(doc)) return;
-    doc.title = t;
-    if(await mtSaveDocs(m, docs)) mtFlashSaved();
+  async function mtDeleteItem(m, id){
+    if(!mtWriteOk()) return;
+    const latest = mtLatest(m), it = mtItem(latest, id); if(!it) return;
+    let removeIds;
+    if(mtIsFolder(it)){
+      const desc = mtDescendantIds(latest, id), all = mtDocs(latest);
+      const nf = all.filter(d=> desc.has(d.id) && !mtIsFolder(d)).length, ns = all.filter(d=> desc.has(d.id) && mtIsFolder(d)).length;
+      const inside = desc.size ? `\n\nBên trong có ${[nf ? nf+' tệp' : '', ns ? ns+' thư mục' : ''].filter(Boolean).join(' và ')} — sẽ bị xoá cùng.` : '';
+      if(!confirm(`Xoá thư mục “${mtDocTitle(it)}”${desc.size ? ` và ${desc.size} mục bên trong` : ''}?${inside}\n\nKhông khôi phục lại được. Tệp chọn từ Trung tâm dữ liệu vẫn giữ nguyên ở đó.`)) return;
+      removeIds = new Set([id, ...desc]);
+    } else {
+      const shared = mtDocs(latest).some(d=> d.id!==id && it.storagePath && d.storagePath===it.storagePath);
+      const note = it.source==='drive' ? '\n\nTệp gốc trong Trung tâm dữ liệu vẫn được giữ nguyên.' : shared ? '\n\nCác bản sao khác của tài liệu này vẫn giữ nguyên.' : '\n\nTệp đã tải lên sẽ bị xoá hẳn.';
+      if(!confirm(`Xoá “${mtDocTitle(it)}” khỏi cuộc họp?${note}`)) return;
+      removeIds = new Set([id]);
+    }
+    const now = mtLatest(m), all = mtDocs(now), removed = all.filter(d=> removeIds.has(d.id)), left = all.filter(d=> !removeIds.has(d.id));
+    if(await mtSaveDocs(now, left)) removed.forEach((d,i)=> mtDeleteStorage(d, left.concat(removed.slice(i+1))));
+  }
+  // Kiểm tra có chuyển được `id` vào thư mục `targetId` (null = gốc) không — trả về lý do nếu không được.
+  function mtMoveBlockReason(m, id, targetId){
+    const it = mtItem(m, id); if(!it) return 'Mục này không còn trong cuộc họp.';
+    const map = mtFolderMap(m);
+    if((targetId||null)===mtParentId(it, map)) return 'Mục này đang nằm ở đây rồi.';
+    if(mtIsFolder(it)){
+      if(targetId===id || (targetId && mtDescendantIds(m, id).has(targetId))) return 'Không chuyển được thư mục vào chính nó hoặc thư mục con của nó.';
+      if(mtFolderPath(m, targetId).length + mtSubtreeHeight(m, id) > MT_MAX_DEPTH) return `Vượt quá ${MT_MAX_DEPTH} tầng thư mục lồng nhau.`;
+    }
+    return '';
+  }
+  async function mtMoveItem(m, id, targetId){
+    if(!mtWriteOk()) return false;
+    const latest = mtLatest(m), why = mtMoveBlockReason(latest, id, targetId);
+    if(why){ if(!/đang nằm ở đây/.test(why)) alert(why); return false; }
+    const docs = mtDocs(latest), i = docs.findIndex(d=> d.id===id);
+    const [x] = docs.splice(i, 1);
+    x.parentId = targetId || null; x.updatedAt = new Date().toISOString();
+    docs.push(x); // vào cuối thư mục đích
+    if(await mtSaveDocs(latest, docs)){ showToast(`Đã chuyển vào “${targetId ? mtDocTitle(mtFolderMap(latest)[targetId]) : MT_ROOT_NAME}”.`); return true; }
+    return false;
+  }
+  // Đổi thứ tự trong CÙNG thư mục: đặt `id` ngay trước/sau `targetId`.
+  async function mtReorderItem(m, id, targetId, after){
+    if(!mtWriteOk() || id===targetId) return;
+    const latest = mtLatest(m), docs = mtDocs(latest), map = mtFolderMap(latest);
+    const it = docs.find(d=> d.id===id), tg = docs.find(d=> d.id===targetId);
+    if(!it || !tg) return;
+    if(mtParentId(it, map)!==mtParentId(tg, map)){ await mtMoveItem(m, id, mtParentId(tg, map)); return; }
+    docs.splice(docs.indexOf(it), 1);
+    docs.splice(docs.indexOf(tg) + (after ? 1 : 0), 0, it);
+    await mtSaveDocs(latest, docs);
+  }
+  async function mtStepItem(m, id, dir){
+    const latest = mtLatest(m), it = mtItem(latest, id); if(!it) return;
+    const sib = mtChildren(latest, mtParentId(it, mtFolderMap(latest))), i = sib.findIndex(d=> d.id===id), j = i + dir;
+    if(j<0 || j>=sib.length) return;
+    await mtReorderItem(m, id, sib[j].id, dir>0);
   }
   async function mtTrashMeeting(id){
     if(!mtWriteOk()) return;
@@ -348,7 +488,7 @@
     const m = mtS().trash.find(x=> x.id===id); if(!m) return;
     if(!confirm(`XOÁ VĨNH VIỄN cuộc họp "${m.title}" cùng các tệp đã tải lên?\n\nKhông khôi phục lại được. Tài liệu chọn từ Trung tâm dữ liệu vẫn giữ nguyên ở đó.`)) return;
     try{
-      mtDocs(m).forEach(mtDeleteStorage);
+      mtDocs(m).forEach((d,i,arr)=> mtDeleteStorage(d, arr.slice(i+1)));
       await rtdb.ref(`meetings/${id}`).remove();
       try{ await pushLog('xoá vĩnh viễn cuộc họp', m.title); }catch(e){}
       showToast('Đã xoá vĩnh viễn.');
@@ -358,6 +498,89 @@
     const s = document.getElementById('mt-saved'); if(!s) return;
     s.textContent = '✓ Đã lưu'; s.classList.add('show');
     clearTimeout(mtFlashSaved._t); mtFlashSaved._t = setTimeout(()=> s.classList.remove('show'), 1600);
+  }
+
+  // ---- Hộp nhập tên (thư mục mới / đổi tên): có bộ đếm ký tự, Enter = Lưu, Esc = Huỷ. Trả về tên hoặc null.
+  function mtPromptModal(title, label, value){
+    return new Promise(resolve=>{
+      const wrap = document.createElement('div');
+      wrap.className = 'modal-bg mt-font';
+      wrap.innerHTML = `<div class="modal" style="max-width:460px;" role="dialog" aria-modal="true">
+        <div class="modal-head"><h3>${escapeHtml(title)}</h3><button class="modal-close" data-p-close aria-label="Đóng">✕</button></div>
+        <div class="modal-body"><div class="field">${mtLabel(label, true)}<input id="mtp-name" maxlength="${MT_DOC_TITLE_MAX}" value="${escapeHtml(value||'')}">${mtCounterHtml('mtp-name', value, MT_DOC_TITLE_MAX)}</div></div>
+        <div class="modal-foot"><button class="btn btn-ghost" data-p-close>Huỷ</button><button class="btn btn-primary" data-p-ok>Lưu</button></div>
+      </div>`;
+      document.body.appendChild(wrap);
+      mtWireCounters(wrap);
+      const inp = wrap.querySelector('#mtp-name');
+      const done = v=>{ wrap.remove(); resolve(v); };
+      const ok = ()=>{ const v = inp.value.trim().slice(0, MT_DOC_TITLE_MAX); if(!v){ alert('Tên không được để trống.'); inp.focus(); return; } done(v); };
+      wrap.querySelectorAll('[data-p-close]').forEach(b=> b.onclick = ()=> done(null));
+      wrap.querySelector('[data-p-ok]').onclick = ok;
+      inp.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); ok(); } else if(e.key==='Escape') done(null); };
+      setTimeout(()=>{ inp.focus(); inp.select(); }, 30);
+    });
+  }
+  // ---- Menu ⋮ / chuột phải: items = [{ icon, label, danger, onClick }]; đặt cạnh nút bấm hoặc tại con trỏ.
+  function mtCloseMenu(){ document.querySelectorAll('.mt-menu').forEach(x=> x.remove()); }
+  function mtOpenMenu(at, items){
+    mtCloseMenu();
+    const menu = document.createElement('div');
+    menu.className = 'mt-menu mt-font';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = items.map((it,i)=>`<button type="button" role="menuitem" class="mt-menu-item preview-allow ${it.danger ? 'danger' : ''}" data-mi="${i}"><span>${it.icon}</span>${escapeHtml(it.label)}</button>`).join('');
+    document.body.appendChild(menu);
+    let x, y;
+    if(at && at.clientX!=null && at.type==='contextmenu'){ x = at.clientX; y = at.clientY; }
+    else { const r = (at.currentTarget || at.target || at).getBoundingClientRect(); x = r.right - menu.offsetWidth; y = r.bottom + 4; }
+    x = Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8));
+    if(y + menu.offsetHeight > window.innerHeight - 8) y = Math.max(8, y - menu.offsetHeight - 40);
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
+    menu.querySelectorAll('[data-mi]').forEach(b=> b.onclick = e=>{ e.stopPropagation(); mtCloseMenu(); items[+b.dataset.mi].onClick(); });
+    setTimeout(()=>{
+      const off = e=>{ if(!menu.contains(e.target)){ mtCloseMenu(); cleanup(); } };
+      const key = e=>{ if(e.key==='Escape'){ mtCloseMenu(); cleanup(); } };
+      const cleanup = ()=>{ document.removeEventListener('pointerdown', off, true); document.removeEventListener('keydown', key); window.removeEventListener('scroll', scr, true); };
+      const scr = ()=>{ mtCloseMenu(); cleanup(); };
+      document.addEventListener('pointerdown', off, true); document.addEventListener('keydown', key); window.addEventListener('scroll', scr, true);
+    }, 0);
+  }
+  // ---- Hộp thoại "Di chuyển" kiểu Google Drive: thanh địa chỉ, danh sách thư mục con (bấm để vào), tạo
+  // thư mục mới tại chỗ, "Di chuyển đến đây". Thư mục đang di chuyển và nhánh con của nó bị làm mờ.
+  function mtMoveModal(m, id){
+    if(!mtWriteOk()) return;
+    const start = mtItem(mtLatest(m), id); if(!start) return;
+    let at = mtParentId(start, mtFolderMap(mtLatest(m)));
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg mt-font';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const paint = ()=>{
+      const cur = mtLatest(m), it = mtItem(cur, id);
+      if(!it){ close(); return; }
+      const map = mtFolderMap(cur);
+      if(at && !map[at]) at = null;
+      const blocked = mtIsFolder(it) ? new Set([id, ...mtDescendantIds(cur, id)]) : new Set();
+      const subs = mtChildren(cur, at).filter(mtIsFolder);
+      const why = mtMoveBlockReason(cur, id, at);
+      wrap.innerHTML = `<div class="modal" style="max-width:520px;" role="dialog" aria-modal="true">
+        <div class="modal-head"><h3>📂 Di chuyển “${escapeHtml(mtDocTitle(it))}”</h3><button class="modal-close" data-mv-close aria-label="Đóng">✕</button></div>
+        <div class="modal-body">
+          <div class="mt-hint" style="margin-bottom:6px;">Chọn thư mục đích:</div>
+          ${mtCrumbsHtml(mtFolderPath(cur, at), 'mv-crumb')}
+          <div class="mt-mv-list">${subs.length ? subs.map(f=>`<button type="button" class="mt-mv-row ${blocked.has(f.id) ? 'off' : ''}" data-mv-open="${escapeHtml(f.id)}" ${blocked.has(f.id) ? 'disabled' : ''}><span class="mt-fico">📁</span><span class="mt-mv-name">${escapeHtml(mtDocTitle(f))}<small>${escapeHtml(mtCountsText(cur, f.id))}</small></span><span aria-hidden="true">›</span></button>`).join('') : '<div class="mt-mv-empty">Không có thư mục con.</div>'}</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-mv-new>➕ Thư mục mới ở đây</button>
+          ${why && !/đang nằm ở đây/.test(why) ? `<div class="mt-warn" style="margin-top:10px;">${escapeHtml(why)}</div>` : ''}
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost" data-mv-close>Huỷ</button><button class="btn btn-primary" data-mv-ok ${why ? 'disabled' : ''}>Di chuyển đến đây</button></div>
+      </div>`;
+      wrap.querySelectorAll('[data-mv-close]').forEach(b=> b.onclick = close);
+      wrap.querySelectorAll('[data-mv-crumb]').forEach(b=> b.onclick = ()=>{ at = b.dataset.mvCrumb || null; paint(); });
+      wrap.querySelectorAll('[data-mv-open]').forEach(b=> b.onclick = ()=>{ at = b.dataset.mvOpen; paint(); });
+      wrap.querySelector('[data-mv-new]').onclick = async ()=>{ const f = await mtCreateFolder(m, at); if(f){ setTimeout(()=>{ at = f.id; paint(); }, 50); } };
+      wrap.querySelector('[data-mv-ok]').onclick = async ()=>{ if(await mtMoveItem(m, id, at)) close(); };
+    };
+    paint();
   }
 
   // =====================================================================
@@ -385,8 +608,8 @@
         <div class="panel-head"><h3>📋 PHÒNG HỌP KHÔNG GIẤY</h3></div>
         <div class="panel-body">
           <div style="margin-bottom:14px;">${surveyTabsHtml([
-            { id:'mt-space-shared', label:`🏛️ Cuộc họp dùng chung ${adminLevelLabelLower()}`, active:isShared },
-            { id:'mt-space-personal', label:'🔒 Cuộc họp cá nhân', active:!isShared },
+            { id:'mt-space-shared', label:`🏛️ Bộ nhớ dùng chung ${adminLevelLabelLower()}`, active:isShared },
+            { id:'mt-space-personal', label:'🔒 Bộ nhớ cá nhân', active:!isShared },
           ])}</div>
           ${!canView ? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared
               ? (wardId() ? 'Đồng chí chưa được cấp quyền xem Phòng họp dùng chung. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : `Phòng họp dùng chung cần vào bằng mã ${adminLevelLabelLower()}.`)
@@ -415,12 +638,12 @@
     else if(!S.loaded) box.innerHTML = `<div class="empty-state" style="padding:24px;">Đang tải danh sách cuộc họp…</div>`;
     else if(!list.length) box.innerHTML = `<div class="empty-state" style="padding:30px;"><div class="e-ico">📋</div>${S.list.length ? 'Không có cuộc họp nào khớp với từ khoá.' : `Chưa có cuộc họp nào${canEdit ? ' — bấm "Tạo cuộc họp mới" để bắt đầu.' : '.'}`}</div>`;
     else box.innerHTML = `<div class="mt-cards">${list.map(m=>{
-      const n = mtDocs(m).length;
+      const n = mtFileCount(m), nf = mtFolderCount(m);
       return `<div class="mt-card">
         <button type="button" class="mt-card-main preview-allow" data-mt-open="${escapeHtml(m.id)}">
           <span class="mt-card-title">${escapeHtml(m.title||'Cuộc họp')}</span>
           <span class="mt-card-meta">${m.startAt ? `🕗 ${escapeHtml(mtFmtStart(m.startAt))}` : ''}${m.place ? ` · 📍 ${escapeHtml(m.place)}` : ''}</span>
-          <span class="mt-card-meta">📄 ${n} tài liệu ${mtStatusPill(m)}</span>
+          <span class="mt-card-meta">📄 ${n} tài liệu${nf ? ` · 📁 ${nf} thư mục` : ''} ${mtStatusPill(m)}</span>
         </button>
         <div class="mt-card-actions">
           <button class="btn btn-ghost btn-sm preview-allow" data-mt-open="${escapeHtml(m.id)}">${canEdit ? '✏️ Mở / Sửa' : '👁 Xem'}</button>
@@ -517,7 +740,8 @@
           ${canEdit ? `<div class="mt-doc-add">
             <button class="btn btn-primary btn-sm" id="mt-upload">⬆️ Tải tệp lên</button>
             <button class="btn btn-ghost btn-sm" id="mt-from-drive">🗂️ Chọn từ Trung tâm dữ liệu</button>
-            <span class="mt-hint">PDF hiển thị đẹp nhất trên điện thoại. Mỗi tệp tối đa ${MT_MAX_FILE_MB} MB.</span>
+            <button class="btn btn-ghost btn-sm" id="mt-new-folder">➕ Thư mục mới</button>
+            <span class="mt-hint">Tệp được đưa vào thư mục đang mở. PDF hiển thị đẹp nhất trên điện thoại. Mỗi tệp tối đa ${MT_MAX_FILE_MB} MB.</span>
           </div>` : ''}
           <div id="mt-upload-status" class="mt-upload-status" style="${S.uploading ? '' : 'display:none;'}">${escapeHtml(S.uploading)}</div>
           <div id="mt-docs"></div>
@@ -528,6 +752,9 @@
       </div>`;
     el.querySelector('#mt-back').onclick = ()=>{ S.view = 'list'; S.editingId = null; renderMeetingTab(el); };
     el.querySelector('#mt-preview').onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtOpenPreview(x); };
+    // Mỗi lần mở một cuộc họp thì bắt đầu ở thư mục gốc.
+    if(!S.folderNav) S.folderNav = {};
+    if(S.folderNavFor!==m.id){ S.folderNavFor = m.id; S.folderNav[m.id] = { id:null, path:[], notice:'' }; }
     el.querySelector('#mt-qr').onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtQrModal(x); };
     el.querySelector('#mt-project').onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtProjector(x); };
     const bindField = (sel, key, transform)=>{
@@ -548,8 +775,9 @@
     bindField('#mt-f-start', 'startAt');
     bindField('#mt-f-place', 'place', v=> v.trim().slice(0, MT_PLACE_MAX));
     bindField('#mt-f-note', 'note', v=> v.trim().slice(0, MT_NOTE_MAX));
-    const up = el.querySelector('#mt-upload'); if(up) up.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtAddUploads(x); };
-    const fd = el.querySelector('#mt-from-drive'); if(fd) fd.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtDrivePicker(x); };
+    const up = el.querySelector('#mt-upload'); if(up) up.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtAddUploads(x, mtEditorFolder(x).id); };
+    const fd = el.querySelector('#mt-from-drive'); if(fd) fd.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtDrivePicker(x, mtEditorFolder(x).id); };
+    const nf = el.querySelector('#mt-new-folder'); if(nf) nf.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtCreateFolder(x, mtEditorFolder(x).id); };
     mtPaintEditorParts(el);
   }
   function mtPaintEditorParts(el){
@@ -557,58 +785,115 @@
     mtPaintDocs(el, m);
     mtPaintLink(el, m);
   }
+  // Thư mục đang mở trong trình sửa (tự lùi về thư mục cha gần nhất nếu thư mục đó vừa bị xoá/chuyển đi).
+  function mtEditorFolder(m){
+    const S = mtS();
+    if(!S.folderNav) S.folderNav = {};
+    const nav = S.folderNav[m.id] || (S.folderNav[m.id] = { id:null, path:[], notice:'' });
+    const r = mtResolveFolder(m, nav.id, nav.path);
+    if(r.id!==nav.id){ nav.id = r.id; nav.notice = r.notice; }
+    nav.path = mtFolderPath(m, nav.id).map(f=> f.id);
+    return nav;
+  }
+  function mtEditorGo(el, m, folderId){
+    const nav = mtEditorFolder(m);
+    nav.id = folderId || null; nav.notice = '';
+    nav.path = mtFolderPath(m, nav.id).map(f=> f.id);
+    mtPaintDocs(el, mtFind(m.id) || m);
+  }
   function mtPaintDocs(el, m){
     const box = el.querySelector('#mt-docs'); if(!box) return;
-    // Đang gõ tên tài liệu thì đừng vẽ lại (mất con trỏ) — đợi rời ô rồi mới vẽ bằng dữ liệu mới nhất.
-    const ae = document.activeElement;
-    if(ae && ae.tagName==='INPUT' && box.contains(ae)){
-      if(!box.dataset.mtPending){
-        box.dataset.mtPending = '1';
-        ae.addEventListener('blur', ()=> setTimeout(()=>{ delete box.dataset.mtPending; const x = mtFind(m.id); if(x) mtPaintDocs(el, x); }, 0), { once:true });
-      }
-      return;
-    }
-    const canEdit = mtCanEdit(), docs = mtDocs(m);
-    if(!docs.length){
-      box.innerHTML = `<div class="empty-state" style="padding:22px;"><div class="e-ico">📄</div>Chưa có tài liệu nào${canEdit ? '. Bấm "Tải tệp lên" hoặc "Chọn từ Trung tâm dữ liệu" để thêm chương trình họp, báo cáo, dự thảo…' : '.'}</div>`;
-      return;
-    }
-    box.innerHTML = `<div class="mt-docs">${docs.map((d,i)=>`
-      <div class="mt-doc" data-mt-doc="${escapeHtml(d.id)}" ${canEdit ? 'draggable="true"' : ''}>
-        ${canEdit ? '<span class="mt-doc-handle" title="Kéo để đổi thứ tự">⠿</span>' : ''}
-        <span class="mt-doc-num">${i+1}</span>
-        <span class="mt-doc-ico">${driveNodeIcon({type:'file', name:d.name, mimeType:d.mimeType})}</span>
-        <div class="mt-doc-main">
-          ${canEdit ? `<input class="mt-doc-name" data-mt-rename="${escapeHtml(d.id)}" value="${escapeHtml(mtDocTitle(d))}" maxlength="${MT_DOC_TITLE_MAX}" title="Tên hiển thị cho đại biểu (tối đa ${MT_DOC_TITLE_MAX} ký tự) — bấm để sửa">` : `<b>${escapeHtml(mtDocTitle(d))}</b>`}
-          <small>${escapeHtml(mtKindLabel(d))}${d.size ? ' · '+escapeHtml(driveFormatBytes(d.size)) : ''}${d.source==='drive' ? ' · từ Trung tâm dữ liệu' : ''}${d.replacedAt ? ` · <b class="mt-doc-new">đã thay bản mới lúc ${escapeHtml(mtFmtIso(d.replacedAt))}</b>` : ''}</small>
-        </div>
-        <div class="mt-doc-actions">
-          ${canEdit ? `<button class="btn btn-ghost btn-sm" data-mt-up="${escapeHtml(d.id)}" title="Đưa lên trên" ${i===0?'disabled':''}>▲</button>
-          <button class="btn btn-ghost btn-sm" data-mt-down="${escapeHtml(d.id)}" title="Đưa xuống dưới" ${i===docs.length-1?'disabled':''}>▼</button>` : ''}
-          <button class="btn btn-ghost btn-sm preview-allow" data-mt-view="${escapeHtml(d.id)}" title="Xem tài liệu">👁</button>
-          ${canEdit ? `<button class="btn btn-ghost btn-sm" data-mt-replace="${escapeHtml(d.id)}" title="Thay bằng tệp mới, giữ nguyên vị trí">🔄 Thay tệp</button>
-          <button class="btn btn-ghost btn-sm" data-mt-remove="${escapeHtml(d.id)}" title="Gỡ khỏi cuộc họp" style="color:var(--red);">✕</button>` : ''}
-        </div>
-      </div>`).join('')}</div>`;
+    const canEdit = mtCanEdit(), nav = mtEditorFolder(m), fid = nav.id;
+    const path = mtFolderPath(m, fid), kids = mtChildren(m, fid), map = mtFolderMap(m);
+    const atDepthLimit = path.length >= MT_MAX_DEPTH;
+    const nfBtn = el.querySelector('#mt-new-folder');
+    if(nfBtn){ nfBtn.disabled = atDepthLimit; nfBtn.title = atDepthLimit ? `Đã tới giới hạn ${MT_MAX_DEPTH} tầng thư mục` : ''; }
+    const notice = nav.notice ? `<div class="mt-warn">${escapeHtml(nav.notice)}</div>` : '';
+    nav.notice = '';
+    const rows = kids.map((d,i)=>{
+      const id = escapeHtml(d.id);
+      const step = canEdit ? `<button class="btn btn-ghost btn-sm" data-mt-up="${id}" title="Đưa lên trên" ${i===0?'disabled':''}>▲</button><button class="btn btn-ghost btn-sm" data-mt-down="${id}" title="Đưa xuống dưới" ${i===kids.length-1?'disabled':''}>▼</button>` : '';
+      const more = canEdit ? `<button class="btn btn-ghost btn-sm mt-more" data-mt-more="${id}" title="Thao tác khác" aria-label="Thao tác khác">⋮</button>` : '';
+      if(mtIsFolder(d)) return `<div class="mt-doc mt-folder" data-mt-item="${id}" ${canEdit ? 'draggable="true"' : ''}>
+          ${canEdit ? '<span class="mt-doc-handle" title="Kéo để đổi thứ tự hoặc thả vào thư mục">⠿</span>' : ''}
+          <span class="mt-doc-num">${i+1}</span><span class="mt-doc-ico mt-fico">📁</span>
+          <button type="button" class="mt-doc-main mt-doc-open preview-allow" data-mt-open-folder="${id}" title="Mở thư mục"><b>${escapeHtml(mtDocTitle(d))}</b><small>${escapeHtml(mtCountsText(m, d.id))}</small></button>
+          <div class="mt-doc-actions">${step}<button class="btn btn-ghost btn-sm preview-allow" data-mt-open-folder="${id}" title="Mở thư mục">Mở ›</button>${more}</div>
+        </div>`;
+      return `<div class="mt-doc" data-mt-item="${id}" ${canEdit ? 'draggable="true"' : ''}>
+          ${canEdit ? '<span class="mt-doc-handle" title="Kéo để đổi thứ tự hoặc thả vào thư mục">⠿</span>' : ''}
+          <span class="mt-doc-num">${i+1}</span>
+          <span class="mt-doc-ico">${driveNodeIcon({type:'file', name:d.name, mimeType:d.mimeType})}</span>
+          <button type="button" class="mt-doc-main mt-doc-open preview-allow" data-mt-view="${id}" title="Xem tài liệu"><b>${escapeHtml(mtDocTitle(d))}</b>
+            <small>${escapeHtml(mtKindLabel(d))}${d.size ? ' · '+escapeHtml(driveFormatBytes(d.size)) : ''}${d.source==='drive' ? ' · từ Trung tâm dữ liệu' : ''}${d.replacedAt ? ` · <b class="mt-doc-new">đã thay bản mới lúc ${escapeHtml(mtFmtIso(d.replacedAt))}</b>` : ''}</small></button>
+          <div class="mt-doc-actions">${step}<button class="btn btn-ghost btn-sm preview-allow" data-mt-view="${id}" title="Xem tài liệu">👁</button>${more}</div>
+        </div>`;
+    }).join('');
+    box.innerHTML = `${notice}${mtCrumbsHtml(path, 'mt-crumb')}
+      ${kids.length ? `<div class="mt-docs">${rows}</div>` : `<div class="empty-state" style="padding:22px;"><div class="e-ico">📂</div>${fid ? 'Thư mục này chưa có tài liệu' : 'Chưa có tài liệu nào'}${canEdit ? '. Bấm "Tải tệp lên", "Chọn từ Trung tâm dữ liệu" hoặc "Thư mục mới" để thêm.' : '.'}</div>`}`;
     const cur = ()=> mtFind(m.id) || m;
-    box.querySelectorAll('[data-mt-up]').forEach(b=> b.onclick = ()=>{ const ds = mtDocs(cur()); mtMoveDoc(cur(), b.dataset.mtUp, ds.findIndex(d=> d.id===b.dataset.mtUp)-1); });
-    box.querySelectorAll('[data-mt-down]').forEach(b=> b.onclick = ()=>{ const ds = mtDocs(cur()); mtMoveDoc(cur(), b.dataset.mtDown, ds.findIndex(d=> d.id===b.dataset.mtDown)+1); });
-    box.querySelectorAll('[data-mt-replace]').forEach(b=> b.onclick = ()=> mtReplaceDoc(cur(), b.dataset.mtReplace));
-    box.querySelectorAll('[data-mt-remove]').forEach(b=> b.onclick = ()=> mtRemoveDoc(cur(), b.dataset.mtRemove));
-    box.querySelectorAll('[data-mt-view]').forEach(b=> b.onclick = ()=>{ const x = cur(); const i = mtDocs(x).findIndex(d=> d.id===b.dataset.mtView); mtOpenPreview(x, i); });
-    box.querySelectorAll('[data-mt-rename]').forEach(inp=>{
-      inp.onchange = ()=> mtRenameDoc(cur(), inp.dataset.mtRename, inp.value);
-      inp.onkeydown = e=>{ if(e.key==='Enter') inp.blur(); };
+    box.querySelectorAll('[data-mt-crumb]').forEach(b=> b.onclick = ()=> mtEditorGo(el, cur(), b.dataset.mtCrumb || null));
+    box.querySelectorAll('[data-mt-open-folder]').forEach(b=> b.onclick = ()=> mtEditorGo(el, cur(), b.dataset.mtOpenFolder));
+    box.querySelectorAll('[data-mt-view]').forEach(b=> b.onclick = ()=> mtOpenEditorViewer(cur(), fid, b.dataset.mtView));
+    box.querySelectorAll('[data-mt-up]').forEach(b=> b.onclick = ()=> mtStepItem(cur(), b.dataset.mtUp, -1));
+    box.querySelectorAll('[data-mt-down]').forEach(b=> b.onclick = ()=> mtStepItem(cur(), b.dataset.mtDown, 1));
+    const menuFor = (id, ev)=>{
+      const it = mtItem(cur(), id); if(!it) return;
+      const items = mtIsFolder(it) ? [
+        { icon:'📂', label:'Mở', onClick:()=> mtEditorGo(el, cur(), id) },
+        { icon:'✏️', label:'Đổi tên', onClick:()=> mtRenameItem(cur(), id) },
+        { icon:'📦', label:'Di chuyển', onClick:()=> mtMoveModal(cur(), id) },
+        { icon:'🗑️', label:'Xoá', danger:true, onClick:()=> mtDeleteItem(cur(), id) },
+      ] : [
+        { icon:'👁', label:'Xem', onClick:()=> mtOpenEditorViewer(cur(), fid, id) },
+        { icon:'✏️', label:'Đổi tên', onClick:()=> mtRenameItem(cur(), id) },
+        { icon:'📑', label:'Tạo bản sao', onClick:()=> mtDuplicateDoc(cur(), id) },
+        { icon:'📦', label:'Di chuyển', onClick:()=> mtMoveModal(cur(), id) },
+        { icon:'🔄', label:'Thay tệp (giữ nguyên vị trí)', onClick:()=> mtReplaceDoc(cur(), id) },
+        { icon:'🗑️', label:'Xoá', danger:true, onClick:()=> mtDeleteItem(cur(), id) },
+      ];
+      mtOpenMenu(ev, items);
+    };
+    box.querySelectorAll('[data-mt-more]').forEach(b=> b.onclick = e=>{ e.stopPropagation(); menuFor(b.dataset.mtMore, e); });
+    if(canEdit){
+      box.querySelectorAll('[data-mt-item]').forEach(row=> row.addEventListener('contextmenu', e=>{ e.preventDefault(); menuFor(row.dataset.mtItem, e); }));
+      mtWireDocDnD(box, cur);
+    }
+  }
+  // Kéo thả trên máy tính: thả vào GIỮA dòng thư mục = chuyển vào thư mục đó; thả lên nửa trên/dưới một dòng
+  // = đổi thứ tự (đặt trước/sau); thả lên một tên trên thanh địa chỉ = chuyển lên thư mục đó.
+  function mtWireDocDnD(box, cur){
+    let dragId = null;
+    const clear = ()=> box.querySelectorAll('.drop-into,.drop-before,.drop-after,.dragging').forEach(x=> x.classList.remove('drop-into','drop-before','drop-after','dragging'));
+    box.querySelectorAll('[data-mt-item][draggable]').forEach(row=>{
+      row.addEventListener('dragstart', e=>{
+        dragId = row.dataset.mtItem; row.classList.add('dragging');
+        try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); }catch(err){}
+      });
+      row.addEventListener('dragend', ()=>{ dragId = null; clear(); });
+      row.addEventListener('dragover', e=>{
+        if(!dragId || dragId===row.dataset.mtItem) return;
+        e.preventDefault();
+        const r = row.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+        const mode = row.classList.contains('mt-folder') && y>0.25 && y<0.75 ? 'into' : (y<0.5 ? 'before' : 'after');
+        if(row.dataset.dropMode===mode) return;
+        clear(); row.classList.add('drop-'+mode); row.dataset.dropMode = mode;
+        const src = box.querySelector(`[data-mt-item="${CSS.escape(dragId)}"]`); if(src) src.classList.add('dragging');
+      });
+      row.addEventListener('dragleave', e=>{ if(!row.contains(e.relatedTarget)){ row.classList.remove('drop-into','drop-before','drop-after'); delete row.dataset.dropMode; } });
+      row.addEventListener('drop', e=>{
+        e.preventDefault();
+        const id = dragId, mode = row.dataset.dropMode; dragId = null; delete row.dataset.dropMode; clear();
+        if(!id || !mode || id===row.dataset.mtItem) return;
+        if(mode==='into') mtMoveItem(cur(), id, row.dataset.mtItem);
+        else mtReorderItem(cur(), id, row.dataset.mtItem, mode==='after');
+      });
     });
-    if(canEdit) wireDragReorderWithIndicator(
-      Array.from(box.querySelectorAll('.mt-doc')),
-      row=> row.dataset.mtDoc,
-      (dragged, target, before)=>{
-        const ds = mtDocs(cur()), ids = ds.map(d=> d.id).filter(id=> id!==dragged);
-        let ti = ids.indexOf(target); if(!before) ti++;
-        mtMoveDoc(cur(), dragged, ti);
-      }
-    );
+    box.querySelectorAll('[data-mt-crumb]').forEach(c=>{
+      c.addEventListener('dragover', e=>{ if(!dragId) return; e.preventDefault(); c.classList.add('drop-into'); });
+      c.addEventListener('dragleave', ()=> c.classList.remove('drop-into'));
+      c.addEventListener('drop', e=>{ e.preventDefault(); c.classList.remove('drop-into'); const id = dragId; dragId = null; clear(); if(id) mtMoveItem(cur(), id, c.dataset.mtCrumb || null); });
+    });
   }
   function mtPaintLink(el, m){
     const box = el.querySelector('#mt-link'); if(!box) return;
@@ -643,7 +928,7 @@
   }
 
   // ---- Chọn tài liệu có sẵn trong Trung tâm dữ liệu (chỉ tệp đã lưu trên đám mây) ----
-  async function mtDrivePicker(m){
+  async function mtDrivePicker(m, folderId){
     if(!mtWriteOk()) return;
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg mt-font';
@@ -698,9 +983,9 @@
     paint();
     ok.onclick = async ()=>{
       const latest = mtFind(m.id) || m, docs = mtDocs(latest);
-      if(docs.length + picked.size > MT_MAX_DOCS){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_DOCS} tài liệu.`); return; }
+      if(mtFileCount(latest) + picked.size > MT_MAX_FILES){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_FILES} tệp.`); return; }
       const now = new Date().toISOString();
-      picked.forEach(({space, node})=> docs.push({ id:mtDocId(), name:node.name||'Tệp', title:mtStripExt(node.name||'Tệp').slice(0, MT_DOC_TITLE_MAX), mimeType:node.mimeType||'application/octet-stream', size:node.size||0,
+      picked.forEach(({space, node})=> docs.push({ id:mtDocId(), parentId: folderId || null, name:node.name||'Tệp', title:mtStripExt(node.name||'Tệp').slice(0, MT_DOC_TITLE_MAX), mimeType:node.mimeType||'application/octet-stream', size:node.size||0,
         source:'drive', driveId:node.id, driveSpace:space, storagePath:node.storagePath, addedAt:now, updatedAt:now }));
       ok.disabled = true;
       if(await mtSaveDocs(latest, docs)){ close(); showToast(`Đã thêm ${picked.size} tài liệu.`); }
@@ -830,52 +1115,100 @@
   // TRANG ĐẠI BIỂU — /phonghop/{mã}: không đăng nhập, không menu. Dùng chung cho nút "Xem như đại biểu"
   // trong trình sửa (opts.preview: đọc bản đang có trong máy, không mở kết nối riêng).
   // =====================================================================
-  function mtPublicListHtml(m){
-    const st = mtStatus(m), docs = mtDocs(m);
-    const head = `<header class="mtp-head">
+  function mtPublicHeadHtml(m){
+    return `<header class="mtp-head">
         <h1>${escapeHtml(m.title||'Cuộc họp')}</h1>
         ${m.startAt ? `<div class="mtp-meta">🕗 ${escapeHtml(mtFmtStart(m.startAt))}</div>` : ''}
         ${m.place ? `<div class="mtp-meta">📍 ${escapeHtml(m.place)}</div>` : ''}
       </header>`;
-    if(!st.open) return `${head}<div class="mtp-closed"><div>🔒</div><h2>Tài liệu cuộc họp đã đóng</h2><p>Liên kết này không còn hiệu lực. Vui lòng liên hệ cán bộ tổ chức cuộc họp nếu cần xem lại tài liệu.</p></div>`;
-    return `${head}
-      ${m.note ? `<div class="mtp-note">${surveyLinkify(m.note)}</div>` : ''}
-      <div class="mtp-list-title">Tài liệu cuộc họp (${docs.length})</div>
-      ${docs.length ? `<ol class="mtp-list">${docs.map((d,i)=>`<li><button type="button" class="mtp-doc preview-allow" data-mtp-open="${i}">
-          <span class="mtp-num">${i+1}</span>
-          <span class="mtp-doc-main"><b>${escapeHtml(mtDocTitle(d))}</b><small>${escapeHtml(mtKindLabel(d))}${d.size ? ' · '+escapeHtml(driveFormatBytes(d.size)) : ''}${d.replacedAt ? ` · <em>🆕 Bản mới lúc ${escapeHtml(mtFmtIso(d.replacedAt).slice(0,5))}</em>` : ''}</small></span>
-          <span class="mtp-go">›</span></button></li>`).join('')}</ol>` : `<div class="mtp-empty">Chưa có tài liệu nào. Trang sẽ tự cập nhật khi cán bộ tổ chức đưa tài liệu lên.</div>`}`;
   }
+  // Danh sách trong MỘT thư mục: thanh địa chỉ + thư mục con và tệp xen kẽ theo thứ tự cán bộ sắp, đánh số
+  // 1, 2, 3… riêng trong thư mục. Thư mục rỗng vẫn hiện và vẫn mở được.
+  function mtPublicFolderHtml(m, fid, notice){
+    const kids = mtChildren(m, fid), files = kids.filter(d=> !mtIsFolder(d));
+    return `${notice ? `<div class="mtp-notice">${escapeHtml(notice)}</div>` : ''}
+      ${!fid && m.note ? `<div class="mtp-note">${surveyLinkify(m.note)}</div>` : ''}
+      ${mtCrumbsHtml(mtFolderPath(m, fid), 'mtp-crumb')}
+      ${kids.length ? `<ol class="mtp-list">${kids.map((d,i)=> mtIsFolder(d)
+        ? `<li><button type="button" class="mtp-doc mtp-folder preview-allow" data-mtp-folder="${escapeHtml(d.id)}">
+            <span class="mtp-num">${i+1}</span><span class="mtp-fico" aria-hidden="true">📁</span>
+            <span class="mtp-doc-main"><b>${escapeHtml(mtDocTitle(d))}</b><small>${escapeHtml(mtCountsText(m, d.id))}</small></span>
+            <span class="mtp-go">›</span></button></li>`
+        : `<li><button type="button" class="mtp-doc preview-allow" data-mtp-open="${files.indexOf(d)}">
+            <span class="mtp-num">${i+1}</span>
+            <span class="mtp-doc-main"><b>${escapeHtml(mtDocTitle(d))}</b><small>${escapeHtml(mtKindLabel(d))}${d.size ? ' · '+escapeHtml(driveFormatBytes(d.size)) : ''}${d.replacedAt ? ` · <em>🆕 Bản mới lúc ${escapeHtml(mtFmtIso(d.replacedAt).slice(0,5))}</em>` : ''}</small></span>
+            <span class="mtp-go">›</span></button></li>`).join('')}</ol>`
+        : `<div class="mtp-empty">${fid ? 'Thư mục này chưa có tài liệu.' : 'Chưa có tài liệu nào. Trang sẽ tự cập nhật khi cán bộ tổ chức đưa tài liệu lên.'}</div>`}`;
+  }
+  // opts: { meeting, id, preview (xem trong app, dùng quyền Storage của cán bộ), useHistory (trang thật của
+  // đại biểu: nút Back của điện thoại lùi về thư mục cha / đóng tài liệu đang xem — địa chỉ trang không đổi,
+  // mỗi cuộc họp vẫn chỉ một link) }.
   function mtPublicMount(container, opts){
-    let meeting = opts.meeting || null, viewer = null;
+    let meeting = opts.meeting || null, viewer = null, viewerDocId = null;
+    let folderId = null, folderPath = [], notice = '';
+    const useHistory = !!opts.useHistory && !!(window.history && history.pushState);
+    const resolve = ()=>{
+      if(!meeting) return;
+      const r = mtResolveFolder(meeting, folderId, folderPath);
+      if(r.id!==folderId){ folderId = r.id; notice = r.notice; }
+      folderPath = mtFolderPath(meeting, folderId).map(f=> f.id);
+    };
     const paint = ()=>{
       if(!meeting){ container.innerHTML = `<div class="mtp"><div class="mtp-closed"><div>🔎</div><h2>Không tìm thấy cuộc họp</h2><p>Đường link không đúng, hoặc cuộc họp đã bị xoá.</p></div></div>`; return; }
-      container.innerHTML = `<div class="mtp">${mtPublicListHtml(meeting)}<footer class="mtp-foot">Phòng họp không giấy · hoinongdan.sotay.org</footer></div>`;
-      container.querySelectorAll('[data-mtp-open]').forEach(b=> b.onclick = ()=> openDoc(+b.dataset.mtpOpen));
+      const head = mtPublicHeadHtml(meeting);
+      if(!mtStatus(meeting).open){
+        container.innerHTML = `<div class="mtp">${head}<div class="mtp-closed"><div>🔒</div><h2>Tài liệu cuộc họp đã đóng</h2><p>Liên kết này không còn hiệu lực. Vui lòng liên hệ cán bộ tổ chức cuộc họp nếu cần xem lại tài liệu.</p></div><footer class="mtp-foot">Phòng họp không giấy · hoinongdan.sotay.org</footer></div>`;
+        return;
+      }
+      resolve();
+      container.innerHTML = `<div class="mtp">${head}${mtPublicFolderHtml(meeting, folderId, notice)}<footer class="mtp-foot">Phòng họp không giấy · hoinongdan.sotay.org</footer></div>`;
+      notice = '';
+      container.querySelectorAll('[data-mtp-open]').forEach(b=> b.onclick = ()=> openDoc(+b.dataset.mtpOpen, true));
+      container.querySelectorAll('[data-mtp-folder]').forEach(b=> b.onclick = ()=> goFolder(b.dataset.mtpFolder));
+      container.querySelectorAll('[data-mtp-crumb]').forEach(b=> b.onclick = ()=> goFolder(b.dataset.mtpCrumb || null));
     };
-    const openDoc = (i)=>{
-      const docs = mtDocs(meeting);
-      if(!docs[i] || !mtStatus(meeting).open) return;
-      if(viewer) viewer.close(true);
-      viewer = mtOpenDocViewer(docs, i, (ni)=> openDoc(ni), ()=>{ viewer = null; }, { meetingId: meeting.id || opts.id, preview: !!opts.preview });
+    const scrollTop = ()=>{ const sc = container.closest('.mtp-preview-body'); if(sc) sc.scrollTop = 0; else window.scrollTo(0, 0); };
+    const goFolder = (id, fromHistory)=>{
+      folderId = id || null; folderPath = meeting ? mtFolderPath(meeting, folderId).map(f=> f.id) : [];
+      paint(); scrollTop();
+      if(useHistory && !fromHistory) history.pushState({ mtp:1, folder: folderId }, '');
     };
+    const closeViewer = ()=>{ if(viewer){ const v = viewer; viewer = null; viewerDocId = null; v.close(true); } };
+    const openDoc = (i, fromList)=>{
+      const files = mtChildFiles(meeting, folderId);
+      if(!files[i] || !mtStatus(meeting).open) return;
+      closeViewer();
+      viewerDocId = files[i].id;
+      viewer = mtOpenDocViewer(files, i, ni=> openDoc(ni, false), silent=>{
+        viewer = null; viewerDocId = null;
+        if(!silent && useHistory && history.state && history.state.mtpViewer) history.back();
+      }, { meetingId: meeting.id || opts.id, preview: !!opts.preview });
+      if(useHistory && fromList) history.pushState({ mtp:1, folder: folderId, mtpViewer:true }, '');
+    };
+    if(useHistory){
+      history.replaceState({ mtp:1, folder:null }, '');
+      window.addEventListener('popstate', e=>{
+        const st = e.state || {};
+        if(viewer && !st.mtpViewer) closeViewer();
+        if((st.folder || null)!==folderId) goFolder(st.folder || null, true);
+      });
+    }
     paint();
-    if(opts.startIndex!=null && opts.startIndex>=0) openDoc(opts.startIndex);
-    // Bản cập nhật về (sửa phút chót / đóng liên kết): vẽ lại danh sách; đang xem tài liệu mà tệp đó vừa
-    // được thay thì báo để đại biểu tải lại bản mới.
     return {
       update(next){
-        const prevDocs = meeting ? mtDocs(meeting) : [];
         meeting = next;
         paint();
         if(!viewer) return;
-        if(!meeting || !mtStatus(meeting).open){ viewer.close(true); return; }
-        const cur = prevDocs[viewer.index()];
-        const now = cur && mtDocs(meeting).find(d=> d.id===cur.id);
-        if(!now) viewer.notice('Tài liệu này vừa được gỡ khỏi cuộc họp.', null);
-        else if(now.storagePath!==cur.storagePath) viewer.notice('Tài liệu này vừa được cập nhật bản mới.', ()=> openDoc(mtDocs(meeting).findIndex(d=> d.id===now.id)));
+        if(!meeting || !mtStatus(meeting).open){ closeViewer(); return; }
+        const prev = viewer.doc && viewer.doc();
+        const now = prev && mtDocs(meeting).find(d=> d.id===prev.id);
+        if(!now){ viewer.notice('Tài liệu này vừa được gỡ khỏi cuộc họp.', null); return; }
+        if(now.storagePath!==prev.storagePath){
+          const idx = mtChildFiles(meeting, folderId).findIndex(d=> d.id===now.id);
+          viewer.notice('Tài liệu này vừa được cập nhật bản mới.', idx>=0 ? ()=> openDoc(idx, false) : null);
+        }
       },
-      close(){ if(viewer) viewer.close(true); },
+      close(){ closeViewer(); },
     };
   }
   // ---- Tải tệp cho đại biểu qua Cloud Function: /phonghop/{mã}/tep/{mã tài liệu}. Mỗi lần gọi, máy chủ
@@ -925,7 +1258,7 @@
     wrap.className = 'mtp-viewer';
     wrap.innerHTML = `
       <div class="mtp-viewer-bar">
-        <button type="button" class="mtp-vbtn preview-allow" data-mtv-back>‹ Danh sách</button>
+        <button type="button" class="mtp-vbtn preview-allow ${ctx.backRed ? 'is-red' : ''}" data-mtv-back>${escapeHtml(ctx.backLabel || '‹ Danh sách')}</button>
         <div class="mtp-viewer-title"><small>Tài liệu ${index+1}/${docs.length}</small><b>${escapeHtml(mtDocTitle(d))}</b></div>
         <a class="mtp-vbtn" data-mtv-dl style="visibility:hidden;">⬇ Tải về</a>
       </div>
@@ -941,12 +1274,14 @@
     const objectUrls = [];
     const api = {
       index: ()=> index,
+      doc: ()=> d,
+      // silent = đóng do chương trình (chuyển tài liệu, cập nhật, nút Back) — không phải người dùng bấm nút.
       close(silent){
         if(closed) return; closed = true; wrap.remove();
         drivePptxSweep();
         objectUrls.forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(e){} });
         if(!document.querySelector('.mtp-viewer')) document.body.classList.remove('mtp-viewer-open');
-        if(onClose) onClose();
+        if(onClose) onClose(!!silent);
       },
       notice(text, onReload){
         const n = wrap.querySelector('.mtp-viewer-notice');
@@ -955,7 +1290,7 @@
         const b = n.querySelector('button'); if(b) b.onclick = onReload;
       },
     };
-    wrap.querySelector('[data-mtv-back]').onclick = ()=> api.close();
+    wrap.querySelector('[data-mtv-back]').onclick = ()=> api.close(false);
     wrap.querySelector('[data-mtv-prev]').onclick = ()=> onGo(index-1);
     wrap.querySelector('[data-mtv-next]').onclick = ()=> onGo(index+1);
     const body = wrap.querySelector('.mtp-viewer-body');
@@ -1029,14 +1364,29 @@
       el.querySelector('iframe').src = url;
     }
   }
-  // "Xem như đại biểu" ngay trong app — dựng lại đúng giao diện trang công khai trên lớp phủ toàn màn hình.
-  function mtOpenPreview(m, startIndex){
+  // "Xem như đại biểu" ngay trong app — dựng lại đúng giao diện trang công khai trên lớp phủ toàn màn hình,
+  // luôn bắt đầu ở thư mục gốc.
+  function mtOpenPreview(m){
     const wrap = document.createElement('div');
     wrap.className = 'mtp-preview';
     wrap.innerHTML = `<div class="mtp-preview-bar"><span>👁 Đang xem như đại biểu${mtStatus(m).open ? '' : ' — liên kết đang đóng'}</span><button type="button" class="btn btn-ghost btn-sm preview-allow">✕ Đóng</button></div><div class="mtp-preview-body"></div>`;
     document.body.appendChild(wrap);
-    const mount = mtPublicMount(wrap.querySelector('.mtp-preview-body'), { meeting:m, preview:true, startIndex: mtStatus(m).open ? startIndex : null });
+    const mount = mtPublicMount(wrap.querySelector('.mtp-preview-body'), { meeting:m, preview:true });
     wrap.querySelector('.mtp-preview-bar button').onclick = ()=>{ mount.close(); wrap.remove(); };
+  }
+  // Nút 👁 / bấm tên tệp trong trình sửa: mở THẲNG trình xem (không qua "Xem như đại biểu"), nút "‹ Quay lại"
+  // chữ đỏ đóng trình xem và trả về đúng chỗ cũ trong trình sửa. Trước/sau đi trong thư mục đang mở. Dùng quyền
+  // Storage của cán bộ nên xem được cả khi liên kết đang đóng.
+  function mtOpenEditorViewer(m, folderId, docId){
+    const files = mtChildFiles(m, folderId);
+    let i = files.findIndex(d=> d.id===docId);
+    if(i<0) return;
+    let viewer = null;
+    const open = idx=>{
+      if(viewer){ const v = viewer; viewer = null; v.close(true); }
+      viewer = mtOpenDocViewer(files, idx, ni=> open(ni), ()=>{ viewer = null; }, { meetingId:m.id, preview:true, backLabel:'‹ Quay lại', backRed:true });
+    };
+    open(i);
   }
   function renderPublicMeetingPage(id){
     document.body.classList.add('public-meeting-mode');
@@ -1048,7 +1398,7 @@
       const m = snap && snap.exists() ? snap.val() : null;
       const visible = m && !m.deleted ? m : null;
       if(visible) document.title = `${visible.title||'Cuộc họp'} - Phòng họp không giấy`;
-      if(!mount) mount = mtPublicMount(root, { meeting:visible, id });
+      if(!mount) mount = mtPublicMount(root, { meeting:visible, id, useHistory:true });
       else mount.update(visible);
     }, err=>{
       console.error('[Phòng họp] Không tải được cuộc họp:', err);

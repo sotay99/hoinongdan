@@ -1539,3 +1539,49 @@ body.mtp-viewer-open{overflow:hidden;}
 .pv-ttbl th, .pv-ttbl td{border:1px solid #c8d3c4; padding:6px 8px; white-space:normal; text-align:left; vertical-align:top; background:#fff; color:inherit; text-transform:none; letter-spacing:normal; font-size:inherit; position:static;}
 .pv-ttbl th{background:#e8f5e9; font-weight:700;}
 .pv-text-empty, .pv-text-none{color:#777; font-size:15px; padding:12px; text-align:center;}
+
+/* =====================================================================
+   PHÒNG HỌP — CÂY THƯ MỤC TÀI LIỆU (trình sửa, "Xem như đại biểu", trang đại biểu)
+   ===================================================================== */
+/* Thanh địa chỉ: tự xuống hàng khi dài, ở mọi khổ màn hình. */
+.mt-crumbs{display:block; margin:0 0 10px; padding:8px 10px; background:#f4f7f2; border:1px solid #dbe5d6; border-radius:10px; font-size:14px; line-height:1.9; overflow-wrap:anywhere;}
+.mt-crumb{display:inline; border:none; background:none; padding:3px 4px; border-radius:6px; font:inherit; color:#1b5e20; cursor:pointer; text-align:left; -webkit-box-decoration-break:clone; box-decoration-break:clone;}
+.mt-crumb:hover{background:#e3eedf; text-decoration:underline;}
+.mt-crumb.cur{font-weight:800; color:#1f2a1b; cursor:default;}
+.mt-crumb.drop-into{background:#c8e6c9; outline:2px dashed #2e7d32;}
+.mt-crumb-sep{color:#8a9585; white-space:nowrap;}
+/* Dòng thư mục: nền vàng nhạt, biểu tượng thư mục vàng — khác hẳn dòng tệp nền trắng. */
+.mt-doc.mt-folder{background:#fff8e1; border-color:#f3d98b;}
+.mt-doc.mt-folder .mt-doc-num{background:#c79a2b;}
+.mt-fico{font-size:22px; filter:saturate(1.4);}
+.mt-doc-open{background:none; border:none; padding:0; font:inherit; color:inherit; text-align:left; cursor:pointer;}
+.mt-doc-open b{font-size:14px; overflow-wrap:anywhere;}
+.mt-doc.mt-folder .mt-doc-open b{font-size:14.5px; font-weight:800;}
+.mt-doc-open:hover b{text-decoration:underline;}
+.mt-more{font-weight:800; font-size:16px; line-height:1; padding:4px 10px !important;}
+/* Chỉ báo kéo thả */
+.mt-doc.dragging{opacity:.45;}
+.mt-doc.drop-into{outline:2px dashed #2e7d32; background:#e8f5e9;}
+.mt-doc.drop-before{box-shadow:0 -3px 0 #2e7d32;}
+.mt-doc.drop-after{box-shadow:0 3px 0 #2e7d32;}
+/* Menu ⋮ */
+.mt-menu{position:fixed; z-index:960; min-width:210px; background:#fff; border:1px solid #d7e3d2; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.18); padding:6px;}
+.mt-menu-item{display:flex; align-items:center; gap:10px; width:100%; border:none; background:none; padding:10px 12px; border-radius:8px; font:inherit; font-size:14px; color:#1f2a1b; text-align:left; cursor:pointer;}
+.mt-menu-item:hover{background:#f1f8f1;}
+.mt-menu-item.danger{color:#c62828;}
+/* Hộp "Di chuyển" */
+.mt-mv-list{display:flex; flex-direction:column; gap:6px; margin:0 0 10px; max-height:46vh; overflow:auto;}
+.mt-mv-row{display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:1px solid #f3d98b; background:#fff8e1; border-radius:10px; padding:10px 12px; font:inherit; color:inherit; cursor:pointer;}
+.mt-mv-row:hover:not(:disabled){background:#fff1c6;}
+.mt-mv-row.off{opacity:.45; cursor:not-allowed;}
+.mt-mv-name{flex:1 1 auto; min-width:0; font-weight:700; overflow-wrap:anywhere;}
+.mt-mv-name small{display:block; font-weight:400; font-size:12px; color:#77776a;}
+.mt-mv-empty{padding:14px; text-align:center; color:#77776a; background:#f7f7f4; border-radius:10px;}
+/* Trang đại biểu */
+.mtp .mt-crumbs{font-size:15.5px; background:#fff; border-color:#d7e3d2;}
+.mtp-doc.mtp-folder{background:#fff8e1; border-color:#f3d98b;}
+.mtp-doc.mtp-folder .mtp-num{background:#c79a2b;}
+.mtp-fico{font-size:26px; flex:0 0 auto;}
+.mtp-notice{background:#fff3e0; color:#e65100; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-weight:600; font-size:14px;}
+/* Nút "‹ Quay lại" khi cán bộ xem tệp từ trình sửa: nền trắng chữ đỏ cho nổi trên thanh xanh. */
+.mtp-vbtn.is-red{background:#fff; color:#c62828; border-color:#fff;}

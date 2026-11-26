@@ -932,7 +932,7 @@
     meeting: { icon:'📋', eyebrow:'HỘI HỌP', title:'Phòng họp không giấy',
       lead:'Mỗi cuộc họp có một trang tài liệu riêng. Đại biểu quét mã QR là đọc được toàn bộ tài liệu trên điện thoại — không cần cài phần mềm, không cần đăng nhập.',
       blocks:[
-        ['📄','Tài liệu xếp đúng thứ tự chương trình','Tải tệp lên hoặc chọn từ Trung tâm dữ liệu, kéo thả để sắp thứ tự, đặt tên hiển thị dễ hiểu cho đại biểu.'],
+        ['📄','Tài liệu xếp đúng thứ tự chương trình','Tải tệp lên hoặc chọn từ Trung tâm dữ liệu, chia thư mục nhiều tầng như Google Drive, kéo thả để sắp thứ tự hoặc chuyển thư mục, tạo bản sao, đặt tên hiển thị dễ hiểu cho đại biểu.'],
         ['📱','Mã QR và liên kết riêng','Chiếu mã QR lên màn hình hội trường, in áp phích hoặc in thẻ nhỏ dán bàn, hay gửi liên kết qua Zalo.'],
         ['📖','Đọc PDF ngay trên điện thoại','Tệp PDF hiện thành từng trang vừa khổ màn hình; Word, Excel, ảnh cũng xem được trực tiếp.'],
         ['🔄','Thay tài liệu phút chót','Thay tệp mới mà giữ nguyên vị trí; trang của đại biểu tự cập nhật và báo khi có bản mới.'],
