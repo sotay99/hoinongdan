@@ -14,6 +14,9 @@
   // Phần này đứng CUỐI manifest nên chứa khối khởi động boot() ở cuối tệp.
   // =====================================================================
   const MT_MAX_FILE_MB = 30;
+  // Giới hạn ký tự: tên cuộc họp/tài liệu hiện ở nhiều chỗ chật (áp phích QR, màn hình chiếu, khung xem
+  // trước Zalo, thẻ dán bàn) nên giữ ở mức 150.
+  const MT_TITLE_MAX = 150, MT_PLACE_MAX = 100, MT_NOTE_MAX = 1000, MT_DOC_TITLE_MAX = 150;
   const MT_MAX_DOCS = 60;
   const MT_ID_RE = /^[A-Za-z0-9_-]{6,128}$/;
   const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -33,7 +36,22 @@
     return (Array.isArray(d) ? d : Object.values(d||{})).filter(x=> x && x.id);
   }
   function mtFind(id){ const S = mtS(); return S.list.find(m=> m.id===id) || null; }
-  function mtOrgName(m){ return m && m.wardName ? `Hội Nông dân ${m.wardName}` : 'Hội Nông dân'; }
+  // Nhãn ô nhập: dấu * đỏ cho ô bắt buộc, chữ xám "(không bắt buộc)" cho ô tuỳ chọn.
+  function mtLabel(text, required, extra){
+    return `<label>${escapeHtml(text)} ${required ? '<span style="color:var(--red);">*</span>' : '<span class="mt-hint">(không bắt buộc)</span>'}${extra ? ` <span class="mt-hint">${escapeHtml(extra)}</span>` : ''}</label>`;
+  }
+  // Bộ đếm "45/150 ký tự" ngay dưới ô; gần chạm giới hạn thì đổi màu cam.
+  function mtCounterHtml(forId, value, max){
+    const n = Array.from(String(value||'')).length;
+    return `<div class="mt-count ${n>=max*0.9?'near':''}" data-mt-count="${forId}">${n}/${max} ký tự</div>`;
+  }
+  function mtWireCounters(scope){
+    scope.querySelectorAll('[data-mt-count]').forEach(c=>{
+      const inp = scope.querySelector('#'+c.dataset.mtCount); if(!inp) return;
+      const max = parseInt(inp.getAttribute('maxlength'),10) || 0;
+      inp.addEventListener('input', ()=>{ const n = Array.from(inp.value).length; c.textContent = `${n}/${max} ký tự`; c.classList.toggle('near', n>=max*0.9); });
+    });
+  }
   function mtDocTitle(doc){ return String((doc && (doc.title || doc.name)) || 'Tài liệu'); }
   function mtStripExt(name){ return String(name||'').replace(/\.[a-z0-9]{1,6}$/i, '') || String(name||''); }
   function mtSafeName(name){ return String(name||'tep').replace(/[^\w.\-() ]+/g,'_').slice(-100); }
@@ -255,7 +273,7 @@
       try{
         const up = await mtUploadOne(fresh, f, docId);
         const now = new Date().toISOString();
-        added.push({ id:docId, name:f.name, title:mtStripExt(f.name), mimeType:f.type||'application/octet-stream', size:f.size, source:'upload', ...up, addedAt:now, updatedAt:now });
+        added.push({ id:docId, name:f.name, title:mtStripExt(f.name).slice(0, MT_DOC_TITLE_MAX), mimeType:f.type||'application/octet-stream', size:f.size, source:'upload', ...up, addedAt:now, updatedAt:now });
       }catch(e){
         console.error('[Phòng họp] Tải tệp lỗi:', e);
         alert(`Không tải lên được "${f.name}".\n\n${e && e.message ? e.message : 'Lỗi không xác định'}`);
@@ -303,7 +321,8 @@
   async function mtRenameDoc(m, docId, title){
     const docs = mtDocs(m), doc = docs.find(d=> d.id===docId);
     if(!doc) return;
-    const t = String(title||'').trim().slice(0,200);
+    const t = String(title||'').trim().slice(0, MT_DOC_TITLE_MAX);
+    if(!t){ alert('Tên tài liệu không được để trống.'); mtPaintEditorParts(document.getElementById('content')); return; }
     if(!t || t===mtDocTitle(doc)) return;
     doc.title = t;
     if(await mtSaveDocs(m, docs)) mtFlashSaved();
@@ -436,9 +455,9 @@
     wrap.innerHTML = `<div class="modal" style="max-width:520px;" role="dialog" aria-modal="true">
       <div class="modal-head"><h3>➕ Tạo cuộc họp mới</h3><button class="modal-close" id="mtn-close" aria-label="Đóng">✕</button></div>
       <div class="modal-body">
-        <div class="field"><label>Tên cuộc họp <span style="color:var(--red);">*</span></label><input id="mtn-title" maxlength="300" placeholder="VD: Hội nghị sơ kết 6 tháng đầu năm"></div>
-        <div class="field"><label>Thời gian</label><input id="mtn-start" type="datetime-local"></div>
-        <div class="field"><label>Địa điểm</label><input id="mtn-place" maxlength="200" placeholder="VD: Hội trường UBND"></div>
+        <div class="field">${mtLabel('Tên cuộc họp', true)}<input id="mtn-title" maxlength="${MT_TITLE_MAX}" placeholder="VD: Hội nghị sơ kết 6 tháng đầu năm">${mtCounterHtml('mtn-title', '', MT_TITLE_MAX)}</div>
+        <div class="field">${mtLabel('Thời gian', false)}<input id="mtn-start" type="datetime-local"></div>
+        <div class="field">${mtLabel('Địa điểm', false)}<input id="mtn-place" maxlength="${MT_PLACE_MAX}" placeholder="VD: Hội trường UBND">${mtCounterHtml('mtn-place', '', MT_PLACE_MAX)}</div>
       </div>
       <div class="modal-foot"><button class="btn btn-ghost" id="mtn-cancel">Huỷ</button><button class="btn btn-primary" id="mtn-ok">Tạo và thêm tài liệu ›</button></div>
     </div>`;
@@ -446,14 +465,15 @@
     const close = ()=> wrap.remove();
     wrap.querySelector('#mtn-close').onclick = close;
     wrap.querySelector('#mtn-cancel').onclick = close;
+    mtWireCounters(wrap);
     const t = wrap.querySelector('#mtn-title'); setTimeout(()=> t.focus(), 30);
     const ok = wrap.querySelector('#mtn-ok');
     ok.onclick = async ()=>{
-      const title = t.value.trim();
+      const title = t.value.trim().slice(0, MT_TITLE_MAX);
       if(!title){ alert('Vui lòng nhập tên cuộc họp.'); t.focus(); return; }
       ok.disabled = true;
       try{
-        const rec = await mtCreateMeeting({ title, startAt: wrap.querySelector('#mtn-start').value, place: wrap.querySelector('#mtn-place').value.trim() });
+        const rec = await mtCreateMeeting({ title, startAt: wrap.querySelector('#mtn-start').value, place: wrap.querySelector('#mtn-place').value.trim().slice(0, MT_PLACE_MAX) });
         if(!rec){ ok.disabled = false; return; }
         close();
         const S = mtS();
@@ -487,10 +507,10 @@
 
           <div class="divider-lbl">1. Thông tin cuộc họp</div>
           <div class="mt-info-grid">
-            <div class="field mt-span-2"><label>Tên cuộc họp</label><input id="mt-f-title" maxlength="300" value="${escapeHtml(m.title||'')}" ${ro}></div>
-            <div class="field"><label>Thời gian</label><input id="mt-f-start" type="datetime-local" value="${escapeHtml(m.startAt||'')}" ${ro}></div>
-            <div class="field"><label>Địa điểm</label><input id="mt-f-place" maxlength="200" value="${escapeHtml(m.place||'')}" ${ro}></div>
-            <div class="field mt-span-2"><label>Lời nhắn cho đại biểu <span class="mt-hint">(không bắt buộc — hiện ở đầu trang tài liệu)</span></label><textarea id="mt-f-note" rows="2" maxlength="1000" ${ro}>${escapeHtml(m.note||'')}</textarea></div>
+            <div class="field mt-span-2">${mtLabel('Tên cuộc họp', true)}<input id="mt-f-title" maxlength="${MT_TITLE_MAX}" value="${escapeHtml(m.title||'')}" ${ro}>${canEdit ? mtCounterHtml('mt-f-title', m.title, MT_TITLE_MAX) : ''}</div>
+            <div class="field">${mtLabel('Thời gian', false)}<input id="mt-f-start" type="datetime-local" value="${escapeHtml(m.startAt||'')}" ${ro}></div>
+            <div class="field">${mtLabel('Địa điểm', false)}<input id="mt-f-place" maxlength="${MT_PLACE_MAX}" value="${escapeHtml(m.place||'')}" ${ro}>${canEdit ? mtCounterHtml('mt-f-place', m.place, MT_PLACE_MAX) : ''}</div>
+            <div class="field mt-span-2">${mtLabel('Lời nhắn cho đại biểu', false, '— hiện ở đầu trang tài liệu')}<textarea id="mt-f-note" rows="2" maxlength="${MT_NOTE_MAX}" ${ro}>${escapeHtml(m.note||'')}</textarea>${canEdit ? mtCounterHtml('mt-f-note', m.note, MT_NOTE_MAX) : ''}</div>
           </div>
 
           <div class="divider-lbl">2. Tài liệu — sắp theo thứ tự chương trình họp</div>
@@ -523,10 +543,11 @@
         }
       };
     };
-    bindField('#mt-f-title', 'title', v=> v.trim().slice(0,300));
+    mtWireCounters(el);
+    bindField('#mt-f-title', 'title', v=> v.trim().slice(0, MT_TITLE_MAX));
     bindField('#mt-f-start', 'startAt');
-    bindField('#mt-f-place', 'place', v=> v.trim().slice(0,200));
-    bindField('#mt-f-note', 'note', v=> v.trim().slice(0,1000));
+    bindField('#mt-f-place', 'place', v=> v.trim().slice(0, MT_PLACE_MAX));
+    bindField('#mt-f-note', 'note', v=> v.trim().slice(0, MT_NOTE_MAX));
     const up = el.querySelector('#mt-upload'); if(up) up.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtAddUploads(x); };
     const fd = el.querySelector('#mt-from-drive'); if(fd) fd.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtDrivePicker(x); };
     mtPaintEditorParts(el);
@@ -558,7 +579,7 @@
         <span class="mt-doc-num">${i+1}</span>
         <span class="mt-doc-ico">${driveNodeIcon({type:'file', name:d.name, mimeType:d.mimeType})}</span>
         <div class="mt-doc-main">
-          ${canEdit ? `<input class="mt-doc-name" data-mt-rename="${escapeHtml(d.id)}" value="${escapeHtml(mtDocTitle(d))}" maxlength="200" title="Tên hiển thị cho đại biểu — bấm để sửa">` : `<b>${escapeHtml(mtDocTitle(d))}</b>`}
+          ${canEdit ? `<input class="mt-doc-name" data-mt-rename="${escapeHtml(d.id)}" value="${escapeHtml(mtDocTitle(d))}" maxlength="${MT_DOC_TITLE_MAX}" title="Tên hiển thị cho đại biểu (tối đa ${MT_DOC_TITLE_MAX} ký tự) — bấm để sửa">` : `<b>${escapeHtml(mtDocTitle(d))}</b>`}
           <small>${escapeHtml(mtKindLabel(d))}${d.size ? ' · '+escapeHtml(driveFormatBytes(d.size)) : ''}${d.source==='drive' ? ' · từ Trung tâm dữ liệu' : ''}${d.replacedAt ? ` · <b class="mt-doc-new">đã thay bản mới lúc ${escapeHtml(mtFmtIso(d.replacedAt))}</b>` : ''}</small>
         </div>
         <div class="mt-doc-actions">
@@ -679,7 +700,7 @@
       const latest = mtFind(m.id) || m, docs = mtDocs(latest);
       if(docs.length + picked.size > MT_MAX_DOCS){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_DOCS} tài liệu.`); return; }
       const now = new Date().toISOString();
-      picked.forEach(({space, node})=> docs.push({ id:mtDocId(), name:node.name||'Tệp', title:mtStripExt(node.name||'Tệp'), mimeType:node.mimeType||'application/octet-stream', size:node.size||0,
+      picked.forEach(({space, node})=> docs.push({ id:mtDocId(), name:node.name||'Tệp', title:mtStripExt(node.name||'Tệp').slice(0, MT_DOC_TITLE_MAX), mimeType:node.mimeType||'application/octet-stream', size:node.size||0,
         source:'drive', driveId:node.id, driveSpace:space, storagePath:node.storagePath, addedAt:now, updatedAt:now }));
       ok.disabled = true;
       if(await mtSaveDocs(latest, docs)){ close(); showToast(`Đã thêm ${picked.size} tài liệu.`); }
@@ -787,8 +808,7 @@
     wrap.className = 'mt-projector';
     wrap.innerHTML = `<button class="mt-projector-close" aria-label="Đóng">✕ Đóng</button>
       <div class="mt-projector-inner">
-        <div class="mt-projector-org">${escapeHtml(mtOrgName(m))}</div>
-        <h1>${escapeHtml(m.title||'Cuộc họp')}</h1>
+        <h1 class="${Array.from(m.title||'').length>80 ? 'long' : ''}">${escapeHtml(m.title||'Cuộc họp')}</h1>
         ${mtWhenWhere(m) ? `<div class="mt-projector-meta">${escapeHtml(mtWhenWhere(m))}</div>` : ''}
         <div class="mt-projector-qr" id="mtp-qr"><span>Đang tạo mã QR…</span></div>
         <div class="mt-projector-cta">📱 Mở Zalo hoặc Camera, quét mã để xem tài liệu</div>
