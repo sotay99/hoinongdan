@@ -1582,6 +1582,13 @@ body.mtp-viewer-open{overflow:hidden;}
 /* Đang ở trong thư mục con: nền đỏ nhạt, viền đỏ đậm (mọi nơi trong module, kể cả trang đại biểu). */
 .mt-crumbs.in-sub, .mtp .mt-crumbs.in-sub{background:#ffebee; border:2px solid #c62828;}
 .mt-crumbs.in-sub .mt-crumb:hover{background:#ffcdd2;}
+/* Nút "‹ Quay lại thư mục trước" sát dưới thanh địa chỉ, bên trái (chỉ hiện ở thư mục con). */
+.mt-crumbs.in-sub{margin-bottom:6px;}
+.mt-crumb-back-row{display:flex; justify-content:flex-start; margin:0 0 10px;}
+.mt-crumb-back{border:2px solid #c62828; background:#fff; color:#c62828; border-radius:8px; padding:6px 14px; font:inherit; font-size:14px; font-weight:700; cursor:pointer;}
+.mt-crumb-back:hover{background:#ffebee;}
+.mt-crumb-back.drop-into{background:#ffcdd2; outline:2px dashed #c62828;}
+.mtp .mt-crumb-back{font-size:16px; padding:9px 16px;}
 .mtp-doc.mtp-folder{background:#fff8e1; border-color:#f3d98b;}
 .mtp-doc.mtp-folder .mtp-num{background:#c79a2b;}
 .mtp-fico{font-size:26px; flex:0 0 auto;}

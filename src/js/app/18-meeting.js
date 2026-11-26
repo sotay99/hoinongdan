@@ -88,7 +88,15 @@
       return sep + (i===items.length-1
         ? `<span class="mt-crumb cur" aria-current="page">${label}</span>`
         : `<span role="button" tabindex="0" class="mt-crumb preview-allow" data-${attr}="${escapeHtml(it.id)}">${label}</span>`);
-    }).join(' ')}</nav>`;
+    }).join(' ')}</nav>${path.length ? mtCrumbBackHtml(path, attr) : ''}`;
+  }
+  // Nút "‹ Quay lại thư mục trước": sát dưới thanh địa chỉ, bên trái; chỉ có khi đang ở thư mục con. Mang cùng
+  // data-* với các mục trên thanh địa chỉ (trỏ tới thư mục cha, '' = gốc) nên dùng chung luôn việc bấm, phím
+  // Enter và thả kéo (thả tệp lên nút = chuyển tệp lên thư mục cha) ở mọi nơi.
+  function mtCrumbBackHtml(path, attr){
+    const parent = path.length >= 2 ? path[path.length-2] : null;
+    const to = parent ? mtDocTitle(parent) : MT_ROOT_NAME;
+    return `<div class="mt-crumb-back-row"><button type="button" class="mt-crumb-back preview-allow" data-${attr}="${escapeHtml(parent ? parent.id : '')}" title="Về “${escapeHtml(to)}”">‹ Quay lại thư mục trước</button></div>`;
   }
   // Mục trên thanh địa chỉ là <span role="button"> (thẻ <button> không ngắt dòng giữa chừng được, tên thư mục
   // dài sẽ bị đẩy cả cụm xuống dòng) — bấm Enter/Space khi đang chọn bằng bàn phím cũng như bấm chuột.
