@@ -80,7 +80,9 @@
     const items = [{ id:'', title: MT_ROOT_NAME }].concat(path.map(f=> ({ id:f.id, title: mtDocTitle(f) })));
     // Chữ chảy liền (inline) để tên dài tự xuống hàng; dấu "›" dính liền với tên PHÍA SAU nó (&nbsp;) nên
     // không bao giờ đứng trơ trọi một mình ở cuối/đầu dòng.
-    return `<nav class="mt-crumbs" aria-label="Đường dẫn thư mục">${items.map((it,i)=>{
+    // Đang ở trong thư mục con (bất kỳ tầng nào) thì thanh địa chỉ nền đỏ nhạt, viền đỏ đậm cho dễ nhận ra —
+    // áp dụng ở mọi nơi dùng hàm này: trình sửa, hộp "Di chuyển", "Xem như đại biểu", trang đại biểu.
+    return `<nav class="mt-crumbs ${path.length ? 'in-sub' : ''}" aria-label="Đường dẫn thư mục">${items.map((it,i)=>{
       const label = `${i===0 ? '📁 ' : ''}${escapeHtml(it.title)}`;
       const sep = i ? '<span class="mt-crumb-sep" aria-hidden="true">›&nbsp;</span>' : '';
       return sep + (i===items.length-1

@@ -1579,6 +1579,9 @@ body.mtp-viewer-open{overflow:hidden;}
 .mt-mv-empty{padding:14px; text-align:center; color:#77776a; background:#f7f7f4; border-radius:10px;}
 /* Trang đại biểu */
 .mtp .mt-crumbs{font-size:15.5px; background:#fff; border-color:#d7e3d2;}
+/* Đang ở trong thư mục con: nền đỏ nhạt, viền đỏ đậm (mọi nơi trong module, kể cả trang đại biểu). */
+.mt-crumbs.in-sub, .mtp .mt-crumbs.in-sub{background:#ffebee; border:2px solid #c62828;}
+.mt-crumbs.in-sub .mt-crumb:hover{background:#ffcdd2;}
 .mtp-doc.mtp-folder{background:#fff8e1; border-color:#f3d98b;}
 .mtp-doc.mtp-folder .mtp-num{background:#c79a2b;}
 .mtp-fico{font-size:26px; flex:0 0 auto;}
