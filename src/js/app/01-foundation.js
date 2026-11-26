@@ -29,6 +29,11 @@
       ready:()=>!!window.JSZip,
       label:'JSZip (PowerPoint reader)',
     },
+    qrcode: {
+      url:'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+      ready:()=>!!window.QRCode,
+      label:'QRCode.js (mã QR)',
+    },
   };
   function loadOptionalLibrary(name){
     const library = optionalLibraries[name];
