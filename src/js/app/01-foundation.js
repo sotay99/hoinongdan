@@ -34,6 +34,13 @@
       ready:()=>!!window.QRCode,
       label:'QRCode.js (mã QR)',
     },
+    // pdf.js — vẽ PDF thành ảnh từng trang cho trang tài liệu của Phòng họp không giấy (điện thoại
+    // không hiển thị PDF trong khung nhúng). Tệp worker cùng phiên bản khai báo ở 18-meeting.js.
+    pdfjs: {
+      url:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+      ready:()=>!!window.pdfjsLib,
+      label:'pdf.js (PDF)',
+    },
   };
   function loadOptionalLibrary(name){
     const library = optionalLibraries[name];

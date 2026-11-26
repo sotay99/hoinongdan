@@ -72,6 +72,10 @@
         "function": "surveyMeta"
       },
       {
+        "source": "/phonghop/**",
+        "function": "meetingMeta"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

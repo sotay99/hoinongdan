@@ -1,0 +1,987 @@
+  // =====================================================================
+  // 18-meeting.js — Module PHÒNG HỌP KHÔNG GIẤY (Giai đoạn 1).
+  //
+  // Mỗi cuộc họp = một bản ghi meetings/{mã} ở CẤP GỐC (giống surveys/) để đại biểu bấm link công khai
+  // /phonghop/{mã} (hoặc quét mã QR) là đọc được ngay — KHÔNG cần đăng nhập, KHÔNG cần biết mã xã.
+  // Bản ghi chứa thông tin cuộc họp + danh sách tài liệu ĐÃ SẮP THEO THỨ TỰ CHƯƠNG TRÌNH (mảng docs).
+  // Tệp tải lên nằm ở Storage: meeting_files/{mã cuộc họp}/{mã tài liệu}_{tên an toàn}. Tài liệu chọn
+  // từ Trung tâm dữ liệu chỉ được THAM CHIẾU (không chép tệp), gỡ khỏi cuộc họp thì tệp gốc vẫn còn.
+  //
+  // Hai không gian giống Biểu mẫu: DÙNG CHUNG theo mã xã (quyền 'meeting' ở "Cài đặt & Chia sẻ") và
+  // CÁ NHÂN theo tài khoản Google. Danh sách lọc bằng orderByChild('wardId'|'ownerEmail') — nên thêm
+  // ".indexOn":["wardId","ownerEmail"] cho nút meetings trong Firebase Rules.
+  //
+  // Phần này đứng CUỐI manifest nên chứa khối khởi động boot() ở cuối tệp.
+  // =====================================================================
+  const MT_MAX_FILE_MB = 30;
+  const MT_MAX_DOCS = 60;
+  const MT_ID_RE = /^[A-Za-z0-9_-]{6,128}$/;
+  const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+  function mtS(){
+    if(!state.mt) state.mt = { space:null, view:'list', editingId:null, list:[], trash:[], loaded:false, error:'', q:'', uploading:'' };
+    return state.mt;
+  }
+  function mtNewId(){
+    const a = new Uint8Array(12);
+    try{ crypto.getRandomValues(a); }catch(e){ for(let i=0;i<a.length;i++) a[i] = Math.floor(Math.random()*256); }
+    return 'mt' + Array.from(a, b=> (b%36).toString(36)).join('');
+  }
+  function mtDocId(){ return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function mtDocs(m){
+    const d = m && m.docs;
+    return (Array.isArray(d) ? d : Object.values(d||{})).filter(x=> x && x.id);
+  }
+  function mtFind(id){ const S = mtS(); return S.list.find(m=> m.id===id) || null; }
+  function mtOrgName(m){ return m && m.wardName ? `Hội Nông dân ${m.wardName}` : 'Hội Nông dân'; }
+  function mtDocTitle(doc){ return String((doc && (doc.title || doc.name)) || 'Tài liệu'); }
+  function mtStripExt(name){ return String(name||'').replace(/\.[a-z0-9]{1,6}$/i, '') || String(name||''); }
+  function mtSafeName(name){ return String(name||'tep').replace(/[^\w.\-() ]+/g,'_').slice(-100); }
+  function mtKindLabel(doc){
+    return ({ pdf:'PDF', docx:'Word', xlsx:'Excel', pptx:'PowerPoint', image:'Ảnh', text:'Văn bản' })[driveFileKind(doc)] || 'Tệp';
+  }
+
+  // ---- Thời gian: startAt lưu dạng giờ địa phương "YYYY-MM-DDTHH:mm" (đúng giá trị ô datetime-local, để
+  // hiển thị không lệch múi giờ); closeAt lưu ISO để so với giờ hiện tại chính xác trên mọi máy.
+  const MT_WEEKDAYS = ['Chủ nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
+  function mtPad(n){ return String(n).padStart(2,'0'); }
+  function mtFmtStart(s){
+    const m = String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+    if(!m) return '';
+    const d = new Date(+m[1], +m[2]-1, +m[3]);
+    const time = m[4] ? `${m[4]}:${m[5]}, ` : '';
+    return `${time}${MT_WEEKDAYS[d.getDay()]} ${m[3]}/${m[2]}/${m[1]}`;
+  }
+  function mtFmtIso(iso){
+    const d = new Date(iso); if(isNaN(d)) return '';
+    return `${mtPad(d.getHours())}:${mtPad(d.getMinutes())} ${mtPad(d.getDate())}/${mtPad(d.getMonth()+1)}/${d.getFullYear()}`;
+  }
+  function mtIsoToLocalInput(iso){
+    const d = new Date(iso); if(isNaN(d)) return '';
+    return `${d.getFullYear()}-${mtPad(d.getMonth()+1)}-${mtPad(d.getDate())}T${mtPad(d.getHours())}:${mtPad(d.getMinutes())}`;
+  }
+  function mtLocalInputToIso(v){ if(!v) return ''; const d = new Date(v); return isNaN(d) ? '' : d.toISOString(); }
+
+  // Trạng thái liên kết công khai: đóng tay > hết hạn hẹn giờ > đang mở.
+  function mtStatus(m){
+    if(!m) return { open:false, key:'missing', label:'Không tồn tại' };
+    if(m.status==='closed') return { open:false, key:'closed', label:'Đã đóng liên kết' };
+    if(m.closeAt && new Date(m.closeAt).getTime() <= Date.now()) return { open:false, key:'expired', label:'Đã hết hạn' };
+    return { open:true, key:'open', label: m.closeAt ? `Đang mở · tự đóng lúc ${mtFmtIso(m.closeAt)}` : 'Đang mở' };
+  }
+
+  // ---- Link công khai. Bản xem trước của nhánh phụ / máy chạy thử không có Cloud Function meetingMeta
+  // (trên bản xem trước /phonghop/** còn chạy function của production) -> dùng dạng # như Biểu mẫu.
+  function mtShareUrl(id){
+    return surveyUsesHashLinks() ? `${location.origin}/#/phonghop/${encodeURIComponent(id)}` : `${location.origin}/phonghop/${encodeURIComponent(id)}`;
+  }
+  function publicMeetingRouteId(){
+    const p = (window.location.pathname||'').match(/^\/phonghop\/([^/]+)\/?$/);
+    if(p) return decodeURIComponent(p[1]);
+    const h = (window.location.hash||'').match(/^#\/phonghop\/([^/?]+)\/?$/);
+    return h ? decodeURIComponent(h[1]) : null;
+  }
+
+  // ---- Phân quyền ----
+  function mtHasPersonal(){ return !!(state.identity && state.identity.email); }
+  function mtCanView(){
+    if(isTourMode()) return true;
+    return mtS().space==='personal' ? mtHasPersonal() : (!!wardId() && canViewModule('meeting'));
+  }
+  // Giao diện sửa hiện cho cả môi trường tham quan (để xem thử); thao tác ghi thật bị chặn ở mtWriteOk().
+  function mtCanEdit(){
+    if(isTourMode()) return true;
+    return mtS().space==='personal' ? mtHasPersonal() : (!!wardId() && canEditModule('meeting'));
+  }
+  function mtWriteOk(){
+    if(isTourMode()){ alert('Đồng chí đang ở môi trường tham quan, vui lòng đăng nhập để sử dụng tính năng này.'); return false; }
+    if(!mtCanEdit()){ alert(mtS().space==='personal' ? 'Phòng họp cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : 'Đồng chí không có quyền sửa Phòng họp dùng chung này. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".'); return false; }
+    return true;
+  }
+  function mtDefaultSpace(){
+    if(isTourMode()) return 'shared';
+    if(wardId() && canViewModule('meeting')) return 'shared';
+    return mtHasPersonal() ? 'personal' : 'shared';
+  }
+
+  // ---- Dữ liệu mẫu cho môi trường tham quan (không đọc/ghi Firebase) ----
+  function mtDemoMeetings(){
+    const d = new Date(); d.setDate(d.getDate()+3);
+    const day = `${d.getFullYear()}-${mtPad(d.getMonth()+1)}-${mtPad(d.getDate())}`;
+    const txt = (name, content)=> ({ id:mtDocId(), name, title:mtStripExt(name), mimeType:'text/plain', size:content.length, content, source:'demo', addedAt:new Date().toISOString() });
+    return [{
+      id:'mtdemo00000001', scope:'shared', demo:true, wardName:'(mẫu)', title:'Hội nghị sơ kết 6 tháng đầu năm (mẫu)',
+      startAt:`${day}T08:00`, place:'Hội trường UBND', note:'Đề nghị đại biểu nghiên cứu trước dự thảo báo cáo và góp ý trực tiếp tại hội nghị.',
+      status:'open', closeAt:'', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(),
+      docs:[
+        txt('Chương trình hội nghị.txt', '1. Tuyên bố lý do, giới thiệu đại biểu\n2. Báo cáo sơ kết 6 tháng đầu năm\n3. Thảo luận\n4. Phát động thi đua 6 tháng cuối năm\n5. Bế mạc'),
+        txt('Dự thảo báo cáo sơ kết.txt', 'DỰ THẢO\n\nBÁO CÁO SƠ KẾT CÔNG TÁC HỘI 6 THÁNG ĐẦU NĂM\n\n(Nội dung mẫu trong môi trường tham quan.)'),
+        txt('Phụ lục số liệu.txt', 'Phụ lục số liệu mẫu — môi trường tham quan.'),
+      ],
+    }];
+  }
+
+  // ---- Lắng nghe danh sách theo không gian đang xem ----
+  let mtListenerRef = null, mtListenerKey = null;
+  function mtDetach(){ if(mtListenerRef){ try{ mtListenerRef.off(); }catch(e){} } mtListenerRef = null; mtListenerKey = null; }
+  function mtAttach(){
+    const S = mtS();
+    if(!S.space) S.space = mtDefaultSpace();
+    if(isTourMode()){
+      if(mtListenerKey!=='tour'){ mtDetach(); mtListenerKey = 'tour'; S.list = mtDemoMeetings(); S.trash = []; S.loaded = true; S.error = ''; }
+      return;
+    }
+    let ref = null, key = null;
+    if(S.space==='personal'){
+      const email = state.identity && state.identity.email;
+      if(email){ key = 'personal:'+email; ref = rtdb.ref('meetings').orderByChild('ownerEmail').equalTo(email); }
+    } else if(wardId() && canViewModule('meeting')){
+      key = 'shared:'+wardId(); ref = rtdb.ref('meetings').orderByChild('wardId').equalTo(wardId());
+    }
+    if(!ref){ mtDetach(); S.list = []; S.trash = []; S.loaded = true; return; }
+    if(mtListenerRef && mtListenerKey===key) return;
+    mtDetach();
+    S.list = []; S.trash = []; S.loaded = false; S.error = '';
+    mtListenerKey = key; mtListenerRef = ref;
+    ref.on('value', snap=>{
+      if(mtListenerKey!==key) return;
+      const all = (snap && snap.exists()) ? Object.values(snap.val()||{}) : [];
+      const mine = all.filter(m=> m && m.id && (S.space==='personal' ? m.scope==='personal' : m.scope!=='personal'));
+      S.list = mine.filter(m=> !m.deleted);
+      S.trash = mine.filter(m=> m.deleted).sort((a,b)=> String(b.deletedAt||'').localeCompare(String(a.deletedAt||'')));
+      S.loaded = true; S.error = '';
+      mtRefreshFromRealtime();
+    }, err=>{
+      console.error('[Phòng họp] Không tải được danh sách cuộc họp (kiểm tra Firebase Rules cho nút meetings, ".indexOn":["wardId","ownerEmail"]):', err);
+      S.loaded = true; S.error = 'Không tải được danh sách cuộc họp. Vui lòng kiểm tra kết nối mạng rồi tải lại trang.';
+      mtRefreshFromRealtime();
+    });
+  }
+  // Dữ liệu mới về: danh sách thì vẽ lại phần danh sách; trình sửa thì CHỈ vẽ lại khung tài liệu và khung
+  // liên kết — không đụng vào các ô đang gõ để khỏi mất con trỏ.
+  function mtRefreshFromRealtime(){
+    if(state.view!=='app' || state.activeTab!=='meeting') return;
+    const S = mtS();
+    const el = document.getElementById('content'); if(!el) return;
+    if(S.view==='editor'){
+      if(!mtFind(S.editingId)){ S.view = 'list'; S.editingId = null; renderMeetingTab(el); return; }
+      mtPaintEditorParts(el);
+    } else if(el.querySelector('#mt-list')) mtPaintList(el);
+    else renderMeetingTab(el);
+  }
+  function mtSwitchSpace(space){
+    const S = mtS();
+    if(S.space===space) return;
+    if(space==='personal' && !mtHasPersonal() && !isTourMode()){ alert('Phòng họp cá nhân yêu cầu đăng nhập bằng tài khoản Google.'); return; }
+    S.space = space; S.view = 'list'; S.editingId = null;
+    if(isTourMode()){ mtListenerKey = null; }
+    const el = document.getElementById('content'); if(el) renderMeetingTab(el);
+  }
+
+  // ---- Ghi dữ liệu ----
+  function mtActor(){ return (state.identity && (state.identity.name || state.identity.email)) || ''; }
+  async function mtCreateMeeting(fields){
+    if(!mtWriteOk()) return null;
+    const S = mtS(), now = new Date().toISOString(), id = mtNewId();
+    const rec = {
+      id, scope: S.space==='personal' ? 'personal' : 'shared',
+      wardId: S.space==='personal' ? null : wardId(),
+      wardName: (state.config && state.config.wardName) || '',
+      ownerEmail: (state.identity && state.identity.email) || null,
+      createdByName: mtActor(),
+      title: fields.title, startAt: fields.startAt||'', place: fields.place||'', note:'',
+      docs: [], status:'open', closeAt:'', createdAt: now, updatedAt: now, deleted:false,
+    };
+    await rtdb.ref(`meetings/${id}`).set(rec);
+    try{ await pushLog('tạo cuộc họp không giấy', rec.title); }catch(e){}
+    return rec;
+  }
+  async function mtUpdate(id, fields){
+    if(!mtWriteOk()) return false;
+    try{
+      await rtdb.ref(`meetings/${id}`).update({ ...fields, updatedAt: new Date().toISOString() });
+      return true;
+    }catch(e){
+      console.error('[Phòng họp] Lưu lỗi:', e);
+      alert('Không lưu được thay đổi: ' + (e && e.message || e));
+      return false;
+    }
+  }
+  function mtSaveDocs(m, docs){ return mtUpdate(m.id, { docs: docs.map(d=> ({...d})) }); }
+  function mtDeleteStorage(doc){
+    if(doc && doc.source==='upload' && doc.storagePath && typeof storage!=='undefined'){
+      try{ storage.ref(doc.storagePath).delete().catch(e=> console.warn('[Phòng họp] Không xoá được tệp trên Storage (bỏ qua):', e)); }catch(e){}
+    }
+  }
+  function mtSetUploading(text){
+    mtS().uploading = text || '';
+    const box = document.getElementById('mt-upload-status');
+    if(box){ box.textContent = text || ''; box.style.display = text ? '' : 'none'; }
+  }
+  async function mtUploadOne(m, file, docId){
+    const path = `meeting_files/${m.id}/${docId}_${mtSafeName(file.name)}`;
+    const ref = storage.ref(path);
+    const task = ref.put(file, { contentType: file.type || 'application/octet-stream' });
+    if(task && task.on) task.on('state_changed', snap=>{
+      if(snap && snap.totalBytes) mtSetUploading(`⏳ Đang tải "${file.name}"… ${Math.round(snap.bytesTransferred/snap.totalBytes*100)}%`);
+    });
+    await task;
+    return { storagePath: path, storageUrl: await ref.getDownloadURL() };
+  }
+  function mtPickFiles(multiple){
+    return new Promise(resolve=>{
+      const input = document.createElement('input');
+      input.type = 'file'; input.multiple = !!multiple;
+      input.onchange = ()=> resolve(Array.from(input.files||[]));
+      input.click();
+    });
+  }
+  function mtFileTooBig(file){
+    if(file.size > MT_MAX_FILE_MB*1024*1024){ alert(`Tệp "${file.name}" lớn hơn ${MT_MAX_FILE_MB} MB, không tải lên được. Đồng chí có thể nén hoặc tách nhỏ tệp rồi thử lại.`); return true; }
+    return false;
+  }
+  async function mtAddUploads(m){
+    if(!mtWriteOk()) return;
+    const files = await mtPickFiles(true);
+    if(!files.length) return;
+    const fresh = mtFind(m.id) || m;
+    if(mtDocs(fresh).length + files.length > MT_MAX_DOCS){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_DOCS} tài liệu.`); return; }
+    const added = [];
+    for(const f of files){
+      if(mtFileTooBig(f)) continue;
+      const docId = mtDocId();
+      try{
+        const up = await mtUploadOne(fresh, f, docId);
+        const now = new Date().toISOString();
+        added.push({ id:docId, name:f.name, title:mtStripExt(f.name), mimeType:f.type||'application/octet-stream', size:f.size, source:'upload', ...up, addedAt:now, updatedAt:now });
+      }catch(e){
+        console.error('[Phòng họp] Tải tệp lỗi:', e);
+        alert(`Không tải lên được "${f.name}".\n\n${e && e.message ? e.message : 'Lỗi không xác định'}`);
+      }
+    }
+    mtSetUploading('');
+    if(!added.length) return;
+    const latest = mtFind(m.id) || fresh;
+    if(await mtSaveDocs(latest, mtDocs(latest).concat(added))) showToast(`Đã thêm ${added.length} tài liệu.`);
+  }
+  // Thay tệp nhưng GIỮ NGUYÊN vị trí và tên hiển thị — dùng khi sửa tài liệu phút chót.
+  async function mtReplaceDoc(m, docId){
+    if(!mtWriteOk()) return;
+    const [f] = await mtPickFiles(false);
+    if(!f || mtFileTooBig(f)) return;
+    let up;
+    try{ up = await mtUploadOne(m, f, mtDocId()); }
+    catch(e){ mtSetUploading(''); alert(`Không tải lên được "${f.name}".\n\n${e && e.message ? e.message : ''}`); return; }
+    mtSetUploading('');
+    const latest = mtFind(m.id) || m;
+    const docs = mtDocs(latest);
+    const i = docs.findIndex(d=> d.id===docId);
+    if(i<0){ alert('Tài liệu này vừa bị gỡ khỏi cuộc họp.'); return; }
+    const old = docs[i];
+    docs[i] = { ...old, name:f.name, mimeType:f.type||'application/octet-stream', size:f.size, source:'upload', ...up, updatedAt:new Date().toISOString(), replacedAt:new Date().toISOString() };
+    delete docs[i].driveId; delete docs[i].driveSpace;
+    if(await mtSaveDocs(latest, docs)){ mtDeleteStorage(old); showToast(`Đã thay tệp cho "${mtDocTitle(old)}". Đại biểu mở lại là thấy bản mới.`); }
+  }
+  async function mtRemoveDoc(m, docId){
+    if(!mtWriteOk()) return;
+    const docs = mtDocs(m), doc = docs.find(d=> d.id===docId);
+    if(!doc) return;
+    const note = doc.source==='drive' ? '\n\nTệp gốc trong Trung tâm dữ liệu vẫn được giữ nguyên.' : '\n\nTệp đã tải lên sẽ bị xoá hẳn.';
+    if(!confirm(`Gỡ "${mtDocTitle(doc)}" khỏi cuộc họp?${note}`)) return;
+    if(await mtSaveDocs(m, docs.filter(d=> d.id!==docId))) mtDeleteStorage(doc);
+  }
+  async function mtMoveDoc(m, docId, toIndex){
+    if(!mtWriteOk()) return;
+    const docs = mtDocs(m), from = docs.findIndex(d=> d.id===docId);
+    if(from<0 || toIndex<0 || toIndex>=docs.length || from===toIndex) return;
+    const [x] = docs.splice(from, 1);
+    docs.splice(toIndex, 0, x);
+    await mtSaveDocs(m, docs);
+  }
+  async function mtRenameDoc(m, docId, title){
+    const docs = mtDocs(m), doc = docs.find(d=> d.id===docId);
+    if(!doc) return;
+    const t = String(title||'').trim().slice(0,200);
+    if(!t || t===mtDocTitle(doc)) return;
+    doc.title = t;
+    if(await mtSaveDocs(m, docs)) mtFlashSaved();
+  }
+  async function mtTrashMeeting(id){
+    if(!mtWriteOk()) return;
+    const m = mtFind(id); if(!m) return;
+    if(!confirm(`Chuyển cuộc họp "${m.title}" vào Thùng rác?\n\nLiên kết và mã QR của cuộc họp sẽ ngừng hoạt động. Đồng chí có thể khôi phục lại trong Thùng rác.`)) return;
+    try{
+      await rtdb.ref(`meetings/${id}`).update({ deleted:true, deletedAt:new Date().toISOString(), deletedByName: mtActor() });
+      try{ await pushLog('chuyển cuộc họp vào thùng rác', m.title); }catch(e){}
+      showToast('Đã chuyển cuộc họp vào Thùng rác.');
+    }catch(e){ alert('Không xoá được: ' + (e && e.message || e)); }
+  }
+  async function mtRestoreMeeting(id){
+    if(!mtWriteOk()) return;
+    const m = mtS().trash.find(x=> x.id===id); if(!m) return;
+    try{ await rtdb.ref(`meetings/${id}`).update({ deleted:false, deletedAt:null, deletedByName:null }); showToast(`Đã khôi phục "${m.title}".`); }
+    catch(e){ alert('Không khôi phục được: ' + (e && e.message || e)); }
+  }
+  async function mtPurgeMeeting(id){
+    if(!mtWriteOk()) return;
+    const m = mtS().trash.find(x=> x.id===id); if(!m) return;
+    if(!confirm(`XOÁ VĨNH VIỄN cuộc họp "${m.title}" cùng các tệp đã tải lên?\n\nKhông khôi phục lại được. Tài liệu chọn từ Trung tâm dữ liệu vẫn giữ nguyên ở đó.`)) return;
+    try{
+      mtDocs(m).forEach(mtDeleteStorage);
+      await rtdb.ref(`meetings/${id}`).remove();
+      try{ await pushLog('xoá vĩnh viễn cuộc họp', m.title); }catch(e){}
+      showToast('Đã xoá vĩnh viễn.');
+    }catch(e){ alert('Không xoá được: ' + (e && e.message || e)); }
+  }
+  function mtFlashSaved(){
+    const s = document.getElementById('mt-saved'); if(!s) return;
+    s.textContent = '✓ Đã lưu'; s.classList.add('show');
+    clearTimeout(mtFlashSaved._t); mtFlashSaved._t = setTimeout(()=> s.classList.remove('show'), 1600);
+  }
+
+  // =====================================================================
+  // MÀN HÌNH CHÍNH CỦA MODULE
+  // =====================================================================
+  function renderMeetingTab(el){
+    if(!el) return;
+    mtAttach();
+    const S = mtS();
+    if(S.view==='editor' && mtFind(S.editingId)) mtRenderEditor(el);
+    else { S.view = 'list'; S.editingId = null; mtRenderList(el); }
+  }
+
+  function mtStatusPill(m){
+    const st = mtStatus(m);
+    return `<span class="mt-status mt-status-${st.key}">${st.open ? '●' : '○'} ${escapeHtml(st.key==='open' ? 'Đang mở' : st.label)}</span>`;
+  }
+  function mtSortKey(m){ return String(m.startAt || (m.createdAt||'').slice(0,16)); }
+
+  function mtRenderList(el){
+    const S = mtS(), isShared = S.space!=='personal';
+    const canView = mtCanView(), canEdit = mtCanEdit();
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h3>📋 PHÒNG HỌP KHÔNG GIẤY</h3></div>
+        <div class="panel-body">
+          <div style="margin-bottom:14px;">${surveyTabsHtml([
+            { id:'mt-space-shared', label:`🏛️ Cuộc họp dùng chung ${adminLevelLabelLower()}`, active:isShared },
+            { id:'mt-space-personal', label:'🔒 Cuộc họp cá nhân', active:!isShared },
+          ])}</div>
+          ${!canView ? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared
+              ? (wardId() ? 'Đồng chí chưa được cấp quyền xem Phòng họp dùng chung. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : `Phòng họp dùng chung cần vào bằng mã ${adminLevelLabelLower()}.`)
+              : 'Phòng họp cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
+          <div class="mt-toolbar">
+            ${canEdit ? `<button class="btn btn-primary preview-allow" id="mt-new-btn">➕ Tạo cuộc họp mới</button>` : `<span class="mt-hint">Đồng chí chỉ có quyền xem ở đây.</span>`}
+            <input id="mt-q" value="${escapeHtml(S.q)}" placeholder="🔍 Tìm theo tên cuộc họp…" autocomplete="off">
+          </div>
+          <div id="mt-list"></div>`}
+        </div>
+      </div>
+      ${canView ? `<div id="mt-trash"></div>` : ''}`;
+    const sh = el.querySelector('#mt-space-shared'); if(sh) sh.onclick = ()=> mtSwitchSpace('shared');
+    const pe = el.querySelector('#mt-space-personal'); if(pe) pe.onclick = ()=> mtSwitchSpace('personal');
+    const nb = el.querySelector('#mt-new-btn'); if(nb) nb.onclick = ()=> mtNewMeetingModal(el);
+    const q = el.querySelector('#mt-q'); if(q) q.oninput = ()=>{ S.q = q.value; mtPaintList(el); };
+    if(canView) mtPaintList(el);
+  }
+  function mtPaintList(el){
+    const S = mtS(), box = el.querySelector('#mt-list'); if(!box) return;
+    const canEdit = mtCanEdit();
+    const term = surveyFold(String(S.q||'').trim());
+    const list = S.list.filter(m=> !term || surveyFold(m.title||'').includes(term))
+      .sort((a,b)=> mtSortKey(b).localeCompare(mtSortKey(a)));
+    if(S.error) box.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="e-ico">⚠️</div>${escapeHtml(S.error)}</div>`;
+    else if(!S.loaded) box.innerHTML = `<div class="empty-state" style="padding:24px;">Đang tải danh sách cuộc họp…</div>`;
+    else if(!list.length) box.innerHTML = `<div class="empty-state" style="padding:30px;"><div class="e-ico">📋</div>${S.list.length ? 'Không có cuộc họp nào khớp với từ khoá.' : `Chưa có cuộc họp nào${canEdit ? ' — bấm "Tạo cuộc họp mới" để bắt đầu.' : '.'}`}</div>`;
+    else box.innerHTML = `<div class="mt-cards">${list.map(m=>{
+      const n = mtDocs(m).length;
+      return `<div class="mt-card">
+        <button type="button" class="mt-card-main preview-allow" data-mt-open="${escapeHtml(m.id)}">
+          <span class="mt-card-title">${escapeHtml(m.title||'Cuộc họp')}</span>
+          <span class="mt-card-meta">${m.startAt ? `🕗 ${escapeHtml(mtFmtStart(m.startAt))}` : ''}${m.place ? ` · 📍 ${escapeHtml(m.place)}` : ''}</span>
+          <span class="mt-card-meta">📄 ${n} tài liệu ${mtStatusPill(m)}</span>
+        </button>
+        <div class="mt-card-actions">
+          <button class="btn btn-ghost btn-sm preview-allow" data-mt-open="${escapeHtml(m.id)}">${canEdit ? '✏️ Mở / Sửa' : '👁 Xem'}</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-mt-qr="${escapeHtml(m.id)}">📱 Mã QR</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-mt-copy="${escapeHtml(m.id)}">🔗 Sao chép link</button>
+          ${canEdit ? `<button class="btn btn-ghost btn-sm preview-allow" data-mt-trash="${escapeHtml(m.id)}" style="color:var(--red);">Xoá</button>` : ''}
+        </div>
+      </div>`; }).join('')}</div>`;
+    box.querySelectorAll('[data-mt-open]').forEach(b=> b.onclick = ()=>{ S.view = 'editor'; S.editingId = b.dataset.mtOpen; renderMeetingTab(el); window.scrollTo(0,0); });
+    box.querySelectorAll('[data-mt-qr]').forEach(b=> b.onclick = ()=>{ const m = mtFind(b.dataset.mtQr); if(m) mtQrModal(m); });
+    box.querySelectorAll('[data-mt-copy]').forEach(b=> b.onclick = ()=> copyMessageText(mtShareUrl(b.dataset.mtCopy)));
+    box.querySelectorAll('[data-mt-trash]').forEach(b=> b.onclick = ()=> mtTrashMeeting(b.dataset.mtTrash));
+    mtPaintTrash(el);
+  }
+  function mtPaintTrash(el){
+    const S = mtS(), box = el.querySelector('#mt-trash'); if(!box) return;
+    if(!S.trash.length){ box.innerHTML = ''; return; }
+    const canEdit = mtCanEdit();
+    box.innerHTML = `<details class="panel mt-trash"><summary>🗑️ Thùng rác (${S.trash.length})</summary>
+      <div class="panel-body">${S.trash.map(m=>`<div class="mt-trash-row">
+        <div><b>${escapeHtml(m.title||'Cuộc họp')}</b><div class="mt-hint">Xoá lúc ${escapeHtml(mtFmtIso(m.deletedAt))}${m.deletedByName ? ' · bởi '+escapeHtml(m.deletedByName) : ''}</div></div>
+        ${canEdit ? `<div class="mt-trash-actions"><button class="btn btn-ghost btn-sm" data-mt-restore="${escapeHtml(m.id)}">↩️ Khôi phục</button><button class="btn btn-ghost btn-sm" data-mt-purge="${escapeHtml(m.id)}" style="color:var(--red);">Xoá vĩnh viễn</button></div>` : ''}
+      </div>`).join('')}</div></details>`;
+    box.querySelectorAll('[data-mt-restore]').forEach(b=> b.onclick = ()=> mtRestoreMeeting(b.dataset.mtRestore));
+    box.querySelectorAll('[data-mt-purge]').forEach(b=> b.onclick = ()=> mtPurgeMeeting(b.dataset.mtPurge));
+  }
+
+  function mtNewMeetingModal(el){
+    if(!mtWriteOk()) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg mt-font';
+    wrap.innerHTML = `<div class="modal" style="max-width:520px;" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>➕ Tạo cuộc họp mới</h3><button class="modal-close" id="mtn-close" aria-label="Đóng">✕</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Tên cuộc họp <span style="color:var(--red);">*</span></label><input id="mtn-title" maxlength="300" placeholder="VD: Hội nghị sơ kết 6 tháng đầu năm"></div>
+        <div class="field"><label>Thời gian</label><input id="mtn-start" type="datetime-local"></div>
+        <div class="field"><label>Địa điểm</label><input id="mtn-place" maxlength="200" placeholder="VD: Hội trường UBND"></div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-ghost" id="mtn-cancel">Huỷ</button><button class="btn btn-primary" id="mtn-ok">Tạo và thêm tài liệu ›</button></div>
+    </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#mtn-close').onclick = close;
+    wrap.querySelector('#mtn-cancel').onclick = close;
+    const t = wrap.querySelector('#mtn-title'); setTimeout(()=> t.focus(), 30);
+    const ok = wrap.querySelector('#mtn-ok');
+    ok.onclick = async ()=>{
+      const title = t.value.trim();
+      if(!title){ alert('Vui lòng nhập tên cuộc họp.'); t.focus(); return; }
+      ok.disabled = true;
+      try{
+        const rec = await mtCreateMeeting({ title, startAt: wrap.querySelector('#mtn-start').value, place: wrap.querySelector('#mtn-place').value.trim() });
+        if(!rec){ ok.disabled = false; return; }
+        close();
+        const S = mtS();
+        if(!mtFind(rec.id)) S.list = S.list.concat([rec]);
+        S.view = 'editor'; S.editingId = rec.id;
+        renderMeetingTab(el); window.scrollTo(0,0);
+      }catch(e){
+        console.error('[Phòng họp] Tạo cuộc họp lỗi:', e);
+        alert('Không tạo được cuộc họp: ' + (e && e.message || e));
+        ok.disabled = false;
+      }
+    };
+  }
+
+  // ---- Trình sửa một cuộc họp ----
+  function mtRenderEditor(el){
+    const S = mtS(), m = mtFind(S.editingId);
+    const canEdit = mtCanEdit(), ro = canEdit ? '' : 'disabled';
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head mt-editor-head"><h3>📋 ${escapeHtml(m.title||'Cuộc họp')}</h3><span id="mt-saved" class="mt-saved"></span></div>
+        <div class="panel-body">
+          <div class="mt-editor-bar">
+            <button class="btn btn-ghost btn-sm preview-allow" id="mt-back">← Danh sách cuộc họp</button>
+            <div class="mt-editor-bar-right">
+              <button class="btn btn-ghost btn-sm preview-allow" id="mt-preview">👁 Xem như đại biểu</button>
+              <button class="btn btn-ghost btn-sm preview-allow" id="mt-qr">📱 Mã QR</button>
+              <button class="btn btn-primary btn-sm preview-allow" id="mt-project">🖥️ Chiếu mã QR lên màn hình</button>
+            </div>
+          </div>
+
+          <div class="divider-lbl">1. Thông tin cuộc họp</div>
+          <div class="mt-info-grid">
+            <div class="field mt-span-2"><label>Tên cuộc họp</label><input id="mt-f-title" maxlength="300" value="${escapeHtml(m.title||'')}" ${ro}></div>
+            <div class="field"><label>Thời gian</label><input id="mt-f-start" type="datetime-local" value="${escapeHtml(m.startAt||'')}" ${ro}></div>
+            <div class="field"><label>Địa điểm</label><input id="mt-f-place" maxlength="200" value="${escapeHtml(m.place||'')}" ${ro}></div>
+            <div class="field mt-span-2"><label>Lời nhắn cho đại biểu <span class="mt-hint">(không bắt buộc — hiện ở đầu trang tài liệu)</span></label><textarea id="mt-f-note" rows="2" maxlength="1000" ${ro}>${escapeHtml(m.note||'')}</textarea></div>
+          </div>
+
+          <div class="divider-lbl">2. Tài liệu — sắp theo thứ tự chương trình họp</div>
+          ${canEdit ? `<div class="mt-doc-add">
+            <button class="btn btn-primary btn-sm" id="mt-upload">⬆️ Tải tệp lên</button>
+            <button class="btn btn-ghost btn-sm" id="mt-from-drive">🗂️ Chọn từ Trung tâm dữ liệu</button>
+            <span class="mt-hint">PDF hiển thị đẹp nhất trên điện thoại. Mỗi tệp tối đa ${MT_MAX_FILE_MB} MB.</span>
+          </div>` : ''}
+          <div id="mt-upload-status" class="mt-upload-status" style="${S.uploading ? '' : 'display:none;'}">${escapeHtml(S.uploading)}</div>
+          <div id="mt-docs"></div>
+
+          <div class="divider-lbl">3. Liên kết cho đại biểu</div>
+          <div id="mt-link"></div>
+        </div>
+      </div>`;
+    el.querySelector('#mt-back').onclick = ()=>{ S.view = 'list'; S.editingId = null; renderMeetingTab(el); };
+    el.querySelector('#mt-preview').onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtOpenPreview(x); };
+    el.querySelector('#mt-qr').onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtQrModal(x); };
+    el.querySelector('#mt-project').onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtProjector(x); };
+    const bindField = (sel, key, transform)=>{
+      const inp = el.querySelector(sel); if(!inp || !canEdit) return;
+      inp.onchange = async ()=>{
+        const cur = mtFind(S.editingId); if(!cur) return;
+        let v = transform ? transform(inp.value) : inp.value;
+        if(key==='title' && !v){ alert('Tên cuộc họp không được để trống.'); inp.value = cur.title||''; return; }
+        if((cur[key]||'')===v) return;
+        if(await mtUpdate(cur.id, { [key]: v })){
+          mtFlashSaved();
+          if(key==='title'){ const h = el.querySelector('.mt-editor-head h3'); if(h) h.textContent = '📋 ' + v; }
+        }
+      };
+    };
+    bindField('#mt-f-title', 'title', v=> v.trim().slice(0,300));
+    bindField('#mt-f-start', 'startAt');
+    bindField('#mt-f-place', 'place', v=> v.trim().slice(0,200));
+    bindField('#mt-f-note', 'note', v=> v.trim().slice(0,1000));
+    const up = el.querySelector('#mt-upload'); if(up) up.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtAddUploads(x); };
+    const fd = el.querySelector('#mt-from-drive'); if(fd) fd.onclick = ()=>{ const x = mtFind(S.editingId); if(x) mtDrivePicker(x); };
+    mtPaintEditorParts(el);
+  }
+  function mtPaintEditorParts(el){
+    const S = mtS(), m = mtFind(S.editingId); if(!m) return;
+    mtPaintDocs(el, m);
+    mtPaintLink(el, m);
+  }
+  function mtPaintDocs(el, m){
+    const box = el.querySelector('#mt-docs'); if(!box) return;
+    // Đang gõ tên tài liệu thì đừng vẽ lại (mất con trỏ) — đợi rời ô rồi mới vẽ bằng dữ liệu mới nhất.
+    const ae = document.activeElement;
+    if(ae && ae.tagName==='INPUT' && box.contains(ae)){
+      if(!box.dataset.mtPending){
+        box.dataset.mtPending = '1';
+        ae.addEventListener('blur', ()=> setTimeout(()=>{ delete box.dataset.mtPending; const x = mtFind(m.id); if(x) mtPaintDocs(el, x); }, 0), { once:true });
+      }
+      return;
+    }
+    const canEdit = mtCanEdit(), docs = mtDocs(m);
+    if(!docs.length){
+      box.innerHTML = `<div class="empty-state" style="padding:22px;"><div class="e-ico">📄</div>Chưa có tài liệu nào${canEdit ? '. Bấm "Tải tệp lên" hoặc "Chọn từ Trung tâm dữ liệu" để thêm chương trình họp, báo cáo, dự thảo…' : '.'}</div>`;
+      return;
+    }
+    box.innerHTML = `<div class="mt-docs">${docs.map((d,i)=>`
+      <div class="mt-doc" data-mt-doc="${escapeHtml(d.id)}" ${canEdit ? 'draggable="true"' : ''}>
+        ${canEdit ? '<span class="mt-doc-handle" title="Kéo để đổi thứ tự">⠿</span>' : ''}
+        <span class="mt-doc-num">${i+1}</span>
+        <span class="mt-doc-ico">${driveNodeIcon({type:'file', name:d.name, mimeType:d.mimeType})}</span>
+        <div class="mt-doc-main">
+          ${canEdit ? `<input class="mt-doc-name" data-mt-rename="${escapeHtml(d.id)}" value="${escapeHtml(mtDocTitle(d))}" maxlength="200" title="Tên hiển thị cho đại biểu — bấm để sửa">` : `<b>${escapeHtml(mtDocTitle(d))}</b>`}
+          <small>${escapeHtml(mtKindLabel(d))}${d.size ? ' · '+escapeHtml(driveFormatBytes(d.size)) : ''}${d.source==='drive' ? ' · từ Trung tâm dữ liệu' : ''}${d.replacedAt ? ` · <b class="mt-doc-new">đã thay bản mới lúc ${escapeHtml(mtFmtIso(d.replacedAt))}</b>` : ''}</small>
+        </div>
+        <div class="mt-doc-actions">
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" data-mt-up="${escapeHtml(d.id)}" title="Đưa lên trên" ${i===0?'disabled':''}>▲</button>
+          <button class="btn btn-ghost btn-sm" data-mt-down="${escapeHtml(d.id)}" title="Đưa xuống dưới" ${i===docs.length-1?'disabled':''}>▼</button>` : ''}
+          <button class="btn btn-ghost btn-sm preview-allow" data-mt-view="${escapeHtml(d.id)}" title="Xem tài liệu">👁</button>
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" data-mt-replace="${escapeHtml(d.id)}" title="Thay bằng tệp mới, giữ nguyên vị trí">🔄 Thay tệp</button>
+          <button class="btn btn-ghost btn-sm" data-mt-remove="${escapeHtml(d.id)}" title="Gỡ khỏi cuộc họp" style="color:var(--red);">✕</button>` : ''}
+        </div>
+      </div>`).join('')}</div>`;
+    const cur = ()=> mtFind(m.id) || m;
+    box.querySelectorAll('[data-mt-up]').forEach(b=> b.onclick = ()=>{ const ds = mtDocs(cur()); mtMoveDoc(cur(), b.dataset.mtUp, ds.findIndex(d=> d.id===b.dataset.mtUp)-1); });
+    box.querySelectorAll('[data-mt-down]').forEach(b=> b.onclick = ()=>{ const ds = mtDocs(cur()); mtMoveDoc(cur(), b.dataset.mtDown, ds.findIndex(d=> d.id===b.dataset.mtDown)+1); });
+    box.querySelectorAll('[data-mt-replace]').forEach(b=> b.onclick = ()=> mtReplaceDoc(cur(), b.dataset.mtReplace));
+    box.querySelectorAll('[data-mt-remove]').forEach(b=> b.onclick = ()=> mtRemoveDoc(cur(), b.dataset.mtRemove));
+    box.querySelectorAll('[data-mt-view]').forEach(b=> b.onclick = ()=>{ const x = cur(); const i = mtDocs(x).findIndex(d=> d.id===b.dataset.mtView); mtOpenPreview(x, i); });
+    box.querySelectorAll('[data-mt-rename]').forEach(inp=>{
+      inp.onchange = ()=> mtRenameDoc(cur(), inp.dataset.mtRename, inp.value);
+      inp.onkeydown = e=>{ if(e.key==='Enter') inp.blur(); };
+    });
+    if(canEdit) wireDragReorderWithIndicator(
+      Array.from(box.querySelectorAll('.mt-doc')),
+      row=> row.dataset.mtDoc,
+      (dragged, target, before)=>{
+        const ds = mtDocs(cur()), ids = ds.map(d=> d.id).filter(id=> id!==dragged);
+        let ti = ids.indexOf(target); if(!before) ti++;
+        mtMoveDoc(cur(), dragged, ti);
+      }
+    );
+  }
+  function mtPaintLink(el, m){
+    const box = el.querySelector('#mt-link'); if(!box) return;
+    const canEdit = mtCanEdit(), st = mtStatus(m), url = mtShareUrl(m.id);
+    box.innerHTML = `
+      <div class="mt-link-box">
+        <div class="mt-link-row"><span class="mt-link-url">${escapeHtml(url)}</span><button class="btn btn-ghost btn-sm preview-allow" id="mt-copy">📋 Sao chép</button></div>
+        <div class="mt-link-state">Trạng thái: ${mtStatusPill(m)} <span class="mt-hint">${escapeHtml(st.key==='open' && m.closeAt ? 'Tự đóng lúc '+mtFmtIso(m.closeAt) : st.key==='open' ? 'Ai có link hoặc quét mã QR đều xem được, không cần đăng nhập.' : 'Đại biểu mở link sẽ thấy thông báo tài liệu đã đóng.')}</span></div>
+        ${canEdit ? `<div class="mt-link-actions">
+          ${st.open ? `<button class="btn btn-ghost btn-sm" id="mt-close-now" style="color:var(--red);">🔒 Đóng liên kết ngay</button>` : `<button class="btn btn-primary btn-sm" id="mt-reopen">🔓 Mở lại liên kết</button>`}
+          <label class="mt-closeat">⏱️ Tự đóng lúc <input type="datetime-local" id="mt-closeat" value="${escapeHtml(m.closeAt ? mtIsoToLocalInput(m.closeAt) : '')}"></label>
+          ${m.closeAt ? `<button class="btn btn-ghost btn-sm" id="mt-closeat-clear">Bỏ hẹn giờ</button>` : ''}
+        </div>` : ''}
+        <p class="mt-hint mt-link-note">Đóng liên kết thì trang tài liệu không mở được nữa. Đại biểu nào đã tải tệp về máy thì vẫn giữ bản đó.</p>
+      </div>`;
+    box.querySelector('#mt-copy').onclick = ()=> copyMessageText(url);
+    const cn = box.querySelector('#mt-close-now');
+    if(cn) cn.onclick = async ()=>{ if(confirm('Đóng liên kết ngay? Đại biểu sẽ không mở được tài liệu nữa (có thể mở lại bất cứ lúc nào).')) await mtUpdate(m.id, { status:'closed', closedAt:new Date().toISOString() }); };
+    const ro = box.querySelector('#mt-reopen');
+    if(ro) ro.onclick = async ()=>{
+      const expired = m.closeAt && new Date(m.closeAt).getTime() <= Date.now();
+      await mtUpdate(m.id, expired ? { status:'open', closeAt:'' } : { status:'open' });
+    };
+    const ca = box.querySelector('#mt-closeat');
+    if(ca) ca.onchange = async ()=>{
+      const iso = mtLocalInputToIso(ca.value);
+      if(iso && new Date(iso).getTime() <= Date.now() && !confirm('Giờ này đã qua — liên kết sẽ đóng ngay. Tiếp tục?')){ ca.value = m.closeAt ? mtIsoToLocalInput(m.closeAt) : ''; return; }
+      if(await mtUpdate(m.id, { closeAt: iso })) mtFlashSaved();
+    };
+    const cc = box.querySelector('#mt-closeat-clear');
+    if(cc) cc.onclick = async ()=>{ if(await mtUpdate(m.id, { closeAt:'' })) mtFlashSaved(); };
+  }
+
+  // ---- Chọn tài liệu có sẵn trong Trung tâm dữ liệu (chỉ tệp đã lưu trên đám mây) ----
+  async function mtDrivePicker(m){
+    if(!mtWriteOk()) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg mt-font';
+    wrap.innerHTML = `<div class="modal" style="max-width:640px;" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>🗂️ Chọn tài liệu từ Trung tâm dữ liệu</h3><button class="modal-close" id="mtd-close" aria-label="Đóng">✕</button></div>
+      <div class="modal-body" id="mtd-body"><div class="empty-state" style="padding:24px;">Đang tải danh sách tệp…</div></div>
+      <div class="modal-foot"><button class="btn btn-ghost" id="mtd-cancel">Huỷ</button><button class="btn btn-primary" id="mtd-ok" disabled>Thêm vào cuộc họp</button></div>
+    </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#mtd-close').onclick = close;
+    wrap.querySelector('#mtd-cancel').onclick = close;
+    const groups = [];
+    const load = async (label, space, ref)=>{
+      if(!ref) return;
+      try{
+        const tree = await driveTreeForUser(ref, space);
+        const pathOf = n=>{ const parts = []; let p = n.parentId ? tree[n.parentId] : null, g = 0; while(p && g++<30){ parts.unshift(p.name||''); p = p.parentId ? tree[p.parentId] : null; } return parts.join(' › '); };
+        const files = Object.values(tree||{}).filter(n=> n && n.type==='file' && !n.deleted && n.storageUrl)
+          .map(n=> ({ node:n, path:pathOf(n) })).sort((a,b)=> (a.path+'/'+a.node.name).localeCompare(b.path+'/'+b.node.name, 'vi'));
+        groups.push({ label, space, files });
+      }catch(e){ console.warn('[Phòng họp] Không đọc được Trung tâm dữ liệu:', e); groups.push({ label, space, files:[], error:true }); }
+    };
+    if(wardId()) await load(`🏛️ Kho dùng chung ${adminLevelLabelLower()}`, 'shared', rtdb.ref(`communes/${wardId()}/drive_resources`));
+    if(hasAuthenticatedIdentity()) await load('🔒 Kho cá nhân', 'personal', drivePersonalRef());
+    const have = new Set(mtDocs(mtFind(m.id)||m).map(d=> d.driveId).filter(Boolean));
+    const picked = new Map();
+    let q = '';
+    const body = wrap.querySelector('#mtd-body'), ok = wrap.querySelector('#mtd-ok');
+    const paint = ()=>{
+      const term = surveyFold(q.trim());
+      const html = groups.map(g=>{
+        const files = g.files.filter(f=> !term || surveyFold(f.node.name+' '+f.path).includes(term));
+        return `<div class="mtd-group"><b>${escapeHtml(g.label)}</b>${g.error ? '<div class="mt-hint">⚠️ Không đọc được kho này.</div>' : !files.length ? '<div class="mt-hint">Không có tệp nào phù hợp.</div>' : files.map(f=>{
+          const id = f.node.id, done = have.has(id);
+          return `<label class="mtd-row ${done?'done':''}"><input type="checkbox" data-mtd="${escapeHtml(g.space+':'+id)}" ${done?'disabled checked':''} ${picked.has(g.space+':'+id)?'checked':''}>
+            <span>${driveNodeIcon(f.node)}</span><span class="mtd-name"><b>${escapeHtml(f.node.name||'Tệp')}</b><small>${escapeHtml(f.path||'(thư mục gốc)')}${f.node.size ? ' · '+escapeHtml(driveFormatBytes(f.node.size)) : ''}${done ? ' · đã có trong cuộc họp' : ''}</small></span></label>`;
+        }).join('')}</div>`;
+      }).join('');
+      body.innerHTML = `<input id="mtd-q" placeholder="🔍 Tìm theo tên tệp…" value="${escapeHtml(q)}" autocomplete="off" style="width:100%; margin-bottom:10px;">
+        ${groups.length ? html : `<div class="empty-state" style="padding:20px;">Không có kho dữ liệu nào để chọn. Kho dùng chung cần vào bằng mã ${escapeHtml(adminLevelLabelLower())}; kho cá nhân cần đăng nhập Google.</div>`}
+        <p class="mt-hint" style="margin-top:10px;">Chỉ hiện các tệp đã lưu trên đám mây. Tài liệu được dùng chung với Trung tâm dữ liệu, không chép thêm bản mới.</p>`;
+      const qi = body.querySelector('#mtd-q');
+      qi.oninput = ()=>{ const c = qi.selectionStart; q = qi.value; paint(); const again = body.querySelector('#mtd-q'); again.focus(); try{ again.setSelectionRange(c,c); }catch(e){} };
+      body.querySelectorAll('[data-mtd]').forEach(cb=> cb.onchange = ()=>{
+        const key = cb.dataset.mtd;
+        if(cb.checked){ const [space, ...rest] = key.split(':'); const id = rest.join(':'); const g = groups.find(x=> x.space===space); const f = g && g.files.find(x=> x.node.id===id); if(f) picked.set(key, { space, node:f.node }); }
+        else picked.delete(key);
+        ok.disabled = !picked.size; ok.textContent = picked.size ? `Thêm ${picked.size} tài liệu vào cuộc họp` : 'Thêm vào cuộc họp';
+      });
+    };
+    paint();
+    ok.onclick = async ()=>{
+      const latest = mtFind(m.id) || m, docs = mtDocs(latest);
+      if(docs.length + picked.size > MT_MAX_DOCS){ alert(`Mỗi cuộc họp có tối đa ${MT_MAX_DOCS} tài liệu.`); return; }
+      const now = new Date().toISOString();
+      picked.forEach(({space, node})=> docs.push({ id:mtDocId(), name:node.name||'Tệp', title:mtStripExt(node.name||'Tệp'), mimeType:node.mimeType||'application/octet-stream', size:node.size||0,
+        source:'drive', driveId:node.id, driveSpace:space, storagePath:node.storagePath||'', storageUrl:node.storageUrl, addedAt:now, updatedAt:now }));
+      ok.disabled = true;
+      if(await mtSaveDocs(latest, docs)){ close(); showToast(`Đã thêm ${picked.size} tài liệu.`); }
+      else ok.disabled = false;
+    };
+  }
+
+  // =====================================================================
+  // MÃ QR — xem to, tải ảnh PNG, in áp phích A4, in thẻ nhỏ dán bàn, chiếu lên màn hình hội trường
+  // =====================================================================
+  async function mtQrCanvas(url){
+    await loadOptionalLibrary('qrcode');
+    const holder = document.createElement('div');
+    new window.QRCode(holder, { text:url, width:1024, height:1024, colorDark:'#000000', colorLight:'#ffffff', correctLevel: window.QRCode.CorrectLevel.M });
+    const c = holder.querySelector('canvas');
+    if(!c) throw new Error('Trình duyệt không vẽ được mã QR');
+    return c;
+  }
+  function mtWhenWhere(m){ return [m.startAt ? '🕗 '+mtFmtStart(m.startAt) : '', m.place ? '📍 '+m.place : ''].filter(Boolean).join('   '); }
+  function mtQrPosterCanvas(m, qrCanvas, url){
+    const W = 1080, font = '"Be Vietnam Pro", Arial, sans-serif';
+    const meas = document.createElement('canvas').getContext('2d');
+    meas.font = `800 50px ${font}`;
+    const lines = surveyQrWrapLines(meas, m.title||'Cuộc họp', W-140).slice(0,4);
+    meas.font = `400 28px ${font}`;
+    const urlLines = surveyQrWrapLines(meas, url.replace(/^https?:\/\//,''), W-120).slice(0,2);
+    const meta = [m.startAt ? mtFmtStart(m.startAt) : '', m.place||''].filter(Boolean).join(' · ');
+    const bandH = 80 + lines.length*64 + (meta ? 50 : 0), qs = 720;
+    const H = bandH + 50 + qs + 110 + urlLines.length*36 + 50;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0,0,W,H);
+    x.fillStyle = '#2e7d32'; x.fillRect(0,0,W,bandH);
+    x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'top';
+    x.font = `800 50px ${font}`;
+    lines.forEach((ln,i)=> x.fillText(ln, W/2, 40 + i*64));
+    if(meta){ x.font = `500 30px ${font}`; x.fillText(meta, W/2, 40 + lines.length*64 + 10); }
+    const qx = (W-qs)/2, qy = bandH + 50;
+    x.imageSmoothingEnabled = false;
+    x.drawImage(qrCanvas, qx, qy, qs, qs);
+    x.fillStyle = '#1b1b1b'; x.font = `700 40px ${font}`;
+    x.fillText('Quét mã để xem tài liệu cuộc họp', W/2, qy + qs + 40);
+    x.fillStyle = '#555555'; x.font = `400 28px ${font}`;
+    urlLines.forEach((ln,i)=> x.fillText(ln, W/2, qy + qs + 110 + i*36));
+    return c;
+  }
+  async function mtQrModal(m){
+    const url = mtShareUrl(m.id);
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg mt-font';
+    wrap.innerHTML = `<div class="modal" style="max-width:480px;" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>📱 Mã QR — ${escapeHtml(m.title||'Cuộc họp')}</h3><button class="modal-close preview-allow" id="mtq-close" aria-label="Đóng">✕</button></div>
+      <div class="modal-body" style="text-align:center;">
+        ${mtStatus(m).open ? '' : `<div class="mt-warn">⚠️ Liên kết đang ${escapeHtml(mtStatus(m).label.toLowerCase())} — đại biểu quét mã sẽ không xem được tài liệu.</div>`}
+        <div id="mtq-box" class="sv-qr-box"><div class="mt-hint" style="padding:40px 0;">Đang tạo mã QR…</div></div>
+        <p class="mt-hint" style="margin:10px 0 4px;">Đại biểu dùng Zalo hoặc Camera điện thoại quét mã này để xem tài liệu — không cần đăng nhập.</p>
+        <div style="word-break:break-all; font-size:13px;"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></div>
+      </div>
+      <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+        <button class="btn btn-primary btn-sm preview-allow" id="mtq-project">🖥️ Chiếu lên màn hình</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="mtq-png" disabled>⬇️ Tải ảnh PNG</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="mtq-print" disabled>🖨️ In áp phích A4</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="mtq-cards" disabled>🖨️ In thẻ dán bàn</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="mtq-copy">📋 Sao chép link</button>
+      </div></div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#mtq-close').onclick = close;
+    wrap.addEventListener('click', e=>{ if(e.target===wrap) close(); });
+    wrap.querySelector('#mtq-copy').onclick = ()=> copyMessageText(url);
+    wrap.querySelector('#mtq-project').onclick = ()=>{ close(); mtProjector(m); };
+    const box = wrap.querySelector('#mtq-box');
+    let qr;
+    try{ qr = await mtQrCanvas(url); }
+    catch(e){ box.innerHTML = `<div style="color:#b71c1c; padding:24px 0;">⚠️ Không tạo được mã QR. Vui lòng kiểm tra kết nối mạng rồi thử lại.<div class="mt-hint">${escapeHtml(String(e&&e.message||e))}</div></div>`; return; }
+    const qrUrl = qr.toDataURL('image/png');
+    box.innerHTML = `<img src="${qrUrl}" alt="Mã QR" class="sv-qr-img">`;
+    const slug = surveyFileSlug(m.title||'cuoc-hop');
+    const png = wrap.querySelector('#mtq-png'), pr = wrap.querySelector('#mtq-print'), cards = wrap.querySelector('#mtq-cards');
+    png.disabled = pr.disabled = cards.disabled = false;
+    png.onclick = ()=> mtQrPosterCanvas(m, qr, url).toBlob(b=>{ if(b) downloadBlob(`QR_phong-hop_${slug}.png`, b, 'image/png'); }, 'image/png');
+    pr.onclick = ()=>{
+      const area = document.getElementById('print-area'); if(!area) return;
+      area.innerHTML = `<div class="sv-qr-poster" style="--ps-accent:#2e7d32;">
+        <div class="sv-qr-poster-title">${escapeHtml(m.title||'Cuộc họp')}</div>
+        ${mtWhenWhere(m) ? `<div class="sv-qr-poster-desc">${escapeHtml(mtWhenWhere(m))}</div>` : ''}
+        <img src="${qrUrl}" alt="Mã QR" class="sv-qr-poster-img">
+        <div class="sv-qr-poster-cta">📱 Quét mã QR bằng Zalo hoặc Camera điện thoại để xem tài liệu cuộc họp</div>
+        <div class="sv-qr-poster-url">${escapeHtml(url)}</div>
+      </div>`;
+      printAreaNow(false);
+    };
+    // 8 thẻ nhỏ/trang A4 (2 cột × 4 hàng) — cắt ra dán lên bàn đại biểu.
+    cards.onclick = ()=>{
+      const area = document.getElementById('print-area'); if(!area) return;
+      const card = `<div class="mt-print-card"><img src="${qrUrl}" alt="Mã QR"><div><b>${escapeHtml(m.title||'Cuộc họp')}</b><span>Quét mã để xem tài liệu cuộc họp</span></div></div>`;
+      area.innerHTML = `<div class="mt-print-cards">${Array(8).fill(card).join('')}</div>`;
+      printAreaNow(false);
+    };
+  }
+  // Toàn màn hình: mã QR thật to để chiếu lên máy chiếu/TV hội trường.
+  async function mtProjector(m){
+    const url = mtShareUrl(m.id);
+    const wrap = document.createElement('div');
+    wrap.className = 'mt-projector';
+    wrap.innerHTML = `<button class="mt-projector-close" aria-label="Đóng">✕ Đóng</button>
+      <div class="mt-projector-inner">
+        <div class="mt-projector-org">${escapeHtml(mtOrgName(m))}</div>
+        <h1>${escapeHtml(m.title||'Cuộc họp')}</h1>
+        ${mtWhenWhere(m) ? `<div class="mt-projector-meta">${escapeHtml(mtWhenWhere(m))}</div>` : ''}
+        <div class="mt-projector-qr" id="mtp-qr"><span>Đang tạo mã QR…</span></div>
+        <div class="mt-projector-cta">📱 Mở Zalo hoặc Camera, quét mã để xem tài liệu</div>
+        <div class="mt-projector-url">${escapeHtml(url.replace(/^https?:\/\//,''))}</div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=>{ try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(e){} wrap.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = e=>{ if(e.key==='Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    wrap.querySelector('.mt-projector-close').onclick = close;
+    try{ if(wrap.requestFullscreen) wrap.requestFullscreen().catch(()=>{}); }catch(e){}
+    try{
+      const qr = await mtQrCanvas(url);
+      wrap.querySelector('#mtp-qr').innerHTML = `<img src="${qr.toDataURL('image/png')}" alt="Mã QR">`;
+    }catch(e){ wrap.querySelector('#mtp-qr').innerHTML = `<span>⚠️ Không tạo được mã QR — kiểm tra kết nối mạng.</span>`; }
+  }
+
+  // =====================================================================
+  // TRANG ĐẠI BIỂU — /phonghop/{mã}: không đăng nhập, không menu. Dùng chung cho nút "Xem như đại biểu"
+  // trong trình sửa (opts.preview: đọc bản đang có trong máy, không mở kết nối riêng).
+  // =====================================================================
+  function mtPublicListHtml(m){
+    const st = mtStatus(m), docs = mtDocs(m);
+    const head = `<header class="mtp-head">
+        <div class="mtp-org">${escapeHtml(mtOrgName(m))}</div>
+        <h1>${escapeHtml(m.title||'Cuộc họp')}</h1>
+        ${m.startAt ? `<div class="mtp-meta">🕗 ${escapeHtml(mtFmtStart(m.startAt))}</div>` : ''}
+        ${m.place ? `<div class="mtp-meta">📍 ${escapeHtml(m.place)}</div>` : ''}
+      </header>`;
+    if(!st.open) return `${head}<div class="mtp-closed"><div>🔒</div><h2>Tài liệu cuộc họp đã đóng</h2><p>Liên kết này không còn hiệu lực. Vui lòng liên hệ cán bộ tổ chức cuộc họp nếu cần xem lại tài liệu.</p></div>`;
+    return `${head}
+      ${m.note ? `<div class="mtp-note">${surveyLinkify(m.note)}</div>` : ''}
+      <div class="mtp-list-title">Tài liệu cuộc họp (${docs.length})</div>
+      ${docs.length ? `<ol class="mtp-list">${docs.map((d,i)=>`<li><button type="button" class="mtp-doc preview-allow" data-mtp-open="${i}">
+          <span class="mtp-num">${i+1}</span>
+          <span class="mtp-doc-main"><b>${escapeHtml(mtDocTitle(d))}</b><small>${escapeHtml(mtKindLabel(d))}${d.size ? ' · '+escapeHtml(driveFormatBytes(d.size)) : ''}${d.replacedAt ? ` · <em>🆕 Bản mới lúc ${escapeHtml(mtFmtIso(d.replacedAt).slice(0,5))}</em>` : ''}</small></span>
+          <span class="mtp-go">›</span></button></li>`).join('')}</ol>` : `<div class="mtp-empty">Chưa có tài liệu nào. Trang sẽ tự cập nhật khi cán bộ tổ chức đưa tài liệu lên.</div>`}`;
+  }
+  function mtPublicMount(container, opts){
+    let meeting = opts.meeting || null, viewer = null;
+    const paint = ()=>{
+      if(!meeting){ container.innerHTML = `<div class="mtp"><div class="mtp-closed"><div>🔎</div><h2>Không tìm thấy cuộc họp</h2><p>Đường link không đúng, hoặc cuộc họp đã bị xoá.</p></div></div>`; return; }
+      container.innerHTML = `<div class="mtp">${mtPublicListHtml(meeting)}<footer class="mtp-foot">Phòng họp không giấy · hoinongdan.sotay.org</footer></div>`;
+      container.querySelectorAll('[data-mtp-open]').forEach(b=> b.onclick = ()=> openDoc(+b.dataset.mtpOpen));
+    };
+    const openDoc = (i)=>{
+      const docs = mtDocs(meeting);
+      if(!docs[i] || !mtStatus(meeting).open) return;
+      if(viewer) viewer.close(true);
+      viewer = mtOpenDocViewer(docs, i, (ni)=> openDoc(ni), ()=>{ viewer = null; });
+    };
+    paint();
+    if(opts.startIndex!=null && opts.startIndex>=0) openDoc(opts.startIndex);
+    // Bản cập nhật về (sửa phút chót / đóng liên kết): vẽ lại danh sách; đang xem tài liệu mà tệp đó vừa
+    // được thay thì báo để đại biểu tải lại bản mới.
+    return {
+      update(next){
+        const prevDocs = meeting ? mtDocs(meeting) : [];
+        meeting = next;
+        paint();
+        if(!viewer) return;
+        if(!meeting || !mtStatus(meeting).open){ viewer.close(true); return; }
+        const cur = prevDocs[viewer.index()];
+        const now = cur && mtDocs(meeting).find(d=> d.id===cur.id);
+        if(!now) viewer.notice('Tài liệu này vừa được gỡ khỏi cuộc họp.', null);
+        else if(now.storageUrl!==cur.storageUrl) viewer.notice('Tài liệu này vừa được cập nhật bản mới.', ()=> openDoc(mtDocs(meeting).findIndex(d=> d.id===now.id)));
+      },
+      close(){ if(viewer) viewer.close(true); },
+    };
+  }
+  function mtOpenDocViewer(docs, index, onGo, onClose){
+    const d = docs[index];
+    const wrap = document.createElement('div');
+    wrap.className = 'mtp-viewer';
+    const src = driveFileSource(d);
+    wrap.innerHTML = `
+      <div class="mtp-viewer-bar">
+        <button type="button" class="mtp-vbtn preview-allow" data-mtv-back>‹ Danh sách</button>
+        <div class="mtp-viewer-title"><small>Tài liệu ${index+1}/${docs.length}</small><b>${escapeHtml(mtDocTitle(d))}</b></div>
+        ${src && !String(src).startsWith('data:') ? `<a class="mtp-vbtn" href="${escapeHtml(src)}" target="_blank" rel="noopener">⬇ Tải về</a>` : '<span></span>'}
+      </div>
+      <div class="mtp-viewer-notice" style="display:none;"></div>
+      <div class="mtp-viewer-body"><div class="mtp-viewer-loading">Đang mở tài liệu…</div></div>
+      <div class="mtp-viewer-nav">
+        <button type="button" class="mtp-vbtn preview-allow" data-mtv-prev ${index===0?'disabled':''}>‹ Tài liệu trước</button>
+        <button type="button" class="mtp-vbtn preview-allow" data-mtv-next ${index>=docs.length-1?'disabled':''}>Tài liệu sau ›</button>
+      </div>`;
+    document.body.appendChild(wrap);
+    document.body.classList.add('mtp-viewer-open');
+    let closed = false;
+    const api = {
+      index: ()=> index,
+      close(silent){ if(closed) return; closed = true; wrap.remove(); if(!document.querySelector('.mtp-viewer')) document.body.classList.remove('mtp-viewer-open'); if(onClose) onClose(); },
+      notice(text, onReload){
+        const n = wrap.querySelector('.mtp-viewer-notice');
+        n.innerHTML = `<span>🆕 ${escapeHtml(text)}</span>${onReload ? '<button type="button" class="preview-allow">Mở bản mới</button>' : ''}`;
+        n.style.display = '';
+        const b = n.querySelector('button'); if(b) b.onclick = onReload;
+      },
+    };
+    wrap.querySelector('[data-mtv-back]').onclick = ()=> api.close();
+    wrap.querySelector('[data-mtv-prev]').onclick = ()=> onGo(index-1);
+    wrap.querySelector('[data-mtv-next]').onclick = ()=> onGo(index+1);
+    const body = wrap.querySelector('.mtp-viewer-body');
+    const node = { type:'file', name:d.name, mimeType:d.mimeType, storageUrl:d.storageUrl, content:d.content };
+    if(driveFileKind(node)==='pdf' && d.storageUrl) mtRenderPdf(body, d.storageUrl, ()=> closed);
+    else drivePopulateFileViewer(body, node);
+    return api;
+  }
+  // PDF vẽ bằng pdf.js thành từng trang ảnh vừa khổ màn hình (khung nhúng iframe trên điện thoại
+  // thường chỉ hiện trang đầu hoặc bắt tải về). Trang chỉ được vẽ khi cuộn tới gần để nhẹ máy.
+  async function mtRenderPdf(el, url, isClosed){
+    try{
+      await loadOptionalLibrary('pdfjs');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+      const pdf = await window.pdfjsLib.getDocument({ url }).promise;
+      if(isClosed()) return;
+      const first = await pdf.getPage(1);
+      const vp1 = first.getViewport({ scale:1 });
+      el.innerHTML = `<div class="mtp-pdf">${Array.from({length:pdf.numPages}, (_,i)=>`<div class="mtp-pdf-page" data-page="${i+1}" style="aspect-ratio:${vp1.width}/${vp1.height};"><span>Trang ${i+1}</span></div>`).join('')}</div>`;
+      const drawn = new Set();
+      const draw = async (holder)=>{
+        const n = +holder.dataset.page; if(drawn.has(n)) return; drawn.add(n);
+        try{
+          const page = n===1 ? first : await pdf.getPage(n);
+          if(isClosed()) return;
+          const base = page.getViewport({ scale:1 });
+          const cssW = holder.clientWidth || el.clientWidth || 360;
+          const scale = Math.min(cssW * Math.min(window.devicePixelRatio||1, 2) * 1.5 / base.width, 2400 / base.width);
+          const vp = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
+          holder.style.aspectRatio = `${base.width}/${base.height}`;
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+          holder.innerHTML = ''; holder.appendChild(canvas);
+        }catch(e){ console.warn('[Phòng họp] Vẽ trang PDF lỗi:', e); holder.innerHTML = `<span>⚠️ Không hiển thị được trang ${n}</span>`; }
+      };
+      const pages = Array.from(el.querySelectorAll('.mtp-pdf-page'));
+      if('IntersectionObserver' in window){
+        const io = new IntersectionObserver(entries=> entries.forEach(en=>{ if(en.isIntersecting){ io.unobserve(en.target); draw(en.target); } }), { root: el, rootMargin:'800px 0px' });
+        pages.forEach(p=> io.observe(p));
+      } else pages.forEach(draw);
+    }catch(e){
+      console.warn('[Phòng họp] pdf.js không mở được tệp, chuyển sang khung xem của trình duyệt:', e);
+      if(isClosed()) return;
+      el.innerHTML = `<div class="mtp-pdf-fallback"><iframe class="drive-viewer-pdf" title="Tài liệu PDF"></iframe><a class="btn btn-primary" href="${escapeHtml(url)}" target="_blank" rel="noopener">Mở tệp PDF ↗</a></div>`;
+      el.querySelector('iframe').src = url;
+    }
+  }
+  // "Xem như đại biểu" ngay trong app — dựng lại đúng giao diện trang công khai trên lớp phủ toàn màn hình.
+  function mtOpenPreview(m, startIndex){
+    const wrap = document.createElement('div');
+    wrap.className = 'mtp-preview';
+    wrap.innerHTML = `<div class="mtp-preview-bar"><span>👁 Đang xem như đại biểu${mtStatus(m).open ? '' : ' — liên kết đang đóng'}</span><button type="button" class="btn btn-ghost btn-sm preview-allow">✕ Đóng</button></div><div class="mtp-preview-body"></div>`;
+    document.body.appendChild(wrap);
+    const mount = mtPublicMount(wrap.querySelector('.mtp-preview-body'), { meeting:m, preview:true, startIndex: mtStatus(m).open ? startIndex : null });
+    wrap.querySelector('.mtp-preview-bar button').onclick = ()=>{ mount.close(); wrap.remove(); };
+  }
+  function renderPublicMeetingPage(id){
+    document.body.classList.add('public-meeting-mode');
+    document.title = 'Phòng họp không giấy - Hoinongdan.sotay.org';
+    root.innerHTML = `<div class="mtp"><div class="mtp-viewer-loading">Đang tải tài liệu cuộc họp…</div></div>`;
+    if(!MT_ID_RE.test(id)){ mtPublicMount(root, { meeting:null }); return; }
+    let mount = null;
+    rtdb.ref(`meetings/${id}`).on('value', snap=>{
+      const m = snap && snap.exists() ? snap.val() : null;
+      const visible = m && !m.deleted ? m : null;
+      if(visible) document.title = `${visible.title||'Cuộc họp'} - Phòng họp không giấy`;
+      if(!mount) mount = mtPublicMount(root, { meeting:visible });
+      else mount.update(visible);
+    }, err=>{
+      console.error('[Phòng họp] Không tải được cuộc họp:', err);
+      root.innerHTML = `<div class="mtp"><div class="mtp-closed"><div>⚠️</div><h2>Không tải được tài liệu</h2><p>Vui lòng kiểm tra kết nối mạng rồi tải lại trang.</p></div></div>`;
+    });
+  }
+
+  // =====================================================================
+  // ĐIỂM KHỞI ĐỘNG ỨNG DỤNG — PHẢI LUÔN NẰM Ở CUỐI PHẦN CUỐI CÙNG trong
+  // manifest.json. Toàn bộ các phần được nối lại thành MỘT hàm bọc (IIFE)
+  // duy nhất mở ở 01-foundation.js và đóng ngay bên dưới, nhờ vậy mọi phần
+  // dùng chung được `state`, `render`, `escapeHtml`... Nếu sau này thêm
+  // phần mới, hãy CHUYỂN nguyên khối này xuống cuối phần đó — để mọi khai
+  // báo `let/const` đều đã khởi tạo xong trước khi boot() chạy (tránh lỗi
+  // "Cannot access before initialization").
+  // =====================================================================
+  const _publicReceiptId = publicReceiptRouteId();
+  const _publicSurveyId = publicSurveyRouteId();
+  const _publicMeetingId = publicMeetingRouteId();
+  if(_publicReceiptId){
+    renderPublicReceiptPage(_publicReceiptId);
+  } else if(_publicSurveyId){
+    renderPublicSurveyPage(_publicSurveyId);
+  } else if(_publicMeetingId){
+    renderPublicMeetingPage(_publicMeetingId);
+  } else {
+    boot();
+  }
+})();

@@ -84,6 +84,7 @@ sau đó mới có thể đóng write hoặc xóa legacy sau khi xác minh produ
 | `notifications/{emailKey}/{notificationId}` | Thông báo chủ biên lai | Chủ account đọc; public flow có thể tạo một notification hợp lệ | Email-key đích phải được ràng buộc với biên lai, field phải whitelist |
 | `surveys/{surveyId}` | Khảo sát cá nhân/chung | Public đọc nếu khảo sát được công khai; owner/ward đọc và ghi theo ACL | Query `ownerEmail`/`wardId` không thay thế Rules |
 | `survey_responses/{surveyId}/{responseId}` | Câu trả lời khảo sát | Public submit theo schema | Chỉ cho tạo response hợp lệ; không cho sửa/xóa response hoặc tăng counter tùy ý |
+| `meetings/{meetingId}` | Phòng họp không giấy: thông tin cuộc họp + danh sách tài liệu (`18-meeting.js`) | Public đọc theo mã cuộc họp (trang `/phonghop/{mã}`); ghi theo quyền `meeting` của ward hoặc chính chủ email (bộ cá nhân) | Danh sách lọc bằng query `wardId`/`ownerEmail` (cần `.indexOn`); `ownerEmail` lộ ra cho người có link giống `surveys`; "đóng liên kết" chỉ chặn ở giao diện, chưa có Rules chặn đọc |
 | `system_knowledge/tree` | Cây tri thức AI | Admin/system knowledge | Full-tree read hiện chưa có bằng chứng auth server-side trong source |
 | `system_config/ai_providers` | Cấu hình provider AI | Admin write; read tối thiểu cần xác minh | Không lưu/cho đọc secret API key trên client nếu không cần |
 | `admins` | Danh sách admin | Admin/super-admin quản lý | Không tin danh sách do client tự đọc để tự cấp quyền |
@@ -100,6 +101,7 @@ sau đó mới có thể đóng write hoặc xóa legacy sau khi xác minh produ
 | `super_notes_files/{uid-or-ward}/{generatedId}_{name}` | File gốc Super Notes | Chủ UID hoặc ward ACL tương ứng | Có fallback ward và path tên file gốc; upload lỗi hiện có thể chỉ làm mất URL |
 | `drive-resources/ward_{wardId}/{id}-{safeName}` | File Drive dùng chung | Guest viewer nếu được vào ward; owner/editor ghi | Storage không biết ACL RTDB; ai có download URL có thể tải độc lập |
 | `drive-resources/user_{uid-or-key}/{id}-{safeName}` | File Drive cá nhân | Chính UID; legacy migration có thể dùng key cũ | Cần ngăn path `account` hoặc key tùy ý |
+| `meeting_files/{meetingId}/{docId}_{safeName}` | Tệp tải lên cho cuộc họp | Người có quyền sửa cuộc họp upload/delete; đại biểu đọc qua download URL | Download URL dùng được cả sau khi đóng liên kết hoặc xoá cuộc họp (đến khi object bị xoá); xoá vĩnh viễn cuộc họp có dọn object |
 
 Các luồng upload đang gọi `getDownloadURL()` rồi lưu URL vào RTDB. URL này có
 thể tiếp tục dùng được sau khi quyền ứng dụng bị thu hồi. Vì vậy:

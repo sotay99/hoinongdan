@@ -357,3 +357,96 @@ exports.surveyMeta = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
+// ============================================================================
+// Cloud Function: meetingMeta
+// Link trang tài liệu cuộc họp: https://<domain>/phonghop/<mã>. Chèn <title> + og:* đúng cuộc họp đó để
+// Zalo/Messenger hiện khung xem trước (tên cuộc họp, thời gian, địa điểm). Ảnh xem trước cố định
+// /og/phonghop.png (build chép từ src/og/). Dữ liệu ở meetings/<mã> — xem src/js/app/18-meeting.js.
+// ============================================================================
+const MEETING_WEEKDAYS = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+// startAt lưu dạng giờ địa phương "YYYY-MM-DDTHH:mm" — định dạng y hệt mtFmtStart() trong app.
+function mtFmtStart(s) {
+  const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return "";
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return `${m[4] ? `${m[4]}:${m[5]}, ` : ""}${MEETING_WEEKDAYS[d.getUTCDay()]} ${m[3]}/${m[2]}/${m[1]}`;
+}
+function mtIsOpen(m) {
+  if (m.status === "closed") return false;
+  if (m.closeAt && new Date(m.closeAt).getTime() <= Date.now()) return false;
+  return true;
+}
+
+exports.meetingMeta = functions.https.onRequest(async (req, res) => {
+  try {
+    const parts = req.path.split("/").filter(Boolean);
+    const code = decodeURIComponent(parts[1] || "");
+    console.log("[meetingMeta] Nhận request:", req.method, req.originalUrl);
+    delete req.headers.range;
+    delete req.headers["if-range"];
+
+    let pageTitle = "Phòng họp không giấy - Hoinongdan.sotay.org";
+    let ogTitle = "Tài liệu cuộc họp";
+    let description = "Bấm vào để xem tài liệu cuộc họp ngay trên điện thoại — không cần cài phần mềm, không cần đăng nhập.";
+    const ogImageUrl = `${SITE_ORIGIN}/og/phonghop.png`;
+
+    // Mã cuộc họp do app sinh chỉ gồm chữ/số — chặn ký tự lạ trước khi đọc Database.
+    if (code && /^[A-Za-z0-9_-]{6,128}$/.test(code)) {
+      const snap = await admin.database().ref("meetings/" + code).once("value");
+      if (snap.exists() && !snap.val().deleted) {
+        const m = snap.val();
+        const name = String(m.title || "Cuộc họp").trim();
+        const n = Array.isArray(m.docs) ? m.docs.filter(Boolean).length : Object.keys(m.docs || {}).length;
+        ogTitle = mtIsOpen(m) ? `Tài liệu: ${name}` : `${name} (tài liệu đã đóng)`;
+        const when = [mtFmtStart(m.startAt), m.place ? String(m.place) : ""].filter(Boolean).join(" · ");
+        description = mtIsOpen(m)
+          ? `${when ? when + ". " : ""}${n} tài liệu — bấm vào để xem ngay trên điện thoại, không cần đăng nhập.`
+          : `${when ? when + ". " : ""}Liên kết tài liệu của cuộc họp này đã đóng.`;
+        pageTitle = `${name} - Phòng họp không giấy`;
+      }
+    }
+
+    const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+    const metaBlock = `
+    <title>${escapeHtml(pageTitle)}</title>
+    <meta property="og:title" content="${escapeHtml(ogTitle)}">
+    <meta property="og:description" content="${escapeHtml(description)}">
+    <meta property="og:type" content="website">
+    <meta name="description" content="${escapeHtml(description)}">
+    <link rel="canonical" href="${escapeHtml(SITE_ORIGIN + req.originalUrl)}">
+    <meta property="og:site_name" content="Sổ tay Công tác Hội Nông dân cấp xã/phường">
+    <meta property="og:locale" content="vi_VN">
+    <meta property="og:url" content="${escapeHtml(SITE_ORIGIN + req.originalUrl)}">
+    <meta property="og:image" content="${escapeHtml(ogImageUrl)}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
+    <meta name="twitter:description" content="${escapeHtml(description)}">
+    <meta name="twitter:image" content="${escapeHtml(ogImageUrl)}">
+    `;
+    const headEnd = html.search(/<\/head>/i);
+    const HEAD_SCAN_LIMIT = headEnd > 0 && headEnd < 20000 ? headEnd : 3000;
+    let headPart = html.slice(0, HEAD_SCAN_LIMIT).replace(/<title>[\s\S]*?<\/title>/i, "");
+    headPart = headPart.replace(/<meta\s+(?:property|name)="(?:og:[^"]*|twitter:[^"]*|description)"[^>]*>\s*/gi, "");
+    headPart = headPart.replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "");
+    const headOpenIdx = headPart.search(/<head[^>]*>/i);
+    if (headOpenIdx !== -1) {
+      const insertAt = headPart.indexOf(">", headOpenIdx) + 1;
+      headPart = headPart.slice(0, insertAt) + metaBlock + headPart.slice(insertAt);
+    } else {
+      headPart = metaBlock + headPart;
+    }
+    const bodyBuffer = Buffer.from(headPart + html.slice(HEAD_SCAN_LIMIT), "utf8");
+    res.status(200);
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.set("Content-Length", String(bodyBuffer.length));
+    res.set("Cache-Control", "no-store");
+    res.removeHeader("ETag");
+    res.end(bodyBuffer);
+  } catch (err) {
+    console.error("[meetingMeta] Lỗi:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});

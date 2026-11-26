@@ -2243,6 +2243,7 @@
         detachRealtime();
         detachKnowledgeRealtime();
         detachSurveysRealtime();
+        mtDetach(); state.mt = null;
         state.identity = null; lset(IDENTITY_KEY, null);
          state.accessMode = ACCESS_MODES.SIGNED_OUT;
          state.guestSessionId = null;
