@@ -310,9 +310,10 @@
             ${isFreeText? `<p class="sub" style="margin:4px 0;">${q.numericOnly? '🔢 Người trả lời chỉ được nhập chữ số và dấu phẩy (,) — tự động tách cụm 3 số khi gõ.' : ''}</p>` : ''}
             ${surveyQTypeHasOptions(q.type)? `
               <p class="sub" style="margin:4px 0;">${q.type==='checkbox'? '☑️ Được chọn NHIỀU phương án.' : '🔘 Chỉ được chọn 1 phương án.'}</p>
-              <div class="q-options-list">
+              ${(q.options||[]).length>=SURVEY_OPT_SEARCH_MIN? `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:4px 0 8px;"><input class="q-opt-search" data-qid="${q.id}" value="${escapeHtml(surveyEditorOptSearch[q.id]||'')}" placeholder="🔍 Tìm phương án trong câu này (không cần gõ dấu)…" autocomplete="off" style="flex:1 1 220px; min-width:0;"><span class="sub q-opt-found" data-qid="${q.id}"></span></div>` : ''}
+              <div class="q-options-list" data-qid="${q.id}">
                 ${(q.options||[]).map((opt,oi)=>`
-                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap;">
+                  <div class="q-opt-row" data-opt-norm="${escapeHtml(surveyFold(opt))}" style="display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap;">
                     ${isQuiz? `<label class="sv-filter-item sv-opt sv-opt-fit sv-opt-correct" title="Đánh dấu là đáp án đúng"><input type="checkbox" class="q-correct" data-qid="${q.id}" data-oi="${oi}" ${(q.correctAnswers||[]).includes(opt)?'checked':''} ${canEdit?'':'disabled'}><span>Đúng</span></label>` : ''}
                     <input class="q-option-text" data-qid="${q.id}" data-oi="${oi}" value="${escapeHtml(opt)}" style="flex:1; min-width:120px;" placeholder="Phương án ${oi+1}" ${canEdit?'':'disabled'}>
                     ${branchOn? `<select class="q-option-branch" data-qid="${q.id}" data-oi="${oi}" style="font-size:11.5px;" ${canEdit?'':'disabled'}>
@@ -323,7 +324,7 @@
                     ${canEdit? `<button class="btn btn-ghost btn-sm q-option-remove" data-qid="${q.id}" data-oi="${oi}">✕</button>` : ''}
                   </div>`).join('')}
               </div>
-              ${canEdit? `<button class="btn btn-ghost btn-sm q-add-option" data-qid="${q.id}">➕ Thêm phương án</button>` : ''}
+              ${canEdit? `<div style="display:flex; flex-wrap:wrap; gap:6px;"><button class="btn btn-ghost btn-sm q-add-option" data-qid="${q.id}">➕ Thêm phương án</button><button class="btn btn-ghost btn-sm q-paste-options preview-allow" data-qid="${q.id}">📋 Dán nhiều phương án</button><span class="sub" style="align-self:center;">${(q.options||[]).length} phương án</span></div>` : ''}
               ${isQuiz? `<div class="field" style="max-width:180px; margin-top:8px;"><label>Số điểm câu này</label><input type="number" class="q-points" data-qid="${q.id}" value="${q.points||0}" ${canEdit?'':'disabled'}></div>` : ''}
             ` : ''}
           </div>
@@ -344,9 +345,9 @@
         ${draft.sections.map((sec, si)=>{
           const secQuestions = draft.questions.filter(q=>q.sectionId===sec.id);
           return `
-          <div class="panel" style="margin-bottom:16px; border:2px solid var(--gold);" data-section-card="${sec.id}">
-            <div class="panel-head" style="background:rgba(199,154,43,.08); display:flex; align-items:center; gap:8px;">
-              <h3 style="font-size:13.5px;">📑 Phần ${si+1}/${draft.sections.length}${secQuestions.length? '' : ' <span class="sub" style="font-weight:400;">(chưa có câu hỏi)</span>'}</h3>
+          <div class="panel" style="margin-bottom:16px; border:2px solid #1565c0;" data-section-card="${sec.id}">
+            <div class="panel-head sv-sec-head" style="display:flex; align-items:center; gap:8px;">
+              <h3>📑 Phần ${si+1}/${draft.sections.length}${(sec.title||'').trim()? ' — '+escapeHtml(sec.title.trim()) : ''}${secQuestions.length? '' : ' <span style="font-weight:400; opacity:.85;">(chưa có câu hỏi)</span>'}</h3>
               ${canEdit? `<button type="button" class="btn btn-sm sv-kebab sv-kebab-sec preview-allow" data-secmenu="${sec.id}" data-pop-anchor title="Tuỳ chọn cho phần này" style="margin-left:auto;">☰</button>` : ''}
             </div>
             <div class="panel-body">
@@ -504,6 +505,16 @@
       el.querySelectorAll('.sec-desc').forEach(inp=> inp.oninput = ()=>{ const s=draft.sections.find(x=>x.id===inp.dataset.secid); if(s) s.description = inp.value; });
       el.querySelectorAll('.sec-add-question').forEach(btn=> btn.onclick = ()=>{ draft.questions.push(emptySurveyQuestion(btn.dataset.secid)); renderSurveyTab(el); });
       wireSurveyStructureMenus(el, draft);
+      el.querySelectorAll('.q-paste-options').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(q) renderSurveyPasteOptionsModal(q, ()=> renderSurveyTab(el)); });
+      el.querySelectorAll('.q-opt-search').forEach(inp=>{
+        const apply = ()=>{
+          const qid = inp.dataset.qid, term = surveyFold(inp.value.trim()); surveyEditorOptSearch[qid] = inp.value;
+          const rows = el.querySelectorAll(`.q-options-list[data-qid="${qid}"] .q-opt-row`); let hit = 0;
+          rows.forEach(r=>{ const ok = !term || r.dataset.optNorm.includes(term); r.style.display = ok? '' : 'none'; if(ok) hit++; });
+          const f = el.querySelector(`.q-opt-found[data-qid="${qid}"]`); if(f) f.textContent = term? `Tìm thấy ${hit}/${rows.length} phương án` : '';
+        };
+        inp.oninput = apply; apply();
+      });
       const addSectionBtn = document.getElementById('sv-add-section-btn');
       if(addSectionBtn) addSectionBtn.onclick = ()=>{ draft.sections.push(emptySurveySection(draft.sections.length+1)); renderSurveyTab(el); };
       const saveBtn = document.getElementById('sv-save-btn'); if(saveBtn) saveBtn.onclick = async ()=>{ if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); renderSurveyTab(el); } };
@@ -517,6 +528,51 @@
     }
   }
 
+  // Câu có từ ngần này phương án trở lên thì có ô tìm nhanh phương án (trang điền phiếu + trình soạn).
+  const SURVEY_OPT_SEARCH_MIN = 6;
+  const surveyEditorOptSearch = {}; // chữ đang tìm trong trình soạn, giữ lại qua các lần vẽ lại
+  // Bỏ dấu tiếng Việt + chữ thường, giữ nguyên số ký tự (mỗi ký tự gốc -> đúng 1 ký tự) để tô sáng
+  // đúng vị trí trên chữ gốc. Gõ "nong dan" vẫn khớp "Nông dân".
+  function surveyFoldChar(c){ return c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'d').toLowerCase().charAt(0) || c; }
+  function surveyFold(s){ return Array.from(String(s||'')).map(surveyFoldChar).join(''); }
+  function renderSurveyPasteOptionsModal(q, onDone){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:560px;">
+        <div class="modal-head"><h3>📋 Dán nhiều phương án</h3><button class="modal-close preview-allow" id="svpo-close">✕</button></div>
+        <div class="modal-body">
+          <p class="sub" style="margin:0 0 8px;">Dán danh sách vào ô dưới — <b>mỗi dòng là 1 phương án</b>. Dòng trống và phương án trùng với phương án đã có sẽ tự bỏ qua.</p>
+          <textarea id="svpo-text" rows="10" style="width:100%;" placeholder="Phương án 1&#10;Phương án 2&#10;Phương án 3"></textarea>
+          <p class="sub" id="svpo-count" style="margin:6px 0 10px;">0 phương án</p>
+          <label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="svpo-mode" value="append" checked><span>Thêm vào sau ${(q.options||[]).length} phương án hiện có</span></label>
+          <label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="svpo-mode" value="replace"><span>Thay thế toàn bộ phương án hiện có</span></label>
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="svpo-cancel">Đóng</button><button class="btn btn-primary preview-allow" id="svpo-ok">✅ Thêm phương án</button></div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    const ta = wrap.querySelector('#svpo-text');
+    const lines = ()=>{ const seen = new Set(); return ta.value.split(/\r?\n/).map(x=>x.trim()).filter(x=>{ if(!x || seen.has(x)) return false; seen.add(x); return true; }); };
+    ta.oninput = ()=>{ wrap.querySelector('#svpo-count').textContent = `${lines().length} phương án`; };
+    wrap.querySelector('#svpo-close').onclick = close;
+    wrap.querySelector('#svpo-cancel').onclick = close;
+    wrap.querySelector('#svpo-ok').onclick = ()=>{
+      const list = lines(); if(!list.length){ alert('Chưa có phương án nào. Hãy dán danh sách, mỗi dòng 1 phương án.'); return; }
+      const replace = wrap.querySelector('input[name="svpo-mode"]:checked').value==='replace';
+      if(replace && (q.options||[]).length && !confirm(`Thay thế toàn bộ ${(q.options||[]).length} phương án hiện có bằng ${list.length} phương án mới?`)) return;
+      const base = replace? [] : (q.options||[]).filter(o=> String(o).trim());
+      const baseBranches = replace? [] : (q.optionBranches||[]).slice(0, (q.options||[]).length).filter((_,i)=> String((q.options||[])[i]).trim());
+      const add = list.filter(x=> !base.includes(x));
+      q.options = base.concat(add);
+      q.optionBranches = baseBranches.concat(add.map(()=>'__next__'));
+      q.correctAnswers = (q.correctAnswers||[]).filter(a=> q.options.includes(a));
+      close();
+      showToast(`Đã thêm ${add.length} phương án${list.length-add.length? ` (bỏ qua ${list.length-add.length} phương án trùng)` : ''}.`);
+      if(onDone) onDone();
+    };
+    setTimeout(()=> ta.focus(), 0);
+  }
   // ---- Menu "⋮" của từng câu hỏi và từng phần (kiểu Google Biểu mẫu) ----
   function wireSurveyStructureMenus(el, draft){
     const rerender = ()=> renderSurveyTab(el);
@@ -914,8 +970,15 @@
       if(q.type==='short') field = `<input class="ps-answer" data-qid="${q.id}" data-type="short" ${isNumeric?'data-numeric="1" inputmode="decimal"':''} value="${escapeHtml(prevVal||'')}">${isNumeric? `<div class="sub" data-numeric-disp="${q.id}" style="text-align:right; font-weight:700; margin-top:4px;"></div>` : ''}`;
       else if(q.type==='paragraph') field = `<textarea class="ps-answer" data-qid="${q.id}" data-type="paragraph" rows="3" ${isNumeric?'data-numeric="1" inputmode="decimal"':''}>${escapeHtml(prevVal||'')}</textarea>${isNumeric? `<div class="sub" data-numeric-disp="${q.id}" style="text-align:right; font-weight:700; margin-top:4px;"></div>` : ''}`;
       else if(q.type==='dropdown') field = `<select class="ps-answer" data-qid="${q.id}" data-type="dropdown"><option value="">-- Chọn --</option>${publicOptions(q).map(o=>`<option value="${escapeHtml(o)}" ${prevVal===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}</select>`;
-      else if(q.type==='radio') field = `<div>${publicOptions(q).map(o=>`<label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="ps-q-${q.id}" class="ps-answer" data-qid="${q.id}" data-type="radio" value="${escapeHtml(o)}" ${prevVal===o?'checked':''}><span>${escapeHtml(o)}</span></label>`).join('')}</div>`;
-      else if(q.type==='checkbox') field = `<div>${publicOptions(q).map(o=>`<label class="sv-filter-item sv-opt sv-opt-full"><input type="checkbox" class="ps-answer" data-qid="${q.id}" data-type="checkbox" value="${escapeHtml(o)}" ${(Array.isArray(prevVal)&&prevVal.includes(o))?'checked':''}><span>${escapeHtml(o)}</span></label>`).join('')}</div>`;
+      else if(q.type==='radio' || q.type==='checkbox'){
+        const opts = publicOptions(q), many = opts.length>=SURVEY_OPT_SEARCH_MIN;
+        const isChk = q.type==='checkbox';
+        const isOn = o=> isChk? (Array.isArray(prevVal)&&prevVal.includes(o)) : prevVal===o;
+        const status = `<span class="ps-opt-status" data-qid="${q.id}"></span>`;
+        field = `<div class="ps-opt-tools">${many? `<div class="ps-opt-search-wrap"><input class="ps-opt-search" data-qid="${q.id}" placeholder="🔍 Gõ để tìm phương án…" autocomplete="off"><button type="button" class="ps-opt-clear" data-qid="${q.id}" title="Xoá chữ tìm">✕</button></div>` : ''}${status}</div>
+          ${many? `<div class="ps-opt-found" data-qid="${q.id}"></div>` : ''}
+          <div class="ps-opt-list${opts.length>8? ' scroll' : ''}" data-qid="${q.id}">${opts.map((o,oi)=>`<label class="sv-filter-item sv-opt sv-opt-full ps-opt" data-idx="${oi}" data-norm="${escapeHtml(surveyFold(o))}"><input type="${isChk?'checkbox':'radio'}" ${isChk? '' : `name="ps-q-${q.id}"`} class="ps-answer" data-qid="${q.id}" data-type="${q.type}" value="${escapeHtml(o)}" ${isOn(o)?'checked':''}><span class="ps-opt-txt">${escapeHtml(o)}</span></label>`).join('')}</div>`;
+      }
       const desc = q.description? `<div class="sub" style="margin:-2px 0 8px; font-size:12.5px; white-space:pre-wrap;">${escapeHtml(q.description)}</div>` : '';
       return `<div class="field full" style="margin-bottom:18px;"><label>${label}</label>${desc}${field}</div>`;
     }
@@ -966,6 +1029,7 @@
           </div>
         </div>`;
       root.querySelectorAll('[data-numeric="1"]').forEach(inp=> attachPublicNumericMask(inp));
+      wirePublicOptionTools(root, secQuestions);
 
       document.getElementById('ps-next-btn').onclick = async ()=>{
         let missingRequired = false;
@@ -1006,6 +1070,47 @@
         }
         renderFillForm();
       };
+    }
+
+    // Ô tìm nhanh phương án + dòng "Đã chọn…" cho câu trắc nghiệm / hộp kiểm.
+    function wirePublicOptionTools(root, qs){
+      qs.filter(q=> q.type==='radio' || q.type==='checkbox').forEach(q=>{
+        const list = root.querySelector(`.ps-opt-list[data-qid="${q.id}"]`); if(!list) return;
+        const status = root.querySelector(`.ps-opt-status[data-qid="${q.id}"]`);
+        const labels = Array.from(list.querySelectorAll('.ps-opt'));
+        const updStatus = ()=>{
+          const on = labels.filter(l=> l.querySelector('input').checked);
+          if(!on.length){ status.className = 'ps-opt-status none'; status.textContent = 'Chưa chọn phương án nào'; status.removeAttribute('title'); return; }
+          status.className = 'ps-opt-status';
+          if(q.type==='checkbox'){ status.innerHTML = `☑ Đã chọn <b>${on.length}</b> phương án`; status.removeAttribute('title'); }
+          else { const t = on[0].querySelector('input').value; status.innerHTML = `◉ Đã chọn: <b>${escapeHtml(t.length>60? t.slice(0,60)+'…' : t)}</b>`; status.title = t; }
+        };
+        list.addEventListener('change', updStatus); updStatus();
+        const search = root.querySelector(`.ps-opt-search[data-qid="${q.id}"]`); if(!search) return;
+        const found = root.querySelector(`.ps-opt-found[data-qid="${q.id}"]`);
+        const clearBtn = root.querySelector(`.ps-opt-clear[data-qid="${q.id}"]`);
+        const paint = (label, term)=>{
+          const txt = label.querySelector('input').value, span = label.querySelector('.ps-opt-txt');
+          const pos = term? label.dataset.norm.indexOf(term) : -1;
+          span.innerHTML = pos<0? escapeHtml(txt) : (()=>{ const ch = Array.from(txt); return escapeHtml(ch.slice(0,pos).join('')) + '<mark>' + escapeHtml(ch.slice(pos, pos+Array.from(term).length).join('')) + '</mark>' + escapeHtml(ch.slice(pos+Array.from(term).length).join('')); })();
+          return pos>=0;
+        };
+        const apply = ()=>{
+          const term = surveyFold(search.value.trim());
+          search.parentElement.classList.toggle('has-text', !!search.value);
+          const byIdx = (a,b)=> (+a.dataset.idx) - (+b.dataset.idx);
+          if(!term){ labels.slice().sort(byIdx).forEach(l=>{ paint(l,''); l.classList.remove('dim'); list.appendChild(l); }); found.textContent = ''; return; }
+          const hit = [], miss = [];
+          labels.slice().sort(byIdx).forEach(l=>{ (paint(l, term)? hit : miss).push(l); });
+          const pinned = q.type==='checkbox'? labels.filter(l=> l.querySelector('input').checked).sort(byIdx) : [];
+          const order = pinned.concat(hit.filter(l=>!pinned.includes(l)), miss.filter(l=>!pinned.includes(l)));
+          order.forEach(l=>{ l.classList.toggle('dim', !hit.includes(l) && !pinned.includes(l)); list.appendChild(l); });
+          found.textContent = `Tìm thấy ${hit.length}/${labels.length} phương án`;
+          list.scrollTop = 0;
+        };
+        search.addEventListener('input', apply);
+        clearBtn.onclick = ()=>{ search.value = ''; apply(); search.focus(); };
+      });
     }
 
     async function loadSurvey(){
