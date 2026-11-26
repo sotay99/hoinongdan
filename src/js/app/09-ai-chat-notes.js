@@ -808,6 +808,8 @@
     // Bấm lại đúng module ĐANG xem thì giữ nguyên chỗ đang đứng — không kéo người
     // dùng về vị trí đã ghi nhớ từ lần rời module đó trước đây.
     const sameTab = state.activeTab === tabId;
+    // Đang soạn biểu mẫu khảo sát dở chưa lưu -> hỏi trước khi rời sang module khác.
+    if(!sameTab && typeof surveyEditorDirtyNow==='function' && surveyEditorDirtyNow()){ surveyConfirmLeave(()=> switchTab(tabId)); return; }
     const keepTop = sameTab ? currentScrollTop() : null;
     if(!sameTab) rememberTabScroll();
     state.activeTab = tabId;

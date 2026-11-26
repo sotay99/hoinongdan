@@ -923,7 +923,10 @@
   .ps-opt-found{ margin:-2px 0 6px; font-size:12px; color:var(--rice-dark); }
   .ps-opt-found:empty{ display:none; }
   .ps-opt-list.scroll{ max-height:360px; overflow-y:auto; padding-right:4px; }
-  .ps-opt.dim{ opacity:.45; }
+  /* Modal "Thêm nhiều phương án": ô nhập rộng + cột số thứ tự dòng */
+  .svpo-editor{ display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--white); height:max(220px, min(60vh, calc(100vh - 500px))); }
+  .svpo-gutter{ margin:0; padding:10px 8px; min-width:46px; text-align:right; background:var(--paper-2); color:#9e9e9e; font:15px/1.6 ui-monospace, Menlo, Consolas, monospace; overflow:hidden; user-select:none; white-space:pre; }
+  .svpo-editor textarea{ flex:1; border:none !important; outline:none; resize:none; padding:10px 12px; font:15px/1.6 ui-monospace, Menlo, Consolas, monospace; white-space:pre; overflow:auto; background:transparent; }
   .ps-opt mark{ background:#fff176; color:inherit; padding:0 1px; border-radius:2px; }
   .sv-pill{ display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:10px; background:var(--paper-2); color:var(--rice-dark); margin:0 6px 6px 0; }
 

@@ -312,7 +312,7 @@
               <p class="sub" style="margin:4px 0;">${q.type==='checkbox'? '☑️ Được chọn NHIỀU phương án.' : '🔘 Chỉ được chọn 1 phương án.'}</p>
               ${(q.options||[]).length>=SURVEY_OPT_SEARCH_MIN? `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:4px 0 8px;"><input class="q-opt-search" data-qid="${q.id}" value="${escapeHtml(surveyEditorOptSearch[q.id]||'')}" placeholder="🔍 Tìm phương án trong câu này (không cần gõ dấu)…" autocomplete="off" style="flex:1 1 220px; min-width:0;"><span class="sub q-opt-found" data-qid="${q.id}"></span></div>` : ''}
               <div class="q-options-list" data-qid="${q.id}">
-                ${(q.options||[]).map((opt,oi)=>`
+                ${(q.options||[]).slice(0, surveyOptLimit(q)).map((opt,oi)=>`
                   <div class="q-opt-row" data-opt-norm="${escapeHtml(surveyFold(opt))}" style="display:flex; gap:8px; align-items:center; margin-bottom:6px; flex-wrap:wrap;">
                     ${isQuiz? `<label class="sv-filter-item sv-opt sv-opt-fit sv-opt-correct" title="Đánh dấu là đáp án đúng"><input type="checkbox" class="q-correct" data-qid="${q.id}" data-oi="${oi}" ${(q.correctAnswers||[]).includes(opt)?'checked':''} ${canEdit?'':'disabled'}><span>Đúng</span></label>` : ''}
                     <input class="q-option-text" data-qid="${q.id}" data-oi="${oi}" value="${escapeHtml(opt)}" style="flex:1; min-width:120px;" placeholder="Phương án ${oi+1}" ${canEdit?'':'disabled'}>
@@ -324,6 +324,7 @@
                     ${canEdit? `<button class="btn btn-ghost btn-sm q-option-remove" data-qid="${q.id}" data-oi="${oi}">✕</button>` : ''}
                   </div>`).join('')}
               </div>
+              ${(q.options||[]).length>surveyOptLimit(q)? `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:2px 0 8px;"><span class="sub">Đang hiện ${surveyOptLimit(q)}/${q.options.length} phương án.</span><button type="button" class="btn btn-ghost btn-sm q-opt-more preview-allow" data-qid="${q.id}">Hiện thêm ${Math.min(SURVEY_EDITOR_OPT_PAGE, q.options.length-surveyOptLimit(q))}</button><button type="button" class="btn btn-ghost btn-sm q-opt-all preview-allow" data-qid="${q.id}">Hiện tất cả ${q.options.length} phương án</button></div>` : ''}
               ${canEdit? `<div style="display:flex; flex-wrap:wrap; gap:6px;"><button class="btn btn-ghost btn-sm q-add-option" data-qid="${q.id}">➕ Thêm phương án</button><button class="btn btn-ghost btn-sm q-paste-options preview-allow" data-qid="${q.id}">📋 Dán nhiều phương án</button><span class="sub" style="align-self:center;">${(q.options||[]).length} phương án</span></div>` : ''}
               ${isQuiz? `<div class="field" style="max-width:180px; margin-top:8px;"><label>Số điểm câu này</label><input type="number" class="q-points" data-qid="${q.id}" value="${q.points||0}" ${canEdit?'':'disabled'}></div>` : ''}
             ` : ''}
@@ -363,6 +364,7 @@
       </div>
       ${canEdit? `<div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" id="sv-add-section-btn">➕ Thêm phần</button>
+        <button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn-bottom" style="margin-left:auto;">💾 Lưu biểu mẫu</button>
       </div>` : ''}`;
   }
 
@@ -414,8 +416,43 @@
         : `<div class="empty-state" style="padding:30px;"><div class="e-ico">📊</div>Chưa có ai trả lời biểu mẫu này.</div>`}`;
   }
 
+  // ---- Phát hiện "đang soạn dở chưa lưu": chụp bản gốc lúc mở trình soạn (và sau mỗi lần lưu),
+  // khi rời đi thì so với bản đang soạn. Chụp trên BẢN SAO đã chuẩn hoá để các trường tự bổ sung khi
+  // vẽ (branchEnabled, description...) không bị tính nhầm là thay đổi.
+  const surveyBaselines = new WeakMap();
+  function surveyDraftSig(d){ return JSON.stringify(ensureSurveySections(JSON.parse(JSON.stringify(d)))); }
+  function surveyIsDirty(d){ return !!d && surveyBaselines.has(d) && surveyBaselines.get(d)!==surveyDraftSig(d); }
+  function surveyEditorDirtyNow(){ return state.activeTab==='survey' && state.surveyView==='editor' && surveyIsDirty(state.surveyDraft); }
+  // Gọi proceed() ngay nếu không có gì chưa lưu; nếu có thì hỏi bằng modal 3 nút. Trả về true khi
+  // đã CHẶN lại để hỏi (nơi gọi dừng thao tác của mình, proceed sẽ được gọi sau nếu người dùng đồng ý).
+  function surveyConfirmLeave(proceed){
+    if(!surveyEditorDirtyNow()){ proceed(); return false; }
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:96vw; width:500px;">
+        <div class="modal-head"><h3>⚠️ Biểu mẫu chưa được lưu</h3><button class="modal-close preview-allow" id="svlv-close">✕</button></div>
+        <div class="modal-body"><p style="margin:0;">Biểu mẫu đang soạn có thay đổi <b>CHƯA được lưu</b>. Nếu rời đi bây giờ, các thay đổi này sẽ <b>mất hết</b>.</p></div>
+        <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+          <button class="btn btn-ghost preview-allow" id="svlv-stay">Ở lại soạn tiếp</button>
+          <button class="btn btn-primary preview-allow" id="svlv-save">💾 Lưu rồi rời đi</button>
+          <button class="btn btn-ghost preview-allow" id="svlv-drop" style="color:var(--red); font-weight:700;">Rời đi, bỏ thay đổi</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('#svlv-close').onclick = close;
+    wrap.querySelector('#svlv-stay').onclick = close;
+    wrap.querySelector('#svlv-drop').onclick = ()=>{ close(); surveyBaselines.delete(state.surveyDraft); state.surveyView='list'; state.surveyDraft=null; state.surveyEditingId=null; proceed(); };
+    wrap.querySelector('#svlv-save').onclick = async ()=>{ close(); if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); proceed(); } };
+    return true;
+  }
+  // Tải lại trang / đóng tab khi đang soạn dở -> trình duyệt hiện hộp cảnh báo mặc định của nó.
+  window.addEventListener('beforeunload', (e)=>{ if(surveyEditorDirtyNow()){ e.preventDefault(); e.returnValue = ''; } });
+
   function renderSurveyEditorView(el){
     const draft = state.surveyDraft;
+    if(!surveyBaselines.has(draft)) surveyBaselines.set(draft, surveyDraftSig(draft));
     const canEdit = surveyCanEdit();
     el.innerHTML = `
       <div class="panel">
@@ -429,7 +466,7 @@
             <button class="btn ${state.surveyEditorTab==='answers'?'btn-primary':'btn-ghost'} btn-sm" id="sv-tab-answers" ${!state.surveyEditingId?'disabled':''}>📊 Câu trả lời${draft.responseCount?` (${draft.responseCount})`:''}</button>
             <div class="spacer"></div>
             ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button>` : ''}
-            ${canEdit && state.surveyEditorTab==='questions'? `<button class="btn btn-primary btn-sm" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
+            ${canEdit && state.surveyEditorTab==='questions'? `<button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
           </div>
           <div id="sv-tab-content">
             ${state.surveyEditorTab==='questions'? renderSurveyQuestionsEditorHtml(draft, canEdit) : renderSurveyAnswersTabHtml(draft)}
@@ -441,7 +478,7 @@
 
   function wireSurveyEditor(el){
     const draft = state.surveyDraft;
-    document.getElementById('sv-back-btn').onclick = ()=>{ state.surveyView='list'; state.surveyDraft=null; state.surveyEditingId=null; renderSurveyTab(el); };
+    document.getElementById('sv-back-btn').onclick = ()=> surveyConfirmLeave(()=>{ state.surveyView='list'; state.surveyDraft=null; state.surveyEditingId=null; renderSurveyTab(el); });
     document.getElementById('sv-tab-questions').onclick = ()=>{ state.surveyEditorTab='questions'; renderSurveyTab(el); };
     const tabAnswersBtn = document.getElementById('sv-tab-answers');
     if(tabAnswersBtn) tabAnswersBtn.onclick = async ()=>{
@@ -506,9 +543,19 @@
       el.querySelectorAll('.sec-add-question').forEach(btn=> btn.onclick = ()=>{ draft.questions.push(emptySurveyQuestion(btn.dataset.secid)); renderSurveyTab(el); });
       wireSurveyStructureMenus(el, draft);
       el.querySelectorAll('.q-paste-options').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(q) renderSurveyPasteOptionsModal(q, ()=> renderSurveyTab(el)); });
+      el.querySelectorAll('.q-opt-more').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(!q) return; surveyEditorOptLimit[q.id] = surveyOptLimit(q) + SURVEY_EDITOR_OPT_PAGE; renderSurveyTab(el); });
+      el.querySelectorAll('.q-opt-all').forEach(btn=> btn.onclick = ()=>{ surveyEditorOptLimit[btn.dataset.qid] = Infinity; renderSurveyTab(el); });
       el.querySelectorAll('.q-opt-search').forEach(inp=>{
         const apply = ()=>{
           const qid = inp.dataset.qid, term = surveyFold(inp.value.trim()); surveyEditorOptSearch[qid] = inp.value;
+          const q = draft.questions.find(x=>x.id===qid);
+          const drawn = el.querySelectorAll(`.q-options-list[data-qid="${qid}"] .q-opt-row`).length;
+          if(term && q && drawn < (q.options||[]).length){
+            // Đang thu gọn mà bắt đầu tìm -> vẽ lại đủ toàn bộ phương án rồi đưa con trỏ về ô tìm.
+            const caret = inp.selectionStart; renderSurveyTab(el);
+            const again = document.querySelector(`.q-opt-search[data-qid="${qid}"]`); if(again){ again.focus(); try{ again.setSelectionRange(caret, caret); }catch(e){} }
+            return;
+          }
           const rows = el.querySelectorAll(`.q-options-list[data-qid="${qid}"] .q-opt-row`); let hit = 0;
           rows.forEach(r=>{ const ok = !term || r.dataset.optNorm.includes(term); r.style.display = ok? '' : 'none'; if(ok) hit++; });
           const f = el.querySelector(`.q-opt-found[data-qid="${qid}"]`); if(f) f.textContent = term? `Tìm thấy ${hit}/${rows.length} phương án` : '';
@@ -517,7 +564,8 @@
       });
       const addSectionBtn = document.getElementById('sv-add-section-btn');
       if(addSectionBtn) addSectionBtn.onclick = ()=>{ draft.sections.push(emptySurveySection(draft.sections.length+1)); renderSurveyTab(el); };
-      const saveBtn = document.getElementById('sv-save-btn'); if(saveBtn) saveBtn.onclick = async ()=>{ if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); renderSurveyTab(el); } };
+      // 2 nút "Lưu biểu mẫu" (trên cùng + cuối khung soạn) dùng chung 1 hành động.
+      el.querySelectorAll('.sv-save-action').forEach(btn=> btn.onclick = async ()=>{ if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); renderSurveyTab(el); } });
     } else {
       const toggleBtn = document.getElementById('sv-toggle-detail');
       if(toggleBtn) toggleBtn.onclick = ()=>{ state.surveyResponseDetailOpen = !state.surveyResponseDetailOpen; renderSurveyTab(el); };
@@ -531,6 +579,14 @@
   // Câu có từ ngần này phương án trở lên thì có ô tìm nhanh phương án (trang điền phiếu + trình soạn).
   const SURVEY_OPT_SEARCH_MIN = 6;
   const surveyEditorOptSearch = {}; // chữ đang tìm trong trình soạn, giữ lại qua các lần vẽ lại
+  // Câu có quá nhiều phương án: trình soạn chỉ vẽ trước 150 phương án đầu (vẽ hàng ngàn ô nhập làm
+  // máy chậm). Ô tìm phương án vẫn tìm trên TOÀN BỘ (tự mở hết khi đang tìm).
+  const SURVEY_EDITOR_OPT_PAGE = 150;
+  const surveyEditorOptLimit = {};
+  function surveyOptLimit(q){
+    if((surveyEditorOptSearch[q.id]||'').trim()) return Infinity;
+    return surveyEditorOptLimit[q.id] || SURVEY_EDITOR_OPT_PAGE;
+  }
   // Bỏ dấu tiếng Việt + chữ thường, giữ nguyên số ký tự (mỗi ký tự gốc -> đúng 1 ký tự) để tô sáng
   // đúng vị trí trên chữ gốc. Gõ "nong dan" vẫn khớp "Nông dân".
   function surveyFoldChar(c){ return c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'d').toLowerCase().charAt(0) || c; }
@@ -539,38 +595,62 @@
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.innerHTML = `
-      <div class="modal" style="max-width:96vw; width:560px;">
-        <div class="modal-head"><h3>📋 Dán nhiều phương án</h3><button class="modal-close preview-allow" id="svpo-close">✕</button></div>
+      <div class="modal" style="max-width:96vw; width:1000px;">
+        <div class="modal-head"><h3>📋 Thêm nhiều phương án cùng lúc</h3><button class="modal-close preview-allow" id="svpo-close">✕</button></div>
         <div class="modal-body">
-          <p class="sub" style="margin:0 0 8px;">Dán danh sách vào ô dưới — <b>mỗi dòng là 1 phương án</b>. Dòng trống và phương án trùng với phương án đã có sẽ tự bỏ qua.</p>
-          <textarea id="svpo-text" rows="10" style="width:100%;" placeholder="Phương án 1&#10;Phương án 2&#10;Phương án 3"></textarea>
-          <p class="sub" id="svpo-count" style="margin:6px 0 10px;">0 phương án</p>
+          <p style="margin:0 0 6px;">✍️ <b>Mỗi lần xuống hàng (phím Enter) là xong 1 phương án.</b> Ví dụ muốn 10 phương án thì nhập thành 10 dòng. Có thể gõ trực tiếp hoặc dán từ Word, Excel, Zalo… (dán 1 cột từ Excel thì mỗi ô tự thành 1 dòng).</p>
+          <p class="sub" style="margin:0 0 8px;">Dòng trống, hoặc dòng chỉ toàn dấu cách, sẽ tự bỏ qua. Phương án trùng nhau hoặc trùng với phương án đã có cũng tự bỏ qua.</p>
+          <div class="svpo-editor"><pre class="svpo-gutter" id="svpo-gutter">1</pre><textarea id="svpo-text" wrap="off" spellcheck="false" placeholder="Phương án 1&#10;Phương án 2&#10;Phương án 3"></textarea></div>
+          <p id="svpo-count" style="margin:8px 0 10px; font-weight:700; color:#1b5e20;">Chưa có phương án nào</p>
           <label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="svpo-mode" value="append" checked><span>Thêm vào sau ${(q.options||[]).length} phương án hiện có</span></label>
           <label class="sv-filter-item sv-opt sv-opt-full"><input type="radio" name="svpo-mode" value="replace"><span>Thay thế toàn bộ phương án hiện có</span></label>
         </div>
-        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="svpo-cancel">Đóng</button><button class="btn btn-primary preview-allow" id="svpo-ok">✅ Thêm phương án</button></div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="svpo-cancel">Huỷ</button><button class="btn btn-primary preview-allow" id="svpo-ok">➕ Thêm vào danh sách phương án</button></div>
       </div>`;
     document.body.appendChild(wrap);
     const close = ()=> wrap.remove();
-    const ta = wrap.querySelector('#svpo-text');
-    const lines = ()=>{ const seen = new Set(); return ta.value.split(/\r?\n/).map(x=>x.trim()).filter(x=>{ if(!x || seen.has(x)) return false; seen.add(x); return true; }); };
-    ta.oninput = ()=>{ wrap.querySelector('#svpo-count').textContent = `${lines().length} phương án`; };
+    const ta = wrap.querySelector('#svpo-text'), gutter = wrap.querySelector('#svpo-gutter'), countEl = wrap.querySelector('#svpo-count');
+    const mode = ()=> wrap.querySelector('input[name="svpo-mode"]:checked').value;
+    // Tách dòng: bỏ dòng trống/toàn dấu cách (kể cả dấu cách đặc biệt, ký tự vô hình), bỏ trùng.
+    const parse = ()=>{
+      const raw = ta.value.split(/\r\n|\r|\n/);
+      const existing = mode()==='replace'? [] : (q.options||[]).map(o=> String(o).trim()).filter(Boolean);
+      const seen = new Set(existing); let blank = 0, dup = 0; const list = [];
+      raw.forEach(line=>{
+        const t = line.replace(/[\u200b-\u200d\ufeff]/g,'').replace(/\t+/g,' ').trim();
+        if(!t){ blank++; return; }
+        if(seen.has(t)){ dup++; return; }
+        seen.add(t); list.push(t);
+      });
+      if(raw.length && !raw[raw.length-1].trim()) blank = Math.max(0, blank-1); // dòng trống cuối cùng do Enter thừa thì không tính
+      return { list, blank, dup };
+    };
+    const refresh = ()=>{
+      const n = ta.value.split(/\r\n|\r|\n/).length;
+      gutter.textContent = Array.from({length:n}, (_,i)=> i+1).join('\n');
+      gutter.scrollTop = ta.scrollTop;
+      const r = parse();
+      countEl.textContent = r.list.length? `Sẽ thêm ${r.list.length} phương án${r.blank? ` · bỏ qua ${r.blank} dòng trống` : ''}${r.dup? ` · bỏ qua ${r.dup} phương án trùng` : ''}` : (ta.value.trim()? 'Không có phương án hợp lệ nào để thêm' : 'Chưa có phương án nào');
+      countEl.style.color = r.list.length? '#1b5e20' : '#9e9e9e';
+    };
+    ta.addEventListener('input', refresh);
+    ta.addEventListener('scroll', ()=>{ gutter.scrollTop = ta.scrollTop; });
+    wrap.querySelectorAll('input[name="svpo-mode"]').forEach(r=> r.onchange = refresh);
     wrap.querySelector('#svpo-close').onclick = close;
     wrap.querySelector('#svpo-cancel').onclick = close;
     wrap.querySelector('#svpo-ok').onclick = ()=>{
-      const list = lines(); if(!list.length){ alert('Chưa có phương án nào. Hãy dán danh sách, mỗi dòng 1 phương án.'); return; }
-      const replace = wrap.querySelector('input[name="svpo-mode"]:checked').value==='replace';
+      const { list } = parse(); if(!list.length){ alert('Chưa có phương án hợp lệ nào. Hãy nhập hoặc dán danh sách, mỗi dòng 1 phương án.'); return; }
+      const replace = mode()==='replace';
       if(replace && (q.options||[]).length && !confirm(`Thay thế toàn bộ ${(q.options||[]).length} phương án hiện có bằng ${list.length} phương án mới?`)) return;
-      const base = replace? [] : (q.options||[]).filter(o=> String(o).trim());
-      const baseBranches = replace? [] : (q.optionBranches||[]).slice(0, (q.options||[]).length).filter((_,i)=> String((q.options||[])[i]).trim());
-      const add = list.filter(x=> !base.includes(x));
-      q.options = base.concat(add);
-      q.optionBranches = baseBranches.concat(add.map(()=>'__next__'));
+      const keepIdx = replace? [] : (q.options||[]).map((o,i)=> String(o).trim()? i : -1).filter(i=> i>=0);
+      q.options = keepIdx.map(i=> q.options[i]).concat(list);
+      q.optionBranches = keepIdx.map(i=> (q.optionBranches||[])[i] || '__next__').concat(list.map(()=>'__next__'));
       q.correctAnswers = (q.correctAnswers||[]).filter(a=> q.options.includes(a));
       close();
-      showToast(`Đã thêm ${add.length} phương án${list.length-add.length? ` (bỏ qua ${list.length-add.length} phương án trùng)` : ''}.`);
+      showToast(`Đã thêm ${list.length} phương án vào câu hỏi.`);
       if(onDone) onDone();
     };
+    refresh();
     setTimeout(()=> ta.focus(), 0);
   }
   // ---- Menu "⋮" của từng câu hỏi và từng phần (kiểu Google Biểu mẫu) ----
@@ -1099,12 +1179,12 @@
           const term = surveyFold(search.value.trim());
           search.parentElement.classList.toggle('has-text', !!search.value);
           const byIdx = (a,b)=> (+a.dataset.idx) - (+b.dataset.idx);
-          if(!term){ labels.slice().sort(byIdx).forEach(l=>{ paint(l,''); l.classList.remove('dim'); list.appendChild(l); }); found.textContent = ''; return; }
+          if(!term){ labels.slice().sort(byIdx).forEach(l=>{ paint(l,''); list.appendChild(l); }); found.textContent = ''; return; }
           const hit = [], miss = [];
           labels.slice().sort(byIdx).forEach(l=>{ (paint(l, term)? hit : miss).push(l); });
           const pinned = q.type==='checkbox'? labels.filter(l=> l.querySelector('input').checked).sort(byIdx) : [];
           const order = pinned.concat(hit.filter(l=>!pinned.includes(l)), miss.filter(l=>!pinned.includes(l)));
-          order.forEach(l=>{ l.classList.toggle('dim', !hit.includes(l) && !pinned.includes(l)); list.appendChild(l); });
+          order.forEach(l=> list.appendChild(l));
           found.textContent = `Tìm thấy ${hit.length}/${labels.length} phương án`;
           list.scrollTop = 0;
         };
