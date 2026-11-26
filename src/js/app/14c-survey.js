@@ -30,7 +30,34 @@
   function surveyNormalizeOrder(draft){
     draft.questions = draft.sections.flatMap(sec=> draft.questions.filter(q=> q.sectionId===sec.id));
   }
-  function surveyQCanBranch(q){ return q.type==='radio' || q.type==='checkbox'; }
+  function surveyQCanBranch(q){ return q.type==='radio' || q.type==='checkbox' || q.type==='dropdown'; }
+  // ---- Chú thích loại câu hỏi (1 dòng ngắn dưới ô "Loại câu hỏi") + bản giải thích đầy đủ khi bấm nút "i"
+  // (cùng kiểu nút tròn qbox-info-btn của Sổ vay vốn: bấm hiện khung giải thích ngay bên dưới, bấm lại ẩn).
+  const SURVEY_TYPE_HINT = {
+    radio:'🔘 Hiện sẵn mọi phương án, người trả lời chỉ chọn được 1.',
+    checkbox:'☑️ Hiện sẵn mọi phương án, người trả lời chọn được nhiều.',
+    dropdown:'🔽 Thu gọn trong 1 ô, bấm vào mới hiện danh sách để chọn 1.',
+  };
+  const SURVEY_TYPE_HELP = {
+    radio:{ title:'🔘 Trắc nghiệm', items:[
+      '<b>Người trả lời thấy:</b> mọi phương án hiện sẵn, mỗi phương án 1 dòng có vòng tròn ◯. Bấm chọn 1 phương án; chọn cái khác thì cái trước tự bỏ.',
+      '<b>Nên dùng khi:</b> muốn người trả lời <i>nhìn hết các phương án để cân nhắc</i>. Ví dụ: mức độ hài lòng, có/không, câu đố.',
+      'Câu có từ 6 phương án thì có ô tìm nhanh phương án. Chuyển phần theo câu trả lời được. Bài kiểm tra: đặt 1 đáp án đúng.' ] },
+    checkbox:{ title:'☑️ Hộp kiểm', items:[
+      '<b>Người trả lời thấy:</b> mọi phương án hiện sẵn, mỗi phương án có ô vuông ☐. Tick được <b>nhiều</b> ô, bấm lại để bỏ tick.',
+      '<b>Nên dùng khi:</b> câu kiểu <i>"chọn tất cả những gì phù hợp"</i>. Ví dụ: các loại cây đang trồng, các nguồn vốn đã vay.',
+      'Câu có từ 6 phương án thì có ô tìm nhanh phương án. Bài kiểm tra: phải chọn <b>đúng và đủ</b> các đáp án đúng, không chọn thừa, mới được điểm.' ] },
+    dropdown:{ title:'🔽 Menu thả xuống', items:[
+      '<b>Người trả lời thấy:</b> chỉ 1 ô "-- Chọn --". Bấm vào mới hiện danh sách phương án, chọn 1 phương án thì danh sách tự thu gọn lại.',
+      '<b>Nên dùng khi:</b> danh sách <b>dài</b>, người trả lời <i>đã biết sẵn</i> đáp án của mình, muốn trang gọn. Ví dụ: chọn ấp, năm sinh, dân tộc.',
+      'Câu có từ 6 phương án thì trong danh sách có ô tìm nhanh phương án. Chuyển phần theo câu trả lời được. Bài kiểm tra: đặt 1 đáp án đúng.' ] },
+  };
+  const surveyTypeTipOpen = {}; // khung giải thích của câu nào đang mở — giữ nguyên qua các lần vẽ lại
+  function surveyTypeHelpHtml(type){
+    const h = SURVEY_TYPE_HELP[type]; if(!h) return '';
+    return `<b>${h.title}</b><ul style="margin:4px 0 6px; padding-left:18px;">${h.items.map(x=>`<li style="margin-bottom:3px;">${x}</li>`).join('')}</ul>
+      <div style="border-top:1px dashed var(--line); padding-top:5px;"><b>So sánh nhanh 3 loại:</b> 🔘 Trắc nghiệm: hiện sẵn, chọn <b>1</b> · ☑️ Hộp kiểm: hiện sẵn, chọn <b>nhiều</b> · 🔽 Menu thả xuống: <b>thu gọn</b>, chọn <b>1</b></div>`;
+  }
   function hasSurveyPersonalAccount(){ return !!(state.identity && state.identity.email); }
   // Đảm bảo biểu mẫu (kể cả biểu mẫu cũ tạo trước khi có tính năng "Phần") luôn có sections hợp lệ
   // và mỗi câu hỏi có đủ optionBranches/numericOnly — tránh lỗi khi mở sửa/điền phiếu.
@@ -299,6 +326,7 @@
             <div class="form-grid">
               <div class="field"><label>Loại câu hỏi</label>
                 <select class="q-type" data-qid="${q.id}" ${canEdit?'':'disabled'}>${SURVEY_QTYPES.map(t=>`<option value="${t.key}" ${q.type===t.key?'selected':''}>${t.label}</option>`).join('')}</select>
+                ${SURVEY_TYPE_HINT[q.type]? `<div class="sv-type-hint"><span>${SURVEY_TYPE_HINT[q.type]}</span><button type="button" class="qbox-info-btn preview-allow" data-qtype-info="${q.id}" title="Xem giải thích đầy đủ" style="width:20px; height:20px; font-size:11px; border-radius:50%; flex-shrink:0;">i</button></div>` : ''}
               </div>
               <div class="field"><label>&nbsp;</label>
                 <label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" class="q-required" data-qid="${q.id}" ${q.required?'checked':''} ${canEdit?'':'disabled'}><span>Bắt buộc trả lời</span></label>
@@ -307,9 +335,9 @@
                 <label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" class="q-numeric" data-qid="${q.id}" ${q.numericOnly?'checked':''} ${canEdit?'':'disabled'}><span>🔢 Chỉ nhập số</span></label>
               </div>` : ''}
             </div>
+            ${SURVEY_TYPE_HELP[q.type]? `<div class="sv-type-tip" data-qtype-tip="${q.id}" style="display:${surveyTypeTipOpen[q.id]? 'block' : 'none'};">${surveyTypeHelpHtml(q.type)}</div>` : ''}
             ${isFreeText? `<p class="sub" style="margin:4px 0;">${q.numericOnly? '🔢 Người trả lời chỉ được nhập chữ số và dấu phẩy (,) — tự động tách cụm 3 số khi gõ.' : ''}</p>` : ''}
             ${surveyQTypeHasOptions(q.type)? `
-              <p class="sub" style="margin:4px 0;">${q.type==='checkbox'? '☑️ Được chọn NHIỀU phương án.' : '🔘 Chỉ được chọn 1 phương án.'}</p>
               ${(q.options||[]).length>=SURVEY_OPT_SEARCH_MIN? `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:4px 0 8px;"><input class="q-opt-search" data-qid="${q.id}" value="${escapeHtml(surveyEditorOptSearch[q.id]||'')}" placeholder="🔍 Tìm phương án trong câu này (không cần gõ dấu)…" autocomplete="off" style="flex:1 1 220px; min-width:0;"><span class="sub q-opt-found" data-qid="${q.id}"></span></div>` : ''}
               <div class="q-options-list" data-qid="${q.id}">
                 ${(q.options||[]).slice(0, surveyOptLimit(q)).map((opt,oi)=>`
@@ -542,6 +570,12 @@
       el.querySelectorAll('.sec-desc').forEach(inp=> inp.oninput = ()=>{ const s=draft.sections.find(x=>x.id===inp.dataset.secid); if(s) s.description = inp.value; });
       el.querySelectorAll('.sec-add-question').forEach(btn=> btn.onclick = ()=>{ draft.questions.push(emptySurveyQuestion(btn.dataset.secid)); renderSurveyTab(el); });
       wireSurveyStructureMenus(el, draft);
+      el.querySelectorAll('[data-qtype-info]').forEach(btn=> btn.onclick = (e)=>{
+        e.stopPropagation(); const id = btn.dataset.qtypeInfo;
+        const tip = el.querySelector(`[data-qtype-tip="${id}"]`); if(!tip) return;
+        surveyTypeTipOpen[id] = tip.style.display==='none';
+        tip.style.display = surveyTypeTipOpen[id]? 'block' : 'none';
+      });
       el.querySelectorAll('.q-paste-options').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(q) renderSurveyPasteOptionsModal(q, ()=> renderSurveyTab(el)); });
       el.querySelectorAll('.q-opt-more').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(!q) return; surveyEditorOptLimit[q.id] = surveyOptLimit(q) + SURVEY_EDITOR_OPT_PAGE; renderSurveyTab(el); });
       el.querySelectorAll('.q-opt-all').forEach(btn=> btn.onclick = ()=>{ surveyEditorOptLimit[btn.dataset.qid] = Infinity; renderSurveyTab(el); });
@@ -1049,7 +1083,20 @@
       let field = '';
       if(q.type==='short') field = `<input class="ps-answer" data-qid="${q.id}" data-type="short" ${isNumeric?'data-numeric="1" inputmode="decimal"':''} value="${escapeHtml(prevVal||'')}">${isNumeric? `<div class="sub" data-numeric-disp="${q.id}" style="text-align:right; font-weight:700; margin-top:4px;"></div>` : ''}`;
       else if(q.type==='paragraph') field = `<textarea class="ps-answer" data-qid="${q.id}" data-type="paragraph" rows="3" ${isNumeric?'data-numeric="1" inputmode="decimal"':''}>${escapeHtml(prevVal||'')}</textarea>${isNumeric? `<div class="sub" data-numeric-disp="${q.id}" style="text-align:right; font-weight:700; margin-top:4px;"></div>` : ''}`;
-      else if(q.type==='dropdown') field = `<select class="ps-answer" data-qid="${q.id}" data-type="dropdown"><option value="">-- Chọn --</option>${publicOptions(q).map(o=>`<option value="${escapeHtml(o)}" ${prevVal===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}</select>`;
+      else if(q.type==='dropdown'){
+        const opts = publicOptions(q), cur = (prevVal && opts.includes(prevVal))? prevVal : '';
+        field = `<div class="ps-dd" data-qid="${q.id}">
+          <input type="hidden" class="ps-answer" data-qid="${q.id}" data-type="dropdown" value="${escapeHtml(cur)}">
+          <button type="button" class="ps-dd-box" data-qid="${q.id}" aria-haspopup="listbox"><span class="ps-dd-val${cur? '' : ' empty'}">${cur? escapeHtml(cur) : '-- Chọn --'}</span><span class="ps-dd-caret">▾</span></button>
+          <div class="ps-dd-panel" data-qid="${q.id}" style="display:none;">
+            ${opts.length>=SURVEY_OPT_SEARCH_MIN? `<div class="ps-opt-search-wrap" style="margin:0 0 6px;"><input class="ps-opt-search ps-dd-search" data-qid="${q.id}" placeholder="🔍 Gõ để tìm phương án…" autocomplete="off"><button type="button" class="ps-opt-clear" data-qid="${q.id}" title="Xoá chữ tìm">✕</button></div><div class="ps-opt-found" data-qid="${q.id}"></div>` : ''}
+            <div class="ps-dd-list" data-qid="${q.id}" role="listbox">
+              <button type="button" class="ps-dd-item ps-dd-clearpick" data-val="" style="${cur? '' : 'display:none;'}">✕ Bỏ chọn</button>
+              ${opts.map((o,oi)=>`<button type="button" class="ps-dd-item ps-opt${o===cur? ' on' : ''}" role="option" data-idx="${oi}" data-norm="${escapeHtml(surveyFold(o))}" data-val="${escapeHtml(o)}"><span class="ps-opt-txt">${escapeHtml(o)}</span></button>`).join('')}
+            </div>
+          </div>
+        </div>`;
+      }
       else if(q.type==='radio' || q.type==='checkbox'){
         const opts = publicOptions(q), many = opts.length>=SURVEY_OPT_SEARCH_MIN;
         const isChk = q.type==='checkbox';
@@ -1110,6 +1157,7 @@
         </div>`;
       root.querySelectorAll('[data-numeric="1"]').forEach(inp=> attachPublicNumericMask(inp));
       wirePublicOptionTools(root, secQuestions);
+      wirePublicDropdowns(root, secQuestions);
 
       document.getElementById('ps-next-btn').onclick = async ()=>{
         let missingRequired = false;
@@ -1122,7 +1170,7 @@
           else { const x=document.querySelector(`.ps-answer[data-qid="${q.id}"]`); val = x? x.value.trim() : ''; if(isNumeric) val = val.replace(/\s/g,''); }
           collected[q.id] = val;
           if(q.required && (val==null || val==='' || (Array.isArray(val)&&val.length===0))) missingRequired = true;
-          if(branchTarget===null && (q.type==='radio'||q.type==='checkbox') && q.branchEnabled!==false && q.optionBranches && q.optionBranches.length){
+          if(branchTarget===null && (q.type==='radio'||q.type==='checkbox'||q.type==='dropdown') && q.branchEnabled!==false && q.optionBranches && q.optionBranches.length){
             const selectedOpts = Array.isArray(val) ? val : (val? [val] : []);
             for(const so of selectedOpts){
               const oi = (q.options||[]).indexOf(so);
@@ -1152,6 +1200,58 @@
       };
     }
 
+    // Menu thả xuống: ô gọn bấm vào bung danh sách (có ô tìm khi nhiều phương án), chọn xong tự thu gọn.
+    function wirePublicDropdowns(root, qs){
+      qs.filter(q=> q.type==='dropdown').forEach(q=>{
+        const dd = root.querySelector(`.ps-dd[data-qid="${q.id}"]`); if(!dd) return;
+        const box = dd.querySelector('.ps-dd-box'), panel = dd.querySelector('.ps-dd-panel'), list = dd.querySelector('.ps-dd-list');
+        const hidden = dd.querySelector('input[type="hidden"]'), valEl = dd.querySelector('.ps-dd-val');
+        const search = dd.querySelector('.ps-dd-search'), found = dd.querySelector('.ps-opt-found'), clearBtn = dd.querySelector('.ps-opt-clear');
+        const items = Array.from(list.querySelectorAll('.ps-opt'));
+        const clearPick = list.querySelector('.ps-dd-clearpick');
+        const paint = (it, term)=>{
+          const txt = it.dataset.val, span = it.querySelector('.ps-opt-txt'), pos = term? it.dataset.norm.indexOf(term) : -1, n = Array.from(term||'').length, ch = Array.from(txt);
+          span.innerHTML = pos<0? escapeHtml(txt) : escapeHtml(ch.slice(0,pos).join('')) + '<mark>' + escapeHtml(ch.slice(pos,pos+n).join('')) + '</mark>' + escapeHtml(ch.slice(pos+n).join(''));
+          return pos>=0;
+        };
+        const apply = ()=>{
+          if(!search) return;
+          const term = surveyFold(search.value.trim());
+          search.parentElement.classList.toggle('has-text', !!search.value);
+          const byIdx = (a,b)=> (+a.dataset.idx) - (+b.dataset.idx);
+          const sorted = items.slice().sort(byIdx);
+          if(!term){ sorted.forEach(it=>{ paint(it,''); list.appendChild(it); }); found.textContent = ''; return; }
+          const hit = [], miss = []; sorted.forEach(it=> (paint(it,term)? hit : miss).push(it));
+          hit.concat(miss).forEach(it=> list.appendChild(it));
+          found.textContent = `Tìm thấy ${hit.length}/${items.length} phương án`;
+          list.scrollTop = 0;
+        };
+        const close = ()=>{ panel.style.display = 'none'; dd.classList.remove('open'); };
+        const open = ()=>{
+          root.querySelectorAll('.ps-dd.open').forEach(o=>{ if(o!==dd){ o.classList.remove('open'); o.querySelector('.ps-dd-panel').style.display = 'none'; } });
+          panel.style.display = 'block'; dd.classList.add('open');
+          if(search){ search.focus(); } else { const on = list.querySelector('.ps-opt.on'); if(on) on.scrollIntoView({block:'nearest'}); }
+        };
+        const pick = (v)=>{
+          hidden.value = v;
+          valEl.textContent = v || '-- Chọn --'; valEl.classList.toggle('empty', !v);
+          items.forEach(it=> it.classList.toggle('on', it.dataset.val===v));
+          if(clearPick) clearPick.style.display = v? '' : 'none';
+          close(); box.focus();
+        };
+        box.onclick = (e)=>{ e.preventDefault(); dd.classList.contains('open')? close() : open(); };
+        list.addEventListener('click', (e)=>{ const it = e.target.closest('.ps-dd-item'); if(it){ e.preventDefault(); pick(it.dataset.val); } });
+        if(search){
+          search.addEventListener('input', apply);
+          search.addEventListener('keydown', (e)=>{
+            if(e.key==='Enter'){ e.preventDefault(); const first = Array.from(list.querySelectorAll('.ps-opt')).find(it=> it.querySelector('mark')); if(first) pick(first.dataset.val); }
+            else if(e.key==='Escape'){ close(); box.focus(); }
+          });
+          clearBtn.onclick = ()=>{ search.value = ''; apply(); search.focus(); };
+        }
+        document.addEventListener('mousedown', (e)=>{ if(dd.isConnected && dd.classList.contains('open') && !dd.contains(e.target)) close(); });
+      });
+    }
     // Ô tìm nhanh phương án + dòng "Đã chọn…" cho câu trắc nghiệm / hộp kiểm.
     function wirePublicOptionTools(root, qs){
       qs.filter(q=> q.type==='radio' || q.type==='checkbox').forEach(q=>{
