@@ -360,7 +360,9 @@ exports.surveyMeta = functions.https.onRequest(async (req, res) => {
 
 // ============================================================================
 // Cloud Function: meetingMeta
-// Link trang tài liệu cuộc họp: https://<domain>/phonghop/<mã>. Chèn <title> + og:* đúng cuộc họp đó để
+// (1) /phonghop/<mã>/tep/<mã tài liệu>: phát tệp tài liệu cho đại biểu, có kiểm tra cuộc họp còn mở —
+//     xem serveMeetingFile() bên dưới.
+// (2) Link trang tài liệu cuộc họp: https://<domain>/phonghop/<mã>. Chèn <title> + og:* đúng cuộc họp đó để
 // Zalo/Messenger hiện khung xem trước (tên cuộc họp, thời gian, địa điểm). Ảnh xem trước cố định
 // /og/phonghop.png (build chép từ src/og/). Dữ liệu ở meetings/<mã> — xem src/js/app/18-meeting.js.
 // ============================================================================
@@ -378,10 +380,86 @@ function mtIsOpen(m) {
   return true;
 }
 
+// ---- GĐ2: phát tệp tài liệu cho đại biểu: /phonghop/<mã>/tep/<mã tài liệu>[?info=1 | ?part=N] ----
+// Dữ liệu cuộc họp KHÔNG chứa link tải trực tiếp của Storage; đại biểu chỉ lấy được tệp qua đây, và mỗi
+// lần gọi đều kiểm tra cuộc họp còn mở -> "Đóng liên kết"/hẹn giờ đóng/xoá có tác dụng ngay. Function thế
+// hệ 1 giới hạn phản hồi 10 MB nên tệp chia phần 8 MB (app ghép lại trên máy đại biểu).
+const MEETING_BUCKET = "congtachoinongdan.firebasestorage.app";
+const MEETING_PART_BYTES = 8 * 1024 * 1024;
+// Giống emailToKey() trong app — khoá email dùng làm tên thư mục Storage của kho cá nhân bản cũ.
+function mtEmailKey(email) {
+  return String(email || "").replace(/[.#$[\]]/g, (c) => ({ ".": ",", "#": "~h~", "$": "~d~", "[": "~lb~", "]": "~rb~" })[c]);
+}
+// Chỉ phát tệp nằm trong đúng phạm vi của cuộc họp: tệp tải lên cho chính cuộc họp này, hoặc tệp chọn từ
+// Trung tâm dữ liệu của CHÍNH mã xã (họp dùng chung) / CHÍNH chủ cuộc họp (họp cá nhân). Đường dẫn do
+// trình duyệt ghi vào Database nên không được tin — chặn việc trỏ sang tệp của nơi khác.
+async function mtAllowedPath(code, m, doc) {
+  const p = String(doc.storagePath || "");
+  if (!p || p.includes("..") || p.includes("//")) return false;
+  if (p.startsWith(`meeting_files/${code}/`)) return true;
+  if (doc.source !== "drive" || !p.startsWith("drive-resources/")) return false;
+  if (m.scope !== "personal") return !!m.wardId && p.startsWith(`drive-resources/ward_${m.wardId}/`);
+  if (!m.ownerEmail) return false;
+  if (p.startsWith(`drive-resources/user_${mtEmailKey(m.ownerEmail)}/`)) return true;
+  try {
+    const u = await admin.auth().getUserByEmail(m.ownerEmail);
+    return p.startsWith(`drive-resources/user_${u.uid}/`);
+  } catch (e) {
+    return false;
+  }
+}
+async function serveMeetingFile(req, res, code, docId) {
+  res.set("Cache-Control", "private, no-store");
+  res.set("X-Content-Type-Options", "nosniff");
+  const deny = (status, error) => res.status(status).json({ error });
+  if (req.method !== "GET") return deny(405, "method");
+  if (!/^[A-Za-z0-9_-]{6,128}$/.test(code) || !/^[A-Za-z0-9_-]{1,64}$/.test(docId)) return deny(404, "not_found");
+  const snap = await admin.database().ref("meetings/" + code).once("value");
+  const m = snap.exists() ? snap.val() : null;
+  if (!m || m.deleted) return deny(404, "not_found");
+  if (!mtIsOpen(m)) return deny(403, "closed");
+  const docs = Array.isArray(m.docs) ? m.docs : Object.values(m.docs || {});
+  const doc = docs.find((d) => d && d.id === docId);
+  if (!doc) return deny(404, "doc_not_found");
+  if (!(await mtAllowedPath(code, m, doc))) {
+    console.warn("[meetingMeta] Từ chối đường dẫn ngoài phạm vi:", code, docId, doc.storagePath);
+    return deny(403, "forbidden");
+  }
+  const file = admin.storage().bucket(MEETING_BUCKET).file(doc.storagePath);
+  let meta;
+  try {
+    [meta] = await file.getMetadata();
+  } catch (e) {
+    return deny(404, "doc_not_found");
+  }
+  const size = Number(meta.size) || 0;
+  const parts = Math.max(1, Math.ceil(size / MEETING_PART_BYTES));
+  if (req.query.part === undefined) {
+    return res.status(200).json({
+      size, parts, partBytes: MEETING_PART_BYTES,
+      contentType: meta.contentType || doc.mimeType || "application/octet-stream",
+      name: String(doc.name || "tai-lieu"),
+    });
+  }
+  const i = Number(req.query.part);
+  if (!Number.isInteger(i) || i < 0 || i >= parts) return deny(416, "bad_part");
+  let buf = Buffer.alloc(0);
+  if (size > 0) {
+    const start = i * MEETING_PART_BYTES;
+    const end = Math.min(size, start + MEETING_PART_BYTES) - 1;
+    [buf] = await file.download({ start, end, validation: false });
+  }
+  res.status(200);
+  res.set("Content-Type", "application/octet-stream");
+  res.set("Content-Length", String(buf.length));
+  return res.end(buf);
+}
+
 exports.meetingMeta = functions.https.onRequest(async (req, res) => {
   try {
     const parts = req.path.split("/").filter(Boolean);
     const code = decodeURIComponent(parts[1] || "");
+    if (parts[2] === "tep") return await serveMeetingFile(req, res, code, decodeURIComponent(parts[3] || ""));
     console.log("[meetingMeta] Nhận request:", req.method, req.originalUrl);
     delete req.headers.range;
     delete req.headers["if-range"];

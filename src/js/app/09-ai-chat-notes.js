@@ -936,7 +936,7 @@
         ['📱','Mã QR và liên kết riêng','Chiếu mã QR lên màn hình hội trường, in áp phích hoặc in thẻ nhỏ dán bàn, hay gửi liên kết qua Zalo.'],
         ['📖','Đọc PDF ngay trên điện thoại','Tệp PDF hiện thành từng trang vừa khổ màn hình; Word, Excel, ảnh cũng xem được trực tiếp.'],
         ['🔄','Thay tài liệu phút chót','Thay tệp mới mà giữ nguyên vị trí; trang của đại biểu tự cập nhật và báo khi có bản mới.'],
-        ['🔒','Đóng liên kết khi họp xong','Đóng ngay hoặc hẹn giờ tự đóng. Lưu ý: ai đã tải tệp về máy thì vẫn giữ bản đó.'],
+        ['🔒','Đóng liên kết khi họp xong','Đóng ngay hoặc hẹn giờ tự đóng — từ lúc đó không ai mở hay tải được tài liệu nữa, kể cả người đã chép sẵn đường dẫn. Ai đã tải tệp về máy trước đó thì vẫn giữ bản đó.'],
         ['👁','Xem trước như đại biểu','Kiểm tra trang tài liệu đúng như đại biểu sẽ thấy trước khi phát mã QR.'],
       ], note:['Đơn giản là điểm mạnh','Ai biết quét mã QR là dùng được — kể cả các bác lớn tuổi.'] },
     survey: { icon:'📝', eyebrow:'BIỂU MẪU — KHẢO SÁT — KIỂM TRA', title:'Biểu mẫu khảo sát',

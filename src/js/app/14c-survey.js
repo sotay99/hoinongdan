@@ -1541,7 +1541,7 @@
     el.innerHTML = `
       <div class="panel">
         <div class="panel-head" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" id="sv-back-btn">◀ Danh sách</button>
+          <button class="btn btn-ghost btn-sm btn-back-list" id="sv-back-btn">← Danh sách biểu mẫu</button>
           <h3 style="margin:0;">${state.surveyEditingId? 'Sửa biểu mẫu' : 'Tạo biểu mẫu mới'}${state.surveyEditingId? ` — <span style="font-weight:600;">${escapeHtml(surveyFullName(draft))}</span>` : ''}</h3>
         </div>
         <div class="panel-body">
