@@ -502,7 +502,7 @@
             <button class="btn ${!isShared?'btn-primary':'btn-ghost'} btn-sm" id="sv-space-personal">🔒 Biểu mẫu cá nhân</button>
           </div>
           ${!canView? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared? 'Đồng chí không có quyền xem Biểu mẫu dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
-          ${canEdit? `<button class="btn btn-primary" id="sv-new-btn">➕ Tạo biểu mẫu mới</button>` : `<p class="sub">Đồng chí chỉ có quyền xem ở ${isShared?'Biểu mẫu dùng chung này':'đây'}.</p>`}
+          ${canEdit? `<div style="display:flex; flex-wrap:wrap; gap:8px;"><button class="btn btn-primary" id="sv-new-btn">➕ Tạo biểu mẫu mới</button><button class="btn preview-allow" id="sv-ai-new-btn" style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Tạo nhanh biểu mẫu bằng AI</button></div>` : `<p class="sub">Đồng chí chỉ có quyền xem ở ${isShared?'Biểu mẫu dùng chung này':'đây'}.</p>`}
           <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-top:14px;">
             <input id="sv-f-q" value="${escapeHtml(F.q)}" placeholder="🔍 Tìm theo tên biểu mẫu (không cần gõ dấu)…" autocomplete="off" style="flex:1 1 240px; min-width:0; ${F.q.trim()? red : ''}">
             <select id="sv-f-type" title="Lọc theo loại" style="${F.type!=='all'? red : ''}">
@@ -546,6 +546,7 @@
     const fs = document.getElementById('sv-f-sort'); if(fs) fs.onchange = ()=>{ F.sort = fs.value; renderSurveyListView(el); };
     const fr = document.getElementById('sv-f-reset'); if(fr) fr.onclick = ()=>{ F.q = ''; F.type = 'all'; renderSurveyListView(el); };
     document.querySelectorAll('[data-sv-dup]').forEach(btn=> btn.onclick = ()=> duplicateSurvey(btn.dataset.svDup, el));
+    const aiNewBtn = document.getElementById('sv-ai-new-btn'); if(aiNewBtn) aiNewBtn.onclick = ()=> renderSurveyQuickAddByAiModal({ mode:'new', el });
     const newBtn = document.getElementById('sv-new-btn');
     if(newBtn) newBtn.onclick = ()=>{
       state.surveyDraft = emptySurveyDraft();
@@ -750,6 +751,7 @@
       </div>
       ${canEdit? `<div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" id="sv-add-section-btn">➕ Thêm phần</button>
+        <button class="btn btn-sm preview-allow" id="sv-ai-append-btn" style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Soạn thêm câu hỏi bằng AI</button>
         <button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn-bottom" style="margin-left:auto;">💾 Lưu biểu mẫu</button>
       </div>` : ''}`;
   }
@@ -1026,6 +1028,7 @@
         <button class="btn btn-ghost btn-sm preview-allow" id="sv-export-excel-btn" ${list.length?'':'disabled'}>⬇️ Xuất Excel</button>
         <button class="btn btn-ghost btn-sm preview-allow" id="sv-print-btn" ${list.length?'':'disabled'}>🖨️ In</button>
         <button class="btn btn-ghost btn-sm preview-allow" id="sv-resp-reload" title="Tải lại phiếu mới nhất">↻ Tải lại</button>
+        <button class="btn btn-sm preview-allow" id="sv-ai-summary" ${list.length?'':'disabled'} style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">🧠 AI tóm tắt kết quả</button>
         ${draft.isQuiz && draft.quizRelease==='manual' && canDel? (()=>{ const n = all.filter(r=> !r.released && !surveyGradeResponse(draft, r).pending).length; return `<button class="btn btn-sm preview-allow" id="sv-release-all" ${n?'':'disabled'} style="background:#2e7d32; color:#fff; border-color:#1b5e20;">📢 Công bố điểm các bài đã chấm xong (${n})</button>`; })() : ''}
       </div>
       ${all.length? `
@@ -1054,6 +1057,7 @@
     if(g('sv-resp-reload')) g('sv-resp-reload').onclick = async ()=>{ await loadSurveyResponses(state.surveyEditingId); showToast('Đã tải lại phiếu trả lời mới nhất.'); rer(); };
     if(g('sv-resp-prev')) g('sv-resp-prev').onclick = ()=>{ state.surveyResponseViewIndex--; rer(); };
     if(g('sv-resp-next')) g('sv-resp-next').onclick = ()=>{ state.surveyResponseViewIndex++; rer(); };
+    if(g('sv-ai-summary')) g('sv-ai-summary').onclick = ()=> surveyAiSummaryModal(draft, list(), surveyRespFilterLabels(draft, F).join(', '));
     if(g('sv-attempt-mode')) g('sv-attempt-mode').onchange = ()=>{ state.surveyAttemptMode = g('sv-attempt-mode').value; rer(); };
     const findR = id=> (state.surveyResponses||[]).find(x=> x.id===id);
     const collect = ()=>{ const gr = {}; el.querySelectorAll('.svg-pts').forEach(inp=>{ const fb = el.querySelector(`.svg-fb[data-qid="${inp.dataset.qid}"]`); gr[inp.dataset.qid] = { points: inp.value==='' ? null : Math.max(0, parseFloat(inp.value)||0), feedback: fb? fb.value.trim() : '' }; }); return gr; };
@@ -1220,7 +1224,7 @@
     if(!(draft.questions||[]).length){ alert('Biểu mẫu chưa có câu hỏi nào để xem thử.'); return; }
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
-    wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99990;';
+    wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99998;'; // trên cả khung "Hồ sơ đang soạn" của AI (99995)
     wrap.innerHTML = `<div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
       <div class="modal-head"><h3>👁️ Xem thử biểu mẫu</h3><div style="display:flex; gap:6px; margin-left:auto;"><button class="btn btn-ghost btn-sm preview-allow" id="svpv-phone">📱 Khổ điện thoại</button><button class="modal-close preview-allow" id="svpv-close">✕</button></div></div>
       <div class="modal-body" style="flex:1; overflow:auto; padding:0; background:var(--paper);"><div id="svpv-frame" class="svpv-frame"></div></div></div>`;
@@ -1473,6 +1477,7 @@
         };
         inp.oninput = apply; apply();
       });
+      const aiAppendBtn = document.getElementById('sv-ai-append-btn'); if(aiAppendBtn) aiAppendBtn.onclick = ()=> renderSurveyQuickAddByAiModal({ mode:'append', el, draft });
       const addSectionBtn = document.getElementById('sv-add-section-btn');
       if(addSectionBtn) addSectionBtn.onclick = ()=>{ draft.sections.push(emptySurveySection(draft.sections.length+1)); renderSurveyTab(el); };
       // 2 nút "Lưu biểu mẫu" (trên cùng + cuối khung soạn) dùng chung 1 hành động.
@@ -1838,6 +1843,397 @@
       close();
       renderSurveyTab(el);
     };
+  }
+
+  // =====================================================================
+  // GĐ9 — AI CHO BIỂU MẪU
+  //  (1) "✨ Tạo nhanh biểu mẫu bằng AI": khung chat theo đúng mẫu "Thêm nhanh bằng AI" của Hồ sơ hội viên /
+  //      Sổ vay vốn (dòng nhắc trước khi tiêu hoá, nút Tiêu hoá chỉ bấm 1 lần, "Hồ sơ đang soạn" nhấp nháy,
+  //      menu "Thêm thành phần" có ảnh/tài liệu/micro, sửa–chép–xoá tin nhắn). Ở đây "Hồ sơ đang soạn" là
+  //      BẢN PHÁC THẢO BIỂU MẪU (các phần + câu hỏi + đáp án nếu là bài kiểm tra). Xong thì đưa vào trình
+  //      soạn để duyệt lại rồi mới lưu (chế độ 'new' tạo biểu mẫu mới, 'append' thêm vào biểu mẫu đang soạn).
+  //  (2) "🧠 AI tóm tắt kết quả": AI đọc số liệu tổng hợp + câu trả lời tự luận (theo bộ lọc) và viết nhận xét.
+  // =====================================================================
+  const SURVEY_AI_TYPE_GUIDE = `short (trả lời ngắn), paragraph (đoạn văn dài), radio (trắc nghiệm chọn 1, hiện sẵn mọi phương án), checkbox (hộp kiểm chọn nhiều), dropdown (menu thả xuống chọn 1 — hợp danh sách dài như ấp, năm sinh), scale (thang điểm, VD 1–5 đo mức độ hài lòng), grid_radio (lưới: nhiều hàng cùng 1 thang, mỗi hàng chọn 1), grid_checkbox (lưới: mỗi hàng chọn nhiều), date (ngày), time (giờ), file (tải tệp/ảnh lên)`;
+  function surveyAiSystemPrompt(mode, cur){
+    const existing = mode==='append' && cur? `\nBIỂU MẪU ĐANG SOẠN (người dùng muốn THÊM câu hỏi vào đây — KHÔNG lặp lại các câu đã có): "${cur.title}"\n${(cur.questions||[]).map((q,i)=>`  ${i+1}. [${q.type}] ${q.text}`).join('\n')||'  (chưa có câu nào)'}` : '';
+    return `Bạn là trợ lý AI giúp cán bộ Hội Nông dân cấp xã SOẠN NHANH BIỂU MẪU khảo sát / phiếu lấy ý kiến / bài kiểm tra (giống Google Biểu mẫu). LUÔN gọi người dùng (cán bộ) là "đồng chí". Nhưng NỘI DUNG CÂU HỎI là để người dân, hội viên, học sinh... trả lời: viết câu hỏi ngắn gọn, dễ hiểu, lịch sự, KHÔNG dùng từ "đồng chí" trong câu hỏi (nếu cần xưng hô thì dùng "bạn"/"anh/chị").
+NHIỆM VỤ: ${mode==='append'? 'soạn THÊM câu hỏi cho biểu mẫu đang có (trả về CHỈ các phần/câu hỏi MỚI cần thêm).' : 'soạn trọn vẹn 1 biểu mẫu mới.'} Người dùng có thể: mô tả mục đích; hoặc đính kèm phiếu giấy/ảnh chụp/Word/PDF có sẵn -> khi đó SỐ HOÁ ĐÚNG NGUYÊN VĂN các câu hỏi và phương án trong tài liệu, không tự thêm bớt; chỉ chọn loại câu phù hợp nhất.${existing}
+CÁC LOẠI CÂU HỎI (trường "type"): ${SURVEY_AI_TYPE_GUIDE}.
+QUY TẮC:
+1) Chia "sections" (phần) khi biểu mẫu dài/nhiều chủ đề; biểu mẫu ngắn để 1 phần.
+2) Câu chọn phương án phải có "options" đầy đủ, không trùng; câu thang điểm có "scaleMin" (0/1), "scaleMax" (2–10), nhãn 2 đầu; câu lưới có "rows" và "cols".
+3) "required": true với câu quan trọng.
+4) Nếu là BÀI KIỂM TRA ("isQuiz": true): mỗi câu có "points"; câu chọn phương án/thang điểm có "correctAnswers" (giá trị đúng y như trong options); câu trả lời ngắn có "correctAnswers" là các đáp án chấp nhận; câu lưới có "gridAnswers" (đáp án theo từng hàng); có thể thêm "feedbackCorrect"/"feedbackWrong". Câu tự luận (paragraph) không có đáp án (chấm tay).
+5) Thiếu thông tin quan trọng (mục đích, đối tượng, số câu mong muốn...) thì HỎI LẠI ngắn gọn thay vì tự bịa; nhưng nếu người dùng đã mô tả đủ thì soạn luôn.
+CÁCH LÀM VIỆC: luôn có 1 "Hồ sơ đang soạn" (bản phác thảo biểu mẫu, người dùng có thể đã tự sửa). Cuối mỗi lượt bạn nhận đúng bản phác thảo hiện tại — hãy chỉnh sửa TRỰC TIẾP lên đó và LUÔN trả về TOÀN BỘ bản phác thảo.
+CÁCH TRẢ LỜI: trò chuyện tự nhiên trước (không bọc JSON), nói ngắn gọn đã soạn bao nhiêu phần/câu và gợi ý điều cần đồng chí kiểm tra. Nếu đã có ít nhất 1 câu hỏi, thêm NGAY CUỐI câu trả lời khối sau (đúng định dạng):
+\`\`\`survey-result
+{"title":"","description":"","isQuiz":false,"sections":[{"title":"","description":"","questions":[{"text":"","description":"","type":"radio","required":false,"options":[],"scaleMin":1,"scaleMax":5,"scaleMinLabel":"","scaleMaxLabel":"","rows":[],"cols":[],"points":0,"correctAnswers":[],"gridAnswers":[],"markOthersWrong":false,"feedbackCorrect":"","feedbackWrong":"","fileKind":"any"}]}]}
+\`\`\`
+Chưa đủ dữ liệu thì KHÔNG thêm khối này, chỉ trò chuyện/hỏi lại.
+${AI_DRAFT_REMINDER_RULE}`;
+  }
+  // Chuẩn hoá kết quả AI -> đúng cấu trúc biểu mẫu của app (id mới, đủ trường, loại câu hợp lệ).
+  function surveyAiNormalize(obj){
+    const arr = x=> Array.isArray(x)? x.map(v=> String(v==null? '' : v).trim()).filter(Boolean) : [];
+    const uniq = a=> Array.from(new Set(a));
+    const types = SURVEY_QTYPES.map(t=> t.key);
+    const rawSecs = Array.isArray(obj && obj.sections) && obj.sections.length? obj.sections : [{ title:'Phần 1', questions: (obj && obj.questions)||[] }];
+    const sections = [], questions = [];
+    rawSecs.forEach((sec, si)=>{
+      const s = emptySurveySection(si+1); s.title = String((sec && sec.title) || `Phần ${si+1}`).trim(); s.description = String((sec && sec.description)||'');
+      sections.push(s);
+      ((sec && sec.questions)||[]).forEach(x=>{
+        if(!x) return;
+        const q = emptySurveyQuestion(s.id);
+        q.text = String(x.text||'').trim(); q.description = String(x.description||''); q.showDesc = !!q.description;
+        q.type = types.includes(x.type)? x.type : 'short';
+        q.required = !!x.required;
+        q.options = surveyQTypeHasOptions(q.type)? (uniq(arr(x.options)).length? uniq(arr(x.options)) : ['Phương án 1']) : ['Phương án 1'];
+        q.optionBranches = q.options.map(()=> '__next__'); q.branchEnabled = false;
+        if(q.type==='scale'){ q.scaleMin = parseInt(x.scaleMin,10)===0? 0 : 1; q.scaleMax = Math.min(10, Math.max(2, parseInt(x.scaleMax,10)||5)); q.scaleMinLabel = String(x.scaleMinLabel||''); q.scaleMaxLabel = String(x.scaleMaxLabel||''); }
+        if(q.type==='grid_radio' || q.type==='grid_checkbox'){ q.rows = uniq(arr(x.rows)); q.cols = uniq(arr(x.cols)); if(!q.rows.length) q.rows = ['Hàng 1']; if(!q.cols.length) q.cols = ['Cột 1'];
+          const ga = Array.isArray(x.gridAnswers)? x.gridAnswers : [];
+          q.gridAnswers = q.rows.map((_,i)=>{ const k = ga[i]; return q.type==='grid_checkbox'? arr(Array.isArray(k)? k : (k? [k] : [])).filter(c=> q.cols.includes(c)) : (q.cols.includes(String(k||'').trim())? String(k).trim() : ''); }); }
+        if(q.type==='file'){ q.fileKind = SURVEY_FILE_KINDS[x.fileKind]? x.fileKind : 'any'; q.maxFiles = 1; q.maxSizeMb = 10; }
+        q.points = Math.max(0, parseFloat(x.points)||0);
+        const ca = arr(x.correctAnswers);
+        if(surveyQTypeHasOptions(q.type)) q.correctAnswers = ca.filter(a=> q.options.includes(a));
+        else if(q.type==='scale') q.correctAnswers = ca.filter(a=> surveyScaleValues(q).includes(a)).slice(0,1);
+        else if(q.type==='short') q.correctAnswers = ca;
+        else q.correctAnswers = [];
+        if((q.type==='radio' || q.type==='dropdown') && q.correctAnswers.length>1) q.correctAnswers = q.correctAnswers.slice(0,1);
+        q.markOthersWrong = !!x.markOthersWrong;
+        ['feedbackCorrect','feedbackWrong','feedbackGeneral'].forEach(k=>{ if(x[k]) q[k] = String(x[k]); });
+        surveyEnsureTypeDefaults(q);
+        if(q.text) questions.push(q);
+      });
+    });
+    return { title: String((obj && obj.title)||'').trim(), description: String((obj && obj.description)||''), isQuiz: !!(obj && obj.isQuiz), sections, questions };
+  }
+  // Rút gọn bản phác thảo để gửi lại cho AI (bỏ id, bỏ trường rỗng)
+  function surveyAiCompact(res){
+    return { title:res.title, description:res.description, isQuiz:res.isQuiz, sections: res.sections.map(s=>({ title:s.title, description:s.description, questions: res.questions.filter(q=> q.sectionId===s.id).map(q=>{
+      const o = { text:q.text, type:q.type, required:!!q.required };
+      if(q.description) o.description = q.description;
+      if(surveyQTypeHasOptions(q.type)) o.options = q.options;
+      if(q.type==='scale') Object.assign(o, { scaleMin:q.scaleMin, scaleMax:q.scaleMax, scaleMinLabel:q.scaleMinLabel, scaleMaxLabel:q.scaleMaxLabel });
+      if(surveyIsGrid(q)) Object.assign(o, { rows:q.rows, cols:q.cols, gridAnswers:q.gridAnswers });
+      if(q.type==='file') o.fileKind = q.fileKind;
+      if(res.isQuiz){ o.points = q.points; if((q.correctAnswers||[]).length) o.correctAnswers = q.correctAnswers; if(q.markOthersWrong) o.markOthersWrong = true; ['feedbackCorrect','feedbackWrong','feedbackGeneral'].forEach(k=>{ if(q[k]) o[k] = q[k]; }); }
+      return o; }) })) };
+  }
+  // "📋 Hồ sơ đang soạn" của khung chat: dàn ý biểu mẫu, sửa nhanh nội dung câu, xoá câu, xem thử.
+  function renderSurveyAiDraftModal(res, onClose){
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99995;';
+    document.body.appendChild(wrap);
+    const close = ()=>{ wrap.remove(); if(onClose) onClose(); };
+    function render(){
+      let n = 0;
+      wrap.innerHTML = `<div class="modal" style="max-width:100vw; width:100vw; height:92vh; max-height:92vh; display:flex; flex-direction:column; border-radius:0;">
+        <div class="modal-head"><h3>📋 Hồ sơ đang soạn — ${res.sections.length} phần, ${res.questions.length} câu hỏi${res.isQuiz? ' · Bài kiểm tra' : ''}</h3><button class="modal-close preview-allow" id="sfd-close">✕</button></div>
+        <div class="modal-body" style="flex:1; overflow:auto;">
+          <div class="form-grid"><div class="field full"><label>Tiêu đề biểu mẫu</label><input id="sfd-title" value="${escapeHtml(res.title)}"></div><div class="field full"><label>Mô tả</label><textarea id="sfd-desc" rows="2">${escapeHtml(res.description)}</textarea></div></div>
+          ${res.questions.length? '' : '<div class="empty-state">Chưa có câu hỏi nào — hãy nhắn cho AI mục đích biểu mẫu hoặc đính kèm phiếu giấy có sẵn.</div>'}
+          ${res.sections.map((s,si)=>{ const qs = res.questions.filter(q=> q.sectionId===s.id); if(!qs.length && res.sections.length>1) return '';
+            return `<div class="panel" style="margin-bottom:12px; border:2px solid #1565c0;"><div class="panel-head sv-sec-head"><h3>📑 Phần ${si+1}: ${escapeHtml(s.title)}</h3></div><div class="panel-body">
+              ${qs.map(q=>{ n++; const tl = (SURVEY_QTYPES.find(t=> t.key===q.type)||{}).label||q.type;
+                const extra = surveyQTypeHasOptions(q.type)? q.options.map(o=> `${(q.correctAnswers||[]).includes(o)? '✅' : '•'} ${escapeHtml(o)}`).join('<br>')
+                  : q.type==='scale'? `${escapeHtml(q.scaleMinLabel||'')} ${surveyScaleValues(q).join(' ')} ${escapeHtml(q.scaleMaxLabel||'')}`
+                  : surveyIsGrid(q)? `Hàng: ${escapeHtml(q.rows.join(' / '))}<br>Cột: ${escapeHtml(q.cols.join(' / '))}` : '';
+                return `<div class="sv-gq-row"><div><div style="display:flex; gap:6px; align-items:center;"><b>${n}.</b><input class="sfd-qtext" data-qid="${q.id}" value="${escapeHtml(q.text)}" style="flex:1; min-width:0; font-weight:700;"></div>
+                  <div class="sub" style="margin:4px 0 0 18px;">${escapeHtml(tl)}${q.required? ' · Bắt buộc' : ''}${res.isQuiz? ` · ${surveyFmtNum(q.points)} điểm${surveyKeyText(q)? ' · Đáp án: '+escapeHtml(surveyKeyText(q)) : ''}` : ''}</div>
+                  ${extra? `<div class="sub" style="margin:4px 0 0 18px; line-height:1.6;">${extra}</div>` : ''}</div>
+                  <button type="button" class="btn btn-ghost btn-sm preview-allow" data-sfd-del="${q.id}" title="Xoá câu này" style="color:var(--red);">🗑️</button></div>`; }).join('')}
+            </div></div>`; }).join('')}
+        </div>
+        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="sfd-preview" ${res.questions.length?'':'disabled'}>👁️ Xem thử như người trả lời</button><button class="btn btn-primary preview-allow" id="sfd-close2">Đóng bảng</button></div>
+      </div>`;
+      wrap.querySelector('#sfd-close').onclick = close; wrap.querySelector('#sfd-close2').onclick = close;
+      wrap.querySelector('#sfd-title').oninput = e=>{ res.title = e.target.value; };
+      wrap.querySelector('#sfd-desc').oninput = e=>{ res.description = e.target.value; };
+      wrap.querySelectorAll('.sfd-qtext').forEach(inp=> inp.oninput = ()=>{ const q = res.questions.find(x=> x.id===inp.dataset.qid); if(q) q.text = inp.value; });
+      wrap.querySelectorAll('[data-sfd-del]').forEach(b=> b.onclick = ()=>{ const i = res.questions.findIndex(x=> x.id===b.dataset.sfdDel); if(i<0) return; const [rm] = res.questions.splice(i,1); render(); showUndoToast('Đã xoá câu hỏi khỏi Hồ sơ đang soạn', ()=>{ res.questions.splice(i,0,rm); render(); }); });
+      wrap.querySelector('#sfd-preview').onclick = ()=> surveyOpenPreview(Object.assign(emptySurveyDraft(), { title: res.title||'Biểu mẫu', description: res.description, isQuiz: res.isQuiz, sections: res.sections, questions: res.questions }));
+    }
+    render();
+  }
+  // Đưa bản phác thảo vào trình soạn
+  function surveyAiApply(res, mode, el, targetDraft){
+    if(mode==='append' && targetDraft){
+      const keepSecs = res.sections.filter(s=> res.questions.some(q=> q.sectionId===s.id));
+      const secMap = {};
+      if(keepSecs.length===1){ const last = targetDraft.sections[targetDraft.sections.length-1]; secMap[keepSecs[0].id] = last.id; }
+      else keepSecs.forEach(s=>{ const ns = Object.assign({}, s, { id:'sec_'+uid() }); targetDraft.sections.push(ns); secMap[s.id] = ns.id; });
+      res.questions.forEach(q=>{ const c = JSON.parse(JSON.stringify(q)); c.id = 'q_'+uid(); c.sectionId = secMap[q.sectionId] || targetDraft.sections[targetDraft.sections.length-1].id; targetDraft.questions.push(c); });
+      if(res.isQuiz && !targetDraft.isQuiz){ targetDraft.isQuiz = true; showToast('Các câu mới có đáp án nên biểu mẫu được chuyển thành Bài kiểm tra.'); }
+      ensureSurveySections(targetDraft);
+      state.surveyEditorTab = 'questions';
+      renderSurveyTab(el);
+      showBigToast(`Đã thêm ${res.questions.length} câu hỏi vào biểu mẫu — nhớ bấm 💾 Lưu biểu mẫu.`);
+      return;
+    }
+    const d = emptySurveyDraft();
+    Object.assign(d, { title: res.title || 'Biểu mẫu không có tiêu đề', description: res.description||'', isQuiz: !!res.isQuiz, sections: res.sections.filter(s=> res.questions.some(q=> q.sectionId===s.id)), questions: res.questions });
+    if(!d.sections.length) d.sections = [emptySurveySection(1)];
+    ensureSurveySections(d);
+    surveyBaselines.set(d, '__ai_chua_luu__'); // bản mới do AI soạn: tính là "chưa lưu" để rời trình soạn sẽ được cảnh báo
+    state.surveyDraft = d; state.surveyEditingId = null; state.surveyEditorTab = 'questions'; state.surveyView = 'editor';
+    renderSurveyTab(el);
+    showBigToast('Đã đưa biểu mẫu AI soạn vào trình soạn — đồng chí kiểm tra lại rồi bấm 💾 Lưu biểu mẫu.');
+  }
+  function renderSurveyQuickAddByAiModal(opts){
+    const mode = opts.mode || 'new', el = opts.el, target = opts.draft || null;
+    if(!surveyCanEdit()){ alert('Đồng chí không có quyền tạo/sửa biểu mẫu ở đây.'); return; }
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.cssText = 'padding:0; align-items:stretch;';
+    document.body.appendChild(wrap);
+    const closeImmediate = ()=>{ state._sfaiAddMenuOpen = false; wrap.remove(); };
+    const close = ()=>{
+      if(resultIsEmpty()){ closeImmediate(); return; }
+      if(confirm(`⚠️ "Hồ sơ đang soạn" (${latest.questions.length} câu hỏi) hiện CHƯA được đưa vào biểu mẫu.\n\nNếu đóng bảng bây giờ, bản phác thảo này sẽ BIẾN MẤT.\n\nBấm "OK" để đóng (mất dữ liệu), hoặc "Huỷ" để quay lại.`)) closeImmediate();
+    };
+    const messages = [];
+    let pendingAttachments = [];
+    let hasDigestedOnce = false;
+    const draftFlash = {};
+    let latest = { title:'', description:'', isQuiz:false, sections:[emptySurveySection(1)], questions:[] };
+    const resultIsEmpty = ()=> !latest.questions.length;
+    let busy = false, editingIndex = null;
+    const what = mode==='append'? 'về các câu hỏi cần thêm' : 'về biểu mẫu cần soạn';
+    function bubbleHtml(mm, idx){
+      const isUser = mm.role==='user';
+      if(mm.streaming) return `<div style="display:flex; justify-content:flex-start; margin-bottom:10px;"><div id="sfai-streaming-bubble" style="max-width:75%; background:#e3f2fd; border-radius:12px; padding:10px 14px; font-size:13.5px; line-height:1.6;">${mm.text? renderMarkdownLite(mm.text) : waveTextHtml('Chàng đang suy nghĩ…')}</div></div>`;
+      if(editingIndex===idx) return `<div style="margin-bottom:10px;"><textarea id="sfai-edit-textarea" rows="3" style="width:100%; padding:8px 12px; border-radius:10px; border:1px solid var(--line);">${escapeHtml(mm.text)}</textarea>
+          <div style="text-align:right; margin-top:6px; display:flex; gap:8px; justify-content:flex-end;"><button class="btn btn-ghost btn-sm preview-allow" id="sfai-edit-cancel">Huỷ bỏ</button><button class="btn btn-primary btn-sm preview-allow" id="sfai-edit-resend">Gửi lại</button></div></div>`;
+      let inner = isUser? escapeHtml(mm.text||'') : renderMarkdownLite(mm.text||'');
+      if(mm.attachments && mm.attachments.length) inner += `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${mm.attachments.map(a=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)}</span>`).join('')}</div>`;
+      return `<div style="display:flex; flex-direction:column; align-items:${isUser?'flex-end':'flex-start'}; margin-bottom:10px;">
+        <div style="max-width:75%; background:${isUser?'#dcedc8':'#e3f2fd'}; border-radius:12px; padding:10px 14px; font-size:13.5px; line-height:1.6;">${inner}</div>
+        <div style="display:flex; gap:4px; margin-top:3px;">${isUser? `<button class="btn-plain-icon preview-allow" data-bubble-edit="${idx}" title="Sửa" style="font-size:12px; background:none; border:none; cursor:pointer; opacity:.6;">✏️</button>` : ''}
+          <button class="btn-plain-icon preview-allow" data-bubble-copy="${idx}" title="Sao chép" style="font-size:12px; background:none; border:none; cursor:pointer; opacity:.6;">📋</button>
+          <button class="btn-plain-icon preview-allow" data-bubble-delete="${idx}" title="Xoá tin nhắn này" style="font-size:12px; background:none; border:none; cursor:pointer; opacity:.6;">🗑️</button></div>
+      </div>`;
+    }
+    function render(){
+      const hasAnyUserContent = messages.some(mm=> mm.role==='user') || pendingAttachments.length>0;
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
+          <div class="modal-head"><h3>✨ ${mode==='append'? `Soạn thêm câu hỏi bằng AI — "${escapeHtml(target? target.title : '')}"` : 'Tạo nhanh biểu mẫu bằng chat với AI'}</h3><button class="modal-close preview-allow" id="sfai-close">✕</button></div>
+          <div class="modal-body" style="flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column;" id="sfai-thread">
+            ${messages.length? messages.map(bubbleHtml).join('')+(!hasDigestedOnce && messages.some(m=> m.role==='user')? aiPreDigestHintHtml(what) : '') : `<div class="sub" style="text-align:center; margin:auto; max-width:620px; line-height:1.7;">Hãy nhắn cho AI <b>mục đích</b> ${mode==='append'? 'các câu hỏi cần thêm' : 'của biểu mẫu'} — VD: <i>"Phiếu khảo sát nhu cầu vay vốn của hội viên, khoảng 10 câu"</i>, <i>"Bài kiểm tra 15 câu về Điều lệ Hội, mỗi câu 1 điểm"</i>. Hoặc đính kèm <b>phiếu giấy chụp ảnh / file Word / PDF có sẵn</b> để AI số hoá đúng nguyên văn.<br>AI sẽ đợi tới khi đồng chí bấm "🧠 Tiêu hoá tài liệu bằng AI" mới bắt đầu soạn.</div>`}
+          </div>
+          <div style="padding:8px 16px 0; background:var(--paper-2);">
+            <div style="text-align:center; margin-bottom:8px;"><button type="button" class="btn btn-sm preview-allow" id="sfai-view-file" style="background:#fff9c4; border:1px solid #fbc02d; color:#5a4300; font-weight:700;">📋 Hồ sơ đang soạn — ${latest.questions.length} câu hỏi (bấm để xem/sửa/xem thử)</button></div>
+            <p class="sub" style="margin:0 0 8px;">${hasDigestedOnce? 'AI đã đọc xong. Đồng chí cứ nhắn tiếp hoặc đính kèm thêm (VD: "thêm 3 câu về giống cây trồng", "đổi câu 5 thành thang điểm 1–5") — AI tự cập nhật lại Hồ sơ đang soạn, không cần bấm nút nào nữa.' : 'Chưa tiêu hoá tài liệu nào — nhắn/đính kèm xong thì bấm nút bên dưới.'}</p>
+            ${pendingAttachments.length? `<div class="ai-attach-row" style="padding:0 0 8px;">${pendingAttachments.map((a,i)=>`<span class="ai-attach-chip">📎 ${escapeHtml(a.name)} <button type="button" class="preview-allow" data-remove-att="${i}">✕</button></span>`).join('')}</div>` : ''}
+            <input type="file" id="sfai-file-input" multiple accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,image/*" style="display:none;">
+            <div class="ai-inputbar">
+              <div class="ai-add-btn" id="sfai-add-btn" role="button" tabindex="0">➕<span class="ai-add-label"> THÊM THÀNH PHẦN</span>
+                ${state._sfaiAddMenuOpen? `<div class="ai-add-menu">
+                  <div class="ai-add-opt" data-sfai-add="image">🖼️ Tải ảnh phiếu giấy lên</div>
+                  <div class="ai-add-opt" data-sfai-add="doc">📄 Tải tài liệu lên (Word, PDF, Excel)</div>
+                  <div class="ai-add-opt${state._sfaiMic2Listening?' ai-add-opt-disabled':''}" data-sfai-add="mic">🎤 ${state._sfaiMicListening? '✅ Đang nghe — bấm để dừng' : 'Vừa nói vừa ra chữ'}</div>
+                  <div class="ai-add-opt${state._sfaiMicListening?' ai-add-opt-disabled':''}" data-sfai-add="mic2">🎙️ ${state._sfaiMic2Listening? '✅ Đang nghe — bấm để dừng' : 'Nói xong mới ra chữ'}</div>
+                </div>` : ''}
+              </div>
+              <textarea id="sfai-input" rows="1" placeholder="Nhắn tin cho AI... (Enter để xuống dòng, Ctrl+Enter để gửi)"></textarea>
+              <div class="ai-send-wrap"><button id="sfai-send-btn">➤</button></div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost preview-allow" id="sfai-close2">Đóng bảng</button>
+            ${hasDigestedOnce? '' : `<button type="button" class="btn btn-sm preview-allow" id="sfai-digest" ${(busy||!hasAnyUserContent)?'disabled':''} style="background:linear-gradient(180deg, #ffffff 0%, #7c4dff 45%, #4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700; ${(busy||!hasAnyUserContent)?'opacity:.5;':''}">${busy?'⏳ AI đang xử lý...':'🧠 Tiêu hoá tài liệu bằng AI'}</button>`}
+            <button class="btn btn-primary preview-allow" id="sfai-add" ${resultIsEmpty()?'disabled':''} style="${resultIsEmpty()?'opacity:.45; cursor:not-allowed;':'display:inline-block; animation: bigMoneyPulse 1.4s ease-in-out infinite;'}">${mode==='append'? '➕ Thêm vào biểu mẫu đang soạn' : '➕ Đưa vào trình soạn biểu mẫu'}</button>
+          </div>
+        </div>`;
+      const $ = sel=> wrap.querySelector(sel);
+      $('#sfai-close').onclick = close; $('#sfai-close2').onclick = close;
+      wrap.onclick = (e)=>{ if(state._sfaiAddMenuOpen && !e.target.closest('#sfai-add-btn')){ state._sfaiAddMenuOpen = false; render(); } };
+      const th = $('#sfai-thread'); if(th) th.scrollTop = th.scrollHeight;
+      $('#sfai-view-file').onclick = ()=> renderSurveyAiDraftModal(latest, render);
+      wrap.querySelectorAll('[data-remove-att]').forEach(b=> b.onclick = ()=>{ pendingAttachments.splice(parseInt(b.dataset.removeAtt,10),1); render(); });
+      wrap.querySelectorAll('[data-bubble-delete]').forEach(b=> b.onclick = ()=>{ if(!confirm('Xoá tin nhắn này khỏi cuộc trò chuyện?')) return; messages.splice(parseInt(b.dataset.bubbleDelete,10),1); render(); });
+      wrap.querySelectorAll('[data-bubble-copy]').forEach(b=> b.onclick = ()=>{ const mm = messages[parseInt(b.dataset.bubbleCopy,10)]; if(mm) writeClipboardSilent(mm.text||''); showToast('Đã sao chép!'); });
+      wrap.querySelectorAll('[data-bubble-edit]').forEach(b=> b.onclick = ()=>{ editingIndex = parseInt(b.dataset.bubbleEdit,10); render(); });
+      if($('#sfai-edit-cancel')) $('#sfai-edit-cancel').onclick = ()=>{ editingIndex = null; render(); };
+      if($('#sfai-edit-resend')) $('#sfai-edit-resend').onclick = ()=>{ messages[editingIndex].text = ($('#sfai-edit-textarea').value||'').trim(); messages.length = editingIndex+1; editingIndex = null; if(hasDigestedOnce){ render(); runAiTurn(); } else render(); };
+      $('#sfai-add-btn').addEventListener('click', (e)=>{
+        e.stopPropagation(); state._sfaiAddMenuOpen = !state._sfaiAddMenuOpen;
+        const saved = ($('#sfai-input')||{}).value || ''; render();
+        const after = wrap.querySelector('#sfai-input'); if(after && saved) after.value = saved; if(after) autoResizeTextarea(after);
+      });
+      wrap.querySelectorAll('[data-sfai-add]').forEach(x=> x.addEventListener('click', (e)=>{
+        e.stopPropagation(); state._sfaiAddMenuOpen = false;
+        if(x.dataset.sfaiAdd==='mic'){ wrap.querySelector('#sfai-add-btn .ai-add-menu')?.remove(); toggleMicGeneric('sfai', render); return; }
+        if(x.dataset.sfaiAdd==='mic2'){ wrap.querySelector('#sfai-add-btn .ai-add-menu')?.remove(); toggleMic2Generic('sfai', render); return; }
+        const fi = $('#sfai-file-input'); fi.accept = x.dataset.sfaiAdd==='image'? 'image/*' : '.pdf,.docx,.xlsx,.xls,.csv,.txt'; fi.click();
+      }));
+      $('#sfai-file-input').onchange = async (e)=>{
+        for(const f of Array.from(e.target.files||[])){
+          try{ const a = await schedReadFile(f); if(a) pendingAttachments.push(a); }catch(err){ console.error(err); alert(`Không đọc được tệp "${f.name}": ${err&&err.message||err}`); }
+        }
+        if(hasDigestedOnce) doSend(); else render();
+      };
+      $('#sfai-send-btn').onclick = ()=>{ doSend(); scrollNearestModalToBottom(wrap); };
+      wireAutoResizeTextarea('sfai-input');
+      flashDraftButtonIfChanged(draftFlash, $('#sfai-view-file'), JSON.stringify(surveyAiCompact(latest)));
+      $('#sfai-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); doSend(); } });
+      $('#sfai-input').addEventListener('focus', ()=> scrollNearestModalToBottom(wrap));
+      if($('#sfai-digest')) $('#sfai-digest').onclick = ()=> runAiTurn();
+      const addBtn = $('#sfai-add'); if(addBtn) addBtn.onclick = ()=>{
+        if(resultIsEmpty()) return;
+        const empties = latest.questions.filter(q=> !String(q.text||'').trim()).length;
+        if(empties){ alert(`Có ${empties} câu hỏi chưa có nội dung. Vào "📋 Hồ sơ đang soạn" để sửa hoặc xoá.`); return; }
+        if(!confirm(mode==='append'? `Thêm ${latest.questions.length} câu hỏi vào biểu mẫu đang soạn?` : `Đưa biểu mẫu ${latest.questions.length} câu hỏi vào trình soạn? Đồng chí sẽ kiểm tra lại rồi bấm Lưu biểu mẫu.`)) return;
+        closeImmediate(); surveyAiApply(latest, mode, el, target);
+      };
+    }
+    function doSend(){
+      const inp = wrap.querySelector('#sfai-input'); const text = (inp.value||'').trim();
+      if(!text && !pendingAttachments.length) return;
+      messages.push({ role:'user', text, attachments: pendingAttachments });
+      pendingAttachments = []; inp.value = '';
+      if(hasDigestedOnce){ render(); runAiTurn(); } else render();
+    }
+    async function runAiTurn(){
+      if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, vui lòng đăng nhập để sử dụng tính năng này.'); return; }
+      if(busy) return;
+      if(pendingAttachments.length){ messages.push({ role:'user', text:'', attachments: pendingAttachments }); pendingAttachments = []; }
+      const binary = messages.filter(m=> m.role==='user').flatMap(m=> m.attachments||[]).filter(a=> a.base64);
+      const prov = (typeof getActiveAiProvider==='function')? getActiveAiProvider() : null;
+      if(binary.some(a=> a.mimeType==='application/pdf') && prov && aiVendorOf(prov)!=='gemini'){ alert('Model AI đang chọn không đọc được tệp PDF. Đồng chí đổi sang model Gemini, hoặc dùng tệp Word/ảnh chụp.'); render(); return; }
+      busy = true;
+      const stream = { role:'ai', text:'', streaming:true };
+      messages.push(stream); render();
+      try{
+        const aiMessages = [{ role:'user', text: surveyAiSystemPrompt(mode, target) }, { role:'assistant', text:'Đã hiểu, tôi sẽ tuân thủ đúng quy tắc và định dạng trả lời.' }];
+        messages.forEach(mm=>{
+          if(mm===stream) return;
+          let t = mm.text||'';
+          (mm.attachments||[]).filter(a=> a.text).forEach(a=>{ t += `\n\n[Nội dung tệp "${a.name}"]\n${a.text}`; });
+          (mm.attachments||[]).filter(a=> a.base64).forEach(a=>{ t += `\n(kèm tệp "${a.name}")`; });
+          aiMessages.push({ role: mm.role==='user'? 'user' : 'assistant', text: t || '(tệp đính kèm)' });
+        });
+        aiMessages.push({ role:'user', text:`[Hồ sơ đang soạn HIỆN TẠI${resultIsEmpty()? ' (đang RỖNG)' : ' (có thể người dùng đã tự sửa)'}]:\n${JSON.stringify(surveyAiCompact(latest))}` });
+        aiMessages.push({ role:'assistant', text:'Đã ghi nhận Hồ sơ đang soạn hiện tại, tôi sẽ dựa vào đó để cập nhật.' });
+        const result = await callAIWithFallback(aiMessages, binary.length? { attachments: binary.map(a=>({ name:a.name, mimeType:a.mimeType, base64:a.base64 })) } : {}, (partial)=>{
+          stream.text = partial;
+          const b = document.getElementById('sfai-streaming-bubble');
+          if(b){ b.innerHTML = partial? renderMarkdownLite(partial) : waveTextHtml('Chàng đang suy nghĩ…'); const th = wrap.querySelector('#sfai-thread'); if(th) th.scrollTop = th.scrollHeight; }
+        });
+        const full = result.text || '';
+        const mm = full.match(/```survey-result\s*([\s\S]*?)```/);
+        let reply = full, parsed = null;
+        if(mm){ reply = (full.slice(0,mm.index)+full.slice(mm.index+mm[0].length)).trim(); try{ parsed = JSON.parse(mm[1].trim()); }catch(e){ parsed = null; } }
+        messages.pop();
+        if(parsed){ latest = surveyAiNormalize(parsed); }
+        if(mm && !parsed) reply += '\n\n(Lưu ý: không đọc được khối kết quả của AI, đồng chí nhắn "soạn lại" giúp.)';
+        if(reply) messages.push({ role:'ai', text: reply });
+        hasDigestedOnce = true;
+      }catch(err){
+        messages.pop();
+        console.error('[Khảo sát] Lỗi AI soạn biểu mẫu:', err);
+        messages.push({ role:'ai', text:`Xin lỗi, có lỗi xảy ra khi xử lý: ${err && err.message? err.message : err}. Đồng chí thử lại nhé.` });
+      }
+      busy = false; render();
+    }
+    render();
+  }
+
+  // ---- (2) AI tóm tắt kết quả ----
+  function surveyAiSummaryData(draft, list){
+    const out = [`BIỂU MẪU: "${draft.title}"${draft.description? ' — '+draft.description : ''}`, `SỐ PHIẾU ĐƯỢC PHÂN TÍCH: ${list.length}`];
+    if(draft.isQuiz){
+      const g = list.map(r=> surveyGradeResponse(draft, r)), sc = g.map(x=> x.score).sort((a,b)=> a-b);
+      if(sc.length) out.push(`ĐIỂM BÀI KIỂM TRA: trung bình ${surveyFmtNum(sc.reduce((a,b)=>a+b,0)/sc.length)}/${surveyFmtNum(g[0].max)}, thấp nhất ${surveyFmtNum(sc[0])}, cao nhất ${surveyFmtNum(sc[sc.length-1])}, ${g.filter(x=> x.pending).length} bài còn chờ chấm tay.`);
+    }
+    draft.questions.forEach((q,qi)=>{
+      const vals = list.map(r=> r.answers && r.answers[q.id]).filter(v=> surveyHasAnswer(q, v));
+      const head = `\nCÂU ${qi+1} [${(SURVEY_QTYPES.find(t=> t.key===q.type)||{}).label||q.type}] "${q.text}" — ${vals.length}/${list.length} người trả lời`;
+      if(surveyQTypeHasOptions(q.type)){
+        const c = new Map((q.options||[]).map(o=> [o,0])); vals.forEach(v=> (Array.isArray(v)? v : [v]).forEach(a=> c.set(a, (c.get(a)||0)+1)));
+        out.push(head + '\n' + Array.from(c.entries()).map(([o,n])=> `  - ${o}: ${n} (${vals.length? Math.round(n/vals.length*100) : 0}%)`).join('\n'));
+      } else if(q.type==='scale'){
+        const c = {}; let sum = 0; vals.forEach(v=>{ c[v] = (c[v]||0)+1; sum += parseFloat(v)||0; });
+        out.push(head + `\n  Trung bình ${vals.length? (sum/vals.length).toFixed(2) : '—'} trên thang ${q.scaleMin}(${q.scaleMinLabel||''})–${q.scaleMax}(${q.scaleMaxLabel||''}); phân bố: ${surveyScaleValues(q).map(v=> `${v}:${c[v]||0}`).join(', ')}`);
+      } else if(surveyIsGrid(q)){
+        out.push(head + '\n' + (q.rows||[]).map((rw,i)=> `  - ${rw}: ` + (q.cols||[]).map(cn=> `${cn} ${vals.filter(v=>{ const x = surveyGridCell(v,i); return Array.isArray(x)? x.includes(cn) : x===cn; }).length}`).join(', ')).join('\n'));
+      } else if(q.type==='file'){
+        out.push(head + ` — ${vals.reduce((a,v)=> a+surveyFileList(v).length, 0)} tệp đã nộp (không phân tích nội dung tệp).`);
+      } else {
+        const texts = vals.map(v=> surveyAnswerText(v, q).replace(/\s+/g,' ').slice(0,300));
+        out.push(head + '\n' + texts.slice(0,80).map(t=> `  • ${t}`).join('\n') + (texts.length>80? `\n  … và ${texts.length-80} câu trả lời khác` : ''));
+      }
+    });
+    return out.join('\n');
+  }
+  // Bộ hiển thị markdown của app chưa đọc tiêu đề "## …" -> đổi thành dòng chữ đậm.
+  function surveyMd(t){ return renderMarkdownLite(String(t||'').replace(/^\s*#{1,6}\s*(.+?)\s*#*\s*$/gm, '**$1**')); }
+  function surveyAiSummaryModal(draft, list, filterText){
+    if(state.previewMode){ alert('Đồng chí đang ở chế độ tham quan, vui lòng đăng nhập để sử dụng tính năng này.'); return; }
+    if(!list.length){ alert('Chưa có phiếu nào để tóm tắt.'); return; }
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.cssText = 'padding:0; align-items:stretch;';
+    document.body.appendChild(wrap);
+    const data = surveyAiSummaryData(draft, list);
+    const sys = `Bạn là chuyên viên phân tích số liệu giúp cán bộ Hội Nông dân cấp xã đọc kết quả khảo sát. LUÔN gọi người dùng là "đồng chí". Viết bằng tiếng Việt, dạng Markdown, ngắn gọn, dễ hiểu, có số liệu cụ thể, gồm các mục:
+## 1. Tổng quan
+## 2. Kết quả nổi bật (theo từng câu quan trọng, nêu số liệu và %)
+## 3. Ý kiến tự luận đáng chú ý (gom theo chủ đề, trích dẫn ngắn nguyên văn)
+## 4. Vấn đề cần lưu ý
+## 5. Đề xuất cho Hội
+TUYỆT ĐỐI không bịa số liệu: chỉ dùng số liệu được cung cấp bên dưới. Không nêu tên/email cá nhân người trả lời.`;
+    const convo = [{ role:'user', text: sys + `\n\nSỐ LIỆU${filterText? ' (đang lọc: '+filterText+')' : ''}:\n` + data }, { role:'assistant', text:'Đã nhận số liệu, tôi sẽ viết bản tóm tắt.' }, { role:'user', text:'Hãy viết bản tóm tắt kết quả.' }];
+    const turns = []; // [{q, a}]
+    let busy = false;
+    function render(){
+      wrap.innerHTML = `<div class="modal" style="max-width:100vw; width:100vw; height:100vh; max-height:100vh; border-radius:0; display:flex; flex-direction:column;">
+        <div class="modal-head"><h3>🧠 AI tóm tắt kết quả — ${escapeHtml(draft.title)} (${list.length} phiếu${filterText? ', đang lọc' : ''})</h3><button class="modal-close preview-allow" id="sas-close">✕</button></div>
+        <div class="modal-body" style="flex:1; overflow:auto; padding:16px;" id="sas-body">
+          ${turns.map((t,i)=>`${i? `<div style="display:flex; justify-content:flex-end; margin:10px 0;"><div style="max-width:75%; background:#dcedc8; border-radius:12px; padding:8px 12px;">${escapeHtml(t.q)}</div></div>` : ''}<div class="sas-answer" ${t.streaming? 'id="sas-stream"' : ''}>${t.a? surveyMd(t.a) : waveTextHtml('Chàng đang đọc số liệu và viết tóm tắt…')}</div>`).join('')}
+        </div>
+        <div style="padding:8px 16px; background:var(--paper-2); display:flex; gap:8px; align-items:flex-end;">
+          <textarea id="sas-input" rows="1" placeholder="Hỏi thêm AI về kết quả này… (VD: Nhóm nào chưa hài lòng nhất?) — Ctrl+Enter để gửi" style="flex:1; resize:none; max-height:30vh;" ${busy?'disabled':''}></textarea>
+          <button class="btn btn-primary preview-allow" id="sas-send" ${busy?'disabled':''}>➤</button>
+        </div>
+        <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+          <button class="btn btn-ghost preview-allow" id="sas-copy" ${busy||!turns[0]||!turns[0].a?'disabled':''}>📋 Sao chép</button>
+          <button class="btn btn-ghost preview-allow" id="sas-word" ${busy||!turns[0]||!turns[0].a?'disabled':''}>⬇️ Tải file Word</button>
+          <button class="btn btn-ghost preview-allow" id="sas-print" ${busy||!turns[0]||!turns[0].a?'disabled':''}>🖨️ In</button>
+          <button class="btn btn-ghost preview-allow" id="sas-redo" ${busy?'disabled':''}>↻ Viết lại</button>
+          <button class="btn btn-primary preview-allow" id="sas-close2">Đóng</button>
+        </div></div>`;
+      const $ = s=> wrap.querySelector(s);
+      $('#sas-close').onclick = ()=> wrap.remove(); $('#sas-close2').onclick = ()=> wrap.remove();
+      const body = $('#sas-body'); body.scrollTop = body.scrollHeight;
+      const allText = ()=> turns.map((t,i)=> (i? `\n\n### Hỏi thêm: ${t.q}\n\n` : '') + (t.a||'')).join('');
+      const allHtml = ()=> turns.map((t,i)=> (i? `<h3>Hỏi thêm: ${escapeHtml(t.q)}</h3>` : '') + surveyMd(t.a||'')).join('');
+      $('#sas-copy').onclick = ()=>{ writeClipboardSilent(allText()); showToast('Đã sao chép bản tóm tắt.'); };
+      $('#sas-word').onclick = ()=> downloadBlob(`Tom-tat-khao-sat_${todayStr()}.doc`, htmlToWordDoc(`Tóm tắt kết quả: ${draft.title}`, `<h2>TÓM TẮT KẾT QUẢ KHẢO SÁT: ${escapeHtml(draft.title)}</h2><p><i>${list.length} phiếu${filterText? ' — đang lọc: '+escapeHtml(filterText) : ''} · ${new Date().toLocaleString('vi-VN')}</i></p>${allHtml()}`), 'application/msword');
+      $('#sas-print').onclick = ()=>{ const area = document.getElementById('print-area'); if(!area) return; area.innerHTML = `<div class="print-title" style="text-align:center;">TÓM TẮT KẾT QUẢ KHẢO SÁT: ${escapeHtml(draft.title.toUpperCase())}</div><div style="text-align:center; font-size:12px; margin-bottom:10px;">${list.length} phiếu${filterText? ' — đang lọc: '+escapeHtml(filterText) : ''} · ${new Date().toLocaleString('vi-VN')}</div>${allHtml()}`; printAreaNow(false); };
+      $('#sas-redo').onclick = ()=>{ turns.length = 0; convo.length = 3; ask(null); };
+      const send = ()=>{ const t = ($('#sas-input').value||'').trim(); if(!t || busy) return; ask(t); };
+      $('#sas-send').onclick = send;
+      $('#sas-input').addEventListener('keydown', e=>{ if(e.key==='Enter' && e.ctrlKey){ e.preventDefault(); send(); } });
+    }
+    async function ask(question){
+      busy = true;
+      if(question) convo.push({ role:'user', text: question });
+      const t = { q: question||'', a:'', streaming:true }; turns.push(t); render();
+      try{
+        const res = await callAIWithFallback(convo.slice(), {}, (partial)=>{ t.a = partial; const b = document.getElementById('sas-stream'); if(b){ b.innerHTML = surveyMd(partial); const body = wrap.querySelector('#sas-body'); if(body) body.scrollTop = body.scrollHeight; } });
+        t.a = res.text || '(AI không trả lời)';
+        convo.push({ role:'assistant', text: t.a });
+      }catch(e){ console.error('[Khảo sát] AI tóm tắt lỗi:', e); t.a = `Xin lỗi, có lỗi khi gọi AI: ${e && e.message? e.message : e}. Đồng chí bấm "↻ Viết lại" để thử lại.`; if(question) convo.pop(); }
+      t.streaming = false; busy = false; render();
+    }
+    ask(null);
   }
 
   // =====================================================================
