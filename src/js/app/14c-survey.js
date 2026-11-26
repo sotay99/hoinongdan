@@ -135,6 +135,9 @@
     const toSave = { ...d, id, wardId: wardId(), wardName:(state.config&&state.config.wardName)||'',
       updatedAt:new Date().toISOString(), createdAt: d.createdAt || new Date().toISOString(),
       responseCount: d.responseCount||0, deleted:false };
+    // Số phiếu có thể đã tăng (người khác vừa nộp) trong lúc đang soạn -> lấy số MỚI NHẤT trên máy chủ,
+    // không ghi đè bằng con số cũ trong bản nháp.
+    if(d.id){ try{ const c = await rtdb.ref(`surveys/${id}/responseCount`).get(); if(c && c.exists()) toSave.responseCount = parseInt(c.val(),10)||0; }catch(e){} }
     await rtdb.ref(`surveys/${id}`).set(toSave);
     await pushLog(d.id? 'sửa biểu mẫu':'tạo biểu mẫu', toSave.title);
     state.surveyDraft = toSave;
@@ -161,22 +164,6 @@
       state.surveyResponses = (snap && snap.exists()) ? Object.values(snap.val()).sort((a,b)=> (a.submittedAt||'').localeCompare(b.submittedAt||'')) : [];
     }catch(e){ console.error('[Khảo sát] Không tải được câu trả lời:', e); state.surveyResponses = []; }
     state.surveyResponseViewIndex = 0;
-  }
-  // Thống kê 1 câu hỏi trên toàn bộ câu trả lời hiện có — trắc nghiệm/hộp kiểm/dropdown ra % theo
-  // từng phương án; tự luận (ngắn/đoạn văn) ra danh sách câu trả lời dạng chữ.
-  function computeQuestionStats(question, responses){
-    if(surveyQTypeHasOptions(question.type)){
-      const counts = {}; (question.options||[]).forEach(o=> counts[o]=0);
-      responses.forEach(r=>{
-        const ans = r.answers && r.answers[question.id];
-        if(ans==null || ans==='') return;
-        const arr = Array.isArray(ans) ? ans : [ans];
-        arr.forEach(a=>{ counts[a] = (counts[a]||0) + 1; });
-      });
-      const total = responses.length || 1;
-      return Object.entries(counts).map(([opt,cnt])=>({ opt, cnt, pct: Math.round((cnt/total)*100) }));
-    }
-    return responses.map(r=> (r.answers && r.answers[question.id]) || '').filter(s=>s);
   }
   function computeSurveyScore(survey, answers){
     let score = 0, maxScore = 0;
@@ -401,7 +388,7 @@
         state.surveyDraft = ensureSurveySections(JSON.parse(JSON.stringify(s)));
         state.surveyEditingId = s.id;
         state.surveyEditorTab = 'questions';
-        state.surveyResponseDetailOpen = false;
+        state.surveyRespView = 'summary';
         state.surveyResponseViewIndex = 0;
         state.surveyView = 'editor';
         renderSurveyTab(el);
@@ -508,59 +495,259 @@
       </div>` : ''}`;
   }
 
-  function renderSurveySummaryHtml(draft, responses){
-    return draft.questions.map((q,qi)=>{
-      const stats = computeQuestionStats(q, responses);
-      let body;
-      if(surveyQTypeHasOptions(q.type)){
-        body = `<div style="display:flex; flex-direction:column; gap:8px;">${stats.map(s=>`
-          <div>
-            <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:3px;"><span>${escapeHtml(s.opt)}</span><span>${s.cnt} (${s.pct}%)</span></div>
-            <div style="background:var(--paper-2); border-radius:6px; height:8px; overflow:hidden;"><div style="width:${s.pct}%; height:100%; background:var(--gold);"></div></div>
-          </div>`).join('')}</div>`;
-      } else {
-        body = stats.length? `<div style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow:auto;">${stats.map(a=>`<div class="kv-row" style="border:1px solid var(--line); border-radius:8px; padding:8px 10px;">${escapeHtml(a)}</div>`).join('')}</div>` : '<div class="sub">Chưa có câu trả lời nào cho câu này.</div>';
-      }
-      return `<div class="panel" style="margin-bottom:10px;"><div class="panel-head"><h3 style="font-size:14px;">${qi+1}. ${escapeHtml(q.text)}</h3></div><div class="panel-body">${body}</div></div>`;
-    }).join('');
+  // =====================================================================
+  // GĐ5 — TAB "CÂU TRẢ LỜI": 3 chế độ xem (📊 Tổng hợp có biểu đồ · 📋 Bảng · 👤 Từng phiếu), bộ lọc
+  // DÙNG CHUNG cho cả 3 (tìm chữ, khoảng ngày nộp, theo phương án của 1 câu), xoá từng phiếu, tuỳ chỉnh
+  // cột (ẩn/hiện + kéo đổi thứ tự, nhớ theo trình duyệt), xuất Excel / in đúng theo bộ lọc và cột.
+  // Biểu đồ: thanh ngang (mỗi phương án 1 thanh + số + %) — dễ so sánh hơn biểu đồ tròn; câu chọn 1 có
+  // ≤ 6 phương án có thêm 1 thanh phân đoạn thể hiện tỉ lệ cả câu. Bảng màu phân loại đã kiểm định,
+  // thứ tự cố định theo thứ tự phương án (màu đi theo phương án, không theo thứ hạng).
+  // =====================================================================
+  const SURVEY_CHART_COLORS = ['#257de0','#f47230','#00b894','#f2a600','#ee7fac','#008a17'];
+  const SURVEY_QTYPE_COLW = { short:200, paragraph:280, radio:180, dropdown:180, checkbox:230 };
+  function surveyRespFilter(){
+    const id = state.surveyEditingId;
+    if(!state.surveyRespFilter || state.surveyRespFilter.forId!==id) state.surveyRespFilter = { forId:id, q:'', from:'', to:'', qid:'', opt:'' };
+    return state.surveyRespFilter;
   }
-  function renderSurveyResponseDetailHtml(draft, responses){
-    const idx = Math.min(Math.max(0,state.surveyResponseViewIndex), responses.length-1);
-    const r = responses[idx];
+  function surveyAnswerText(v){ return Array.isArray(v)? v.join(', ') : (v==null? '' : String(v)); }
+  function surveyLocalDay(iso){ const d = new Date(iso); if(isNaN(d)) return ''; const p = n=> String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  function surveyWhoText(r){
+    const lan = r.attempt? ` · Lần ${r.attempt}` : '';
+    if(r.respondentEmail) return r.respondentEmail + lan;
+    if(r.respondentKey && String(r.respondentKey).startsWith('b_')) return `Trình duyệt ${String(r.respondentKey).slice(2,8)}` + lan;
+    return '';
+  }
+  function surveyRespFilterLabels(draft, F){
+    const out = [];
+    if(F.q.trim()) out.push(`Có chứa "${F.q.trim()}"`);
+    if(F.from || F.to) out.push(`Nộp ${F.from? 'từ '+fmtDate(F.from) : ''}${F.from && F.to? ' ' : ''}${F.to? 'đến '+fmtDate(F.to) : ''}`);
+    if(F.qid && F.opt){ const q = draft.questions.find(x=>x.id===F.qid); if(q) out.push(`Câu "${(q.text||'').slice(0,40)}" chọn "${F.opt}"`); }
+    return out;
+  }
+  function surveyFilterResponses(draft, responses, F){
+    const term = surveyFold(F.q.trim());
+    return responses.filter(r=>{
+      const day = surveyLocalDay(r.submittedAt);
+      if(F.from && day < F.from) return false;
+      if(F.to && day > F.to) return false;
+      if(F.qid && F.opt){ const v = r.answers && r.answers[F.qid]; const arr = Array.isArray(v)? v : (v? [v] : []); if(!arr.includes(F.opt)) return false; }
+      if(term){ const hay = surveyFold([surveyWhoText(r), ...draft.questions.map(q=> surveyAnswerText(r.answers && r.answers[q.id]))].join(' ')); if(!hay.includes(term)) return false; }
+      return true;
+    });
+  }
+  // ---- Cột bảng câu trả lời (dùng chung cho bảng, xuất Excel, in) ----
+  function surveyRespAllCols(draft, responses){
+    const cols = [
+      { key:'stt', label:'STT', w:50, align:'center', fixed:true, get:(r,i)=> String(i+1) },
+      { key:'time', label:'Thời gian nộp', w:140, align:'center', get:r=> new Date(r.submittedAt).toLocaleString('vi-VN') },
+    ];
+    if(responses.some(r=> r.respondentKey || r.respondentEmail)) cols.push({ key:'who', label:'Người nộp', w:190, align:'left', get:r=> surveyWhoText(r) });
+    draft.questions.forEach((q,qi)=> cols.push({ key:'q:'+q.id, label:`${qi+1}. ${q.text||''}`, w:SURVEY_QTYPE_COLW[q.type]||200, align:'left', get:r=> surveyAnswerText(r.answers && r.answers[q.id]) }));
+    if(draft.isQuiz) cols.push({ key:'score', label:'Điểm', w:80, align:'center', get:r=> `${r.score||0}/${r.maxScore||0}` });
+    return cols;
+  }
+  function surveyColPrefs(sid){ try{ return JSON.parse(localStorage.getItem('hnd_sv_cols_'+sid)) || {}; }catch(e){ return {}; } }
+  function surveySaveColPrefs(sid, p){ try{ localStorage.setItem('hnd_sv_cols_'+sid, JSON.stringify(p)); }catch(e){} }
+  function surveyOrderedCols(all, P){
+    const keys = all.map(c=>c.key), ord = (P.order||[]).filter(k=> keys.includes(k));
+    keys.forEach(k=>{ if(!ord.includes(k)) ord.push(k); });
+    return ord.map(k=> all.find(c=>c.key===k));
+  }
+  function surveyRespCols(draft, responses){
+    const P = surveyColPrefs(state.surveyEditingId), hidden = new Set(P.hidden||[]);
+    return surveyOrderedCols(surveyRespAllCols(draft, responses), P).filter(c=> c.fixed || !hidden.has(c.key));
+  }
+  function surveyCellStyle(c){ return `text-align:${c.align}; vertical-align:top; white-space:normal; word-break:break-word; overflow-wrap:anywhere; width:${c.w}px; min-width:${c.w}px; max-width:${c.w}px;`; }
+
+  // ---- 📊 Tổng hợp ----
+  function surveyQuestionStatsHtml(q, qi, list){
+    const has = v=> Array.isArray(v)? v.length>0 : (v!=null && v!=='');
+    const answered = list.filter(r=> has(r.answers && r.answers[q.id]));
+    let body;
+    if(surveyQTypeHasOptions(q.type)){
+      const opts = q.options||[];
+      const counts = new Map(opts.map(o=>[o,0]));
+      answered.forEach(r=>{ const v = r.answers[q.id]; (Array.isArray(v)? v : [v]).forEach(a=> counts.set(a, (counts.get(a)||0)+1)); });
+      const base = answered.length || 1;
+      const rows = Array.from(counts.entries());
+      const segOn = q.type!=='checkbox' && opts.length<=SURVEY_CHART_COLORS.length && answered.length>0;
+      const colorOf = o=> SURVEY_CHART_COLORS[opts.indexOf(o)] || '#9e9e9e';
+      const seg = segOn? `<div class="sv-segbar" role="img" aria-label="Tỉ lệ các phương án">${rows.filter(([,c])=>c>0).map(([o,c])=>{ const pct = c/base*100; return `<div class="sv-seg" style="width:${pct}%; background:${colorOf(o)};" title="${escapeHtml(o)}: ${c} (${Math.round(pct)}%)">${pct>=12? Math.round(pct)+'%' : ''}</div>`; }).join('')}</div>` : '';
+      const meters = rows.map(([o,c])=>{ const pct = Math.round(c/base*100);
+        return `<div class="sv-meter-row" title="${escapeHtml(o)}: ${c} người (${pct}%)"><div class="sv-meter-name">${segOn? `<span class="sv-swatch" style="background:${colorOf(o)};"></span>` : ''}<span>${escapeHtml(o)}</span></div><div class="sv-meter-track"><div class="sv-meter-fill" style="width:${pct}%;"></div></div><div class="sv-meter-val"><b>${c}</b> <span class="sub">(${pct}%)</span></div></div>`; }).join('');
+      body = `${seg}<div class="sv-meters${rows.length>15? ' scroll' : ''}">${meters}</div>${q.type==='checkbox'? '<p class="sub" style="margin:6px 0 0;">Mỗi người chọn được nhiều phương án nên tổng các % có thể vượt 100%.</p>' : ''}`;
+    } else {
+      const texts = answered.map(r=> surveyAnswerText(r.answers[q.id]));
+      body = texts.length? `<div style="display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto;">${texts.map(t=>`<div class="kv-row" style="border:1px solid var(--line); border-radius:6px; padding:6px 10px; white-space:pre-wrap;">${escapeHtml(t)}</div>`).join('')}</div>` : '<p class="sub" style="margin:0;">Chưa có câu trả lời.</p>';
+    }
+    return `<div class="panel" style="margin-bottom:10px;"><div class="panel-head"><h3 style="font-size:14px;">${qi+1}. ${escapeHtml(q.text)}</h3><span class="sub">${answered.length}/${list.length} người trả lời</span></div><div class="panel-body">${body}</div></div>`;
+  }
+  // ---- 📋 Bảng ----
+  function surveyRespTableHtml(cols, list, canDel){
+    return `<div class="table-wrap"><table>
+      <thead><tr><th></th>${cols.map(c=>`<th style="text-align:${c.align==='left'?'left':'center'}; min-width:${c.w}px; white-space:normal;">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
+      <tbody>${list.map((r,i)=>`<tr><td style="white-space:nowrap; vertical-align:top;"><button type="button" class="btn btn-ghost btn-sm preview-allow" data-resp-open="${i}" title="Xem phiếu này">👁️</button>${canDel? `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-resp-del="${escapeHtml(r.id)}" title="Xoá phiếu này" style="color:var(--red);">🗑️</button>` : ''}</td>${cols.map(c=>`<td style="${surveyCellStyle(c)}">${escapeHtml(c.get(r,i))}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>`;
+  }
+  // ---- 👤 Từng phiếu ----
+  function surveyRespDetailHtml(draft, list, canDel){
+    const idx = Math.min(Math.max(0, state.surveyResponseViewIndex||0), list.length-1);
+    state.surveyResponseViewIndex = idx;
+    const r = list[idx], who = surveyWhoText(r);
     return `
-      <div class="toolbar" style="justify-content:center;">
+      <div class="toolbar" style="justify-content:center; flex-wrap:wrap;">
         <button class="btn btn-ghost btn-sm" id="sv-resp-prev" ${idx<=0?'disabled':''}>◀ Trước</button>
-        <b>Phiếu số ${idx+1} / ${responses.length}</b>
-        <button class="btn btn-ghost btn-sm" id="sv-resp-next" ${idx>=responses.length-1?'disabled':''}>Sau ▶</button>
+        <b>Phiếu số ${idx+1} / ${list.length}</b>
+        <button class="btn btn-ghost btn-sm" id="sv-resp-next" ${idx>=list.length-1?'disabled':''}>Sau ▶</button>
+        ${canDel? `<button class="btn btn-ghost btn-sm preview-allow" data-resp-del="${escapeHtml(r.id)}" style="color:var(--red);">🗑️ Xoá phiếu này</button>` : ''}
       </div>
-      <p class="sub" style="text-align:center;">Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}${draft.isQuiz? ` — Điểm: <b>${r.score||0}/${r.maxScore||0}</b>` : ''}</p>
+      <p class="sub" style="text-align:center;">Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}${who? ` — ${escapeHtml(who)}` : ''}${draft.isQuiz? ` — Điểm: <b>${r.score||0}/${r.maxScore||0}</b>` : ''}</p>
       <div class="panel"><div class="panel-body">
-        ${draft.questions.map((q,qi)=>{
-          const ans = r.answers ? r.answers[q.id] : null;
-          const ansText = Array.isArray(ans)? ans.join(', ') : (ans||'(không trả lời)');
-          return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b>${escapeHtml(String(ansText))}</b></div>`;
-        }).join('')}
+        ${draft.questions.map((q,qi)=>{ const t = surveyAnswerText(r.answers? r.answers[q.id] : null); return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b style="white-space:pre-wrap; text-align:right;">${escapeHtml(t||'(không trả lời)')}</b></div>`; }).join('')}
       </div></div>`;
   }
   function renderSurveyAnswersTabHtml(draft){
-    const responses = state.surveyResponses;
+    const all = state.surveyResponses||[], F = surveyRespFilter(), list = surveyFilterResponses(draft, all, F);
+    const view = state.surveyRespView || 'summary', canDel = surveyCanEdit();
+    const labels = surveyRespFilterLabels(draft, F), red = 'border:2px solid #d32f2f;';
+    const optQs = draft.questions.filter(q=> surveyQTypeHasOptions(q.type));
+    const fq = optQs.find(q=> q.id===F.qid);
+    let content;
+    if(!all.length) content = `<div class="empty-state" style="padding:30px;"><div class="e-ico">📊</div>Chưa có ai trả lời biểu mẫu này.</div>`;
+    else if(!list.length) content = `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔍</div>Không có phiếu nào khớp bộ lọc.</div>`;
+    else if(view==='table') content = surveyRespTableHtml(surveyRespCols(draft, all), list, canDel);
+    else if(view==='detail') content = surveyRespDetailHtml(draft, list, canDel);
+    else content = draft.questions.map((q,qi)=> surveyQuestionStatsHtml(q, qi, list)).join('');
     return `
-      <div class="toolbar" style="flex-wrap:wrap;">
-        <b>Tổng số lượt trả lời: ${responses.length}</b>
+      <div class="toolbar" style="flex-wrap:wrap; gap:8px;">
+        <b>Tổng số phiếu: ${all.length}</b>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">${[['summary','📊 Tổng hợp'],['table','📋 Bảng'],['detail','👤 Từng phiếu']].map(([k,l])=>`<button class="btn btn-sm ${view===k?'btn-primary':'btn-ghost'} preview-allow" data-resp-viewmode="${k}">${l}</button>`).join('')}</div>
         <div class="spacer"></div>
-        ${responses.length? `<button class="btn btn-ghost btn-sm" id="sv-toggle-detail">${state.surveyResponseDetailOpen? '📊 Xem tổng hợp' : '👤 Xem từng phiếu'}</button>
-        <button class="btn btn-ghost btn-sm" id="sv-export-excel-btn">⬇️ Xuất Excel</button>
-        <button class="btn btn-ghost btn-sm" id="sv-print-btn">🖨️ In</button>` : ''}
+        ${view==='table' && all.length? `<button class="btn btn-ghost btn-sm preview-allow" id="sv-resp-cols">🧩 Tuỳ chỉnh cột</button>` : ''}
+        <button class="btn btn-ghost btn-sm preview-allow" id="sv-export-excel-btn" ${list.length?'':'disabled'}>⬇️ Xuất Excel</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="sv-print-btn" ${list.length?'':'disabled'}>🖨️ In</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="sv-resp-reload" title="Tải lại phiếu mới nhất">↻ Tải lại</button>
       </div>
-      ${responses.length? (state.surveyResponseDetailOpen? renderSurveyResponseDetailHtml(draft, responses) : renderSurveySummaryHtml(draft, responses))
-        : `<div class="empty-state" style="padding:30px;"><div class="e-ico">📊</div>Chưa có ai trả lời biểu mẫu này.</div>`}`;
+      ${all.length? `
+        <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-top:8px;">
+          <input id="svr-q" value="${escapeHtml(F.q)}" placeholder="🔍 Tìm trong câu trả lời (không cần gõ dấu)…" autocomplete="off" style="flex:1 1 220px; min-width:0; ${F.q.trim()? red : ''}">
+          <label class="sub" style="display:flex; align-items:center; gap:4px;">Từ <input type="date" id="svr-from" value="${F.from}" style="${F.from? red : ''}"></label>
+          <label class="sub" style="display:flex; align-items:center; gap:4px;">Đến <input type="date" id="svr-to" value="${F.to}" style="${F.to? red : ''}"></label>
+          ${optQs.length? `<select id="svr-qid" style="max-width:240px; ${F.qid && F.opt? red : ''}"><option value="">Lọc theo phương án của câu…</option>${optQs.map(q=>`<option value="${q.id}" ${F.qid===q.id?'selected':''}>${escapeHtml(`${draft.questions.indexOf(q)+1}. ${(q.text||'').slice(0,50)}`)}</option>`).join('')}</select>` : ''}
+          ${fq? `<select id="svr-opt" style="max-width:220px; ${F.opt? red : ''}"><option value="">— chọn phương án —</option>${(fq.options||[]).map(o=>`<option value="${escapeHtml(o)}" ${F.opt===o?'selected':''}>${escapeHtml(o)}</option>`).join('')}</select>` : ''}
+          ${labels.length? `<button class="btn btn-ghost btn-sm preview-allow reset-filter-active" id="svr-reset">↺ Bỏ lọc</button>` : ''}
+        </div>
+        ${labels.length? `<p style="color:#b71c1c; font-weight:800; margin:8px 0 0;">Đang áp dụng lọc kết quả: ${labels.map(escapeHtml).join(', ')}</p>` : ''}
+        <p class="sub" style="margin:6px 0 10px;">Đang hiện ${list.length}/${all.length} phiếu${labels.length? ' (thống kê, bảng, xuất Excel và in đều tính theo bộ lọc này)' : ''}.</p>` : ''}
+      ${content}`;
   }
+  function wireSurveyAnswers(el, draft){
+    const F = surveyRespFilter(), rer = ()=> renderSurveyTab(el), g = id=> document.getElementById(id);
+    const list = ()=> surveyFilterResponses(draft, state.surveyResponses||[], F);
+    el.querySelectorAll('[data-resp-viewmode]').forEach(b=> b.onclick = ()=>{ state.surveyRespView = b.dataset.respViewmode; rer(); });
+    if(g('svr-q')) g('svr-q').oninput = ()=>{ const inp = g('svr-q'), caret = inp.selectionStart; F.q = inp.value; state.surveyResponseViewIndex = 0; rer(); const a = g('svr-q'); if(a){ a.focus(); try{ a.setSelectionRange(caret, caret); }catch(e){} } };
+    if(g('svr-from')) g('svr-from').onchange = ()=>{ F.from = g('svr-from').value; state.surveyResponseViewIndex = 0; rer(); };
+    if(g('svr-to')) g('svr-to').onchange = ()=>{ F.to = g('svr-to').value; state.surveyResponseViewIndex = 0; rer(); };
+    if(g('svr-qid')) g('svr-qid').onchange = ()=>{ F.qid = g('svr-qid').value; F.opt = ''; rer(); };
+    if(g('svr-opt')) g('svr-opt').onchange = ()=>{ F.opt = g('svr-opt').value; state.surveyResponseViewIndex = 0; rer(); };
+    if(g('svr-reset')) g('svr-reset').onclick = ()=>{ Object.assign(F, { q:'', from:'', to:'', qid:'', opt:'' }); rer(); };
+    if(g('sv-resp-reload')) g('sv-resp-reload').onclick = async ()=>{ await loadSurveyResponses(state.surveyEditingId); showToast('Đã tải lại phiếu trả lời mới nhất.'); rer(); };
+    if(g('sv-resp-prev')) g('sv-resp-prev').onclick = ()=>{ state.surveyResponseViewIndex--; rer(); };
+    if(g('sv-resp-next')) g('sv-resp-next').onclick = ()=>{ state.surveyResponseViewIndex++; rer(); };
+    el.querySelectorAll('[data-resp-open]').forEach(b=> b.onclick = ()=>{ state.surveyRespView = 'detail'; state.surveyResponseViewIndex = parseInt(b.dataset.respOpen,10)||0; rer(); });
+    el.querySelectorAll('[data-resp-del]').forEach(b=> b.onclick = ()=>{ const r = (state.surveyResponses||[]).find(x=> x.id===b.dataset.respDel); if(r) deleteSurveyResponse(draft, r, el); });
+    if(g('sv-resp-cols')) g('sv-resp-cols').onclick = ()=> surveyRespColsModal(draft, rer);
+    if(g('sv-export-excel-btn')) g('sv-export-excel-btn').onclick = ()=> exportSurveyResponsesExcel(draft, surveyRespCols(draft, state.surveyResponses||[]), list(), surveyRespFilterLabels(draft, F).join(', '));
+    if(g('sv-print-btn')) g('sv-print-btn').onclick = ()=> printSurveyResponses(draft, surveyRespCols(draft, state.surveyResponses||[]), list(), surveyRespFilterLabels(draft, F).join(', '));
+  }
+  async function deleteSurveyResponse(draft, r, el){
+    if(!surveyCanEdit()){ alert('Đồng chí không có quyền xoá phiếu trả lời ở đây.'); return; }
+    const sid = state.surveyEditingId, who = surveyWhoText(r);
+    if(!confirm(`⚠️ Xoá VĨNH VIỄN phiếu nộp lúc ${new Date(r.submittedAt).toLocaleString('vi-VN')}${who? ' ('+who+')' : ''}?\n\nPhiếu sẽ bị xoá khỏi cơ sở dữ liệu và KHÔNG khôi phục được. Số phiếu đã nhận giảm đi 1${r.respondentKey? '; người này được trả lời thêm 1 lần' : ''}.`)) return;
+    try{
+      await rtdb.ref(`survey_responses/${sid}/${r.id}`).remove();
+      await rtdb.ref(`surveys/${sid}/responseCount`).transaction(c=> Math.max(0, (parseInt(c,10)||0)-1));
+      if(r.respondentKey) await rtdb.ref(`survey_respondents/${sid}/${r.respondentKey}`).transaction(c=> Math.max(0, (parseInt(c,10)||0)-1));
+      await pushLog('xoá 1 phiếu trả lời', draft.title);
+    }catch(e){ console.error('[Khảo sát] Xoá phiếu lỗi:', e); alert('Không xoá được phiếu: '+(e&&e.message||e)); return; }
+    state.surveyResponses = (state.surveyResponses||[]).filter(x=> x.id!==r.id);
+    draft.responseCount = Math.max(0, (draft.responseCount||0)-1);
+    showToast('Đã xoá phiếu trả lời.');
+    renderSurveyTab(el);
+  }
+  // ---- Tuỳ chỉnh cột bảng câu trả lời: ẩn/hiện + kéo thả đổi thứ tự (nhớ theo trình duyệt) ----
+  function surveyRespColsModal(draft, onDone){
+    const sid = state.surveyEditingId, all = surveyRespAllCols(draft, state.surveyResponses||[]);
+    const P = surveyColPrefs(sid);
+    let order = surveyOrderedCols(all, P).map(c=>c.key);
+    const vis = {}; all.forEach(c=>{ vis[c.key] = c.fixed || !(P.hidden||[]).includes(c.key); });
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    function render(){
+      wrap.innerHTML = `
+        <div class="modal" style="max-width:96vw; width:520px;">
+          <div class="modal-head"><h3>🧩 Tuỳ chỉnh cột</h3><button class="modal-close preview-allow" id="svrc-close">✕</button></div>
+          <div class="modal-body">
+            <p class="sub" style="margin:0 0 8px;">Bỏ tick để ẩn cột. 💡 Đổi vị trí: nhấn giữ ⠿ ở đầu dòng, kéo lên/xuống rồi thả. Áp dụng cho bảng, xuất Excel và in (ghi nhớ trên trình duyệt này).</p>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              ${order.map(k=>{ const c = all.find(x=>x.key===k); return `<label class="col-pick-row sv-filter-item sv-opt sv-opt-full" draggable="true" data-col-key="${escapeHtml(k)}" style="cursor:move; margin:0;"><span style="opacity:.5;">${c.fixed? '📌' : '⠿'}</span><input type="checkbox" data-rc="${escapeHtml(k)}" ${vis[k]?'checked':''} ${c.fixed?'disabled':''}><span data-col-name-label="${escapeHtml(k)}">${escapeHtml(c.label)}</span></label>`; }).join('')}
+            </div>
+          </div>
+          <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="svrc-default" style="margin-right:auto;">↺ Khôi phục mặc định</button><button class="btn btn-ghost preview-allow" id="svrc-cancel">Đóng</button><button class="btn btn-primary preview-allow" id="svrc-save">💾 Lưu</button></div>
+        </div>`;
+      wrap.querySelector('#svrc-close').onclick = close;
+      wrap.querySelector('#svrc-cancel').onclick = close;
+      wrap.querySelector('#svrc-default').onclick = ()=>{ order = all.map(c=>c.key); all.forEach(c=>{ vis[c.key] = true; }); render(); };
+      wrap.querySelectorAll('[data-rc]').forEach(cb=> cb.onchange = ()=>{ vis[cb.dataset.rc] = cb.checked; });
+      wireDragReorderWithIndicator(Array.from(wrap.querySelectorAll('.col-pick-row')), row=> row.dataset.colKey, (dragged, target, before)=>{
+        order = order.filter(k=> k!==dragged); const ti = order.indexOf(target); order.splice(before? ti : ti+1, 0, dragged); render();
+        setTimeout(()=>{ const l = wrap.querySelector(`[data-col-name-label="${dragged}"]`); if(l){ l.classList.remove('col-name-pulse'); void l.offsetWidth; l.classList.add('col-name-pulse'); } }, 70);
+      });
+      wrap.querySelector('#svrc-save').onclick = ()=>{ surveySaveColPrefs(sid, { order, hidden: all.filter(c=> !c.fixed && !vis[c.key]).map(c=>c.key) }); close(); if(onDone) onDone(); };
+    }
+    render();
+  }
+  // ---- Xuất Excel / In theo đúng bộ lọc + cột đang hiện (cột rộng cố định, chữ tự xuống dòng) ----
+  async function exportSurveyResponsesExcel(draft, cols, list, banner){
+    let X = null, styled = false;
+    try{ X = await schedLoadXlsxStyle(); styled = true; }
+    catch(e){ try{ await loadOptionalLibrary('xlsx'); X = window.XLSX; }catch(e2){ alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); return; } }
+    const head = [['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [`KẾT QUẢ KHẢO SÁT: ${draft.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`]];
+    if(banner) head.push([`Đang áp dụng lọc kết quả: ${banner}`]);
+    head.push([]);
+    const hr = head.length;
+    const aoa = [...head, cols.map(c=> c.label.toUpperCase()), ...list.map((r,i)=> cols.map(c=> c.get(r,i)))];
+    const ws = X.utils.aoa_to_sheet(aoa);
+    const last = Math.max(0, cols.length-1);
+    ws['!merges'] = head.map((line,r)=> line.length? { s:{r,c:0}, e:{r,c:last} } : null).filter(Boolean);
+    ws['!cols'] = cols.map(c=> ({ wch: Math.max(6, Math.round(c.w/6.5)) }));
+    if(styled){
+      const st = (r,c,s)=>{ const a = X.utils.encode_cell({r,c}); if(ws[a]) ws[a].s = Object.assign({}, ws[a].s, s); };
+      [0,3].forEach(r=> st(r,0,{ font:{bold:true}, alignment:{horizontal:'center'} }));
+      if(banner) st(5,0,{ font:{bold:true, color:{rgb:'B71C1C'}} });
+      cols.forEach((c,ci)=> st(hr,ci,{ font:{bold:true}, alignment:{horizontal:'center', vertical:'center', wrapText:true}, fill:{fgColor:{rgb:'E8F5E9'}} }));
+      list.forEach((_,ri)=> cols.forEach((c,ci)=> st(hr+1+ri, ci, { alignment:{ horizontal: c.align==='left'? 'left' : 'center', vertical:'top', wrapText:true } })));
+    }
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, 'Ket qua khao sat');
+    X.writeFile(wb, `Khao-sat_${todayStr()}.xlsx`, { cellStyles:true });
+  }
+  function printSurveyResponses(draft, cols, list, banner){
+    const tot = cols.reduce((a,c)=> a+c.w, 0) || 1;
+    const items = list.map((r,i)=> ({ r, i }));
+    const pcols = cols.map(c=> ({ label:c.label, align:c.align, widthPct: Math.round(c.w/tot*1000)/10, get: it=> escapeHtml(c.get(it.r, it.i)) }));
+    printSections(`KẾT QUẢ KHẢO SÁT: ${draft.title}`, [{ title:'Danh sách phiếu trả lời', list:items, cols:pcols }], banner||'');
+  }
+
 
   // ---- Phát hiện "đang soạn dở chưa lưu": chụp bản gốc lúc mở trình soạn (và sau mỗi lần lưu),
   // khi rời đi thì so với bản đang soạn. Chụp trên BẢN SAO đã chuẩn hoá để các trường tự bổ sung khi
   // vẽ (branchEnabled, description...) không bị tính nhầm là thay đổi.
   const surveyBaselines = new WeakMap();
-  function surveyDraftSig(d){ return JSON.stringify(ensureSurveySections(JSON.parse(JSON.stringify(d)))); }
+  function surveyDraftSig(d){ const c = ensureSurveySections(JSON.parse(JSON.stringify(d))); delete c.responseCount; delete c.updatedAt; return JSON.stringify(c); }
   function surveyIsDirty(d){ return !!d && surveyBaselines.has(d) && surveyBaselines.get(d)!==surveyDraftSig(d); }
   function surveyEditorDirtyNow(){ return state.activeTab==='survey' && state.surveyView==='editor' && surveyIsDirty(state.surveyDraft); }
   // Gọi proceed() ngay nếu không có gì chưa lưu; nếu có thì hỏi bằng modal 3 nút. Trả về true khi
@@ -768,12 +955,7 @@
       // 2 nút "Lưu biểu mẫu" (trên cùng + cuối khung soạn) dùng chung 1 hành động.
       el.querySelectorAll('.sv-save-action').forEach(btn=> btn.onclick = async ()=>{ if(await saveSurveyDraft()){ showToast('Đã lưu biểu mẫu!'); renderSurveyTab(el); } });
     } else {
-      const toggleBtn = document.getElementById('sv-toggle-detail');
-      if(toggleBtn) toggleBtn.onclick = ()=>{ state.surveyResponseDetailOpen = !state.surveyResponseDetailOpen; renderSurveyTab(el); };
-      const prevBtn = document.getElementById('sv-resp-prev'); if(prevBtn) prevBtn.onclick = ()=>{ state.surveyResponseViewIndex--; renderSurveyTab(el); };
-      const nextBtn = document.getElementById('sv-resp-next'); if(nextBtn) nextBtn.onclick = ()=>{ state.surveyResponseViewIndex++; renderSurveyTab(el); };
-      const exportBtn = document.getElementById('sv-export-excel-btn'); if(exportBtn) exportBtn.onclick = ()=> renderSurveyExportPreviewModal(draft, state.surveyResponses);
-      const printBtn = document.getElementById('sv-print-btn'); if(printBtn) printBtn.onclick = ()=> printSurveyResponses(draft, state.surveyResponses);
+      wireSurveyAnswers(el, draft);
     }
   }
 
@@ -1133,86 +1315,6 @@
       close();
       renderSurveyTab(el);
     };
-  }
-
-  function surveyExportRows(draft, responses){
-    const headers = ['STT','Thời gian nộp', ...draft.questions.map(q=>q.text)];
-    if(draft.isQuiz) headers.push('Điểm');
-    const rows = responses.map((r,i)=>{
-      const row = [i+1, new Date(r.submittedAt).toLocaleString('vi-VN')];
-      draft.questions.forEach(q=>{
-        const ans = r.answers? r.answers[q.id] : '';
-        row.push(Array.isArray(ans)? ans.join(', ') : (ans||''));
-      });
-      if(draft.isQuiz) row.push(`${r.score||0}/${r.maxScore||0}`);
-      return row;
-    });
-    return { headers, rows };
-  }
-  function renderSurveyExportPreviewModal(draft, responses){
-    const { headers, rows } = surveyExportRows(draft, responses);
-    const wrap = document.createElement('div');
-    wrap.className = 'modal-bg';
-    wrap.innerHTML = `
-      <div class="modal" style="max-width:920px;">
-        <div class="modal-head"><h3>👁️ Xem trước file Excel</h3><button class="modal-close" id="svx-close">✕</button></div>
-        <div class="modal-body">
-          <div class="table-wrap"><table>
-            <thead><tr>${headers.map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
-            <tbody>${rows.length? rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHtml(String(c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}">Không có dữ liệu</td></tr>`}</tbody>
-          </table></div>
-        </div>
-        <div class="modal-foot">
-          <button class="btn btn-ghost" id="svx-cancel">Đóng</button>
-          <button class="btn btn-primary" id="svx-confirm">⬇️ Xuất file Excel</button>
-        </div>
-      </div>`;
-    document.body.appendChild(wrap);
-    const close = ()=> wrap.remove();
-    wrap.querySelector('#svx-close').onclick = close;
-    wrap.querySelector('#svx-cancel').onclick = close;
-    // (ĐÃ BỎ: bấm ra ngoài modal không còn đóng bảng nữa — chỉ nút X/Đóng bảng mới đóng được, theo quy định chung toàn app)
-    wrap.querySelector('#svx-confirm').onclick = async ()=>{
-      try{ await exportSurveyExcel(draft, headers, rows); close(); }
-      catch(e){ console.error('[Xuất kết quả khảo sát] Lỗi:', e); alert('Không thể tải thư viện xuất Excel. Vui lòng kiểm tra kết nối mạng rồi thử lại.'); }
-    };
-  }
-  async function exportSurveyExcel(draft, headers, rows){
-    await loadOptionalLibrary('xlsx');
-    const headerLines = [ ['HỘI NÔNG DÂN'], [wardTitleUpper()], [provinceTitle()], [`KẾT QUẢ KHẢO SÁT: ${draft.title}`], [`Thời gian xuất: ${new Date().toLocaleString('vi-VN')}`], [] ];
-    const aoa = [...headerLines, headers.map(h=>String(h).toUpperCase()), ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    applyExcelCellFormatting(ws, aoa, headerLines.length);
-    boldExcelRow(ws, 3); // dòng tiêu đề file (VD "KẾT QUẢ KHẢO SÁT: ...") — đã +1 do thêm dòng "HỘI NÔNG DÂN" tách riêng ở trên
-    const lastCol = Math.max(0, headers.length-1);
-    ws['!merges'] = headerLines.map((line,r)=> (line.length? {s:{r,c:0}, e:{r,c:lastCol}} : null)).filter(Boolean);
-    ws['!cols'] = headers.map(()=>({wch:22}));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ket qua khao sat');
-    XLSX.writeFile(wb, `Khao-sat_${todayStr()}.xlsx`, {cellStyles:true});
-  }
-  function printSurveyResponses(draft, responses){
-    const area = document.getElementById('print-area');
-    if(!area) return;
-    const { headers, rows } = surveyExportRows(draft, responses);
-    const ncols = headers.length;
-    let fontSize=12.5, pad='6px 8px';
-    if(ncols>16){ fontSize=7; pad='2px 3px'; } else if(ncols>12){ fontSize=8; pad='3px 4px'; } else if(ncols>9){ fontSize=9.5; pad='4px 5px'; } else if(ncols>6){ fontSize=11; pad='5px 6px'; }
-    area.innerHTML = `
-      <div style="text-align:center;">
-        <div style="font-weight:800; font-size:14px;">${hoiNongDanTitleHtml()}</div>
-        <div style="font-size:12.5px;">${escapeHtml(provinceTitle())}</div>
-      </div>
-      <div class="print-title" style="margin:10px 0 4px; text-align:center;">KẾT QUẢ KHẢO SÁT: ${escapeHtml(draft.title)}</div>
-      <div style="text-align:center; font-size:12px; margin-bottom:10px;">Thời gian xuất: ${new Date().toLocaleString('vi-VN')}</div>
-      <table class="print-table" style="font-size:${fontSize}px;">
-        <thead><tr>${headers.map(h=>`<th style="padding:${pad};">${escapeHtml(String(h))}</th>`).join('')}</tr></thead>
-        <tbody>${rows.length? rows.map(r=>`<tr>${r.map(c=>`<td style="padding:${pad};">${escapeHtml(String(c))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${ncols}" style="padding:${pad};">Không có dữ liệu</td></tr>`}</tbody>
-      </table>
-      <div style="text-align:center; margin-top:18px; font-size:11px;">https://hoinongdan.sotay.org</div>`;
-    area.classList.add('landscape');
-    printAreaNow(true);
-    setTimeout(()=> area.classList.remove('landscape'), 800);
   }
 
   // =====================================================================

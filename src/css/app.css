@@ -949,6 +949,19 @@
   .sv-set-status.shut{ background:#ffebee; border:1px solid #ef9a9a; }
   .sv-set-card{ margin-bottom:14px; border:2px solid #1565c0; }
   .ps-meta{ background:var(--paper-2); border-radius:8px; padding:8px 12px; margin:8px 0 10px; font-size:12.5px; line-height:1.6; }
+  /* GĐ5: biểu đồ thanh ở tab Câu trả lời */
+  .sv-segbar{ display:flex; gap:2px; height:26px; border-radius:6px; overflow:hidden; margin:0 0 12px; background:var(--white); }
+  .sv-seg{ height:100%; color:#fff; font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:center; min-width:3px; }
+  .sv-seg:first-child{ border-radius:6px 0 0 6px; } .sv-seg:last-child{ border-radius:0 6px 6px 0; }
+  .sv-meters{ display:flex; flex-direction:column; gap:8px; }
+  .sv-meters.scroll{ max-height:420px; overflow-y:auto; padding-right:4px; }
+  .sv-meter-row{ display:grid; grid-template-columns:minmax(120px, 2fr) 3fr auto; align-items:center; gap:10px; font-size:13px; }
+  .sv-meter-name{ display:flex; align-items:center; gap:6px; min-width:0; overflow-wrap:anywhere; }
+  .sv-swatch{ width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+  .sv-meter-track{ height:12px; background:var(--paper-2); border-radius:6px; overflow:hidden; }
+  .sv-meter-fill{ height:100%; background:#257de0; border-radius:0 4px 4px 0; min-width:0; }
+  .sv-meter-val{ white-space:nowrap; min-width:72px; text-align:right; }
+  @media (max-width:600px){ .sv-meter-row{ grid-template-columns:1fr auto; } .sv-meter-track{ grid-column:1 / -1; grid-row:2; } }
   .ps-opt mark{ background:#fff176; color:inherit; padding:0 1px; border-radius:2px; }
   .sv-pill{ display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:10px; background:var(--paper-2); color:var(--rice-dark); margin:0 6px 6px 0; }
 
