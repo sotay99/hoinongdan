@@ -55,6 +55,8 @@
         listOptions: { windowed: true, initialSlides: 3, batchSize: 3, showSlideLabels: true },
       });
       drivePptxViewers.add({ host, viewer });
+      // Nút "Chế độ xem" (Xem slide / Chỉ xem chữ) trên màn hình hẹp: 15d-view-modes.js.
+      vmPptxSetup(host, buffer);
       return true;
     }catch(e){
       console.warn('[Xem PowerPoint] Không dựng được slide, chuyển sang bản chỉ-chữ:', e);

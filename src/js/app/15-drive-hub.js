@@ -280,7 +280,7 @@
     if(link) link.href = source;
   }
   // Word giữ bố cục bằng docx-preview: dựng từng trang A4 như Word rồi thu nhỏ cho vừa khung (điện thoại
-  // vẫn phóng to bằng hai ngón được). Ngắt trang theo dấu ngắt trang Word đã lưu ở lần mở gần nhất
+  // vẫn phóng to bằng hai ngón được; màn hình hẹp có thêm chế độ "Dễ đọc" — xem 15d-view-modes.js). Ngắt trang theo dấu ngắt trang Word đã lưu ở lần mở gần nhất
   // (ignoreLastRenderedPageBreak:false) nên chia trang gần khớp Word; tệp chưa từng mở bằng Word (tạo bằng
   // phần mềm khác) thì chỉ ngắt ở chỗ ngắt trang cứng. Lỗi (tệp .doc cũ, tệp hỏng, mất mạng khi nạp thư viện) thì trả false
   // để quay về bộ đọc chữ đơn giản mammoth như trước.
@@ -299,11 +299,8 @@
       if(!host.querySelector('section')) return false;
       el.innerHTML = '';
       el.appendChild(host);
-      driveFitDocxPages(host);
-      if(!window.__driveDocxResize){
-        window.__driveDocxResize = true;
-        window.addEventListener('resize', ()=> document.querySelectorAll('.drive-viewer-docx-pages').forEach(driveFitDocxPages));
-      }
+      // Nút/modal "Chế độ xem" trên màn hình hẹp và việc tính lại khi xoay màn hình: 15d-view-modes.js.
+      vmDocxSetup(host);
       return true;
     }catch(e){
       console.warn('[Xem Word] docx-preview không đọc được tệp, chuyển sang bộ đọc đơn giản:', e);

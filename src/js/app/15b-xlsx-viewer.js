@@ -234,19 +234,6 @@
     let s = ''; for(let i=0; i<bytes.length; i+=0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i+0x8000));
     return btoa(s);
   }
-  // Bảng rộng hơn khung (điện thoại): mặc định thu nhỏ cả bảng cho vừa chiều ngang (vẫn phóng to bằng hai ngón
-  // được); nút "Cỡ thật" trả về cỡ gốc để vuốt ngang. Bảng vừa khung sẵn thì không hiện nút.
-  function xvFit(host){
-    const sheet = host.querySelector('.xv-sheet'), box = host.querySelector('.xv-scroll'), btn = host.querySelector('[data-xv-fit]');
-    if(!sheet || !box || !btn) return;
-    sheet.style.zoom = '';
-    const need = sheet.offsetWidth, have = box.clientWidth - 16;
-    if(!need || !have || need <= have){ btn.style.display = 'none'; return; }
-    const fit = host.dataset.xvFit !== '0';
-    btn.style.display = '';
-    btn.textContent = fit ? '🔍 Cỡ thật' : '↔ Vừa màn hình';
-    if(fit) sheet.style.zoom = String(Math.max(0.3, have/need));
-  }
   async function driveRenderXlsxStyled(el, buffer){
     try{
       await loadOptionalLibrary('xlsx');
@@ -263,21 +250,18 @@
       const paint = ()=>{
         const out = xvSheetHtml(wb, sheets[idx], theme);
         host.innerHTML = `<div class="xv-bar">${sheets.length>1 ? `<div class="xv-tabs" role="tablist">${sheets.map((s,i)=>`<button type="button" class="xv-tab preview-allow ${i===idx?'active':''}" data-xv-tab="${i}">${escapeHtml(s.name||('Trang '+(i+1)))}</button>`).join('')}</div>` : '<div class="xv-tabs"></div>'}
-            <button type="button" class="xv-fit preview-allow" data-xv-fit style="display:none;"></button></div>
+            <button type="button" class="vm-btn xv-mode preview-allow" data-vm-open style="display:none;"></button></div>
           ${out.truncated ? `<div class="xv-note">Trang tính lớn — chỉ hiện ${XV_MAX_ROWS} dòng và ${XV_MAX_COLS} cột đầu. Tải tệp về để xem đầy đủ.</div>` : ''}
           <div class="xv-scroll">${out.html}</div>`;
         host.querySelectorAll('[data-xv-tab]').forEach(b=> b.onclick = ()=>{ idx = +b.dataset.xvTab; paint(); });
-        host.querySelector('[data-xv-fit]').onclick = ()=>{ host.dataset.xvFit = host.dataset.xvFit==='0' ? '1' : '0'; xvFit(host); };
-        xvFit(host);
+        // Chế độ "Xem cả bảng"/"Chữ cỡ thật" trên màn hình hẹp: 15d-view-modes.js.
+        host.querySelector('[data-vm-open]').onclick = ()=> vmXlsxOpenModal(host);
+        vmXlsxApply(host);
       };
       paint();
       el.innerHTML = '';
       el.appendChild(host);
-      xvFit(host);
-      if(!window.__xvResize){
-        window.__xvResize = true;
-        window.addEventListener('resize', ()=> document.querySelectorAll('.xv').forEach(xvFit));
-      }
+      vmXlsxApply(host);
       return true;
     }catch(e){
       console.warn('[Xem Excel] ExcelJS không đọc được tệp, chuyển sang bảng đơn giản:', e);
