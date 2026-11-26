@@ -1924,40 +1924,155 @@ ${AI_DRAFT_REMINDER_RULE}`;
       if(res.isQuiz){ o.points = q.points; if((q.correctAnswers||[]).length) o.correctAnswers = q.correctAnswers; if(q.markOthersWrong) o.markOthersWrong = true; ['feedbackCorrect','feedbackWrong','feedbackGeneral'].forEach(k=>{ if(q[k]) o[k] = q[k]; }); }
       return o; }) })) };
   }
-  // "📋 Hồ sơ đang soạn" của khung chat: dàn ý biểu mẫu, sửa nhanh nội dung câu, xoá câu, xem thử.
+  // "📋 Hồ sơ đang soạn" của khung chat AI — SỬA ĐẦY ĐỦ BẰNG TAY như bảng "Hồ sơ đang soạn" của Hồ sơ hội viên:
+  // thêm câu/phần bằng tay (không cần chat với AI), sửa nội dung, loại câu, bắt buộc, phương án, thang điểm,
+  // lưới, loại tệp, điểm + đáp án (bài kiểm tra), chuyển câu sang phần khác, xoá (có Hoàn tác), thu nhỏ/phóng to,
+  // xem thử. Mọi sửa đổi ghi thẳng vào bản phác thảo — lần nhắn tiếp theo AI nhận đúng bản đã sửa.
   function renderSurveyAiDraftModal(res, onClose){
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.cssText = 'padding:0; align-items:stretch; z-index:99995;';
     document.body.appendChild(wrap);
     const close = ()=>{ wrap.remove(); if(onClose) onClose(); };
+    let zoomPct = 100;
+    const ZOOM_MIN = 50, ZOOM_MAX = 200, ZOOM_STEP = 10;
+    const lines = t=> Array.from(new Set(String(t||'').split(/\r\n|\r|\n/).map(x=> x.replace(/[​-‍﻿]/g,'').trim()).filter(Boolean)));
+    const normOrder = ()=>{ res.questions = res.sections.flatMap(sec=> res.questions.filter(q=> q.sectionId===sec.id)); };
+    const clone = x=> JSON.parse(JSON.stringify(x));
+    const qById = id=> res.questions.find(x=> x.id===id);
+    function qEditorHtml(q, n){
+      const id = q.id, tl = SURVEY_QTYPES.map(t=>`<option value="${t.key}" ${q.type===t.key?'selected':''}>${escapeHtml(t.label)}</option>`).join('');
+      let body = '';
+      if(surveyQTypeHasOptions(q.type)){
+        body += `<div class="field full"><label>Phương án (mỗi dòng 1 phương án)</label><textarea class="sfd-opts" data-qid="${id}" rows="${Math.min(8, Math.max(2,(q.options||[]).length))}">${escapeHtml((q.options||[]).join('\n'))}</textarea></div>`;
+        if(res.isQuiz){
+          const single = q.type!=='checkbox';
+          body += `<div class="field full"><label>✅ Đáp án đúng ${single? '(chọn 1)' : '(tick tất cả đáp án đúng)'}</label><div>${(q.options||[]).map(o=>`<label class="sv-filter-item sv-opt sv-opt-fit sv-opt-correct"><input type="${single?'radio':'checkbox'}" ${single? `name="sfd-k-${id}"` : ''} class="sfd-key" data-qid="${id}" value="${escapeHtml(o)}" ${(q.correctAnswers||[]).includes(o)?'checked':''}><span>${escapeHtml(o)}</span></label>`).join('')}</div></div>`;
+        }
+      } else if(q.type==='scale'){
+        body += `<div class="field"><label>Mức thấp nhất</label><select class="sfd-num" data-qid="${id}" data-f="scaleMin">${[0,1].map(v=>`<option ${+q.scaleMin===v?'selected':''}>${v}</option>`).join('')}</select></div>
+          <div class="field"><label>Mức cao nhất</label><select class="sfd-num" data-qid="${id}" data-f="scaleMax">${[2,3,4,5,6,7,8,9,10].map(v=>`<option ${+q.scaleMax===v?'selected':''}>${v}</option>`).join('')}</select></div>
+          <div class="field"><label>Nhãn mức thấp</label><input class="sfd-str" data-qid="${id}" data-f="scaleMinLabel" value="${escapeHtml(q.scaleMinLabel||'')}" placeholder="VD: Rất không hài lòng"></div>
+          <div class="field"><label>Nhãn mức cao</label><input class="sfd-str" data-qid="${id}" data-f="scaleMaxLabel" value="${escapeHtml(q.scaleMaxLabel||'')}" placeholder="VD: Rất hài lòng"></div>`;
+        if(res.isQuiz) body += `<div class="field"><label>✅ Mức đúng</label><select class="sfd-key-sel" data-qid="${id}"><option value="">— chưa đặt —</option>${surveyScaleValues(q).map(v=>`<option ${(q.correctAnswers||[]).map(String).includes(v)?'selected':''}>${v}</option>`).join('')}</select></div>`;
+      } else if(surveyIsGrid(q)){
+        body += `<div class="field"><label>Hàng — các ý cần đánh giá (mỗi dòng 1 hàng)</label><textarea class="sfd-list" data-qid="${id}" data-f="rows" rows="${Math.min(8, Math.max(2,(q.rows||[]).length))}">${escapeHtml((q.rows||[]).join('\n'))}</textarea></div>
+          <div class="field"><label>Cột — các mức lựa chọn (mỗi dòng 1 cột)</label><textarea class="sfd-list" data-qid="${id}" data-f="cols" rows="${Math.min(8, Math.max(2,(q.cols||[]).length))}">${escapeHtml((q.cols||[]).join('\n'))}</textarea></div>`;
+        if(res.isQuiz){
+          if(q.type==='grid_radio') body += `<div class="field full"><label>✅ Đáp án đúng từng hàng</label><div style="display:flex; flex-wrap:wrap; gap:8px;">${(q.rows||[]).map((rw,ri)=>`<label class="sub" style="display:flex; align-items:center; gap:4px;">${escapeHtml(rw)}: <select class="sfd-gkey" data-qid="${id}" data-row="${ri}"><option value="">—</option>${(q.cols||[]).map(c=>`<option ${((q.gridAnswers||[])[ri]===c)?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></label>`).join('')}</div></div>`;
+          else body += `<p class="sub" style="margin:0;">Đáp án lưới hộp kiểm: đặt ở nút ✅ Đáp án trong trình soạn sau khi đưa vào.</p>`;
+        }
+      } else if(q.type==='short' && res.isQuiz){
+        body += `<div class="field full"><label>✅ Các câu trả lời được chấp nhận là đúng (mỗi dòng 1)</label><textarea class="sfd-shortkey" data-qid="${id}" rows="2">${escapeHtml((q.correctAnswers||[]).join('\n'))}</textarea></div>`;
+      } else if(q.type==='file'){
+        body += `<div class="field"><label>Loại tệp cho phép</label><select class="sfd-str" data-qid="${id}" data-f="fileKind">${Object.entries(SURVEY_FILE_KINDS).map(([k,v])=>`<option value="${k}" ${(q.fileKind||'any')===k?'selected':''}>${escapeHtml(v.label)}</option>`).join('')}</select></div>`;
+      }
+      return `<div class="sfd-q" data-qcard="${id}">
+        <div style="display:flex; gap:8px; align-items:flex-start;">
+          <b style="padding-top:9px;">${n}.</b>
+          <div style="flex:1; min-width:0;">
+            <input class="sfd-str" data-qid="${id}" data-f="text" value="${escapeHtml(q.text)}" placeholder="Nội dung câu hỏi..." style="width:100%; font-weight:700;">
+            <div class="form-grid" style="margin-top:6px;">
+              <div class="field"><label>Loại câu hỏi</label><select class="sfd-type" data-qid="${id}">${tl}</select></div>
+              <div class="field"><label>Thuộc phần</label><select class="sfd-sec" data-qid="${id}">${res.sections.map((sc,si)=>`<option value="${sc.id}" ${q.sectionId===sc.id?'selected':''}>Phần ${si+1}: ${escapeHtml((sc.title||'').slice(0,30))}</option>`).join('')}</select></div>
+              ${res.isQuiz? `<div class="field"><label>Số điểm</label><input type="number" min="0" step="0.5" class="sfd-pts" data-qid="${id}" value="${surveyQPoints(q)}"></div>` : ''}
+              <div class="field"><label>&nbsp;</label><label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" class="sfd-req" data-qid="${id}" ${q.required?'checked':''}><span>Bắt buộc trả lời</span></label></div>
+              ${body}
+            </div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm preview-allow" data-sfd-del="${id}" title="Xoá câu này" style="color:var(--red);">🗑️</button>
+        </div>
+      </div>`;
+    }
     function render(){
+      const bodyEl = wrap.querySelector('.modal-body'); const keepScroll = bodyEl? bodyEl.scrollTop : 0;
+      normOrder();
       let n = 0;
       wrap.innerHTML = `<div class="modal" style="max-width:100vw; width:100vw; height:92vh; max-height:92vh; display:flex; flex-direction:column; border-radius:0;">
         <div class="modal-head"><h3>📋 Hồ sơ đang soạn — ${res.sections.length} phần, ${res.questions.length} câu hỏi${res.isQuiz? ' · Bài kiểm tra' : ''}</h3><button class="modal-close preview-allow" id="sfd-close">✕</button></div>
-        <div class="modal-body" style="flex:1; overflow:auto;">
-          <div class="form-grid"><div class="field full"><label>Tiêu đề biểu mẫu</label><input id="sfd-title" value="${escapeHtml(res.title)}"></div><div class="field full"><label>Mô tả</label><textarea id="sfd-desc" rows="2">${escapeHtml(res.description)}</textarea></div></div>
-          ${res.questions.length? '' : '<div class="empty-state">Chưa có câu hỏi nào — hãy nhắn cho AI mục đích biểu mẫu hoặc đính kèm phiếu giấy có sẵn.</div>'}
-          ${res.sections.map((s,si)=>{ const qs = res.questions.filter(q=> q.sectionId===s.id); if(!qs.length && res.sections.length>1) return '';
-            return `<div class="panel" style="margin-bottom:12px; border:2px solid #1565c0;"><div class="panel-head sv-sec-head"><h3>📑 Phần ${si+1}: ${escapeHtml(s.title)}</h3></div><div class="panel-body">
-              ${qs.map(q=>{ n++; const tl = (SURVEY_QTYPES.find(t=> t.key===q.type)||{}).label||q.type;
-                const extra = surveyQTypeHasOptions(q.type)? q.options.map(o=> `${(q.correctAnswers||[]).includes(o)? '✅' : '•'} ${escapeHtml(o)}`).join('<br>')
-                  : q.type==='scale'? `${escapeHtml(q.scaleMinLabel||'')} ${surveyScaleValues(q).join(' ')} ${escapeHtml(q.scaleMaxLabel||'')}`
-                  : surveyIsGrid(q)? `Hàng: ${escapeHtml(q.rows.join(' / '))}<br>Cột: ${escapeHtml(q.cols.join(' / '))}` : '';
-                return `<div class="sv-gq-row"><div><div style="display:flex; gap:6px; align-items:center;"><b>${n}.</b><input class="sfd-qtext" data-qid="${q.id}" value="${escapeHtml(q.text)}" style="flex:1; min-width:0; font-weight:700;"></div>
-                  <div class="sub" style="margin:4px 0 0 18px;">${escapeHtml(tl)}${q.required? ' · Bắt buộc' : ''}${res.isQuiz? ` · ${surveyFmtNum(q.points)} điểm${surveyKeyText(q)? ' · Đáp án: '+escapeHtml(surveyKeyText(q)) : ''}` : ''}</div>
-                  ${extra? `<div class="sub" style="margin:4px 0 0 18px; line-height:1.6;">${extra}</div>` : ''}</div>
-                  <button type="button" class="btn btn-ghost btn-sm preview-allow" data-sfd-del="${q.id}" title="Xoá câu này" style="color:var(--red);">🗑️</button></div>`; }).join('')}
-            </div></div>`; }).join('')}
+        <div style="padding:8px 14px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+          <button type="button" class="btn btn-primary btn-sm preview-allow" id="sfd-add-q">➕ Thêm câu hỏi (nhập tay, không cần chat với AI)</button>
+          <button type="button" class="btn btn-ghost btn-sm preview-allow" id="sfd-add-sec">➕ Thêm phần</button>
+          <label class="sv-filter-item sv-opt sv-opt-fit" style="margin:0;"><input type="checkbox" id="sfd-quiz" ${res.isQuiz?'checked':''}><span>📋 Đây là bài kiểm tra (có điểm và đáp án)</span></label>
         </div>
-        <div class="modal-foot"><button class="btn btn-ghost preview-allow" id="sfd-preview" ${res.questions.length?'':'disabled'}>👁️ Xem thử như người trả lời</button><button class="btn btn-primary preview-allow" id="sfd-close2">Đóng bảng</button></div>
+        <div class="modal-body" style="flex:1; overflow:auto;">
+          <div style="zoom:${zoomPct}%;">
+          <div class="form-grid"><div class="field full"><label>Tiêu đề biểu mẫu</label><input id="sfd-title" value="${escapeHtml(res.title)}"></div><div class="field full"><label>Mô tả</label><textarea id="sfd-desc" rows="2">${escapeHtml(res.description)}</textarea></div></div>
+          ${res.sections.map((sc,si)=>{ const qs = res.questions.filter(q=> q.sectionId===sc.id);
+            return `<div class="panel" style="margin-bottom:12px; border:2px solid #1565c0;"><div class="panel-head sv-sec-head" style="gap:8px;"><h3 style="white-space:nowrap;">📑 Phần ${si+1}/${res.sections.length}</h3>
+                <input class="sfd-sectitle" data-sid="${sc.id}" value="${escapeHtml(sc.title||'')}" placeholder="Tiêu đề phần" style="flex:1; min-width:0;">
+                ${res.sections.length>1? `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-sfd-delsec="${sc.id}" title="Xoá phần này" style="color:#fff;">🗑️</button>` : ''}</div>
+              <div class="panel-body">
+                ${qs.map(q=> qEditorHtml(q, ++n)).join('') || '<p class="sub" style="margin:0 0 8px;">Phần này chưa có câu hỏi.</p>'}
+                <button type="button" class="btn btn-ghost btn-sm preview-allow" data-sfd-addq-sec="${sc.id}">➕ Thêm câu hỏi vào phần này</button>
+              </div></div>`; }).join('')}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <div style="display:flex; align-items:center; gap:6px; margin-right:auto;">
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="sfd-zout" ${zoomPct<=ZOOM_MIN?'disabled':''} title="Thu nhỏ">➖</button>
+            <span style="font-weight:700; min-width:42px; text-align:center;">${zoomPct}%</span>
+            <button type="button" class="btn btn-ghost btn-sm preview-allow" id="sfd-zin" ${zoomPct>=ZOOM_MAX?'disabled':''} title="Phóng to">➕</button>
+          </div>
+          <button class="btn btn-ghost preview-allow" id="sfd-preview" ${res.questions.length?'':'disabled'}>👁️ Xem thử như người trả lời</button>
+          <button class="btn btn-primary preview-allow" id="sfd-close2">Đóng bảng</button>
+        </div>
       </div>`;
-      wrap.querySelector('#sfd-close').onclick = close; wrap.querySelector('#sfd-close2').onclick = close;
-      wrap.querySelector('#sfd-title').oninput = e=>{ res.title = e.target.value; };
-      wrap.querySelector('#sfd-desc').oninput = e=>{ res.description = e.target.value; };
-      wrap.querySelectorAll('.sfd-qtext').forEach(inp=> inp.oninput = ()=>{ const q = res.questions.find(x=> x.id===inp.dataset.qid); if(q) q.text = inp.value; });
-      wrap.querySelectorAll('[data-sfd-del]').forEach(b=> b.onclick = ()=>{ const i = res.questions.findIndex(x=> x.id===b.dataset.sfdDel); if(i<0) return; const [rm] = res.questions.splice(i,1); render(); showUndoToast('Đã xoá câu hỏi khỏi Hồ sơ đang soạn', ()=>{ res.questions.splice(i,0,rm); render(); }); });
-      wrap.querySelector('#sfd-preview').onclick = ()=> surveyOpenPreview(Object.assign(emptySurveyDraft(), { title: res.title||'Biểu mẫu', description: res.description, isQuiz: res.isQuiz, sections: res.sections, questions: res.questions }));
+      const nb = wrap.querySelector('.modal-body'); if(nb) nb.scrollTop = keepScroll;
+      wire();
+    }
+    function addQuestion(secId){
+      const q = emptySurveyQuestion(secId || res.sections[res.sections.length-1].id);
+      q.type = 'radio'; q.options = ['Phương án 1','Phương án 2']; q.optionBranches = ['__next__','__next__']; q.branchEnabled = false;
+      q.points = res.isQuiz? 1 : 0; q.correctAnswers = []; q.description = '';
+      res.questions.push(q); render();
+      setTimeout(()=>{ const inp = wrap.querySelector(`.sfd-str[data-qid="${q.id}"][data-f="text"]`); if(inp){ inp.scrollIntoView({block:'center'}); inp.focus(); } }, 0);
+    }
+    function wire(){
+      const $ = sel=> wrap.querySelector(sel), $$ = sel=> wrap.querySelectorAll(sel);
+      $('#sfd-close').onclick = close; $('#sfd-close2').onclick = close;
+      $('#sfd-zin').onclick = ()=>{ zoomPct = Math.min(ZOOM_MAX, zoomPct+ZOOM_STEP); render(); };
+      $('#sfd-zout').onclick = ()=>{ zoomPct = Math.max(ZOOM_MIN, zoomPct-ZOOM_STEP); render(); };
+      $('#sfd-title').oninput = e=>{ res.title = e.target.value; };
+      $('#sfd-desc').oninput = e=>{ res.description = e.target.value; };
+      $('#sfd-quiz').onchange = e=>{ res.isQuiz = e.target.checked; if(res.isQuiz) res.questions.forEach(q=>{ if(!surveyQPoints(q)) q.points = 1; }); render(); };
+      $('#sfd-add-q').onclick = ()=> addQuestion(null);
+      $$('[data-sfd-addq-sec]').forEach(b=> b.onclick = ()=> addQuestion(b.dataset.sfdAddqSec));
+      $('#sfd-add-sec').onclick = ()=>{ const sc = emptySurveySection(res.sections.length+1); res.sections.push(sc); render(); };
+      $$('.sfd-sectitle').forEach(inp=> inp.oninput = ()=>{ const sc = res.sections.find(x=> x.id===inp.dataset.sid); if(sc) sc.title = inp.value; });
+      $$('[data-sfd-delsec]').forEach(b=> b.onclick = ()=>{
+        const sid = b.dataset.sfdDelsec, cnt = res.questions.filter(q=> q.sectionId===sid).length;
+        const snap = { sections: clone(res.sections), questions: clone(res.questions) };
+        res.sections = res.sections.filter(x=> x.id!==sid); res.questions = res.questions.filter(q=> q.sectionId!==sid); render();
+        showUndoToast(`Đã xoá phần${cnt? ` và ${cnt} câu hỏi` : ''}`, ()=>{ res.sections = snap.sections; res.questions = snap.questions; render(); });
+      });
+      $$('.sfd-str').forEach(inp=>{ const ev = inp.tagName==='SELECT'? 'onchange' : 'oninput'; inp[ev] = ()=>{ const q = qById(inp.dataset.qid); if(q) q[inp.dataset.f] = inp.value; }; });
+      $$('.sfd-num').forEach(sel=> sel.onchange = ()=>{ const q = qById(sel.dataset.qid); if(!q) return; q[sel.dataset.f] = parseInt(sel.value,10); if(q.scaleMin>=q.scaleMax) q.scaleMax = Math.max(2, q.scaleMin+1); q.correctAnswers = (q.correctAnswers||[]).filter(v=> surveyScaleValues(q).includes(String(v))); render(); });
+      $$('.sfd-req').forEach(cb=> cb.onchange = ()=>{ const q = qById(cb.dataset.qid); if(q) q.required = cb.checked; });
+      $$('.sfd-pts').forEach(inp=> inp.oninput = ()=>{ const q = qById(inp.dataset.qid); if(q) q.points = Math.max(0, parseFloat(inp.value)||0); });
+      $$('.sfd-type').forEach(sel=> sel.onchange = ()=>{
+        const q = qById(sel.dataset.qid); if(!q) return;
+        q.type = sel.value;
+        if(surveyQTypeHasOptions(q.type) && !(q.options||[]).filter(Boolean).length) q.options = ['Phương án 1','Phương án 2'];
+        q.optionBranches = (q.options||[]).map(()=> '__next__');
+        q.correctAnswers = []; q.gridAnswers = undefined;
+        surveyEnsureTypeDefaults(q);
+        if(surveyIsGrid(q)) q.gridAnswers = (q.rows||[]).map(()=> q.type==='grid_checkbox'? [] : '');
+        render();
+      });
+      $$('.sfd-sec').forEach(sel=> sel.onchange = ()=>{ const q = qById(sel.dataset.qid); if(!q) return; res.questions = res.questions.filter(x=> x!==q); q.sectionId = sel.value; res.questions.push(q); render(); showToast('Đã chuyển câu hỏi sang phần khác.'); });
+      // Phương án / hàng / cột: cập nhật khi rời ô (không vẽ lại lúc đang gõ để khỏi mất con trỏ)
+      $$('.sfd-opts').forEach(t=> t.onchange = ()=>{ const q = qById(t.dataset.qid); if(!q) return; const opts = lines(t.value); q.options = opts.length? opts : ['Phương án 1']; q.optionBranches = q.options.map(()=> '__next__'); q.correctAnswers = (q.correctAnswers||[]).filter(a=> q.options.includes(a)); render(); });
+      $$('.sfd-list').forEach(t=> t.onchange = ()=>{ const q = qById(t.dataset.qid); if(!q) return; const v = lines(t.value); q[t.dataset.f] = v.length? v : [t.dataset.f==='rows'? 'Hàng 1' : 'Cột 1'];
+        q.gridAnswers = (q.rows||[]).map((_,i)=>{ const k = (q.gridAnswers||[])[i]; return q.type==='grid_checkbox'? (Array.isArray(k)? k.filter(c=> q.cols.includes(c)) : []) : (q.cols.includes(k)? k : ''); }); render(); });
+      $$('.sfd-key').forEach(inp=> inp.onchange = ()=>{ const q = qById(inp.dataset.qid); if(!q) return;
+        if(inp.type==='radio') q.correctAnswers = [inp.value];
+        else { const set = new Set(q.correctAnswers||[]); inp.checked? set.add(inp.value) : set.delete(inp.value); q.correctAnswers = (q.options||[]).filter(o=> set.has(o)); } });
+      $$('.sfd-key-sel').forEach(sel=> sel.onchange = ()=>{ const q = qById(sel.dataset.qid); if(q) q.correctAnswers = sel.value? [sel.value] : []; });
+      $$('.sfd-gkey').forEach(sel=> sel.onchange = ()=>{ const q = qById(sel.dataset.qid); if(!q) return; q.gridAnswers = (q.rows||[]).map((_,i)=> (q.gridAnswers||[])[i] || ''); q.gridAnswers[+sel.dataset.row] = sel.value; });
+      $$('.sfd-shortkey').forEach(t=> t.oninput = ()=>{ const q = qById(t.dataset.qid); if(q) q.correctAnswers = lines(t.value); });
+      $$('[data-sfd-del]').forEach(b=> b.onclick = ()=>{ const i = res.questions.findIndex(x=> x.id===b.dataset.sfdDel); if(i<0) return; const [rm] = res.questions.splice(i,1); render(); showUndoToast('Đã xoá câu hỏi khỏi Hồ sơ đang soạn', ()=>{ if(!res.sections.some(x=> x.id===rm.sectionId)) rm.sectionId = res.sections[0].id; res.questions.splice(Math.min(i, res.questions.length), 0, rm); render(); }); });
+      $('#sfd-preview').onclick = ()=> surveyOpenPreview(Object.assign(emptySurveyDraft(), { title: res.title||'Biểu mẫu', description: res.description, isQuiz: res.isQuiz, sections: clone(res.sections), questions: clone(res.questions) }));
     }
     render();
   }
