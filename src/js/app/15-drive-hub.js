@@ -279,6 +279,43 @@
     const link = el.querySelector('#drive-file-download');
     if(link) link.href = source;
   }
+  // Word giữ bố cục bằng docx-preview: dựng từng trang A4 như Word rồi thu nhỏ cho vừa khung (điện thoại
+  // vẫn phóng to bằng hai ngón được; màn hình hẹp có thêm chế độ "Dễ đọc" — xem 15d-view-modes.js). Ngắt trang theo dấu ngắt trang Word đã lưu ở lần mở gần nhất
+  // (ignoreLastRenderedPageBreak:false) nên chia trang gần khớp Word; tệp chưa từng mở bằng Word (tạo bằng
+  // phần mềm khác) thì chỉ ngắt ở chỗ ngắt trang cứng. Lỗi (tệp .doc cũ, tệp hỏng, mất mạng khi nạp thư viện) thì trả false
+  // để quay về bộ đọc chữ đơn giản mammoth như trước.
+  async function driveRenderDocxPages(el, buffer){
+    try{
+      await loadOptionalLibrary('jszip');
+      await loadOptionalLibrary('docxpreview');
+      const host = document.createElement('div');
+      host.className = 'drive-viewer-docx-pages';
+      await window.docx.renderAsync(buffer, host, null, {
+        className:'docx', inWrapper:true, breakPages:true, ignoreLastRenderedPageBreak:false,
+        ignoreWidth:false, ignoreHeight:false, ignoreFonts:false,
+        renderHeaders:true, renderFooters:true, renderFootnotes:true, renderEndnotes:true,
+        useBase64URL:true, experimental:false,
+      });
+      if(!host.querySelector('section')) return false;
+      el.innerHTML = '';
+      el.appendChild(host);
+      // Nút/modal "Chế độ xem" trên màn hình hẹp và việc tính lại khi xoay màn hình: 15d-view-modes.js.
+      vmDocxSetup(host);
+      return true;
+    }catch(e){
+      console.warn('[Xem Word] docx-preview không đọc được tệp, chuyển sang bộ đọc đơn giản:', e);
+      return false;
+    }
+  }
+  // Trang Word rộng ~794px (A4) — khung hẹp hơn (điện thoại) thì thu nhỏ cả cụm trang cho vừa chiều ngang.
+  function driveFitDocxPages(host){
+    const wrap = host.querySelector('.docx-wrapper'); if(!wrap) return;
+    wrap.style.zoom = '';
+    const page = wrap.querySelector('section'); if(!page) return;
+    const need = page.offsetWidth + 24, have = host.clientWidth;
+    if(!need || !have || need <= have) return;
+    wrap.style.zoom = String(Math.max(0.3, have/need));
+  }
   async function drivePopulateFileViewer(el, node){
     const source = driveFileSource(node);
     const kind = driveFileKind(node);
@@ -307,6 +344,7 @@
       if(response && !response.ok) throw new Error(`HTTP ${response.status}`);
       let buffer = node.localDataUrl ? driveDataUrlToArrayBuffer(node.localDataUrl) : await response.arrayBuffer();
       if(kind==='xlsx'){
+        if(await driveRenderXlsxStyled(el, buffer)) return;
         await loadOptionalLibrary('xlsx');
         const workbook = XLSX.read(buffer,{type:'array'});
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -314,12 +352,14 @@
         return;
       }
       if(kind==='docx'){
+        if(await driveRenderDocxPages(el, buffer)) return;
         await loadOptionalLibrary('mammoth');
         const result = await mammoth.convertToHtml({arrayBuffer:buffer});
         el.innerHTML = `<article class="drive-viewer-docx">${result.value||'<p>Không có nội dung để xem.</p>'}</article>`;
         return;
       }
       if(kind==='pptx'){
+        if(await driveRenderPptxSlides(el, buffer)) return;
         await loadOptionalLibrary('jszip');
         const zip=await JSZip.loadAsync(buffer);
         const slideFiles=Object.keys(zip.files)
@@ -1214,7 +1254,8 @@
 
   // =====================================================================
   // CÁC MODULE ĐANG NÂNG CẤP — Danh sách công việc, Tập huấn bằng AI,
-  // Phòng họp không giấy, Quản lý Fanpage, Chăm sóc hội viên, Công tác Chi hội.
+  // Quản lý Fanpage, Chăm sóc hội viên, Công tác Chi hội. (Phòng họp không giấy đã có
+  // giao diện thật ở 18-meeting.js.)
   // Hiện mới có trang giới thiệu; dùng chung một hàm dựng để khỏi lặp mã.
   // =====================================================================
   function renderUpcomingModule(el, cfg){
@@ -1284,25 +1325,6 @@
          'Bao nhiêu người đã học, học đến đâu, chỗ nào nhiều người vướng nhất — từ đó biết cần bổ sung gì vào tài liệu cho đợt sau.'],
       ],
       note:['Bài toán thực tế','Tập huấn tập trung tốn thời gian đi lại của cả trăm người, mà mỗi người lại có trình độ và nhu cầu khác nhau. Cách này giữ được nội dung do chính cán bộ Hội biên soạn, nhưng cách truyền đạt thì tuỳ theo từng người nghe.'],
-    },
-    meeting: {
-      icon:'📋', eyebrow:'HỘI HỌP', title:'Phòng họp không giấy',
-      lead:'Mỗi cuộc họp là một thư mục tài liệu có đường liên kết riêng. Đại biểu quét mã là xem được toàn bộ tài liệu trên điện thoại — không in, không phát, không thừa giấy.',
-      blocks:[
-        ['📁','Mỗi cuộc họp một thư mục',
-         'Gom chương trình họp, báo cáo, tờ trình, dự thảo nghị quyết, phụ lục số liệu vào một chỗ, sắp theo đúng thứ tự chương trình để đại biểu dễ theo dõi.'],
-        ['🔗','Chia sẻ bằng liên kết chỉ xem',
-         'Người nhận chỉ xem được, không sửa và không xoá được gì. Tài liệu gốc của đồng chí an toàn tuyệt đối.'],
-        ['📱','Tự sinh mã QR để quét',
-         'Chiếu mã QR lên màn hình hội trường hoặc in nhỏ dán trên bàn, đại biểu đưa điện thoại lên quét là vào ngay — khỏi phải đọc địa chỉ dài cho cả phòng chép lại.'],
-        ['🔄','Sửa tài liệu phút chót vẫn kịp',
-         'Cập nhật tệp trong thư mục là mọi người mở lên đã thấy bản mới nhất. Không còn cảnh phát nhầm bản cũ rồi phải đính chính giữa cuộc họp.'],
-        ['⏱️','Đặt hạn cho liên kết',
-         'Hẹn ngày liên kết hết hiệu lực, hoặc đóng ngay sau khi họp xong, để tài liệu nội bộ không lưu hành mãi ngoài ý muốn.'],
-        ['🌱','Tiết kiệm thật sự',
-         'Một cuộc họp năm chục đại biểu, mỗi bộ tài liệu vài chục trang — mỗi năm vài chục cuộc họp là con số giấy mực và thời gian photo không hề nhỏ.'],
-      ],
-      note:['Đơn giản là điểm mạnh','Không cần đại biểu cài phần mềm, không cần đăng nhập, không cần tập huấn cách dùng. Ai biết quét mã QR là dùng được — kể cả các bác lớn tuổi.'],
     },
     fanpage: {
       icon:'📣', eyebrow:'TRUYỀN THÔNG', title:'Quản lý Fanpage',

@@ -230,6 +230,7 @@
     {key:'strength', label:'Thực lực Hội'},
     {key:'internal', label:'Thu – Chi nội bộ'},
     {key:'survey', label:'Biểu mẫu/Khảo sát (Bộ dùng chung)'},
+    {key:'meeting', label:'Phòng họp không giấy (Bộ dùng chung)'},
   ];
   const PERM_OPTIONS = [
     {v:'none', label:'Không được xem'},

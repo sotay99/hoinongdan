@@ -930,14 +930,14 @@
         ['📤','Trình chiếu và chia sẻ','Chiếu trực tiếp trong app, tải về .pptx hoặc PDF, hoặc gửi liên kết cho người khác xem trước.'],
       ], note:null },
     meeting: { icon:'📋', eyebrow:'HỘI HỌP', title:'Phòng họp không giấy',
-      lead:'Mỗi cuộc họp là một thư mục tài liệu có đường liên kết riêng. Đại biểu quét mã là xem được toàn bộ tài liệu trên điện thoại — không in, không phát, không thừa giấy.',
+      lead:'Mỗi cuộc họp có một trang tài liệu riêng. Đại biểu quét mã QR là đọc được toàn bộ tài liệu trên điện thoại — không cần cài phần mềm, không cần đăng nhập.',
       blocks:[
-        ['📁','Mỗi cuộc họp một thư mục','Gom chương trình họp, báo cáo, tờ trình, dự thảo nghị quyết, phụ lục số liệu vào một chỗ.'],
-        ['🔗','Chia sẻ bằng liên kết chỉ xem','Người nhận chỉ xem được, không sửa và không xoá được gì.'],
-        ['📱','Tự sinh mã QR để quét','Chiếu mã QR lên màn hình hội trường hoặc in nhỏ dán trên bàn, đại biểu quét là vào ngay.'],
-        ['🔄','Sửa tài liệu phút chót vẫn kịp','Cập nhật tệp trong thư mục là mọi người mở lên đã thấy bản mới nhất.'],
-        ['⏱️','Đặt hạn cho liên kết','Hẹn ngày liên kết hết hiệu lực, hoặc đóng ngay sau khi họp xong.'],
-        ['🌱','Tiết kiệm thật sự','Giảm giấy mực và thời gian photo cho mỗi cuộc họp.'],
+        ['📄','Tài liệu xếp đúng thứ tự chương trình','Tải tệp lên hoặc chọn từ Trung tâm dữ liệu, chia thư mục nhiều tầng như Google Drive, kéo thả để sắp thứ tự hoặc chuyển thư mục, tạo bản sao, đặt tên hiển thị dễ hiểu cho đại biểu.'],
+        ['📱','Mã QR và liên kết riêng','Chiếu mã QR lên màn hình hội trường, in áp phích hoặc in thẻ nhỏ dán bàn, hay gửi liên kết qua Zalo.'],
+        ['📖','Đọc PDF ngay trên điện thoại','Tệp PDF hiện thành từng trang vừa khổ màn hình; Word, Excel, ảnh cũng xem được trực tiếp.'],
+        ['🔄','Thay tài liệu phút chót','Thay tệp mới mà giữ nguyên vị trí; trang của đại biểu tự cập nhật và báo khi có bản mới.'],
+        ['🔒','Đóng liên kết khi họp xong','Đóng ngay hoặc hẹn giờ tự đóng — từ lúc đó không ai mở hay tải được tài liệu nữa, kể cả người đã chép sẵn đường dẫn. Ai đã tải tệp về máy trước đó thì vẫn giữ bản đó.'],
+        ['👁','Xem trước như đại biểu','Kiểm tra trang tài liệu đúng như đại biểu sẽ thấy trước khi phát mã QR.'],
       ], note:['Đơn giản là điểm mạnh','Ai biết quét mã QR là dùng được — kể cả các bác lớn tuổi.'] },
     survey: { icon:'📝', eyebrow:'BIỂU MẪU — KHẢO SÁT — KIỂM TRA', title:'Biểu mẫu khảo sát',
       lead:'Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người, tạo cuộc thi trực tuyến và chấm điểm tự động. Người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ tham gia bằng đường link do đồng chí cung cấp!',
@@ -1286,6 +1286,7 @@
     // docs/sheets/slides KHÔNG còn là tab: chúng mở overlay toàn màn hình từ menu thả xuống.
     else if(upcomingModules()[state.activeTab]) renderUpcomingModule(content, upcomingModules()[state.activeTab]);
     else if(state.activeTab==='survey') renderSurveyTab(content);
+    else if(state.activeTab==='meeting') renderMeetingTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
     else if(state.activeTab==='about') renderAboutTab(content);
