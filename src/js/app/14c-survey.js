@@ -45,6 +45,71 @@
   function surveyScaleValues(q){ const a = [], lo = parseInt(q.scaleMin,10)||0, hi = parseInt(q.scaleMax,10)||5; for(let v=lo; v<=hi; v++) a.push(String(v)); return a; }
   function surveyGridCell(v, i){ if(v==null) return undefined; const c = v[i]; return c===undefined? v[String(i)] : c; }
   function surveyFileList(v){ return (Array.isArray(v)? v : (v && typeof v==='object'? Object.values(v) : [])).filter(f=> f && f.name); }
+  function surveyIsImageFile(f){ return !!f && ((f.type||'').startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(f.name||'')); }
+  // Nhóm ảnh cho khung xem ảnh phóng to — đăng ký lại mỗi lần vẽ tab Câu trả lời.
+  let surveyLbGroups = {};
+  function surveyLbRegister(files){ const id = 'g'+Object.keys(surveyLbGroups).length; surveyLbGroups[id] = files; return id; }
+  // Ô hiển thị tệp: ảnh -> ảnh thu nhỏ bấm để phóng to; tệp khác -> link mở.
+  function surveyFilesHtml(files, size){
+    if(!files.length) return '';
+    const imgs = files.filter(surveyIsImageFile), others = files.filter(f=> !surveyIsImageFile(f));
+    const g = imgs.length? surveyLbRegister(imgs) : null;
+    return `${imgs.length? `<div class="sv-thumbs">${imgs.map((f,i)=>`<button type="button" class="sv-thumb-btn preview-allow" data-lb="${g}" data-lb-i="${i}" title="${escapeHtml(f.name)} — bấm để phóng to"><img class="sv-thumb ${size||''}" src="${escapeHtml(f.url)}" alt="${escapeHtml(f.name)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'🖼️',className:'sv-thumb-broken'}))"></button>`).join('')}</div>` : ''}${others.map(f=>`<div><a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a></div>`).join('')}`;
+  }
+  function surveyWireLightbox(scope){
+    scope.querySelectorAll('[data-lb]').forEach(b=> b.onclick = (e)=>{ e.preventDefault(); const files = surveyLbGroups[b.dataset.lb]; if(files) surveyOpenLightbox(files, parseInt(b.dataset.lbI,10)||0); });
+  }
+  function surveyOpenLightbox(files, start){
+    let i = start;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg sv-lightbox';
+    document.body.appendChild(wrap);
+    const close = ()=>{ document.removeEventListener('keydown', onKey); wrap.remove(); };
+    const onKey = (e)=>{ if(e.key==='Escape') close(); else if(e.key==='ArrowRight' && i<files.length-1){ i++; render(); } else if(e.key==='ArrowLeft' && i>0){ i--; render(); } };
+    document.addEventListener('keydown', onKey);
+    function render(){
+      const f = files[i];
+      wrap.innerHTML = `<div class="sv-lb-box">
+        <div class="sv-lb-head"><b>${escapeHtml(f.name)}</b><span class="sub">${i+1}/${files.length}</span><a href="${escapeHtml(f.url)}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">⬇️ Mở ảnh gốc</a><button type="button" class="modal-close preview-allow" id="svlb-close">✕</button></div>
+        <div class="sv-lb-body"><button type="button" class="sv-lb-nav preview-allow" id="svlb-prev" ${i<=0?'disabled':''}>‹</button><img src="${escapeHtml(f.url)}" alt="${escapeHtml(f.name)}"><button type="button" class="sv-lb-nav preview-allow" id="svlb-next" ${i>=files.length-1?'disabled':''}>›</button></div>
+      </div>`;
+      wrap.querySelector('#svlb-close').onclick = close;
+      wrap.querySelector('#svlb-prev').onclick = ()=>{ if(i>0){ i--; render(); } };
+      wrap.querySelector('#svlb-next').onclick = ()=>{ if(i<files.length-1){ i++; render(); } };
+    }
+    wrap.addEventListener('click', (e)=>{ if(e.target===wrap) close(); });
+    render();
+  }
+  // Tải TẤT CẢ tệp của 1 câu (theo bộ lọc đang áp dụng) thành 1 tệp .zip — mỗi tệp đặt tên theo số
+  // thứ tự phiếu + người nộp. Cần bucket Storage cho phép trình duyệt tải nội dung tệp (CORS).
+  async function surveyDownloadFilesZip(draft, q, list, btn){
+    const items = []; list.forEach((r,i)=> surveyFileList(r.answers && r.answers[q.id]).forEach(f=> items.push({ f, stt:i+1, who: surveyWhoText(r) })));
+    if(!items.length){ alert('Câu này chưa có tệp nào.'); return; }
+    try{ await loadOptionalLibrary('jszip'); }catch(e){ alert('Không tải được thư viện nén tệp (JSZip). Vui lòng kiểm tra kết nối mạng rồi thử lại.'); return; }
+    const old = btn? btn.textContent : '';
+    const zip = new JSZip(), used = new Set(); let ok = 0; const failed = [];
+    const clean = t=> String(t||'').replace(/[\\/:*?"<>|]+/g,'_').replace(/\s+/g,' ').trim();
+    for(let k=0; k<items.length; k++){
+      const { f, stt, who } = items[k];
+      if(btn){ btn.disabled = true; btn.textContent = `⏳ Đang gom tệp ${k+1}/${items.length}…`; }
+      let name = clean(`${String(stt).padStart(3,'0')}${who? '_'+who.split(' · ')[0] : ''}_${f.name}`).slice(0,150);
+      while(used.has(name)) name = name.replace(/(\.[^.]*)?$/, m=> '_'+(used.size)+m);
+      used.add(name);
+      try{ const res = await fetch(f.url); if(!res.ok) throw new Error('HTTP '+res.status); zip.file(name, await res.blob()); ok++; }
+      catch(e){ console.warn('[Khảo sát] Không tải được tệp để nén:', f.name, e); failed.push(f.name); }
+    }
+    if(btn){ btn.textContent = '⏳ Đang nén…'; }
+    try{
+      if(ok){
+        const blob = await zip.generateAsync({ type:'blob' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `Tep_${surveyFold(q.text||'cau-hoi').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40) || 'cau-hoi'}_${todayStr()}.zip`; // tên không dấu cho chắc chắn mọi trình duyệt giữ đúng tên
+        document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      }
+    }finally{ if(btn){ btn.disabled = false; btn.textContent = old; } }
+    if(failed.length) alert(`Đã nén được ${ok}/${items.length} tệp.${ok? '' : ' Không tải được tệp nào.'}\n\nKhông tải được ${failed.length} tệp. Nguyên nhân thường gặp: kho lưu trữ Firebase Storage chưa cho phép trình duyệt tải nội dung tệp (cần cấu hình CORS cho bucket). Đồng chí vẫn mở được từng tệp bằng link ở bảng câu trả lời.`);
+    else showToast(`Đã nén ${ok} tệp thành 1 tệp .zip.`);
+  }
   function surveyHasAnswer(q, v){
     if(v==null) return false;
     if(surveyIsGrid(q)) return (q.rows||[]).some((_,i)=>{ const c = surveyGridCell(v,i); return Array.isArray(c)? c.length>0 : (c!=null && c!==''); });
@@ -529,6 +594,7 @@
           <div class="field"><label>Dung lượng tối đa mỗi tệp</label><select class="q-file" data-qid="${q.id}" data-f="maxSizeMb" ${dis}>${[1,5,10,20].map(v=>`<option value="${v}" ${(+q.maxSizeMb||10)===v?'selected':''}>${v} MB</option>`).join('')}</select></div>
           <div class="field"><label>Loại tệp cho phép</label><select class="q-file" data-qid="${q.id}" data-f="fileKind" ${dis}>${Object.entries(SURVEY_FILE_KINDS).map(([k,v])=>`<option value="${k}" ${(q.fileKind||'any')===k?'selected':''}>${v.label}</option>`).join('')}</select></div>
         </div>
+        ${q.fileKind==='image'? `<label class="sv-filter-item sv-opt sv-opt-fit"><input type="checkbox" class="q-file-camera" data-qid="${q.id}" ${q.cameraOnly?'checked':''} ${dis}><span>📷 Chỉ cho chụp trực tiếp bằng camera (điện thoại mở thẳng camera, không chọn ảnh có sẵn) — hợp với ảnh thực địa</span></label>` : ''}
         <p class="sub" style="margin:2px 0 8px;">⚠️ Tệp được lưu trên Firebase Storage (thư mục survey_uploads). Nếu luật Storage chưa cho phép người ngoài tải tệp lên thư mục này, người trả lời sẽ thấy báo lỗi khi tải tệp.</p>`;
     }
     return '';
@@ -621,7 +687,16 @@
       { key:'time', label:'Thời gian nộp', w:140, align:'center', get:r=> new Date(r.submittedAt).toLocaleString('vi-VN') },
     ];
     if(responses.some(r=> r.respondentKey || r.respondentEmail)) cols.push({ key:'who', label:'Người nộp', w:190, align:'left', get:r=> surveyWhoText(r) });
-    draft.questions.forEach((q,qi)=> cols.push({ key:'q:'+q.id, label:`${qi+1}. ${q.text||''}`, w:SURVEY_QTYPE_COLW[q.type]||200, align:'left', get:r=> surveyAnswerText(r.answers && r.answers[q.id], q) }));
+    draft.questions.forEach((q,qi)=>{
+      const col = { key:'q:'+q.id, label:`${qi+1}. ${q.text||''}`, w:SURVEY_QTYPE_COLW[q.type]||200, align:'left', get:r=> surveyAnswerText(r.answers && r.answers[q.id], q) };
+      if(q.type==='file'){
+        col.html = r=> surveyFilesHtml(surveyFileList(r.answers && r.answers[q.id]), 'sm');
+        // Excel: tên tệp kèm đường link (mỗi tệp 1 dòng); phiếu chỉ có 1 tệp thì ô bấm mở thẳng tệp.
+        col.excel = r=> surveyFileList(r.answers && r.answers[q.id]).map(f=> `${f.name} — ${f.url}`).join('\n');
+        col.link = r=>{ const fs = surveyFileList(r.answers && r.answers[q.id]); return fs.length===1? fs[0].url : null; };
+      }
+      cols.push(col);
+    });
     if(draft.isQuiz) cols.push({ key:'score', label:'Điểm', w:80, align:'center', get:r=> `${r.score||0}/${r.maxScore||0}` });
     return cols;
   }
@@ -660,7 +735,7 @@
       body = `<div class="sv-meters${pairs.length>15? ' scroll' : ''}">${meterRows(pairs, answered.length)}</div>`;
     } else if(q.type==='file'){
       const files = answered.flatMap(r=> surveyFileList(r.answers[q.id]));
-      body = files.length? `<div style="display:flex; flex-direction:column; gap:4px; max-height:260px; overflow:auto;">${files.map(f=>`<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a>`).join('')}</div>` : '<p class="sub" style="margin:0;">Chưa có tệp nào.</p>';
+      body = files.length? `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:8px;"><span class="sub">${files.length} tệp (${files.filter(surveyIsImageFile).length} ảnh)</span><button type="button" class="btn btn-ghost btn-sm preview-allow" data-zip-q="${q.id}">⬇️ Tải tất cả ${files.length} tệp (.zip)</button></div><div style="max-height:420px; overflow:auto;">${surveyFilesHtml(files)}</div>` : '<p class="sub" style="margin:0;">Chưa có tệp nào.</p>';
     } else if(surveyQTypeHasOptions(q.type)){
       const opts = q.options||[];
       const counts = new Map(opts.map(o=>[o,0]));
@@ -683,7 +758,7 @@
   function surveyRespTableHtml(cols, list, canDel){
     return `<div class="table-wrap"><table>
       <thead><tr><th></th>${cols.map(c=>`<th style="text-align:${c.align==='left'?'left':'center'}; min-width:${c.w}px; white-space:normal;">${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
-      <tbody>${list.map((r,i)=>`<tr><td style="white-space:nowrap; vertical-align:top;"><button type="button" class="btn btn-ghost btn-sm preview-allow" data-resp-open="${i}" title="Xem phiếu này">👁️</button>${canDel? `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-resp-del="${escapeHtml(r.id)}" title="Xoá phiếu này" style="color:var(--red);">🗑️</button>` : ''}</td>${cols.map(c=>`<td style="${surveyCellStyle(c)}">${escapeHtml(c.get(r,i))}</td>`).join('')}</tr>`).join('')}</tbody>
+      <tbody>${list.map((r,i)=>`<tr><td style="white-space:nowrap; vertical-align:top;"><button type="button" class="btn btn-ghost btn-sm preview-allow" data-resp-open="${i}" title="Xem phiếu này">👁️</button>${canDel? `<button type="button" class="btn btn-ghost btn-sm preview-allow" data-resp-del="${escapeHtml(r.id)}" title="Xoá phiếu này" style="color:var(--red);">🗑️</button>` : ''}</td>${cols.map(c=>`<td style="${surveyCellStyle(c)}">${c.html? c.html(r,i) : escapeHtml(c.get(r,i))}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>`;
   }
   // ---- 👤 Từng phiếu ----
@@ -701,11 +776,12 @@
       <p class="sub" style="text-align:center;">Nộp lúc: ${new Date(r.submittedAt).toLocaleString('vi-VN')}${who? ` — ${escapeHtml(who)}` : ''}${draft.isQuiz? ` — Điểm: <b>${r.score||0}/${r.maxScore||0}</b>` : ''}</p>
       <div class="panel"><div class="panel-body">
         ${draft.questions.map((q,qi)=>{ const v = r.answers? r.answers[q.id] : null;
-          if(q.type==='file'){ const fs = surveyFileList(v); return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b style="text-align:right;">${fs.length? fs.map(f=>`<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a>`).join('<br>') : '(không trả lời)'}</b></div>`; }
+          if(q.type==='file'){ const fs = surveyFileList(v); return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><div style="text-align:right;">${fs.length? surveyFilesHtml(fs) : '<b>(không trả lời)</b>'}</div></div>`; }
           const t = surveyAnswerText(v, q); return `<div class="kv-row"><span>${qi+1}. ${escapeHtml(q.text)}</span><b style="white-space:pre-wrap; text-align:right;">${escapeHtml(t||'(không trả lời)')}</b></div>`; }).join('')}
       </div></div>`;
   }
   function renderSurveyAnswersTabHtml(draft){
+    surveyLbGroups = {};
     const all = state.surveyResponses||[], F = surveyRespFilter(), list = surveyFilterResponses(draft, all, F);
     const view = state.surveyRespView || 'summary', canDel = surveyCanEdit();
     const labels = surveyRespFilterLabels(draft, F), red = 'border:2px solid #d32f2f;';
@@ -756,6 +832,8 @@
     el.querySelectorAll('[data-resp-open]').forEach(b=> b.onclick = ()=>{ state.surveyRespView = 'detail'; state.surveyResponseViewIndex = parseInt(b.dataset.respOpen,10)||0; rer(); });
     el.querySelectorAll('[data-resp-del]').forEach(b=> b.onclick = ()=>{ const r = (state.surveyResponses||[]).find(x=> x.id===b.dataset.respDel); if(r) deleteSurveyResponse(draft, r, el); });
     if(g('sv-resp-cols')) g('sv-resp-cols').onclick = ()=> surveyRespColsModal(draft, rer);
+    surveyWireLightbox(el);
+    el.querySelectorAll('[data-zip-q]').forEach(b=> b.onclick = ()=>{ const q = draft.questions.find(x=> x.id===b.dataset.zipQ); if(q) surveyDownloadFilesZip(draft, q, list(), b); });
     if(g('sv-export-excel-btn')) g('sv-export-excel-btn').onclick = ()=> exportSurveyResponsesExcel(draft, surveyRespCols(draft, state.surveyResponses||[]), list(), surveyRespFilterLabels(draft, F).join(', '));
     if(g('sv-print-btn')) g('sv-print-btn').onclick = ()=> printSurveyResponses(draft, surveyRespCols(draft, state.surveyResponses||[]), list(), surveyRespFilterLabels(draft, F).join(', '));
   }
@@ -818,8 +896,10 @@
     if(banner) head.push([`Đang áp dụng lọc kết quả: ${banner}`]);
     head.push([]);
     const hr = head.length;
-    const aoa = [...head, cols.map(c=> c.label.toUpperCase()), ...list.map((r,i)=> cols.map(c=> c.get(r,i)))];
+    const aoa = [...head, cols.map(c=> c.label.toUpperCase()), ...list.map((r,i)=> cols.map(c=> c.excel? c.excel(r,i) : c.get(r,i)))];
     const ws = X.utils.aoa_to_sheet(aoa);
+    // Ô tệp: gắn liên kết bấm mở được trong Excel (phiếu có đúng 1 tệp)
+    list.forEach((r,ri)=> cols.forEach((c,ci)=>{ if(!c.link) return; const url = c.link(r,ri); if(!url) return; const a = X.utils.encode_cell({ r:hr+1+ri, c:ci }); if(ws[a]) ws[a].l = { Target:url, Tooltip:'Bấm để mở tệp' }; }));
     const last = Math.max(0, cols.length-1);
     ws['!merges'] = head.map((line,r)=> line.length? { s:{r,c:0}, e:{r,c:last} } : null).filter(Boolean);
     ws['!cols'] = cols.map(c=> ({ wch: Math.max(6, Math.round(c.w/6.5)) }));
@@ -828,7 +908,7 @@
       [0,3].forEach(r=> st(r,0,{ font:{bold:true}, alignment:{horizontal:'center'} }));
       if(banner) st(5,0,{ font:{bold:true, color:{rgb:'B71C1C'}} });
       cols.forEach((c,ci)=> st(hr,ci,{ font:{bold:true}, alignment:{horizontal:'center', vertical:'center', wrapText:true}, fill:{fgColor:{rgb:'E8F5E9'}} }));
-      list.forEach((_,ri)=> cols.forEach((c,ci)=> st(hr+1+ri, ci, { alignment:{ horizontal: c.align==='left'? 'left' : 'center', vertical:'top', wrapText:true } })));
+      list.forEach((r,ri)=> cols.forEach((c,ci)=> st(hr+1+ri, ci, Object.assign({ alignment:{ horizontal: c.align==='left'? 'left' : 'center', vertical:'top', wrapText:true } }, (c.link && c.link(r,ri))? { font:{ color:{rgb:'1155CC'}, underline:true } } : {}))));
     }
     const wb = X.utils.book_new();
     X.utils.book_append_sheet(wb, ws, 'Ket qua khao sat');
@@ -994,7 +1074,8 @@
       el.querySelectorAll('.q-grid-item').forEach(inp=> inp.oninput = ()=>{ const q = draft.questions.find(x=>x.id===inp.dataset.qid); if(q) q[inp.dataset.kind][+inp.dataset.i] = inp.value; });
       el.querySelectorAll('.q-grid-add').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(!q) return; const k = btn.dataset.kind; q[k] = q[k]||[]; q[k].push(`${k==='rows'? 'Hàng' : 'Cột'} ${q[k].length+1}`); renderSurveyTab(el); });
       el.querySelectorAll('.q-grid-del').forEach(btn=> btn.onclick = ()=>{ const q = draft.questions.find(x=>x.id===btn.dataset.qid); if(!q) return; const k = btn.dataset.kind; if((q[k]||[]).length<=1){ alert(`Câu hỏi lưới cần ít nhất 1 ${k==='rows'? 'hàng' : 'cột'}.`); return; } q[k].splice(+btn.dataset.i,1); renderSurveyTab(el); });
-      el.querySelectorAll('.q-file').forEach(sel=> sel.onchange = ()=>{ const q = draft.questions.find(x=>x.id===sel.dataset.qid); if(!q) return; q[sel.dataset.f] = sel.dataset.f==='fileKind'? sel.value : parseInt(sel.value,10); });
+      el.querySelectorAll('.q-file').forEach(sel=> sel.onchange = ()=>{ const q = draft.questions.find(x=>x.id===sel.dataset.qid); if(!q) return; q[sel.dataset.f] = sel.dataset.f==='fileKind'? sel.value : parseInt(sel.value,10); if(sel.dataset.f==='fileKind'){ if(q.fileKind!=='image') q.cameraOnly = false; renderSurveyTab(el); } });
+      el.querySelectorAll('.q-file-camera').forEach(cb=> cb.onchange = ()=>{ const q = draft.questions.find(x=>x.id===cb.dataset.qid); if(q) q.cameraOnly = cb.checked; });
       el.querySelectorAll('.q-required').forEach(cb=> cb.onchange = ()=>{ const q=draft.questions.find(x=>x.id===cb.dataset.qid); if(q) q.required = cb.checked; });
       el.querySelectorAll('.q-numeric').forEach(cb=> cb.onchange = ()=>{ const q=draft.questions.find(x=>x.id===cb.dataset.qid); if(q) q.numericOnly = cb.checked; renderSurveyTab(el); });
       el.querySelectorAll('.q-option-text').forEach(inp=> inp.oninput = ()=>{ const q=draft.questions.find(x=>x.id===inp.dataset.qid); if(q) q.options[parseInt(inp.dataset.oi,10)] = inp.value; });
@@ -1523,9 +1604,10 @@
       }
       else if(q.type==='file'){
         const kind = SURVEY_FILE_KINDS[q.fileKind] || SURVEY_FILE_KINDS.any;
-        field = `<div class="ps-file" data-qid="${q.id}"><input type="file" class="ps-file-in" data-qid="${q.id}" ${(+q.maxFiles||1)>1? 'multiple' : ''} ${kind.accept? `accept="${kind.accept}"` : ''} style="display:none;">
-          <button type="button" class="btn btn-ghost ps-file-btn" data-qid="${q.id}">📎 Chọn tệp để tải lên</button>
-          <div class="sub" style="margin-top:4px;">Tối đa ${+q.maxFiles||1} tệp, mỗi tệp không quá ${+q.maxSizeMb||10} MB${q.fileKind && q.fileKind!=='any'? ' · '+kind.label : ''}.</div>
+        const cam = q.fileKind==='image' && q.cameraOnly;
+        field = `<div class="ps-file" data-qid="${q.id}"><input type="file" class="ps-file-in" data-qid="${q.id}" ${(+q.maxFiles||1)>1 && !cam? 'multiple' : ''} ${kind.accept? `accept="${kind.accept}"` : ''} ${cam? 'capture="environment"' : ''} style="display:none;">
+          <button type="button" class="btn btn-ghost ps-file-btn" data-qid="${q.id}">${cam? '📷 Chụp ảnh' : '📎 Chọn tệp để tải lên'}</button>
+          <div class="sub" style="margin-top:4px;">Tối đa ${+q.maxFiles||1} ${cam? 'ảnh' : 'tệp'}, mỗi ${cam? 'ảnh' : 'tệp'} không quá ${+q.maxSizeMb||10} MB${q.fileKind && q.fileKind!=='any'? ' · '+kind.label : ''}${cam? ' · chụp trực tiếp bằng camera' : ''}.</div>
           <div class="ps-file-list" data-qid="${q.id}"></div></div>`;
       }
       const desc = q.description? `<div class="sub" style="margin:-2px 0 8px; font-size:12.5px; white-space:pre-wrap;">${escapeHtml(q.description)}</div>` : '';
@@ -1686,9 +1768,9 @@
           return true; };
         const paint = ()=>{
           const files = surveyFileList(collected[q.id]);
-          listEl.innerHTML = files.map((f,i)=>`<div class="ps-file-item"><a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a> <span class="sub">(${f.size>=1048576? (f.size/1048576).toFixed(1).replace('.',',')+' MB' : Math.max(1, Math.round(f.size/1024))+' KB'})</span><button type="button" class="ps-file-rm" data-i="${i}" title="Bỏ tệp này">✕</button></div>`).join('') + (box.__progress? `<div class="sub">${box.__progress}</div>` : '');
+          listEl.innerHTML = files.map((f,i)=>`<div class="ps-file-item">${surveyIsImageFile(f)? `<img class="sv-thumb sm" src="${escapeHtml(f.url)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name)}</a> <span class="sub">(${f.size>=1048576? (f.size/1048576).toFixed(1).replace('.',',')+' MB' : Math.max(1, Math.round(f.size/1024))+' KB'})</span><button type="button" class="ps-file-rm" data-i="${i}" title="Bỏ tệp này">✕</button></div>`).join('') + (box.__progress? `<div class="sub">${box.__progress}</div>` : '');
           btn.disabled = files.length>=maxFiles || uploadingNow>0;
-          btn.textContent = files.length>=maxFiles? `Đã đủ ${maxFiles} tệp` : '📎 Chọn tệp để tải lên';
+          btn.textContent = files.length>=maxFiles? `Đã đủ ${maxFiles} tệp` : (q.fileKind==='image' && q.cameraOnly? '📷 Chụp ảnh' : '📎 Chọn tệp để tải lên');
           listEl.querySelectorAll('.ps-file-rm').forEach(b=> b.onclick = ()=>{
             const arr = surveyFileList(collected[q.id]); const [rm] = arr.splice(+b.dataset.i, 1); collected[q.id] = arr;
             if(rm && rm.path && typeof storage!=='undefined'){ try{ storage.ref(rm.path).delete().catch(()=>{}); }catch(e){} }

@@ -985,6 +985,23 @@
   .sv-matrix th, .sv-matrix td{ text-align:center; white-space:normal; }
   .ps-grid th, .sv-matrix th{ text-transform:none; letter-spacing:normal; }
   .sv-matrix tbody th{ text-align:left; }
+  /* Ảnh thu nhỏ + khung xem ảnh phóng to (câu Tải tệp lên) */
+  .sv-thumbs{ display:flex; flex-wrap:wrap; gap:6px; }
+  .sv-thumb-btn{ padding:0; border:1px solid var(--line); border-radius:6px; background:var(--white); cursor:zoom-in; overflow:hidden; line-height:0; }
+  .sv-thumb{ width:96px; height:96px; object-fit:cover; display:block; }
+  .sv-thumb.sm{ width:56px; height:56px; }
+  .ps-file-item .sv-thumb.sm{ border-radius:4px; border:1px solid var(--line); }
+  .sv-thumb-broken{ display:inline-flex; width:56px; height:56px; align-items:center; justify-content:center; font-size:22px; line-height:1; }
+  .sv-lightbox{ align-items:center; justify-content:center; padding:12px; background:rgba(0,0,0,.82) !important; }
+  .sv-lb-box{ width:min(1100px, 100%); max-height:100%; display:flex; flex-direction:column; background:#111; border-radius:10px; overflow:hidden; }
+  .sv-lb-head{ display:flex; align-items:center; gap:10px; padding:8px 12px; background:#222; color:#fff; }
+  .sv-lb-head b{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sv-lb-head .sub{ color:#bbb; }
+  .sv-lb-head .modal-close{ color:#fff; }
+  .sv-lb-body{ display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; min-height:0; flex:1; }
+  .sv-lb-body img{ max-width:calc(100% - 100px); max-height:calc(100vh - 120px); object-fit:contain; }
+  .sv-lb-nav{ width:42px; height:42px; border-radius:50%; border:none; background:rgba(255,255,255,.15); color:#fff; font-size:26px; cursor:pointer; flex-shrink:0; }
+  .sv-lb-nav:disabled{ opacity:.25; cursor:default; }
   .ps-opt mark{ background:#fff176; color:inherit; padding:0 1px; border-radius:2px; }
   .sv-pill{ display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:10px; background:var(--paper-2); color:var(--rice-dark); margin:0 6px 6px 0; }
 
