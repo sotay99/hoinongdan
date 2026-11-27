@@ -21,6 +21,7 @@
   // Phần này đứng CUỐI manifest nên chứa khối khởi động boot() ở cuối tệp.
   // =====================================================================
   const TN_TITLE_MAX = 150, TN_INTRO_MAX = 1500, TN_AUDIENCE_MAX = 200;
+  const TN_ISSUER_MAX = 150, TN_BASIS_MAX = 600, TN_GROUP_LABEL_MAX = 40;
   const TN_MAX_MATERIALS = 20, TN_MAX_FILE_MB = 15;
   // Giới hạn chữ: mỗi tài liệu 60.000 ký tự, cả bài 150.000 ký tự (~40 nghìn token) — đủ cho một bộ tài
   // liệu tập huấn dày, mà mỗi lượt trò chuyện của học viên vẫn gửi trọn tài liệu cho AI được.
@@ -28,7 +29,7 @@
   const TN_MAX_LESSONS = 12, TN_MAX_QUIZ = 40;
   const TN_ID_RE = /^[A-Za-z0-9_-]{6,128}$/;
   const TN_HISTORY_TURNS = 30;
-  const TN_CALLS = ['Bác','Chú','Cô','Anh','Chị','Ông','Bà','Em','Bạn'];
+  const TN_CALLS = ['Bác','Chú','Cô','Anh','Chị','Ông','Bà','Em','Bạn','Đồng chí'];
   const TN_LEVELS = { moi:'Mới làm quen', coban:'Đã biết cơ bản', kha:'Đã nắm khá' };
 
   function tnS(){
@@ -220,7 +221,7 @@
   // Ảnh chụp danh xưng/địa danh lúc soạn — trang học viên không có state.config nên phải mang theo.
   function tnOrgSnapshot(){
     const cfg = state.config || {};
-    return { wardName: cfg.wardName || '', orgTitle: wardTitle(), groupLabel: subAdminLabel(),
+    return { wardName: cfg.wardName || '', orgTitle: wardTitle(), subLabel: subAdminLabel(),
       groups: (Array.isArray(cfg.hamlets) ? cfg.hamlets : []).filter(h=> typeof h==='string' && h.trim()).slice(0, 80) };
   }
   async function tnCreate(fields){
@@ -231,7 +232,7 @@
       id, scope: personal ? 'personal' : 'shared', wardId: personal ? null : wardId(),
       ...tnOrgSnapshot(),
       ownerEmail: (state.identity && state.identity.email) || null, createdByName: tnActor(),
-      title: fields.title, audience: fields.audience || '', intro:'', summary:'',
+      title: fields.title, audience: fields.audience || '', intro:'', summary:'', issuer:'', basis:'', defaultCall:'', groupLabel: subAdminLabel(),
       materials:[], lessons:[], quiz:[], settings:{ quizCount:5, passPercent:70 },
       status:'open', closeAt:'', createdAt: now, updatedAt: now, deleted:false,
     };
@@ -712,10 +713,47 @@ ${tnMaterialsBlock(c)}`;
   // =====================================================================
   // MÀN HÌNH CHÍNH CỦA MODULE
   // =====================================================================
+  // Mỗi lần VÀO module (cờ _tnEntryChecked được đặt lại trong switchTab): đếm bài ở CẢ HAI bộ nhớ thật.
+  // Cả hai trống -> tự vào tab "Bài tập huấn mẫu" và hiện Bản giới thiệu (đóng được), giống Lịch công tác khi
+  // chưa có người nào. Lỗi đọc (mạng, quyền) thì coi như "không rõ" -> không ép sang tab mẫu.
+  async function tnProbeEntry(el){
+    const S = tnS();
+    S.probing = true;
+    let shared = 0, personal = 0, unknown = false;
+    if(!isTourMode()){
+      const count = async (ref, wantPersonal)=>{
+        try{ const snap = await ref.once('value'); return Object.values((snap && snap.val()) || {}).filter(c=> c && c.id && !c.deleted && ((c.scope==='personal')===wantPersonal)).length; }
+        catch(e){ console.warn('[Tập huấn] Không đếm được bài:', e); unknown = true; return 0; }
+      };
+      const email = state.identity && state.identity.email;
+      const jobs = [];
+      if(wardId() && canViewModule('training')) jobs.push(count(rtdb.ref('trainings').orderByChild('wardId').equalTo(wardId()), false).then(n=> shared = n));
+      if(email) jobs.push(count(rtdb.ref('trainings').orderByChild('ownerEmail').equalTo(email), true).then(n=> personal = n));
+      await Promise.all(jobs);
+    }
+    S.probing = false;
+    S.realEmpty = !unknown && !shared && !personal;
+    if(S.realEmpty){ S.space = 'sample'; S.view = 'list'; S.editingId = null; }
+    else if(!S.space) S.space = tnDefaultSpace();
+    if(state.view!=='app' || state.activeTab!=='training') return;
+    const cur = document.getElementById('content');
+    if(cur) renderTrainingTab(cur);
+    if(S.realEmpty && !state._tnIntroShown){
+      state._tnIntroShown = true;
+      if(MODULE_INTRO_CONTENT && MODULE_INTRO_CONTENT.training && !document.querySelector('.modal-bg')) openModuleIntroModal(MODULE_INTRO_CONTENT.training);
+    }
+  }
   function renderTrainingTab(el){
     if(!el) return;
-    tnAttach();
     const S = tnS();
+    if(!state._tnEntryChecked){
+      state._tnEntryChecked = true;
+      el.innerHTML = `${tnHeroHtml()}<div class="panel"><div class="panel-body"><div class="empty-state" style="padding:30px;">Đang tải bài tập huấn…</div></div></div>`;
+      tnProbeEntry(el);
+      return;
+    }
+    if(S.probing) return;
+    tnAttach();
     if(S.view==='editor' && tnFind(S.editingId)) tnRenderEditor(el);
     else { S.view = 'list'; S.editingId = null; tnDetachLearners(); tnRenderList(el); }
   }
@@ -723,11 +761,8 @@ ${tnMaterialsBlock(c)}`;
     const st = tnStatus(c);
     return `<span class="tn-pill tn-pill-${st.key}">${st.open ? '●' : '○'} ${escapeHtml(st.key==='open' ? 'Đang mở' : st.label)}</span>`;
   }
-  function tnRenderList(el){
-    const S = tnS(), isShared = S.space!=='personal';
-    const canView = tnCanView(), canEdit = tnCanEdit();
-    el.innerHTML = `
-      <div class="tn-hero">
+  function tnHeroHtml(){
+    return `<div class="tn-hero">
         <div class="tn-hero-ico" aria-hidden="true">🎓</div>
         <div class="tn-hero-txt">
           <h3>Tập huấn bằng AI</h3>
@@ -736,70 +771,137 @@ ${tnMaterialsBlock(c)}`;
         <ol class="tn-hero-steps" aria-label="Các bước">
           <li><b>1</b>Đưa tài liệu</li><li><b>2</b>AI soạn giáo án</li><li><b>3</b>Gửi link</li><li><b>4</b>Xem kết quả</li>
         </ol>
-      </div>
+      </div>`;
+  }
+  function tnSampleWarnHtml(extra){ return `<div class="tn-sample-warn ${extra||''}">${escapeHtml(TN_SAMPLE_WARN)}</div>`; }
+  function tnRenderList(el){
+    const S = tnS(), space = S.space==='personal' ? 'personal' : (S.space==='sample' ? 'sample' : 'shared');
+    const canView = tnCanView(), canEdit = tnCanEdit(), isShared = space==='shared';
+    el.innerHTML = `
+      ${tnHeroHtml()}
       <div class="panel">
         <div class="panel-body">
           <div style="margin-bottom:14px;">${surveyTabsHtml([
-            { id:'tn-space-shared', label:`🏛️ Bộ nhớ dùng chung ${adminLevelLabelLower()}`, active:isShared },
-            { id:'tn-space-personal', label:'🔒 Bộ nhớ cá nhân', active:!isShared },
-          ])}</div>
+            { id:'tn-space-shared', label:`🏛️ Bộ nhớ dùng chung ${adminLevelLabelLower()}`, active:space==='shared' },
+            { id:'tn-space-personal', label:'🔒 Bộ nhớ cá nhân', active:space==='personal' },
+            { id:'tn-space-sample', label:'📚 Bài tập huấn mẫu', active:space==='sample' },
+          ])}${spaceNoteHtml(space, 'bài tập huấn')}</div>
           ${!canView ? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared
               ? (wardId() ? 'Đồng chí chưa được cấp quyền xem Tập huấn dùng chung. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : `Tập huấn dùng chung cần vào bằng mã ${adminLevelLabelLower()}.`)
               : 'Tập huấn cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
           <div class="mt-toolbar">
-            ${canEdit ? `<button class="btn btn-primary preview-allow" id="tn-new-btn">➕ Soạn bài tập huấn mới</button>` : `<span class="mt-hint">Đồng chí chỉ có quyền xem ở đây.</span>`}
+            ${canEdit || space==='sample' ? `<button class="btn btn-primary preview-allow" id="tn-new-btn">➕ Soạn bài tập huấn mới</button>` : `<span class="mt-hint">Đồng chí chỉ có quyền xem ở đây.</span>`}
             <input id="tn-q" value="${escapeHtml(S.q)}" placeholder="🔍 Tìm theo tên bài…" autocomplete="off">
           </div>
           <div id="tn-list"></div>`}
         </div>
       </div>
-      ${canView ? `<div id="tn-trash"></div>` : ''}`;
+      ${canView && space!=='sample' ? `<div id="tn-trash"></div>` : ''}`;
     const sh = el.querySelector('#tn-space-shared'); if(sh) sh.onclick = ()=> tnSwitchSpace('shared');
     const pe = el.querySelector('#tn-space-personal'); if(pe) pe.onclick = ()=> tnSwitchSpace('personal');
+    const sa = el.querySelector('#tn-space-sample'); if(sa) sa.onclick = ()=> tnSwitchSpace('sample');
     const nb = el.querySelector('#tn-new-btn'); if(nb) nb.onclick = ()=> tnNewModal(el);
     const q = el.querySelector('#tn-q'); if(q) q.oninput = ()=>{ S.q = q.value; tnPaintList(el); };
     if(canView) tnPaintList(el);
   }
   function tnPaintList(el){
     const S = tnS(), box = el.querySelector('#tn-list'); if(!box) return;
+    const sample = S.space==='sample';
     const canEdit = tnCanEdit(), term = surveyFold(String(S.q||'').trim());
     const list = S.list.filter(c=> !term || surveyFold(c.title||'').includes(term))
-      .sort((a,b)=> String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+      .sort((a,b)=> sample ? 0 : String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
     if(S.error) box.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="e-ico">⚠️</div>${escapeHtml(S.error)}</div>`;
     else if(!S.loaded) box.innerHTML = `<div class="empty-state" style="padding:24px;">Đang tải danh sách bài tập huấn…</div>`;
     else if(!list.length) box.innerHTML = S.list.length ? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔎</div>Không có bài nào khớp với từ khoá.</div>` : `
       <div class="tn-empty">
         <div class="tn-empty-ico">📚</div>
         <h4>Chưa có bài tập huấn nào</h4>
-        <p>${canEdit ? 'Bấm <b>“Soạn bài tập huấn mới”</b>, đưa tài liệu vào (PDF, Word, PowerPoint, ảnh chụp…) — AI sẽ đọc và soạn giáo án, câu hỏi kiểm tra để đồng chí rà lại trước khi gửi cho học viên.' : 'Khi cán bộ soạn bài, danh sách sẽ hiện ở đây.'}</p>
+        <p>${canEdit ? 'Bấm <b>“Soạn bài tập huấn mới”</b>, đưa tài liệu vào (PDF, Word, PowerPoint, ảnh chụp…) — AI sẽ đọc và soạn giáo án, câu hỏi kiểm tra để đồng chí rà lại trước khi gửi cho học viên.' : 'Khi cán bộ soạn bài, danh sách sẽ hiện ở đây.'} Muốn xem một bài làm sẵn, mở tab <b>“📚 Bài tập huấn mẫu”</b>.</p>
       </div>`;
     else box.innerHTML = `<div class="tn-cards">${list.map(c=>{
-      const nl = tnLessons(c).length, nq = tnQuiz(c).length, nm = tnMaterials(c).length;
-      return `<div class="tn-card">
-        <button type="button" class="tn-card-main preview-allow" data-tn-open="${escapeHtml(c.id)}">
+      const nl = tnLessons(c).length, nq = tnQuiz(c).length, nm = tnMaterials(c).length, id = escapeHtml(c.id);
+      return `<div class="tn-card ${c.sample ? 'is-sample' : ''}">
+        <button type="button" class="tn-card-main preview-allow" data-tn-open="${id}">
           <span class="tn-card-title">${escapeHtml(c.title||'Bài tập huấn')}</span>
           ${c.audience ? `<span class="tn-card-meta">👥 ${escapeHtml(c.audience)}</span>` : ''}
+          ${c.basis ? `<span class="tn-card-meta">📜 ${escapeHtml(c.basis)}</span>` : ''}
           <span class="tn-card-meta">📚 ${nm} tài liệu · 🧭 ${nl} phần học · ❓ ${nq} câu hỏi ${tnStatusPill(c)}</span>
         </button>
+        ${c.sample ? tnSampleWarnHtml('sm') : ''}
         <div class="tn-card-actions">
-          <button class="btn btn-ghost btn-sm preview-allow" data-tn-open="${escapeHtml(c.id)}">${canEdit ? '✏️ Mở / Sửa' : '👁 Xem'}</button>
-          <button class="btn btn-ghost btn-sm preview-allow" data-tn-results="${escapeHtml(c.id)}">📈 Kết quả</button>
-          <button class="btn btn-ghost btn-sm preview-allow" data-tn-copy="${escapeHtml(c.id)}">🔗 Sao chép link</button>
-          ${canEdit ? `<button class="btn btn-ghost btn-sm preview-allow" data-tn-trash="${escapeHtml(c.id)}" style="color:var(--red);">Xoá</button>` : ''}
+          ${c.sample ? `
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-open="${id}">👁 Xem bài</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-try="${id}">🧑‍🎓 Học thử</button>
+          <button class="btn btn-primary btn-sm preview-allow" data-tn-clone="${id}">📋 Sao chép thành bài của tôi</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-copy="${id}">🔗 Sao chép link</button>` : `
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-open="${id}">${canEdit ? '✏️ Mở / Sửa' : '👁 Xem'}</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-results="${id}">📈 Kết quả</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-copy="${id}">🔗 Sao chép link</button>
+          ${canEdit ? `<button class="btn btn-ghost btn-sm preview-allow" data-tn-trash="${id}" style="color:var(--red);">Xoá</button>` : ''}`}
         </div>
       </div>`; }).join('')}</div>`;
     const open = (id, tab)=>{ S.view = 'editor'; S.editingId = id; S.tab = tab || 'build'; renderTrainingTab(el); window.scrollTo(0,0); };
     box.querySelectorAll('[data-tn-open]').forEach(b=> b.onclick = ()=> open(b.dataset.tnOpen));
     box.querySelectorAll('[data-tn-results]').forEach(b=> b.onclick = ()=> open(b.dataset.tnResults, 'results'));
+    box.querySelectorAll('[data-tn-try]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnTry); if(c) tnOpenPreview(c); });
+    box.querySelectorAll('[data-tn-clone]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnClone); if(c) tnCloneModal(c); });
     box.querySelectorAll('[data-tn-copy]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnCopy); if(c && !tnStatus(c).open) showToast('Lưu ý: liên kết đang ' + tnStatus(c).label.toLowerCase() + '.'); copyMessageText(tnShareUrl(b.dataset.tnCopy)); });
     box.querySelectorAll('[data-tn-trash]').forEach(b=> b.onclick = ()=> tnTrash(b.dataset.tnTrash));
     tnPaintTrash(el);
-    // Chưa có bài nào: mỗi lần VÀO module (không phải mỗi lần vẽ lại) hiện Bản giới thiệu, đóng được —
-    // giống Lịch công tác khi chưa có người nào. Cờ được đặt lại trong switchTab khi đổi sang module khác.
-    if(S.loaded && !S.error && !S.list.length && !state._tnIntroShown){
-      state._tnIntroShown = true;
-      if(MODULE_INTRO_CONTENT && MODULE_INTRO_CONTENT.training && !document.querySelector('.modal-bg')) openModuleIntroModal(MODULE_INTRO_CONTENT.training);
-    }
+  }
+  // "📋 Sao chép thành bài của tôi": chép nguyên bài mẫu (tài liệu, giáo án, câu hỏi, cài đặt) sang bộ dùng
+  // chung hoặc bộ cá nhân để sửa tiếp. Bản chép là bài thật — không còn dòng cảnh báo "bài mẫu".
+  function tnCloneModal(src){
+    if(isTourMode()){ alert('Đồng chí đang ở môi trường tham quan, vui lòng đăng nhập để sử dụng tính năng này.'); return; }
+    const canShared = !!wardId() && canEditModule('training'), canPersonal = tnHasPersonal();
+    if(!canShared && !canPersonal){ alert(`Để sao chép, đồng chí cần đăng nhập bằng tài khoản Google (Bộ nhớ cá nhân) hoặc có quyền sửa Tập huấn ở Bộ nhớ dùng chung ${adminLevelLabelLower()}.`); return; }
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg tn-font';
+    wrap.innerHTML = `<div class="modal" style="max-width:520px;" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>📋 Sao chép thành bài của tôi</h3><button class="modal-close" data-x aria-label="Đóng">✕</button></div>
+      <div class="modal-body">
+        <p style="margin-top:0;">Chép bài <b>“${escapeHtml(src.title)}”</b> — gồm tài liệu, giáo án, bộ câu hỏi — để đồng chí sửa và gửi cho học viên của mình.</p>
+        <div class="field"><label>Chép vào</label>
+          <label class="tn-radio"><input type="radio" name="tnc-space" value="shared" ${canShared ? 'checked' : 'disabled'}> 🏛️ Bộ nhớ dùng chung ${escapeHtml(adminLevelLabelLower())}${canShared ? '' : ' <span class="mt-hint">(chưa có quyền sửa)</span>'}</label>
+          <label class="tn-radio"><input type="radio" name="tnc-space" value="personal" ${canPersonal ? (canShared ? '' : 'checked') : 'disabled'}> 🔒 Bộ nhớ cá nhân${canPersonal ? '' : ' <span class="mt-hint">(cần đăng nhập Google)</span>'}</label>
+        </div>
+        <div class="mt-warn">Đây là nội dung mẫu, có thể chưa đầy đủ hoặc đã cũ. Đồng chí rà lại tài liệu, giáo án và câu hỏi trước khi gửi cho học viên.</div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-ghost" data-x>Huỷ</button><button class="btn btn-primary" id="tnc-ok">Sao chép và mở bài ›</button></div>
+    </div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelectorAll('[data-x]').forEach(b=> b.onclick = close);
+    const ok = wrap.querySelector('#tnc-ok');
+    ok.onclick = async ()=>{
+      const space = (wrap.querySelector('input[name="tnc-space"]:checked')||{}).value;
+      if(!space){ alert('Vui lòng chọn nơi chép vào.'); return; }
+      ok.disabled = true;
+      try{
+        const now = new Date().toISOString(), id = tnNewId(), personal = space==='personal';
+        const keep = ['title','audience','intro','summary','basis','defaultCall','groupLabel','materials','lessons','quiz','settings'];
+        const rec = { id, scope: personal ? 'personal' : 'shared', wardId: personal ? null : wardId(), ...tnOrgSnapshot(),
+          ownerEmail: (state.identity && state.identity.email) || null, createdByName: tnActor(),
+          issuer:'', status:'open', closeAt:'', createdAt: now, updatedAt: now, deleted:false, copiedFromSample: src.id };
+        keep.forEach(k=>{ if(src[k]!=null) rec[k] = JSON.parse(JSON.stringify(src[k])); });
+        if(src.groupLabel) rec.groupLabel = src.groupLabel;
+        rec.materials = tnMaterials(rec).map(m=> ({ ...m, addedAt: now }));
+        await rtdb.ref(`trainings/${id}`).set(rec);
+        try{ await pushLog('sao chép bài tập huấn mẫu', rec.title); }catch(e){}
+        close();
+        const S = tnS();
+        S.space = space; S.view = 'editor'; S.editingId = id; S.tab = 'build';
+        tnListenerKey = null; tnAttach();
+        if(!tnFind(id)) S.list = S.list.concat([rec]);
+        const el = document.getElementById('content'); if(el) renderTrainingTab(el);
+        window.scrollTo(0,0);
+        showToast('Đã sao chép. Đồng chí rà lại nội dung rồi gửi cho học viên nhé.');
+      }catch(e){
+        console.error('[Tập huấn] Sao chép bài mẫu lỗi:', e);
+        alert('Không sao chép được: ' + (e && e.message || e));
+        ok.disabled = false;
+      }
+    };
   }
   function tnPaintTrash(el){
     const S = tnS(), box = el.querySelector('#tn-trash'); if(!box) return;
@@ -814,6 +916,7 @@ ${tnMaterialsBlock(c)}`;
     box.querySelectorAll('[data-tn-purge]').forEach(b=> b.onclick = ()=> tnPurge(b.dataset.tnPurge));
   }
   function tnNewModal(el){
+    if(tnIsSampleSpace()){ alert(`Tab "Bài tập huấn mẫu" chỉ để tham khảo, không soạn bài mới ở đây được.\n\nĐồng chí vui lòng chọn "Bộ nhớ dùng chung ${adminLevelLabelLower()}" hoặc "Bộ nhớ cá nhân" ở trên, rồi bấm "Soạn bài tập huấn mới".`); return; }
     if(!tnWriteOk()) return;
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg tn-font';
@@ -864,9 +967,12 @@ ${tnMaterialsBlock(c)}`;
             <button class="btn btn-ghost btn-sm btn-back-list preview-allow" id="tn-back">← Danh sách bài tập huấn</button>
             <div class="mt-editor-bar-right">
               <button class="btn btn-ghost btn-sm preview-allow" id="tn-try">🧑‍🎓 Học thử như học viên</button>
+              ${c.sample ? `<button class="btn btn-ghost btn-sm preview-allow" id="tn-clone-top">📋 Sao chép thành bài của tôi</button>` : ''}
               <button class="btn btn-primary btn-sm preview-allow" id="tn-share-top">🔗 Gửi cho học viên</button>
             </div>
           </div>
+          ${spaceNoteHtml(c.sample ? 'sample' : (S.space==='personal' ? 'personal' : 'shared'), 'bài tập huấn')}
+          ${c.sample ? tnSampleWarnHtml() : ''}
           <div id="tn-steps"></div>
           <div id="tn-busy" class="tn-busy" style="${S.busy ? '' : 'display:none;'}">${S.busy ? `<span class="tn-spin" aria-hidden="true"></span>${escapeHtml(S.busy)}` : ''}</div>
           <div style="margin:6px 0 16px;">${surveyTabsHtml([
@@ -880,6 +986,10 @@ ${tnMaterialsBlock(c)}`;
               <div class="field mt-span-2">${mtLabel('Tên bài tập huấn', true)}<input id="tn-f-title" maxlength="${TN_TITLE_MAX}" value="${escapeHtml(c.title||'')}" ${ro}>${canEdit ? mtCounterHtml('tn-f-title', c.title, TN_TITLE_MAX) : ''}</div>
               <div class="field mt-span-2">${mtLabel('Dành cho ai', false)}<input id="tn-f-aud" maxlength="${TN_AUDIENCE_MAX}" value="${escapeHtml(c.audience||'')}" ${ro} placeholder="VD: Hội viên trồng lúa, nhiều người lớn tuổi"></div>
               <div class="field mt-span-2">${mtLabel('Lời giới thiệu cho học viên', false, '— hiện ở trang đầu khi học viên mở link')}<textarea id="tn-f-intro" rows="2" maxlength="${TN_INTRO_MAX}" ${ro}>${escapeHtml(c.intro||'')}</textarea>${canEdit ? mtCounterHtml('tn-f-intro', c.intro, TN_INTRO_MAX) : ''}</div>
+              <div class="field mt-span-2">${mtLabel('Cơ quan phát hành bài tập huấn', false, '— hiện ở dòng đầu trang học viên; để trống thì không hiện')}<input id="tn-f-issuer" maxlength="${TN_ISSUER_MAX}" value="${escapeHtml(c.issuer||'')}" ${ro} placeholder="VD: Hội Nông dân ${escapeHtml(adminLevelLabelLower() + (((state.config && state.config.wardName) || '').trim() ? ' ' + state.config.wardName.trim() : ''))}"></div>
+              <div class="field mt-span-2">${mtLabel('Căn cứ / tài liệu tham khảo', false, '— số, ngày, tên văn bản; hiện cho học viên và AI dẫn theo')}<textarea id="tn-f-basis" rows="2" maxlength="${TN_BASIS_MAX}" ${ro} placeholder="VD: Nghị định số …/…/NĐ-CP ngày … của Chính phủ về …">${escapeHtml(c.basis||'')}</textarea></div>
+              <div class="field">${mtLabel('Trợ giảng gọi học viên là', false, '— chọn sẵn ở trang học viên')}<select id="tn-f-call" ${ro}><option value="">Để học viên tự chọn</option>${TN_CALLS.map(k=>`<option ${c.defaultCall===k?'selected':''}>${k}</option>`).join('')}</select></div>
+              <div class="field">${mtLabel('Tên ô “nơi ở” khi học viên vào học', false)}<input id="tn-f-glabel" maxlength="${TN_GROUP_LABEL_MAX}" value="${escapeHtml(c.groupLabel||'')}" ${ro} placeholder="${escapeHtml(subAdminLabel())}, hoặc: Đơn vị công tác"></div>
             </div>
             <div class="tn-sec">
               <div class="tn-sec-head"><span class="tn-sec-num">1</span><div><h4>Tài liệu tập huấn</h4><p>Nguồn kiến thức DUY NHẤT của AI khi giảng — ngoài phạm vi này AI sẽ từ chối và gợi ý hỏi cán bộ Hội.</p></div></div>
@@ -925,6 +1035,11 @@ ${tnMaterialsBlock(c)}`;
     bindField('#tn-f-title', 'title', TN_TITLE_MAX, true);
     bindField('#tn-f-aud', 'audience', TN_AUDIENCE_MAX);
     bindField('#tn-f-intro', 'intro', TN_INTRO_MAX);
+    bindField('#tn-f-issuer', 'issuer', TN_ISSUER_MAX);
+    bindField('#tn-f-basis', 'basis', TN_BASIS_MAX);
+    bindField('#tn-f-call', 'defaultCall', 20);
+    bindField('#tn-f-glabel', 'groupLabel', TN_GROUP_LABEL_MAX);
+    const ct = el.querySelector('#tn-clone-top'); if(ct) ct.onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnCloneModal(x); };
     const af = el.querySelector('#tn-add-files'); if(af) af.onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnAddFiles(x); };
     const ap = el.querySelector('#tn-add-paste'); if(ap) ap.onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnAddPaste(x); };
     tnPaintEditorParts(el);
@@ -1062,16 +1177,17 @@ ${tnMaterialsBlock(c)}`;
           <p class="mt-hint">Học viên bấm link (hoặc quét mã bằng Zalo/Camera) là học được ngay — không cài đặt, không lập tài khoản. Tiến độ được tự lưu trên máy của học viên để quay lại học tiếp.</p>
         </div>
       </div>
+      ${c.sample ? `<div class="mt-warn" style="margin-top:12px;">🔓 Link bài mẫu luôn mở và cố định. Học viên học qua link này <b>không được lưu kết quả</b> về cho cán bộ. Muốn theo dõi kết quả, bấm “📋 Sao chép thành bài của tôi” rồi gửi link của bài đã sao chép.</div>` : `
       <div class="divider-lbl">Mở / đóng liên kết</div>
       <div class="tn-share-ctl">
         <label class="tn-switch"><input type="checkbox" id="tn-sh-open" ${c.status!=='closed'?'checked':''} ${canEdit?'':'disabled'}><span></span> Cho phép học viên vào học</label>
         <label>Tự đóng lúc <input type="datetime-local" id="tn-sh-close" value="${escapeHtml(c.closeAt ? mtIsoToLocalInput(c.closeAt) : '')}" ${canEdit?'':'disabled'}></label>
         <span class="mt-hint">Đóng liên kết thì học viên đang học cũng dừng lại; kết quả đã có vẫn giữ nguyên.</span>
-      </div>`;
+      </div>`}`;
     box.querySelector('#tn-sh-copy').onclick = ()=> copyMessageText(url);
-    box.querySelector('#tn-sh-zalo').onclick = ()=> copyMessageText(`📚 Mời ${c.audience ? c.audience.toLowerCase() : 'bà con'} tham gia lớp tập huấn “${c.title}”${c.wardName ? ` của Hội Nông dân ${c.wardName}` : ''}.\nHọc ngay trên điện thoại, lúc nào rảnh thì học — có trợ giảng AI giải thích tận tình, hỏi bao nhiêu cũng được.\n👉 Bấm vào đây để học: ${url}`);
+    box.querySelector('#tn-sh-zalo').onclick = ()=> copyMessageText(`📚 Mời ${c.audience ? c.audience.toLowerCase() : 'bà con'} tham gia lớp tập huấn “${c.title}”${c.issuer ? ` của ${c.issuer}` : ''}.\nHọc ngay trên điện thoại, lúc nào rảnh thì học — có trợ giảng AI giải thích tận tình, hỏi bao nhiêu cũng được.\n👉 Bấm vào đây để học: ${url}`);
     box.querySelector('#tn-sh-try').onclick = ()=> tnOpenPreview(c);
-    if(canEdit){
+    if(canEdit && !c.sample){
       box.querySelector('#tn-sh-open').onchange = async e=>{ if(!await tnUpdate(c.id, { status: e.target.checked ? 'open' : 'closed' })) e.target.checked = !e.target.checked; else mtFlashSaved(); };
       box.querySelector('#tn-sh-close').onchange = async e=>{ if(await tnUpdate(c.id, { closeAt: mtLocalInputToIso(e.target.value) })) mtFlashSaved(); };
     }
@@ -1143,6 +1259,7 @@ ${tnMaterialsBlock(c)}`;
     const loose = struggles.filter(s=> !lessons.some(l=> l.id===s.lesson));
     const grp = c.groupLabel || subAdminLabel();
     box.innerHTML = `
+      ${c.sample ? `<div class="mt-warn">📊 Đây là <b>dữ liệu minh hoạ</b> (học viên giả) để đồng chí xem tab Kết quả trông thế nào. Bài mẫu không lưu kết quả của học viên thật.</div>` : ''}
       <div class="tn-stats">
         <div class="tn-stat"><b>${ls.length}</b><span>người đã vào học</span></div>
         <div class="tn-stat ok"><b>${done}</b><span>đã hoàn thành</span></div>
@@ -1236,14 +1353,15 @@ Dùng gạch đầu dòng, không dùng bảng.`;
   // =====================================================================
   // Cách AI tự xưng theo cách học viên muốn được gọi.
   function tnSelfCall(call){
-    return ({ 'Bác':'cháu', 'Chú':'cháu', 'Cô':'cháu', 'Ông':'cháu', 'Bà':'cháu', 'Anh':'em', 'Chị':'em', 'Em':'anh/chị', 'Bạn':'mình' })[call] || 'tôi';
+    return ({ 'Bác':'cháu', 'Chú':'cháu', 'Cô':'cháu', 'Ông':'cháu', 'Bà':'cháu', 'Anh':'em', 'Chị':'em', 'Em':'anh/chị', 'Bạn':'mình', 'Đồng chí':'tôi' })[call] || 'tôi';
   }
   function tnTutorSystem(c, L){
-    const lessons = tnLessons(c), me = tnSelfCall(L.call), you = `${L.call||'bạn'} ${String(L.name||'').trim().split(/\s+/).pop()||''}`.trim();
+    const lessons = tnLessons(c), me = tnSelfCall(L.call);
+    const you = L.call==='Đồng chí' ? `đồng chí ${String(L.name||'').trim().split(/\s+/).pop()||''}`.trim() : `${L.call||'bạn'} ${String(L.name||'').trim().split(/\s+/).pop()||''}`.trim();
     const prog = lessons.map((l,i)=> `P${i+1}=${(L.lessons||{})[l.id]==='done' ? 'đã xong' : ((L.lessons||{})[l.id]==='learning' ? 'đang học' : 'chưa học')}`).join(', ');
     const review = (L.review||[]).length ? `\nHỌC VIÊN VỪA LÀM BÀI KIỂM TRA CUỐI VÀ CÒN SAI CÁC Ý SAU — hãy ôn lại cho học viên từng ý một, hỏi lại cho chắc rồi mời làm lại bài kiểm tra:\n${L.review.map(x=> '- '+x).join('\n')}\n` : '';
-    return `Bạn là TRỢ GIẢNG AI của Hội Nông dân${c.wardName ? ' ' + c.wardName : ''}, kèm riêng MỘT học viên học bài tập huấn "${c.title}".${c.audience ? `\nĐối tượng của bài: ${c.audience}.` : ''}
-HỌC VIÊN: ${L.call||''} ${L.name||''}${L.group ? ` (${tnGroupText(c, L.group)})` : ''}. Luôn gọi học viên là "${you}" hoặc "${L.call||'bạn'}", tự xưng là "${me}". Lễ phép, thân tình, kiên nhẫn.
+    return `Bạn là TRỢ GIẢNG AI${c.issuer ? ' của ' + c.issuer : ''}, kèm riêng MỘT học viên học bài tập huấn "${c.title}".${c.audience ? `\nĐối tượng của bài: ${c.audience}. Chọn ví dụ gần với công việc, đời sống thực tế của đúng đối tượng này.` : ''}
+HỌC VIÊN: ${L.call||''} ${L.name||''}${L.group ? ` (${tnGroupText(c, L.group)})` : ''}. Luôn gọi học viên là "${you}" hoặc "${(L.call||'bạn').toLowerCase()==='đồng chí' ? 'đồng chí' : (L.call||'bạn')}", tự xưng là "${me}". Lễ phép, thân tình, kiên nhẫn.${c.basis ? `\nCĂN CỨ CỦA BÀI: ${c.basis}. Khi nêu quy định, số liệu thì nói rõ lấy từ đâu (văn bản, Điều, khoản nếu tài liệu có ghi).` : ''}${c.sample ? `\nĐÂY LÀ BÀI TẬP HUẤN MẪU do phần mềm soạn để minh hoạ: thông tin có thể sai sót, chưa đầy đủ hoặc đã thay đổi. Ở lượt chào đầu tiên, nhắc học viên một câu ngắn về điều này; khi học viên hỏi việc cụ thể của mình (mức vay, lãi suất, hồ sơ…) thì khuyên hỏi lại cán bộ Hội nơi cư trú.` : ''}
 
 PHẠM VI KIẾN THỨC — RẤT QUAN TRỌNG:
 - CHỈ giảng dựa trên TÀI LIỆU TẬP HUẤN bên dưới. Không bịa số liệu, quy định, tên văn bản. Tài liệu không nói tới thì nói thật là tài liệu chưa đề cập và gợi ý hỏi cán bộ Hội.
@@ -1318,7 +1436,7 @@ ${tnMaterialsBlock(c)}`;
     x.strokeStyle = '#c9a53a'; x.lineWidth = 4; x.strokeRect(70,70,W-140,H-140);
     x.textAlign = 'center'; x.textBaseline = 'top';
     x.fillStyle = '#2F4A3C'; x.font = `600 34px ${font}`;
-    x.fillText(`HỘI NÔNG DÂN${c.wardName ? ' ' + String(c.wardName).toUpperCase() : ''}`, W/2, 130);
+    if(c.issuer) surveyQrWrapLines(x, String(c.issuer).toUpperCase(), W-300).slice(0,2).forEach((ln,i)=> x.fillText(ln, W/2, 118 + i*40));
     x.font = `800 72px ${font}`; x.fillStyle = '#8a6d1c';
     x.fillText('XÁC NHẬN HOÀN THÀNH TẬP HUẤN', W/2, 210);
     x.fillStyle = '#333'; x.font = `400 36px ${font}`; x.fillText('Xác nhận', W/2, 340);
@@ -1332,6 +1450,14 @@ ${tnMaterialsBlock(c)}`;
     x.fillText(`${L.quiz && L.quiz.attempts ? `Kết quả kiểm tra: ${L.quiz.best}% · ` : ''}Ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()}`, W/2, 880);
     x.font = `400 24px ${font}`; x.fillStyle = '#8a9585';
     x.fillText('Học trực tuyến cùng trợ giảng AI · hoinongdan.sotay.org', W/2, 960);
+    if(c.sample){
+      // Bài mẫu: chữ chìm chéo "BẢN MẪU" + dòng cảnh báo đỏ ở chân giấy.
+      x.save(); x.translate(W/2, H/2); x.rotate(-0.42);
+      x.fillStyle = 'rgba(198,40,40,.13)'; x.font = `900 240px ${font}`; x.textBaseline = 'middle'; x.fillText('BẢN MẪU', 0, 0);
+      x.restore();
+      x.fillStyle = '#c62828'; x.font = `700 24px ${font}`; x.textBaseline = 'top';
+      surveyQrWrapLines(x, 'Bài tập huấn MẪU — chỉ để minh hoạ, không có giá trị xác nhận.', W-300).slice(0,2).forEach((ln,i)=> x.fillText(ln, W/2, 1000 + i*30));
+    }
     return cv;
   }
 
@@ -1345,8 +1471,9 @@ ${tnMaterialsBlock(c)}`;
     let sending = false, abort = null, quizRun = null, recog = null;
     const saveLocal = ()=>{ if(preview || !L) return; try{ localStorage.setItem(lsKey, JSON.stringify({ ...L, msgs: (L.msgs||[]).slice(-80) })); }catch(e){} };
     const lessonIdx = n=> { const ls = tnLessons(course); return ls[n-1] ? ls[n-1].id : null; };
+    // Bài mẫu (link cố định) KHÔNG lưu kết quả lên máy chủ — tiến độ chỉ giữ trên máy của học viên.
     const syncRemote = ()=>{
-      if(preview || !L) return;
+      if(preview || !L || (course && course.sample)) return;
       const rec = { id:L.id, name:L.name, call:L.call||'', group:L.group||'', startedAt:L.startedAt, lastAt:new Date().toISOString(),
         level:L.level||null, lessons:L.lessons||{}, struggles:(L.struggles||[]).slice(-30), quiz:L.quiz||null, completedAt:L.completedAt||null, turns:L.turns||0 };
       try{ rtdb.ref(`training_learners/${cid}/${L.id}`).set(JSON.parse(JSON.stringify(rec))).catch(e=> console.warn('[Tập huấn] Không lưu được tiến độ lên máy chủ (vẫn giữ trên máy):', e)); }catch(e){}
@@ -1354,10 +1481,13 @@ ${tnMaterialsBlock(c)}`;
     const allDone = ()=>{ const ls = tnLessons(course); return ls.length>0 && ls.every(l=> (L.lessons||{})[l.id]==='done'); };
     const hasQuiz = ()=> tnQuiz(course).length>0;
     const markComplete = ()=>{ if(!L.completedAt){ L.completedAt = new Date().toISOString(); } };
+    // Dòng đầu: "🎓 Lớp tập huấn có trợ giảng AI · {Cơ quan phát hành}" — để trống ô Cơ quan phát hành thì không có hậu tố.
+    const eyebrow = ()=> `🎓 Lớp tập huấn có trợ giảng AI${course.issuer ? ` · ${escapeHtml(course.issuer)}` : ''}`;
+    const sampleWarn = ()=> course && course.sample ? `<div class="tnp-sample-warn">${escapeHtml(TN_SAMPLE_WARN)}</div>` : '';
     const headHtml = ()=> `<header class="tnp-head">
-        <div class="tnp-eyebrow">🎓 Lớp tập huấn có trợ giảng AI${course.wardName ? ` · Hội Nông dân ${escapeHtml(course.wardName)}` : ''}</div>
+        <div class="tnp-eyebrow">${eyebrow()}</div>
         <h1>${escapeHtml(course.title||'Bài tập huấn')}</h1>
-      </header>`;
+      </header>${sampleWarn()}`;
     const foot = `<footer class="tnp-foot">Tập huấn bằng AI · hoinongdan.sotay.org</footer>`;
     const shell = inner=>{ container.innerHTML = `<div class="tnp ${preview ? 'is-preview' : ''}">${inner}</div>`; };
 
@@ -1375,7 +1505,10 @@ ${tnMaterialsBlock(c)}`;
       else paintChat();
     }
     function paintWelcome(){
-      const ls = tnLessons(course), nq = Math.min(tnQuiz(course).length, tnSettings(course).quizCount), groups = Array.isArray(course.groups) ? course.groups : [];
+      const ls = tnLessons(course), nq = Math.min(tnQuiz(course).length, tnSettings(course).quizCount);
+      // Danh sách ấp/khu phố chỉ dùng khi nhãn ô vẫn là danh xưng cấp cơ sở (cán bộ đổi nhãn thành "Đơn vị
+      // công tác"… thì danh sách ấp không còn đúng nữa -> cho gõ tự do).
+      const groups = Array.isArray(course.groups) && (!course.subLabel || !course.groupLabel || course.groupLabel===course.subLabel) ? course.groups : [];
       shell(`${headHtml()}
         <section class="tnp-card">
           ${course.intro ? `<p class="tnp-intro">${surveyLinkify(course.intro)}</p>` : (course.summary ? `<p class="tnp-intro">${escapeHtml(course.summary)}</p>` : '')}
@@ -1385,16 +1518,17 @@ ${tnMaterialsBlock(c)}`;
             <div><span>📝</span>${nq ? `Cuối bài làm ${nq} câu trắc nghiệm ngắn` : 'Học xong các phần là hoàn thành'}</div>
           </div>
           <div class="tnp-outline"><b>Bài học gồm ${ls.length} phần:</b><ol>${ls.map(l=>`<li>${escapeHtml(l.title)}</li>`).join('')}</ol></div>
+          ${course.basis ? `<div class="tnp-basis"><b>📜 Căn cứ:</b> ${escapeHtml(course.basis)}</div>` : ''}
         </section>
         <section class="tnp-card">
           <h2 class="tnp-h2">Trước khi bắt đầu</h2>
-          <div class="tnp-field"><label for="tnp-name">Họ và tên <span class="req">*</span></label><input id="tnp-name" maxlength="60" autocomplete="name" placeholder="VD: Nguyễn Văn Ba"></div>
-          <div class="tnp-field"><label>Trợ giảng nên gọi mình là</label><div class="tnp-calls">${TN_CALLS.map(k=>`<label><input type="radio" name="tnp-call" value="${k}"><span>${k}</span></label>`).join('')}</div></div>
+          <div class="tnp-field"><label for="tnp-name">Họ và tên <span class="req">*</span></label><input id="tnp-name" maxlength="60" autocomplete="name" placeholder="${course.defaultCall==='Đồng chí' ? 'VD: Nguyễn Văn An' : 'VD: Nguyễn Văn Ba'}"></div>
+          <div class="tnp-field"><label>Trợ giảng nên gọi mình là</label><div class="tnp-calls">${TN_CALLS.map(k=>`<label><input type="radio" name="tnp-call" value="${k}" ${course.defaultCall===k ? 'checked' : ''}><span>${k}</span></label>`).join('')}</div></div>
           <div class="tnp-field"><label for="tnp-group">${escapeHtml(course.groupLabel || 'Nơi ở')} <span class="tnp-opt">(không bắt buộc)</span></label>${groups.length
             ? `<select id="tnp-group"><option value="">— Chọn —</option>${groups.map(g=>`<option>${escapeHtml(g)}</option>`).join('')}<option value="__other">Khác…</option></select><input id="tnp-group-other" maxlength="60" placeholder="Ghi rõ" style="display:none; margin-top:8px;">`
             : `<input id="tnp-group" maxlength="60">`}</div>
           <button class="tnp-btn tnp-btn-main" id="tnp-start">Bắt đầu học ›</button>
-          <p class="tnp-note">Tên của mình chỉ dùng để cán bộ Hội biết ai đã học. Cuộc trò chuyện được lưu trên chính điện thoại này để lần sau học tiếp.</p>
+          <p class="tnp-note">${course.sample ? 'Đây là bài mẫu: kết quả học không gửi đi đâu cả.' : 'Tên của mình chỉ dùng để cán bộ Hội biết ai đã học.'} Cuộc trò chuyện được lưu trên chính điện thoại này để lần sau học tiếp.</p>
         </section>${foot}`);
       const gs = container.querySelector('#tnp-group'), go = container.querySelector('#tnp-group-other');
       if(gs && go) gs.onchange = ()=>{ go.style.display = gs.value==='__other' ? '' : 'none'; if(gs.value==='__other') go.focus(); };
@@ -1428,9 +1562,10 @@ ${tnMaterialsBlock(c)}`;
       const canQuiz = allDone() && hasQuiz() && !L.completedAt;
       shell(`<div class="tnp-chat">
         <div class="tnp-chat-top">
-          <div class="tnp-chat-title"><small>🎓 Lớp tập huấn</small><b>${escapeHtml(course.title||'')}</b></div>
+          <div class="tnp-chat-title"><small>${eyebrow()}</small><b>${escapeHtml(course.title||'')}</b></div>
           <button class="tnp-icon-btn" id="tnp-menu" aria-label="Tuỳ chọn">⋯</button>
         </div>
+        ${course.sample ? `<div class="tnp-sample-bar" title="${escapeHtml(TN_SAMPLE_WARN)}">⚠️ Bài tập huấn MẪU — thông tin có thể sai sót, chưa đầy đủ hoặc đã thay đổi.</div>` : ''}
         ${progressHtml()}
         ${canQuiz ? `<button class="tnp-btn tnp-btn-quiz" id="tnp-go-quiz">📝 Làm bài kiểm tra cuối</button>` : ''}
         ${L.completedAt ? `<button class="tnp-btn tnp-btn-done" id="tnp-go-done">🏅 Đã hoàn thành — xem giấy xác nhận</button>` : ''}
@@ -1578,7 +1713,7 @@ ${tnMaterialsBlock(c)}`;
           <div class="tnp-result-ico">${pass ? '🏅' : '💪'}</div>
           <h2>${pass ? 'Chúc mừng! Đã đạt bài kiểm tra' : 'Chưa đạt — mình ôn lại chút nhé'}</h2>
           <div class="tnp-score"><b>${res.right}/${res.n}</b> câu đúng · <b>${res.pct}%</b></div>
-          <p>${pass ? `Mức đạt là ${tnSettings(course).passPercent}%. Kết quả đã được gửi tới cán bộ Hội.` : `Cần đúng từ ${tnSettings(course).passPercent}% để đạt. Trợ giảng sẽ ôn lại những câu còn sai, rồi mình làm lại.`}</p>
+          <p>${pass ? `Mức đạt là ${tnSettings(course).passPercent}%.${course.sample ? '' : ' Kết quả đã được gửi tới cán bộ Hội.'}` : `Cần đúng từ ${tnSettings(course).passPercent}% để đạt. Trợ giảng sẽ ôn lại những câu còn sai, rồi mình làm lại.`}</p>
           ${pass ? `<button class="tnp-btn tnp-btn-main" id="tnp-r-cert">🏅 Xem giấy xác nhận</button><button class="tnp-btn" id="tnp-r-chat">💬 Về lớp học để hỏi thêm</button>`
                  : `<button class="tnp-btn tnp-btn-main" id="tnp-r-review">📖 Ôn lại cùng trợ giảng</button><button class="tnp-btn" id="tnp-r-again">🔁 Làm lại ngay</button>`}
         </section>${foot}`);
@@ -1593,7 +1728,7 @@ ${tnMaterialsBlock(c)}`;
         <section class="tnp-card tnp-result pass">
           <div class="tnp-result-ico">🏅</div>
           <h2>Đã hoàn thành bài tập huấn</h2>
-          <p>Cảm ơn ${escapeHtml(L.call||'')} ${escapeHtml(L.name||'')} đã dành thời gian học. Kết quả đã được gửi tới cán bộ Hội.</p>
+          <p>Cảm ơn ${escapeHtml(L.call||'')} ${escapeHtml(L.name||'')} đã dành thời gian học.${course.sample ? '' : ' Kết quả đã được gửi tới cán bộ Hội.'}</p>
           <div class="tnp-cert" id="tnp-cert"></div>
           <button class="tnp-btn tnp-btn-main" id="tnp-d-dl">⬇️ Tải giấy xác nhận về máy</button>
           <button class="tnp-btn" id="tnp-d-chat">💬 Về lớp học để hỏi thêm</button>
@@ -1637,6 +1772,9 @@ ${tnMaterialsBlock(c)}`;
     document.body.classList.add('public-training-mode');
     document.title = 'Tập huấn bằng AI - Hoinongdan.sotay.org';
     root.innerHTML = `<div class="tnp"><div class="tnp-loading">Đang mở lớp tập huấn…</div></div>`;
+    // Bài mẫu: nằm sẵn trong mã, không đọc Firebase, không lưu kết quả.
+    const sample = tnSampleById(id);
+    if(sample){ document.title = `${sample.title} - Tập huấn bằng AI`; tnPublicMount(root, { course:sample, id }); return; }
     if(!TN_ID_RE.test(id)){ tnPublicMount(root, { course:null, id }); return; }
     let mount = null;
     rtdb.ref(`trainings/${id}`).on('value', snap=>{

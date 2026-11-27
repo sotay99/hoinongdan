@@ -257,6 +257,219 @@
         "updatedAt": "2026-11-27T00:00:00.000Z",
         "deleted": false
       },
+      {
+        "id": "mau-can-bo-hoi-giup-hoi-vien",
+        "sample": true,
+        "scope": "sample",
+        "title": "Cán bộ Hội cấp cơ sở giúp hội viên phát triển kinh tế — từ trăn trở đến việc làm cụ thể",
+        "audience": "Cán bộ Hội Nông dân cấp cơ sở (xã, phường) và chi hội trưởng",
+        "issuer": "",
+        "defaultCall": "Đồng chí",
+        "groupLabel": "Đơn vị công tác",
+        "groups": [],
+        "basis": "Tài liệu tham khảo: Hỏi đáp “Cách người cán bộ Hội Nông dân giúp đỡ hội viên sao cho hiệu quả” — tác giả Phạm Văn Thành (tài liệu tham khảo, không phải văn bản quy phạm pháp luật)",
+        "intro": "Bài tập huấn ngắn dành cho cán bộ Hội cơ sở: vì sao nông dân khó giàu và phong trào khó bền, hướng giải căn cơ, và năm việc cụ thể Hội cấp cơ sở làm được ngay. Cuối bài, trợ giảng cùng đồng chí chọn việc phù hợp với địa bàn mình. Khoảng 20 phút.",
+        "summary": "Tài liệu chỉ ra các nút thắt khiến nông dân khó giàu (sản xuất manh mún, trồng theo phong trào, liên kết lỏng lẻo, hỗ trợ phần ngọn), hướng giải căn cơ (tư duy kinh tế, hợp tác xã kiểu mới, chế biến) và năm việc cụ thể Hội cấp cơ sở làm được ngay.",
+        "materials": [
+          {
+            "id": "mmb1",
+            "name": "Hỏi đáp: Cách người cán bộ Hội Nông dân giúp đỡ hội viên sao cho hiệu quả (Phạm Văn Thành, đã biên tập nhẹ)",
+            "kind": "paste",
+            "via": "local",
+            "text": "CÁCH NGƯỜI CÁN BỘ HỘI NÔNG DÂN GIÚP ĐỠ HỘI VIÊN SAO CHO HIỆU QUẢ (HỎI ĐÁP)\nTác giả: Phạm Văn Thành. Bản dùng trong bài tập huấn mẫu đã được biên tập nhẹ về câu chữ và cập nhật tên gọi cấp hành chính; giữ nguyên ý của tài liệu gốc.\n\nHỎI (lần 1): Tôi công tác ở Hội Nông dân đã 2 năm, phối hợp triển khai nhiều dự án, đề tài, phong trào nông dân, nhưng thấy chúng không bền vững, một thời gian lại tắt dần. Vì sao người nông dân cứ lặp lại cảnh \"được mùa mất giá, được giá mất mùa\"? Làm sao để nông dân giàu lên như người làm công ăn lương hay doanh nghiệp? Có phải đợi đến khi khoa học công nghệ, trí tuệ nhân tạo thật phát triển thì nông dân mới thoát nghèo? Hay do thị trường — sản xuất dồi dào thì lại mất giá?\n\nĐÁP:\nTrăn trở này là nỗi niềm chung của nhiều người tâm huyết với nông nghiệp, nông dân, nông thôn. Vòng luẩn quẩn \"được mùa mất giá, được giá mất mùa\" hay các phong trào \"sớm nở tối tàn\" không phải ngẫu nhiên, và lời giải không phải là ngồi chờ trí tuệ nhân tạo hay công nghệ tương lai. Gốc rễ nằm ở những nút thắt sau:\n\n1. Nút thắt cốt lõi: vì sao nông dân mãi quanh quẩn?\n\na) Quy mô sản xuất nhỏ lẻ, manh mún\n- Nông nghiệp nước ta về bản chất vẫn là kinh tế hộ gia đình; đất đai bị chia nhỏ, mỗi hộ chỉ vài sào, vài công.\n- Sản xuất nhỏ lẻ thì chi phí đầu vào (phân bón, thuốc bảo vệ thực vật, giống) tính trên một đơn vị sản phẩm rất cao.\n- Nông dân khó tự đầu tư máy móc hiện đại vì không bõ công và không đủ vốn.\n- Vì nhỏ lẻ nên không cung ứng được lượng hàng lớn, đồng đều chất lượng cho đơn vị thu mua lớn hoặc xuất khẩu chính ngạch.\n\nb) Điệp khúc \"được mùa mất giá\" — cái bẫy của thị trường tự phát\nĐây là quy luật cung — cầu, nhưng bị khuếch đại bởi tâm lý đám đông:\n- Thiếu thông tin thị trường: trồng cây gì, nuôi con gì chủ yếu nhìn sang nhà hàng xóm. Thấy năm nay sầu riêng được giá, năm sau cả vùng chặt cà phê trồng sầu riêng; kết quả là cung vượt cầu, giá xuống đáy.\n- Tư duy thương mại ngắn hạn: quan hệ giữa nông dân và thương lái (kênh tiêu thụ chính) rất lỏng lẻo. Được giá thì có người phá vỡ cam kết với doanh nghiệp để bán ra ngoài; mất giá thì thương lái bỏ mặc nông dân. Không có hợp đồng hay cam kết bền vững nào bảo vệ hai bên.\n\nc) Vì sao các phong trào, dự án không bền vững\n- Hỗ trợ phần ngọn, thiếu phần gốc: nhiều dự án chỉ hỗ trợ kỹ thuật nuôi trồng (phần ngọn) mà chưa giải quyết được đầu ra (phần gốc). Hết kinh phí hỗ trợ, nông dân lại tự xoay xở với thị trường, gặp khó lại quay về lối cũ.\n- Tâm lý ỷ lại: một bộ phận tham gia mô hình chủ yếu để nhận hỗ trợ (vốn, giống, phân bón), chưa thật sự chuyển từ \"sản xuất nông nghiệp\" sang \"kinh doanh nông nghiệp\".\n\n2. Giải pháp căn cơ: nông dân có cần đợi AI hay công nghệ cao?\nCông nghệ, AI, tự động hoá là công cụ rất tốt, nhưng nếu chưa giải quyết được tư duy và cách tổ chức sản xuất thì công nghệ cao cũng bất lực. Một robot hái cam hay cảm biến đo độ ẩm đất không giúp bán được cam nếu cả vùng đều thừa cam.\nĐể nông dân giàu lên, giải pháp căn cơ phải đi từ 3 sự chuyển đổi:\n\na) Chuyển từ \"tư duy sản xuất\" sang \"tư duy kinh tế\"\n- Không chỉ cắm cúi làm ra sản phẩm rồi trông chờ thương lái đến mua; phải biết thị trường cần gì, cần bao nhiêu, tiêu chuẩn chất lượng ra sao (VietGAP, GlobalGAP, hữu cơ) để sản xuất đúng thứ thị trường cần.\n- Người nông dân tự xem mình là một \"chủ doanh nghiệp nhỏ\": biết tính chi phí, khấu hao, quản trị rủi ro.\n\nb) \"Muốn đi xa phải đi cùng nhau\" — hợp tác xã kiểu mới\n- Đây là chìa khoá để giải bài toán manh mún: liên kết đất, liên kết người vào các hợp tác xã kiểu mới hoạt động thực chất.\n- Hợp tác xã đại diện cho hàng trăm nông dân để mua vật tư đầu vào giá sỉ (giảm chi phí) và ký hợp đồng tiêu thụ dài hạn với siêu thị, doanh nghiệp xuất khẩu (ổn định đầu ra).\n- Có hợp tác xã thì việc đưa máy móc, công nghệ, AI vào đồng ruộng mới khả thi và có lời.\n\nc) Chế biến sâu và xây dựng thương hiệu\n- Nông sản phần lớn còn bán thô (quả tươi, hạt thô), tỷ lệ chế biến sâu thấp. Bán xoài tươi thì nhanh hỏng, dễ bị ép giá; làm nước ép, xoài sấy dẻo thì để được lâu và giá trị tăng nhiều lần.\n- Chế biến là \"van điều tiết\" của thị trường: khi được mùa, nông sản vào nhà máy chế biến thay vì phải bán tháo, giữ cho giá không sụt quá sâu.\n\nĐôi điều chia sẻ với cán bộ Hội: thay vì chỉ mang đến những hỗ trợ ngắn hạn (con giống, phân bón), Hội nên hướng mạnh hơn tới:\n- Thay đổi nhận thức và tư duy: tổ chức tập huấn không chỉ về kỹ thuật mà về kỹ năng thị trường, quản lý tài chính và liên kết kinh tế.\n- Làm cầu nối thực chất: giúp nông dân kết nối doanh nghiệp bao tiêu uy tín; xây dựng hợp tác xã có ban quản trị nhạy bén kinh doanh, không chỉ làm hành chính.\n- Số hoá thông tin: chỉ cần giúp nông dân tiếp cận tốt thông tin dự báo thị trường, cảnh báo dịch bệnh qua các ứng dụng điện thoại cơ bản cũng là bước tiến lớn.\nNông dân Việt Nam cần cù, thông minh, chịu khó. Cái còn thiếu không phải giọt mồ hôi, mà là cách tổ chức sản xuất bài bản và tư duy thị trường sắc bén.\n\nHỎI (lần 2): Những giải pháp trên rất hay nhưng còn tầm vĩ mô. Tôi là cán bộ Hội Nông dân cấp xã, thường xuyên xuống địa bàn, làm việc cùng nông dân. Cụ thể bản thân tôi và Hội Nông dân xã phải làm những việc gì, giải pháp nào thực tế nhất ở cơ sở?\n\nĐÁP:\nGóp ý rất thẳng thắn và đúng. Các chiến lược như \"tư duy kinh tế\", \"chế biến sâu\", \"hợp tác xã kiểu mới\" là tầm vĩ mô; đặt lên vai cán bộ Hội cấp xã việc xây nhà máy chế biến hay thay đổi cả nền kinh tế là quá sức.\nCấp xã là cấp trực tiếp, sát dân nhất, nhưng nguồn lực, kinh phí và thẩm quyền có hạn. Vì vậy giải pháp ở cấp xã phải là những việc \"không tốn nhiều tiền nhưng tốn công sức, làm được ngay và thấy ngay kết quả\". Năm việc cụ thể:\n\n1. Thay vì tuyên truyền suông, hãy làm \"bác sĩ cây trồng, vật nuôi\" từ xa\n- Nông dân sợ nhất là mua nhầm thuốc giả, phân bón giả, và gặp dịch bệnh mà không biết hỏi ai (hỏi đại lý thì đại lý thường chỉ lo bán hàng).\n- Việc cụ thể: lập các nhóm Zalo theo từng chuyên canh (ví dụ \"Nhóm trồng sầu riêng thôn A\", \"Nhóm nuôi heo thôn B\").\n- Cách làm: cán bộ Hội không cần là chuyên gia. Mời 1–2 kỹ sư nông nghiệp có uy tín (của cơ quan khuyến nông, trạm trồng trọt — bảo vệ thực vật, thú y, hoặc kỹ sư có tâm của doanh nghiệp, với điều kiện chỉ tư vấn kỹ thuật, không quảng cáo bán hàng) vào nhóm. Ruộng vườn có dấu hiệu bệnh, bà con chụp ảnh, quay video gửi lên; kỹ sư \"bắt bệnh\" và hướng dẫn xử lý ngay.\n- Kết quả: bà con thấy Hội có ích thật sự, giải quyết được cái khó hằng ngày; cán bộ không phải đi từng nhà mời họp, dân tự tin Hội.\n\n2. Chữa bệnh \"trồng theo phong trào\" bằng bảng thông tin nông nghiệp\n- Nông dân trồng gì thường theo cảm tính: thấy nhà bên cạnh bán được giá thì làm theo. Hội xã cần là \"bộ não thông tin\" của xã.\n- Việc cụ thể: đặt một bảng thông tin nông nghiệp lớn ở nơi tiếp dân của Ủy ban nhân dân xã hoặc hội trường thôn, ấp (có thể làm thêm bản trên nhóm Zalo).\n- Cách làm: cập nhật hằng tuần (hoặc hằng ngày) hai thông tin: giá cả thị trường (giá chợ đầu mối, giá thu mua của thương lái lớn tại địa phương để dân không bị ép giá); bản đồ diện tích (ví dụ: \"Thôn A đã trồng 20 ha kiệu — đã đủ sản lượng tiêu thụ, hộ tiếp theo nên cân nhắc cây ngắn ngày khác\").\n- Kết quả: giúp bà con bớt \"nóng\" khi thấy một cây đang lên giá, giảm rủi ro cung vượt cầu ngay tại địa bàn.\n\n3. Rà lại các mô hình cũ: đừng gom ép, hãy đi tìm \"hạt nhân\"\n- Sai lầm hay gặp: gom đại vài chục hộ lại, tuyên bố thành lập tổ hợp tác cho có thành tích, rồi tổ tan rã.\n- Việc cụ thể: tìm \"nông dân sản xuất giỏi\" hoặc \"người thu mua có tâm\" ngay tại địa phương.\n- Cách làm: xã nào cũng có 1–2 nông dân giỏi, nhạy bén, hoặc một người thu mua trẻ muốn làm ăn bài bản. Đến gặp riêng, đặt vấn đề: \"Anh làm giỏi, anh làm trưởng nhóm; Hội hỗ trợ thủ tục, hướng dẫn vay vốn ưu đãi cho anh và 5 hộ xung quanh làm theo quy trình của anh.\"\n- Kết quả: nông dân \"trăm nghe không bằng một thấy\" — họ không nghe cán bộ nói, nhưng thấy hàng xóm làm giàu thì tự làm theo. Hội chỉ cần đỡ đầu cho \"đầu tàu\", để đầu tàu kéo cả đoàn tàu.\n\n4. Bảo vệ bà con trước \"tín dụng đen\" và vòng mua chịu vật tư giá cao\n- Nhiều hộ nghèo vì mắc bẫy: đầu vụ vay tiền hoặc mua chịu phân bón giá cao của đại lý; cuối vụ phải bán nông sản rẻ cho chính đại lý đó để trừ nợ.\n- Việc cụ thể: quản lý tốt và khai thác hiệu quả các tổ tiết kiệm và vay vốn của Ngân hàng Chính sách xã hội, nguồn vốn Quỹ Hỗ trợ nông dân và các chương trình phối hợp với Ngân hàng Nông nghiệp và Phát triển nông thôn (Agribank).\n- Cách làm: rà soát từng hộ, hướng dẫn làm thủ tục vay vốn ưu đãi nhanh, minh bạch, để bà con không phải \"vay nóng\" hay ký sổ nợ đại lý. Đồng thời phối hợp, ký thỏa thuận với các công ty vật tư nông nghiệp uy tín để cung ứng phân bón, vật tư tận gốc cho bà con theo hình thức trả chậm, đúng quy định và có giám sát; Hội không đứng ra bảo lãnh nghĩa vụ trả nợ của cá nhân.\n- Kết quả: cắt vòng \"mua đắt bán rẻ\" làm bà con thiệt thòi.\n\n5. Chủ động kết nối nông sản ra khỏi lũy tre làng\n- Đừng đợi doanh nghiệp lớn tìm đến; Hội xã phải chủ động \"chào hàng\".\n- Việc cụ thể: kết nối với cửa hàng thực phẩm sạch, các nhóm chợ chung cư ở thành phố, hoặc Hội Nông dân các phường, xã ở đô thị lân cận.\n- Cách làm: xã có đặc sản gì (gạo ngon, rau sạch, trái cây đặc trưng) thì chụp ảnh, làm hồ sơ nhỏ chứng minh nguồn gốc rõ ràng; dùng quan hệ trong hệ thống Hội để kết nối vào các phiên chợ nông sản, điểm bán của các tổ chức đoàn thể.\n- Kết quả: tạo kênh tiêu thụ riêng, tuy nhỏ nhưng giúp nông dân có đầu ra trực tiếp, ít qua trung gian, nâng giá trị sản phẩm.\n\nTóm lại, một ngày làm việc thực chất của cán bộ Hội xã không phải chỉ ngồi viết báo cáo phong trào, mà là: sáng xuống vườn xem nhà ông A xử lý bệnh trên cây có cam thế nào; trưa lên nhóm Zalo nhắc bà con giá heo đang giảm, chưa nên xuất chuồng vội; chiều cùng cán bộ Ngân hàng Chính sách xã hội xét hồ sơ vay vốn cho mấy hộ nghèo; tối ngồi với chủ nhiệm hợp tác xã bàn tháng sau bán rau cho ai.\nLàm được những việc \"tuy nhỏ nhưng thật\" như vậy, cán bộ Hội mới thật sự là chỗ dựa của nông dân ở cơ sở.",
+            "addedAt": "2026-11-27T00:00:00.000Z"
+          }
+        ],
+        "lessons": [
+          {
+            "id": "lmb1",
+            "title": "Vì sao nông dân khó giàu và phong trào khó bền?",
+            "goal": "Chỉ ra được các nút thắt gốc rễ thay vì đổ lỗi cho thị trường hay chờ công nghệ.",
+            "points": [
+              "Sản xuất nhỏ lẻ, manh mún: chi phí đầu vào cao, khó đầu tư máy móc, không đủ hàng lớn và đồng đều cho người mua lớn",
+              "\"Được mùa mất giá\" do thiếu thông tin thị trường và tâm lý đám đông — thấy hàng xóm được giá là làm theo, cung vượt cầu",
+              "Liên kết với thương lái, doanh nghiệp lỏng lẻo, thiếu cam kết ràng buộc hai bên",
+              "Dự án không bền vì chỉ hỗ trợ phần ngọn (kỹ thuật), thiếu phần gốc (đầu ra), cộng thêm tâm lý ỷ lại vào hỗ trợ"
+            ]
+          },
+          {
+            "id": "lmb2",
+            "title": "Hướng giải căn cơ: tư duy, hợp tác, chế biến",
+            "goal": "Hiểu công nghệ chỉ là công cụ; cái cần trước là tư duy kinh tế và cách tổ chức sản xuất.",
+            "points": [
+              "Công nghệ, AI không giúp bán được hàng nếu cả vùng thừa sản phẩm — phải giải quyết tư duy và tổ chức sản xuất trước",
+              "Chuyển từ tư duy sản xuất sang tư duy kinh tế: sản xuất theo nhu cầu, tiêu chuẩn thị trường; tự xem mình là chủ doanh nghiệp nhỏ",
+              "Hợp tác xã kiểu mới thực chất: mua vật tư giá sỉ, ký hợp đồng tiêu thụ dài hạn, tạo điều kiện đưa máy móc, công nghệ vào",
+              "Chế biến sâu và thương hiệu là \"van điều tiết\" giá khi được mùa",
+              "Vai trò của Hội: thay đổi nhận thức, làm cầu nối thực chất, giúp nông dân tiếp cận thông tin thị trường"
+            ]
+          },
+          {
+            "id": "lmb3",
+            "title": "Năm việc Hội cấp cơ sở làm được ngay",
+            "goal": "Nắm được 5 việc cụ thể, ít tốn kinh phí, làm được ngay và thấy kết quả.",
+            "points": [
+              "Nhóm Zalo theo chuyên canh có kỹ sư uy tín tư vấn — chỉ tư vấn kỹ thuật, không quảng cáo bán hàng",
+              "Bảng thông tin nông nghiệp: giá cả thị trường và bản đồ diện tích, cập nhật hằng tuần, để bà con bớt trồng theo phong trào",
+              "Không gom ép lập tổ cho có thành tích; tìm \"hạt nhân\" — nông dân giỏi, người thu mua có tâm — làm đầu tàu cho vài hộ làm theo",
+              "Chống tín dụng đen, vòng mua chịu vật tư giá cao: khai thác tốt tổ vay vốn Ngân hàng Chính sách xã hội, Quỹ Hỗ trợ nông dân; phối hợp cung ứng vật tư trả chậm đúng quy định, Hội không bảo lãnh nợ cá nhân",
+              "Chủ động kết nối tiêu thụ qua hệ thống Hội: hồ sơ nguồn gốc rõ ràng, phiên chợ nông sản, cửa hàng thực phẩm sạch"
+            ]
+          },
+          {
+            "id": "lmb4",
+            "title": "Áp dụng cho địa bàn của đồng chí",
+            "goal": "Chọn được 1–2 việc phù hợp với địa bàn mình và cách bắt đầu trong tháng tới.",
+            "points": [
+              "Xác định chuyên canh chính và nút thắt lớn nhất của bà con trên địa bàn mình",
+              "Chọn 1–2 việc trong năm việc, ưu tiên việc ít tốn kinh phí và thấy kết quả sớm",
+              "Lên bước đầu cụ thể: gặp ai, làm gì, trong bao lâu, đo kết quả bằng gì",
+              "Một ngày làm việc thực chất là đi cơ sở, theo sát việc của bà con, không chỉ viết báo cáo phong trào"
+            ]
+          }
+        ],
+        "quiz": [
+          {
+            "id": "qmb1",
+            "q": "Theo tài liệu, gốc rễ của vòng \"được mùa mất giá\" là gì?",
+            "options": [
+              "Do thời tiết thất thường",
+              "Thiếu thông tin thị trường và tâm lý đám đông khiến cung vượt cầu",
+              "Do nhà nước không mua hết nông sản",
+              "Do nông dân lười"
+            ],
+            "answer": 1,
+            "explain": "Phần 1: nông dân trồng theo hàng xóm, thiếu thông tin thị trường nên cả vùng cùng làm một thứ, cung vượt cầu.",
+            "lessonId": "lmb1"
+          },
+          {
+            "id": "qmb2",
+            "q": "Vì sao nhiều dự án, phong trào \"sớm nở tối tàn\"?",
+            "options": [
+              "Vì kinh phí quá nhiều",
+              "Vì chỉ hỗ trợ phần ngọn (kỹ thuật), thiếu phần gốc (đầu ra), cộng tâm lý ỷ lại",
+              "Vì nông dân không thích học kỹ thuật",
+              "Vì cán bộ Hội thay đổi liên tục"
+            ],
+            "answer": 1,
+            "explain": "Phần 1: hỗ trợ phần ngọn, thiếu phần gốc và tâm lý ỷ lại vào hỗ trợ.",
+            "lessonId": "lmb1"
+          },
+          {
+            "id": "qmb3",
+            "q": "Nhận định nào đúng với tài liệu về vai trò của công nghệ, AI?",
+            "options": [
+              "Phải chờ AI phát triển nông dân mới giàu được",
+              "Công nghệ là công cụ tốt nhưng phải giải quyết tư duy và tổ chức sản xuất trước",
+              "Công nghệ không có ích gì cho nông nghiệp",
+              "Chỉ cần mua máy móc là hết nghèo"
+            ],
+            "answer": 1,
+            "explain": "Phần 2: robot hay cảm biến không giúp bán được hàng nếu cả vùng đều thừa sản phẩm.",
+            "lessonId": "lmb2"
+          },
+          {
+            "id": "qmb4",
+            "q": "Hợp tác xã kiểu mới giúp nông dân điều gì?",
+            "options": [
+              "Được nhà nước cho tiền không hoàn lại",
+              "Mua vật tư giá sỉ và ký hợp đồng tiêu thụ dài hạn, ổn định đầu ra",
+              "Không phải nộp thuế",
+              "Mỗi hộ tự bán riêng được giá cao hơn"
+            ],
+            "answer": 1,
+            "explain": "Phần 2: HTX đại diện nhiều hộ để đàm phán mua đầu vào giá sỉ và ký hợp đồng tiêu thụ dài hạn.",
+            "lessonId": "lmb2"
+          },
+          {
+            "id": "qmb5",
+            "q": "Cả thôn định chặt cà phê trồng sầu riêng vì năm nay sầu riêng đang được giá. Theo tài liệu, Hội xã nên làm gì trước?",
+            "options": [
+              "Vận động cả thôn chuyển đổi ngay",
+              "Công khai giá thị trường và diện tích đã trồng trên bảng thông tin để bà con cân nhắc",
+              "Không can thiệp vì là quyền của dân",
+              "Xin kinh phí hỗ trợ giống sầu riêng"
+            ],
+            "answer": 1,
+            "explain": "Việc 2: bảng thông tin giá cả và bản đồ diện tích giúp bà con bớt trồng theo phong trào.",
+            "lessonId": "lmb3"
+          },
+          {
+            "id": "qmb6",
+            "q": "Khi mời kỹ sư vào nhóm Zalo chuyên canh, điều cần lưu ý là gì?",
+            "options": [
+              "Ưu tiên người bán thuốc nhiều nhất",
+              "Kỹ sư có uy tín và chỉ tư vấn kỹ thuật, không quảng cáo bán hàng",
+              "Cán bộ Hội phải tự trả lời mọi câu hỏi",
+              "Chỉ mời người quen của cán bộ"
+            ],
+            "answer": 1,
+            "explain": "Việc 1: mời kỹ sư nông nghiệp có uy tín; nếu là kỹ sư doanh nghiệp thì chỉ tư vấn kỹ thuật.",
+            "lessonId": "lmb3"
+          },
+          {
+            "id": "qmb7",
+            "q": "Cách làm nào được tài liệu khuyên khi xây dựng tổ, nhóm sản xuất?",
+            "options": [
+              "Gom thật nhiều hộ để có thành tích",
+              "Tìm nông dân giỏi hoặc người thu mua có tâm làm \"đầu tàu\" cho vài hộ làm theo",
+              "Chỉ lập tổ khi có dự án cấp kinh phí",
+              "Giao chỉ tiêu cho từng thôn, ấp"
+            ],
+            "answer": 1,
+            "explain": "Việc 3: đi tìm \"hạt nhân\" — nông dân thấy hàng xóm làm giàu thì tự làm theo.",
+            "lessonId": "lmb3"
+          },
+          {
+            "id": "qmb8",
+            "q": "Để giúp bà con thoát vòng mua chịu phân bón giá cao, Hội cấp cơ sở nên làm gì?",
+            "options": [
+              "Đứng ra bảo lãnh nợ cho từng hộ",
+              "Hướng dẫn vay vốn ưu đãi minh bạch và phối hợp cung ứng vật tư trả chậm đúng quy định, có giám sát",
+              "Cấm bà con mua ở đại lý",
+              "Cho bà con vay tiền quỹ Hội không cần thủ tục"
+            ],
+            "answer": 1,
+            "explain": "Việc 4: khai thác tổ vay vốn NHCSXH, Quỹ HTND; phối hợp cung ứng vật tư trả chậm — Hội không bảo lãnh nghĩa vụ trả nợ cá nhân.",
+            "lessonId": "lmb3"
+          },
+          {
+            "id": "qmb9",
+            "q": "Xã có đặc sản gạo ngon nhưng bán qua nhiều tầng trung gian. Việc nào phù hợp nhất ở cấp xã?",
+            "options": [
+              "Đợi doanh nghiệp lớn tự tìm đến",
+              "Làm hồ sơ nguồn gốc rõ ràng, kết nối phiên chợ nông sản, cửa hàng thực phẩm sạch qua hệ thống Hội",
+              "Xây nhà máy chế biến gạo",
+              "Chỉ bán cho một thương lái quen"
+            ],
+            "answer": 1,
+            "explain": "Việc 5: chủ động \"chào hàng\", tạo kênh tiêu thụ trực tiếp dù nhỏ.",
+            "lessonId": "lmb3"
+          },
+          {
+            "id": "qmb10",
+            "q": "Tiêu chí chọn việc để bắt đầu ở cấp cơ sở theo tài liệu là gì?",
+            "options": [
+              "Việc càng lớn, càng tốn kinh phí càng tốt",
+              "Không tốn nhiều tiền, tốn công sức, làm được ngay và thấy ngay kết quả",
+              "Việc nào cấp trên giao thì làm",
+              "Việc nào dễ viết báo cáo nhất"
+            ],
+            "answer": 1,
+            "explain": "Đáp lần 2: giải pháp ở cấp xã là việc không tốn nhiều tiền nhưng tốn công sức, làm được ngay, thấy ngay kết quả.",
+            "lessonId": "lmb4"
+          }
+        ],
+        "settings": {
+          "quizCount": 5,
+          "passPercent": 70
+        },
+        "status": "open",
+        "closeAt": "",
+        "createdAt": "2026-11-27T00:00:00.000Z",
+        "updatedAt": "2026-11-27T00:00:00.000Z",
+        "deleted": false
+      },
     ];
   }
   function tnSampleById(id){ return tnSampleCourses().find(c=> c.id===id) || null; }
