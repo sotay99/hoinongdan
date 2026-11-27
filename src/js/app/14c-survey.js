@@ -658,7 +658,7 @@
           <div style="margin-bottom:14px;">${surveyTabsHtml([
             { id:'sv-space-shared', label:`🏛️ Biểu mẫu dùng chung ${adminLevelLabelLower()}`, active:isShared },
             { id:'sv-space-personal', label:'🔒 Biểu mẫu cá nhân', active:!isShared },
-          ])}</div>
+          ])}${spaceNoteHtml(isShared ? 'shared' : 'personal', 'biểu mẫu')}</div>
           ${!canView? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared? 'Đồng chí không có quyền xem Biểu mẫu dùng chung của mã xã này. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : 'Biểu mẫu cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
           ${canEdit? `<div style="display:flex; flex-wrap:wrap; gap:8px;"><button class="btn btn-primary" id="sv-new-btn">➕ Tạo biểu mẫu mới</button><button class="btn preview-allow" id="sv-ai-new-btn" style="background:linear-gradient(180deg,#fff 0%,#7c4dff 45%,#4527a0 100%); color:#fff; border-color:#4527a0; font-weight:700;">✨ Tạo nhanh biểu mẫu bằng AI</button></div>` : `<p class="sub">Đồng chí chỉ có quyền xem ở ${isShared?'Biểu mẫu dùng chung này':'đây'}.</p>`}
           <div class="toolbar" style="flex-wrap:wrap; gap:8px; margin-top:14px;">
@@ -748,6 +748,23 @@
   // ngang và chia đều, chữ dài xuống dòng NGAY TRONG nút chứ không đẩy nút xuống hàng dưới.
   function surveyTabsHtml(items, extraCls){
     return `<div class="sv-tabs ${extraCls||''}" role="tablist">${items.map(it=>`<button type="button" role="tab" aria-selected="${it.active?'true':'false'}" class="sv-tab preview-allow ${it.active?'active':''}" ${it.id? `id="${it.id}"` : ''} ${it.attrs||''} ${it.disabled?'disabled':''}>${escapeHtml(it.label)}</button>`).join('')}</div>`;
+  }
+  // Dòng chữ ĐỎ ngay dưới dải tab chọn bộ nhớ (Biểu mẫu, Phòng họp, Tập huấn bằng AI): nói rõ đồng chí đang
+  // làm việc ở bộ nhớ nào để khỏi soạn nhầm chỗ. space: 'shared' | 'personal' | 'sample'.
+  // noun: tên đồ vật của module ('biểu mẫu', 'cuộc họp', 'bài tập huấn'). Danh xưng xã/phường lấy động.
+  function spaceNoteHtml(space, noun){
+    let t;
+    if(space==='sample'){
+      t = `📍 Đồng chí đang xem <b>Các ${noun} mẫu</b> do phần mềm soạn sẵn — chỉ để tham khảo, không sửa được. Muốn soạn ${noun} thật, chọn Bộ nhớ dùng chung hoặc Bộ nhớ cá nhân ở trên.`;
+    } else if(space==='personal'){
+      const email = state.identity && state.identity.email;
+      t = email ? `📍 Đồng chí đang ở <b>Bộ nhớ cá nhân</b> (tài khoản Google riêng: ${escapeHtml(email)}) — chỉ riêng đồng chí thấy các ${noun} ở đây.`
+                : `📍 Đồng chí đang ở <b>Bộ nhớ cá nhân</b> — cần đăng nhập bằng tài khoản Google để dùng.`;
+    } else {
+      const name = ((state.config && state.config.wardName) || '').trim();
+      t = `📍 Đồng chí đang ở <b>Bộ nhớ dùng chung của ${escapeHtml(adminLevelLabelLower() + (name ? ' ' + name : ''))}</b> — các ${noun} ở đây dùng chung cho những người được Chủ mã cấp quyền.`;
+    }
+    return `<div class="space-note">${t}</div>`;
   }
   // Thùng rác riêng của Biểu mẫu (theo không gian đang xem: dùng chung / cá nhân) — cùng kiểu với
   // Thùng rác Hội viên: nút "⋮ Thao tác" mở menu nổi Khôi phục / Xoá vĩnh viễn.
@@ -1545,6 +1562,7 @@
           <h3 style="margin:0;">${state.surveyEditingId? 'Sửa biểu mẫu' : 'Tạo biểu mẫu mới'}${state.surveyEditingId? ` — <span style="font-weight:600;">${escapeHtml(surveyFullName(draft))}</span>` : ''}</h3>
         </div>
         <div class="panel-body">
+          ${spaceNoteHtml(state.surveySpace==='personal' ? 'personal' : 'shared', 'biểu mẫu')}
           ${surveyTabsHtml([
             { id:'sv-tab-questions', label:'📝 Câu hỏi', active: state.surveyEditorTab==='questions' },
             { id:'sv-tab-settings', label:'⚙️ Cài đặt nhận phiếu', active: state.surveyEditorTab==='settings' },

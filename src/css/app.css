@@ -1868,3 +1868,9 @@ body.tnp-lock{overflow:hidden;}
   .tnp.is-preview .tnp-chat{height:calc(100dvh - var(--tnp-bar, 48px) - 16px);}
   .tnp-head h1{font-size:21px;}
 }
+
+/* Dòng chữ đỏ dưới dải tab chọn bộ nhớ (Biểu mẫu, Phòng họp, Tập huấn) — xem spaceNoteHtml() */
+.space-note{margin:8px 0 0; color:#c62828; font-size:13.5px; line-height:1.55; overflow-wrap:anywhere;}
+.space-note b{font-weight:800;}
+.panel-body > .space-note:first-child{margin:0 0 12px;}
+.mt-editor-bar + .space-note{margin:-4px 0 12px;}

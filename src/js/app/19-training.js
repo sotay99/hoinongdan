@@ -86,15 +86,19 @@
   // ---- Phân quyền (giống Phòng họp): bộ DÙNG CHUNG theo quyền 'training' ở "Cài đặt & Chia sẻ", bộ CÁ
   // NHÂN theo tài khoản Google. ----
   function tnHasPersonal(){ return !!(state.identity && state.identity.email); }
+  // Tab "Bài tập huấn mẫu" (space 'sample'): ai cũng xem được, không ai sửa được.
+  function tnIsSampleSpace(){ return tnS().space==='sample'; }
   function tnCanView(){
-    if(isTourMode()) return true;
+    if(tnIsSampleSpace() || isTourMode()) return true;
     return tnS().space==='personal' ? tnHasPersonal() : (!!wardId() && canViewModule('training'));
   }
   function tnCanEdit(){
+    if(tnIsSampleSpace()) return false;
     if(isTourMode()) return true;
     return tnS().space==='personal' ? tnHasPersonal() : (!!wardId() && canEditModule('training'));
   }
   function tnWriteOk(){
+    if(tnIsSampleSpace()){ alert('Bài tập huấn mẫu chỉ để tham khảo, không sửa được. Muốn dùng bài này, bấm "📋 Sao chép thành bài của tôi".'); return false; }
     if(isTourMode()){ alert('Đồng chí đang ở môi trường tham quan, vui lòng đăng nhập để sử dụng tính năng này.'); return false; }
     if(!tnCanEdit()){ alert(tnS().space==='personal' ? 'Tập huấn cá nhân yêu cầu đăng nhập bằng tài khoản Google.' : 'Đồng chí không có quyền sửa bài tập huấn dùng chung. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".'); return false; }
     return true;
@@ -105,45 +109,17 @@
     return tnHasPersonal() ? 'personal' : 'shared';
   }
 
-  // ---- Dữ liệu mẫu cho môi trường tham quan (không đọc/ghi Firebase) ----
-  function tnDemoCourses(){
-    const now = new Date().toISOString();
-    const text = `HƯỚNG DẪN VAY VỐN QUỸ HỖ TRỢ NÔNG DÂN (tài liệu mẫu)
-
-1. Đối tượng được vay: hội viên Hội Nông dân có hộ khẩu tại địa phương, có phương án sản xuất kinh doanh khả thi, tham gia tổ vay vốn và được tổ bình xét.
-
-2. Mức vay và thời hạn: mỗi hộ vay tối đa theo quy định của Quỹ từng thời kỳ; thời hạn vay tối đa 36 tháng, tuỳ chu kỳ sản xuất của phương án.
-
-3. Lãi suất: thấp hơn lãi suất ngân hàng thương mại; lãi trả hằng tháng hoặc hằng quý theo hợp đồng.
-
-4. Hồ sơ gồm: đơn đề nghị vay vốn, phương án sản xuất kinh doanh, biên bản họp tổ vay vốn, bản sao căn cước.
-
-5. Trách nhiệm người vay: sử dụng vốn đúng mục đích, trả lãi và gốc đúng hạn, sinh hoạt tổ đầy đủ. Sử dụng vốn sai mục đích sẽ bị thu hồi vốn trước hạn.`;
-    return [{
-      id:'tndemo0000001', scope:'shared', demo:true, wardName:'(mẫu)', orgTitle:'(mẫu)', groupLabel: subAdminLabel(), groups:['Ấp 1','Ấp 2','Ấp 3'],
-      title:'Hướng dẫn vay vốn Quỹ Hỗ trợ Nông dân (mẫu)', audience:'Hội viên có nhu cầu vay vốn sản xuất',
-      intro:'Bài tập huấn ngắn giúp bà con nắm được điều kiện, hồ sơ và trách nhiệm khi vay vốn Quỹ Hỗ trợ Nông dân. Học trên điện thoại, lúc nào rảnh thì học.',
-      summary:'Tài liệu hướng dẫn đối tượng, mức vay, lãi suất, hồ sơ và trách nhiệm của hội viên khi vay vốn Quỹ Hỗ trợ Nông dân.',
-      materials:[{ id:'mdemo1', name:'Hướng dẫn vay vốn (mẫu).txt', kind:'text', via:'local', text, addedAt:now }],
-      lessons:[
-        { id:'ldemo1', title:'Ai được vay vốn Quỹ', goal:'Biết các điều kiện để được vay.', points:['Là hội viên Hội Nông dân tại địa phương','Có phương án sản xuất kinh doanh khả thi','Tham gia tổ vay vốn và được tổ bình xét'] },
-        { id:'ldemo2', title:'Mức vay, thời hạn và lãi suất', goal:'Hiểu vay được bao lâu và trả lãi thế nào.', points:['Thời hạn vay tối đa 36 tháng','Lãi suất thấp hơn ngân hàng thương mại','Trả lãi hằng tháng hoặc hằng quý'] },
-        { id:'ldemo3', title:'Hồ sơ và trách nhiệm người vay', goal:'Chuẩn bị đủ hồ sơ và dùng vốn đúng mục đích.', points:['Đơn đề nghị, phương án, biên bản họp tổ, bản sao căn cước','Dùng vốn sai mục đích bị thu hồi trước hạn'] },
-      ],
-      quiz:[
-        { id:'qdemo1', q:'Thời hạn vay tối đa của Quỹ Hỗ trợ Nông dân là bao lâu?', options:['12 tháng','24 tháng','36 tháng','60 tháng'], answer:2, explain:'Tài liệu nêu thời hạn vay tối đa 36 tháng.', lesson:2 },
-        { id:'qdemo2', q:'Điều kiện nào KHÔNG bắt buộc để được vay?', options:['Là hội viên Hội Nông dân','Có phương án sản xuất khả thi','Có tài sản thế chấp là nhà đất','Được tổ vay vốn bình xét'], answer:2, explain:'Tài liệu không yêu cầu thế chấp nhà đất.', lesson:1 },
-        { id:'qdemo3', q:'Dùng vốn sai mục đích thì sao?', options:['Không sao cả','Bị thu hồi vốn trước hạn','Được vay thêm','Chỉ bị nhắc nhở'], answer:1, explain:'Sử dụng vốn sai mục đích sẽ bị thu hồi vốn trước hạn.', lesson:3 },
-      ],
-      settings:{ quizCount:3, passPercent:70 }, status:'open', closeAt:'', createdAt:now, updatedAt:now, deleted:false,
-    }];
-  }
-  function tnDemoLearners(){
-    const t = m=> new Date(Date.now()-m*60000).toISOString();
+  // ---- Học viên MINH HOẠ cho tab "Kết quả học tập" của bài mẫu (không đọc/ghi Firebase) ----
+  function tnDemoLearners(c){
+    const ls = tnLessons(c).map(l=> l.id), t = m=> new Date(Date.now()-m*60000).toISOString();
+    const done = n=> Object.fromEntries(ls.slice(0,n).map(id=> [id,'done']));
+    const qz = tnQuiz(c), qText = i=> (qz[i] && qz[i].q) || '';
     return [
-      { id:'ld1', name:'Nguyễn Văn Ba', call:'Chú', group:'Ấp 1', level:'coban', startedAt:t(300), lastAt:t(240), lessons:{ ldemo1:'done', ldemo2:'done', ldemo3:'done' }, quiz:{ best:100, last:100, attempts:1, passed:true, at:t(240) }, completedAt:t(240), turns:14, struggles:[] },
-      { id:'ld2', name:'Trần Thị Mai', call:'Chị', group:'Ấp 2', level:'moi', startedAt:t(200), lastAt:t(30), lessons:{ ldemo1:'done', ldemo2:'learning' }, turns:9, struggles:[{ lesson:'ldemo2', text:'Nhầm thời hạn vay tối đa là 12 tháng', at:t(40) },{ lesson:'ldemo2', text:'Chưa rõ trả lãi theo tháng hay theo quý', at:t(35) }] },
-      { id:'ld3', name:'Lê Văn Tư', call:'Bác', group:'Ấp 3', level:'kha', startedAt:t(100), lastAt:t(60), lessons:{ ldemo1:'done', ldemo2:'done', ldemo3:'done' }, quiz:{ best:67, last:67, attempts:2, passed:false, at:t(60) }, turns:20, struggles:[{ lesson:'ldemo3', text:'Nghĩ rằng cần thế chấp nhà đất', at:t(70) }] },
+      { id:'ld1', name:'Nguyễn Văn Ba (minh hoạ)', call:'Chú', group:'Ấp 1', level:'coban', startedAt:t(300), lastAt:t(240), lessons:done(ls.length), quiz:{ best:100, last:100, attempts:1, passed:true, at:t(240) }, completedAt:t(240), turns:14, struggles:[] },
+      { id:'ld2', name:'Trần Thị Mai (minh hoạ)', call:'Chị', group:'Ấp 2', level:'moi', startedAt:t(200), lastAt:t(30), lessons:{ ...done(1), [ls[1]]:'learning' }, turns:9,
+        struggles:[{ lesson:ls[1], text:'Nghĩ rằng vợ chồng cùng hộ được vay cùng lúc ở hai phương án', at:t(40) },{ lesson:ls[1], text:'Chưa rõ ai xác nhận cư trú', at:t(35) }] },
+      { id:'ld3', name:'Lê Văn Tư (minh hoạ)', call:'Bác', group:'Ấp 3', level:'kha', startedAt:t(100), lastAt:t(60), lessons:done(ls.length), quiz:{ best:60, last:60, attempts:2, passed:false, at:t(60) }, turns:20,
+        struggles:[{ lesson:ls[2], text:'Nhầm thời hạn vay tối đa là 3 năm', at:t(70) },{ lesson:ls[3], text:`Bài kiểm tra: sai câu "${qText(10).slice(0,80)}"`, at:t(60) }] },
     ];
   }
 
@@ -153,8 +129,14 @@
   function tnAttach(){
     const S = tnS();
     if(!S.space) S.space = tnDefaultSpace();
+    if(S.space==='sample'){
+      if(tnListenerKey!=='sample'){ tnDetach(); tnListenerKey = 'sample'; S.list = tnSampleCourses(); S.trash = []; S.loaded = true; S.error = ''; }
+      return;
+    }
+    // Môi trường tham quan: hai bộ nhớ thật luôn trống (không đọc/ghi Firebase) — xem thử ở tab Bài tập huấn mẫu.
     if(isTourMode()){
-      if(tnListenerKey!=='tour'){ tnDetach(); tnListenerKey = 'tour'; S.list = tnDemoCourses(); S.trash = []; S.loaded = true; S.error = ''; }
+      const k = 'tour:'+S.space;
+      if(tnListenerKey!==k){ tnDetach(); tnListenerKey = k; S.list = []; S.trash = []; S.loaded = true; S.error = ''; }
       return;
     }
     let ref = null, key = null;
@@ -199,7 +181,6 @@
     if(S.space===space) return;
     if(space==='personal' && !tnHasPersonal() && !isTourMode()){ alert('Tập huấn cá nhân yêu cầu đăng nhập bằng tài khoản Google.'); return; }
     S.space = space; S.view = 'list'; S.editingId = null;
-    if(isTourMode()) tnListenerKey = null;
     const el = document.getElementById('content'); if(el) renderTrainingTab(el);
   }
 
@@ -211,7 +192,8 @@
     if(S.learnersFor===courseId) return;
     tnDetachLearners();
     S.learnersFor = courseId; S.learners = []; S.learnersLoaded = false; S.learnersError = '';
-    if(isTourMode()){ S.learners = tnDemoLearners(); S.learnersLoaded = true; return; }
+    const sample = tnSampleById(courseId);
+    if(sample || isTourMode()){ S.learners = sample ? tnDemoLearners(sample) : []; S.learnersLoaded = true; return; }
     tnLearnRef = rtdb.ref(`training_learners/${courseId}`);
     tnLearnRef.on('value', snap=>{
       if(S.learnersFor!==courseId) return;
