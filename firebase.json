@@ -76,6 +76,10 @@
         "function": "meetingMeta"
       },
       {
+        "source": "/taphuan/**",
+        "function": "trainingMeta"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

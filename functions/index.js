@@ -529,3 +529,106 @@ exports.meetingMeta = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
+// =====================================================================
+// (3) Link lớp tập huấn: https://<domain>/taphuan/<mã>. Chèn <title> + og:* đúng bài tập huấn đó để
+// Zalo/Messenger/Facebook hiện khung xem trước có tên bài. Ảnh xem trước cố định /og/taphuan.png (build chép
+// từ src/og/). Dữ liệu ở trainings/<mã> — xem src/js/app/19-training.js.
+// BÀI MẪU nằm sẵn trong mã app (src/js/app/19a-training-sample.js), KHÔNG có trong Database — tiêu đề của
+// chúng chép vào bảng dưới đây; đổi tên/thêm bài mẫu ở app thì phải đổi cả ở đây.
+// =====================================================================
+const TRAINING_SAMPLES = {
+  "mau-quy-ho-tro-nong-dan": { title: "Vay vốn Quỹ Hỗ trợ nông dân — những điều bà con cần biết", lessons: 4 },
+  "mau-can-bo-hoi-giup-hoi-vien": { title: "Cán bộ Hội cấp cơ sở giúp hội viên phát triển kinh tế — từ trăn trở đến việc làm cụ thể", lessons: 4 },
+};
+const TRAINING_DEFAULT_TITLE = "Lớp tập huấn có trợ giảng AI";
+const TRAINING_DEFAULT_DESC = "Học ngay trên điện thoại, có trợ giảng AI kèm riêng — không cần cài đặt, không cần đăng nhập.";
+function tnCount(v) { return (Array.isArray(v) ? v : Object.values(v || {})).filter((x) => x && typeof x === "object").length; }
+// Trạng thái giống tnStatus() ở app: đóng tay > hết hạn hẹn giờ > chưa soạn xong (chưa có tài liệu/giáo án) > mở.
+function tnState(c) {
+  if (c.status === "closed") return "closed";
+  if (c.closeAt && new Date(c.closeAt).getTime() <= Date.now()) return "closed";
+  if (!tnCount(c.materials) || !tnCount(c.lessons)) return "draft";
+  return "open";
+}
+
+exports.trainingMeta = functions.https.onRequest(async (req, res) => {
+  try {
+    const parts = req.path.split("/").filter(Boolean);
+    const code = decodeURIComponent(parts[1] || "");
+    console.log("[trainingMeta] Nhận request:", req.method, req.originalUrl);
+    delete req.headers.range;
+    delete req.headers["if-range"];
+
+    let pageTitle = "Tập huấn bằng AI - Hoinongdan.sotay.org";
+    let ogTitle = TRAINING_DEFAULT_TITLE;
+    let description = TRAINING_DEFAULT_DESC;
+    const ogImageUrl = `${SITE_ORIGIN}/og/taphuan.png`;
+    const learnDesc = (n, issuer) => `${issuer ? issuer + " · " : ""}${n ? n + " phần học, có" : "Có"} trợ giảng AI kèm riêng. Bấm vào để học ngay trên điện thoại — không cần cài đặt, không cần đăng nhập.`;
+
+    if (TRAINING_SAMPLES[code]) {
+      const sm = TRAINING_SAMPLES[code];
+      ogTitle = `Tập huấn: ${sm.title}`;
+      description = `Bài tập huấn MẪU — ${learnDesc(sm.lessons, "")}`;
+      pageTitle = `${sm.title} - Tập huấn bằng AI`;
+    } else if (code && /^[A-Za-z0-9_-]{6,128}$/.test(code)) {
+      // Mã bài do app sinh chỉ gồm chữ/số — chặn ký tự lạ trước khi đọc Database.
+      const snap = await admin.database().ref("trainings/" + code).once("value");
+      if (snap.exists() && !snap.val().deleted) {
+        const c = snap.val();
+        const name = String(c.title || "Bài tập huấn").trim();
+        const issuer = String(c.issuer || "").trim();
+        const st = tnState(c);
+        if (st === "open") { ogTitle = `Tập huấn: ${name}`; description = learnDesc(tnCount(c.lessons), issuer); }
+        else if (st === "draft") { ogTitle = `${name} (đang chuẩn bị)`; description = `${issuer ? issuer + " · " : ""}Cán bộ Hội đang soạn nội dung bài tập huấn này.`; }
+        else { ogTitle = `${name} (lớp đã đóng)`; description = `${issuer ? issuer + " · " : ""}Liên kết của lớp tập huấn này đã đóng.`; }
+        pageTitle = `${name} - Tập huấn bằng AI`;
+      }
+    }
+
+    const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+    const metaBlock = `
+    <title>${escapeHtml(pageTitle)}</title>
+    <meta property="og:title" content="${escapeHtml(ogTitle)}">
+    <meta property="og:description" content="${escapeHtml(description)}">
+    <meta property="og:type" content="website">
+    <meta name="description" content="${escapeHtml(description)}">
+    <link rel="canonical" href="${escapeHtml(SITE_ORIGIN + req.originalUrl)}">
+    <meta property="og:site_name" content="Sổ tay Công tác Hội Nông dân cấp xã/phường">
+    <meta property="og:locale" content="vi_VN">
+    <meta property="og:url" content="${escapeHtml(SITE_ORIGIN + req.originalUrl)}">
+    <meta property="og:image" content="${escapeHtml(ogImageUrl)}">
+    <meta property="og:image:secure_url" content="${escapeHtml(ogImageUrl)}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Lớp tập huấn có trợ giảng AI — bấm vào để vào học">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
+    <meta name="twitter:description" content="${escapeHtml(description)}">
+    <meta name="twitter:image" content="${escapeHtml(ogImageUrl)}">
+    `;
+    const headEnd = html.search(/<\/head>/i);
+    const HEAD_SCAN_LIMIT = headEnd > 0 && headEnd < 20000 ? headEnd : 3000;
+    let headPart = html.slice(0, HEAD_SCAN_LIMIT).replace(/<title>[\s\S]*?<\/title>/i, "");
+    headPart = headPart.replace(/<meta\s+(?:property|name)="(?:og:[^"]*|twitter:[^"]*|description)"[^>]*>\s*/gi, "");
+    headPart = headPart.replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "");
+    const headOpenIdx = headPart.search(/<head[^>]*>/i);
+    if (headOpenIdx !== -1) {
+      const insertAt = headPart.indexOf(">", headOpenIdx) + 1;
+      headPart = headPart.slice(0, insertAt) + metaBlock + headPart.slice(insertAt);
+    } else {
+      headPart = metaBlock + headPart;
+    }
+    const bodyBuffer = Buffer.from(headPart + html.slice(HEAD_SCAN_LIMIT), "utf8");
+    res.status(200);
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.set("Content-Length", String(bodyBuffer.length));
+    res.set("Cache-Control", "no-store");
+    res.removeHeader("ETag");
+    res.end(bodyBuffer);
+  } catch (err) {
+    console.error("[trainingMeta] Lỗi:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});

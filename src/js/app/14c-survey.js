@@ -379,6 +379,63 @@
     urlLines.forEach((ln,i)=> x.fillText(ln, W/2, qy + qs + 110 + i*36));
     return c;
   }
+  // =====================================================================
+  // MÀN HÌNH CHIẾU MÃ QR DÙNG CHUNG — Phòng họp, Biểu mẫu, Tập huấn bằng AI. Toàn màn hình, mã QR thật to để
+  // chiếu lên máy chiếu/TV hội trường; Esc hoặc nút "✕ Đóng" để thoát.
+  // opts: { url, title, eyebrow?, meta?, sampleNote?, cta,
+  //         closedMsg?  — có giá trị khi link đang đóng/hết hạn: HỎI LẠI trước khi chiếu (không in cảnh báo lên
+  //                        màn chiếu vì cả hội trường cùng nhìn thấy),
+  //         counter?    — { ref, count(snap)->số, label(số)->chữ }: con số chạy trực tiếp ở góc màn chiếu }
+  // =====================================================================
+  async function qrProjectorOpen(opts){
+    if(opts.closedMsg && !confirm(`${opts.closedMsg} — người quét mã sẽ không vào được.\n\nVẫn chiếu mã QR lên màn hình?`)) return;
+    const url = opts.url;
+    const wrap = document.createElement('div');
+    wrap.className = 'mt-projector';
+    wrap.innerHTML = `<button class="mt-projector-close" aria-label="Đóng">✕ Đóng</button>
+      <div class="mt-projector-inner">
+        ${opts.eyebrow ? `<div class="mt-projector-eyebrow">${escapeHtml(opts.eyebrow)}</div>` : ''}
+        <h1 class="${Array.from(opts.title||'').length>80 ? 'long' : ''}">${escapeHtml(opts.title||'')}</h1>
+        ${opts.meta ? `<div class="mt-projector-meta">${escapeHtml(opts.meta)}</div>` : ''}
+        ${opts.sampleNote ? `<div class="mt-projector-sample">${escapeHtml(opts.sampleNote)}</div>` : ''}
+        <div class="mt-projector-qr" id="mtp-qr"><span>Đang tạo mã QR…</span></div>
+        <div class="mt-projector-cta">${escapeHtml(opts.cta||'📱 Mở Zalo hoặc Camera, quét mã')}</div>
+        <div class="mt-projector-url">${escapeHtml(url.replace(/^https?:\/\//,''))}</div>
+      </div>
+      ${opts.counter ? `<div class="mt-projector-count" id="mtp-count" hidden></div>` : ''}`;
+    document.body.appendChild(wrap);
+    let counterOff = null;
+    const close = ()=>{
+      try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(e){}
+      if(counterOff) counterOff();
+      wrap.remove(); document.removeEventListener('keydown', onKey);
+    };
+    const onKey = e=>{ if(e.key==='Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    wrap.querySelector('.mt-projector-close').onclick = close;
+    try{ if(wrap.requestFullscreen) wrap.requestFullscreen().catch(()=>{}); }catch(e){}
+    if(opts.counter && opts.counter.ref){
+      const box = wrap.querySelector('#mtp-count'), ref = opts.counter.ref;
+      const cb = snap=>{ const n = opts.counter.count(snap); box.hidden = false; box.textContent = opts.counter.label(n); };
+      try{ ref.on('value', cb, err=> console.warn('[Chiếu mã QR] Không đếm được số người tham gia:', err)); counterOff = ()=>{ try{ ref.off('value', cb); }catch(e){} }; }catch(e){}
+    }
+    try{
+      const qr = await mtQrCanvas(url);
+      wrap.querySelector('#mtp-qr').innerHTML = `<img src="${qr.toDataURL('image/png')}" alt="Mã QR">`;
+    }catch(e){ wrap.querySelector('#mtp-qr').innerHTML = `<span>⚠️ Không tạo được mã QR — kiểm tra kết nối mạng.</span>`; }
+  }
+  // Chiếu mã QR của MỘT biểu mẫu — câu kêu gọi theo đúng loại biểu mẫu ("quét mã để làm bài kiểm tra"...).
+  function surveyProjector(s){
+    if(!s || !s.id) return;
+    const k = surveyKindInfo(s), st = surveyAcceptState(s);
+    qrProjectorOpen({
+      url: surveyShareUrl(s.id), title: String(s.title||'').trim() || surveyFullName(s),
+      eyebrow: k ? `${k.icon} ${k.label}` : (s.isQuiz ? '📝 Bài kiểm tra' : '📝 Biểu mẫu khảo sát'),
+      cta: `📱 Mở Zalo hoặc Camera, quét mã để ${surveyKindAct(s)}`,
+      closedMsg: st.open ? null : `Biểu mẫu đang ở trạng thái “${surveyAcceptLabel(st).replace(/^\S+\s/,'')}”`,
+      counter: isTourMode() ? null : { ref: rtdb.ref(`surveys/${s.id}/responseCount`), count: snap=> parseInt(snap && snap.val(),10)||0, label: n=> `📝 Đã có ${n} phiếu gửi về` },
+    });
+  }
   async function surveyQrModal(survey){
     if(!survey || !survey.id) return;
     const url = surveyShareUrl(survey.id), name = surveyFullName(survey);
@@ -392,7 +449,8 @@
         <div style="word-break:break-all; font-size:13px;"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></div>
       </div>
       <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
-        <button class="btn btn-primary btn-sm preview-allow" id="svqr-png" disabled>⬇️ Tải ảnh PNG</button>
+        <button class="btn btn-primary btn-sm preview-allow" id="svqr-project">🖥️ Chiếu lên màn hình</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="svqr-png" disabled>⬇️ Tải ảnh PNG</button>
         <button class="btn btn-ghost btn-sm preview-allow" id="svqr-print" disabled>🖨️ In áp phích A4</button>
         <button class="btn btn-ghost btn-sm preview-allow" id="svqr-copy">📋 Sao chép link</button>
       </div></div>`;
@@ -401,6 +459,7 @@
     wrap.querySelector('#svqr-close').onclick = close;
     wrap.addEventListener('click', e=>{ if(e.target===wrap) close(); });
     wrap.querySelector('#svqr-copy').onclick = ()=> copyMessageText(url);
+    wrap.querySelector('#svqr-project').onclick = ()=>{ close(); surveyProjector(survey); };
     const box = wrap.querySelector('#svqr-box');
     try{ await loadOptionalLibrary('qrcode'); }
     catch(e){ box.innerHTML = `<div style="color:#b71c1c; padding:24px 0;">⚠️ Không tải được bộ tạo mã QR. Vui lòng kiểm tra kết nối mạng rồi thử lại.<div class="sub">${escapeHtml(String(e&&e.message||e))}</div></div>`; return; }
@@ -692,6 +751,7 @@
                       <button class="btn btn-ghost btn-sm" data-sv-open="${s.id}">${canEdit? 'Sửa / Xem kết quả' : 'Xem kết quả'}</button>
                       <button class="btn btn-ghost btn-sm" data-sv-copy="${s.id}">🔗 Copy link</button>
                       <button class="btn btn-ghost btn-sm preview-allow" data-sv-qr="${s.id}" title="Mã QR để in dán hoặc gửi ảnh cho mọi người quét">📱 Mã QR</button>
+                      <button class="btn btn-ghost btn-sm preview-allow" data-sv-project="${s.id}" title="Chiếu mã QR thật to lên máy chiếu/TV hội trường">🖥️ Chiếu</button>
                       ${canEdit? `<button class="btn btn-ghost btn-sm preview-allow" data-sv-dup="${s.id}" title="Tạo 1 biểu mẫu mới giống hệt (không chép câu trả lời)">📑 Nhân bản</button>` : ''}
                       ${canEdit? `<button class="btn btn-ghost btn-sm" data-sv-delete="${s.id}" style="color:var(--red);">Xoá</button>` : ''}
                     </td>
@@ -704,6 +764,7 @@
       ${canView? surveyTrashPanelHtml() : ''}`;
     surveyWireTrashPanel(el);
     document.querySelectorAll('[data-sv-qr]').forEach(btn=> btn.onclick = ()=>{ const s = state.surveys.find(x=> x.id===btn.dataset.svQr); if(s) surveyQrModal(s); });
+    document.querySelectorAll('[data-sv-project]').forEach(btn=> btn.onclick = ()=>{ const s = state.surveys.find(x=> x.id===btn.dataset.svProject); if(s) surveyProjector(s); });
     const spaceSharedBtn = document.getElementById('sv-space-shared');
     if(spaceSharedBtn) spaceSharedBtn.onclick = ()=> switchSurveySpace('shared');
     const spacePersonalBtn = document.getElementById('sv-space-personal');
@@ -1570,7 +1631,7 @@
           ])}
           <div class="toolbar" style="margin:10px 0 14px; flex-wrap:wrap; gap:8px; justify-content:flex-end;">
             <button class="btn btn-ghost btn-sm preview-allow" id="sv-preview-btn" title="Xem đúng như người trả lời sẽ thấy, không gửi phiếu">👁️ Xem thử</button>
-            ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button><button class="btn btn-ghost btn-sm preview-allow" id="sv-qr-btn" title="Mã QR để in dán hoặc gửi ảnh cho mọi người quét">📱 Mã QR</button>` : ''}
+            ${state.surveyEditingId? `<button class="btn btn-ghost btn-sm" id="sv-copylink-btn">🔗 Copy link chia sẻ</button><button class="btn btn-ghost btn-sm preview-allow" id="sv-qr-btn" title="Mã QR để in dán hoặc gửi ảnh cho mọi người quét">📱 Mã QR</button><button class="btn btn-ghost btn-sm preview-allow" id="sv-project-btn" title="Chiếu mã QR thật to lên máy chiếu/TV hội trường">🖥️ Chiếu mã QR lên màn hình</button>` : ''}
             ${canEdit && state.surveyEditorTab!=='answers'? `<button class="btn btn-primary btn-sm sv-save-action" id="sv-save-btn">💾 Lưu biểu mẫu</button>` : ''}
           </div>
           <div id="sv-tab-content">
@@ -1599,6 +1660,8 @@
     if(copyBtn) copyBtn.onclick = ()=> copyMessageText(surveyShareUrl(state.surveyEditingId));
     const qrBtn = document.getElementById('sv-qr-btn');
     if(qrBtn) qrBtn.onclick = ()=> surveyQrModal(draft);
+    const prjBtn = document.getElementById('sv-project-btn');
+    if(prjBtn) prjBtn.onclick = ()=> surveyProjector(draft);
 
     if(state.surveyEditorTab==='questions'){
       const fullNameEl = ()=> document.getElementById('sv-fullname');

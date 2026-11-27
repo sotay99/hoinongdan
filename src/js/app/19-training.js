@@ -833,10 +833,14 @@ ${tnMaterialsBlock(c)}`;
           <button class="btn btn-ghost btn-sm preview-allow" data-tn-open="${id}">👁 Xem bài</button>
           <button class="btn btn-ghost btn-sm preview-allow" data-tn-try="${id}">🧑‍🎓 Học thử</button>
           <button class="btn btn-primary btn-sm preview-allow" data-tn-clone="${id}">📋 Sao chép thành bài của tôi</button>
-          <button class="btn btn-ghost btn-sm preview-allow" data-tn-copy="${id}">🔗 Sao chép link</button>` : `
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-copy="${id}">🔗 Sao chép link</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-qr="${id}">📱 Mã QR</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-project="${id}" title="Chiếu mã QR thật to lên máy chiếu/TV hội trường">🖥️ Chiếu</button>` : `
           <button class="btn btn-ghost btn-sm preview-allow" data-tn-open="${id}">${canEdit ? '✏️ Mở / Sửa' : '👁 Xem'}</button>
           <button class="btn btn-ghost btn-sm preview-allow" data-tn-results="${id}">📈 Kết quả</button>
           <button class="btn btn-ghost btn-sm preview-allow" data-tn-copy="${id}">🔗 Sao chép link</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-qr="${id}">📱 Mã QR</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-tn-project="${id}" title="Chiếu mã QR thật to lên máy chiếu/TV hội trường">🖥️ Chiếu</button>
           ${canEdit ? `<button class="btn btn-ghost btn-sm preview-allow" data-tn-trash="${id}" style="color:var(--red);">Xoá</button>` : ''}`}
         </div>
       </div>`; }).join('')}</div>`;
@@ -847,6 +851,8 @@ ${tnMaterialsBlock(c)}`;
     box.querySelectorAll('[data-tn-clone]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnClone); if(c) tnCloneModal(c); });
     box.querySelectorAll('[data-tn-copy]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnCopy); if(c && !tnStatus(c).open) showToast('Lưu ý: liên kết đang ' + tnStatus(c).label.toLowerCase() + '.'); copyMessageText(tnShareUrl(b.dataset.tnCopy)); });
     box.querySelectorAll('[data-tn-trash]').forEach(b=> b.onclick = ()=> tnTrash(b.dataset.tnTrash));
+    box.querySelectorAll('[data-tn-qr]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnQr); if(c) tnQrModal(c); });
+    box.querySelectorAll('[data-tn-project]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnProject); if(c) tnProjector(c); });
     tnPaintTrash(el);
   }
   // "📋 Sao chép thành bài của tôi": chép nguyên bài mẫu (tài liệu, giáo án, câu hỏi, cài đặt) sang bộ dùng
@@ -968,6 +974,8 @@ ${tnMaterialsBlock(c)}`;
             <div class="mt-editor-bar-right">
               <button class="btn btn-ghost btn-sm preview-allow" id="tn-try">🧑‍🎓 Học thử như học viên</button>
               ${c.sample ? `<button class="btn btn-ghost btn-sm preview-allow" id="tn-clone-top">📋 Sao chép thành bài của tôi</button>` : ''}
+              <button class="btn btn-ghost btn-sm preview-allow" id="tn-qr-top">📱 Mã QR</button>
+              <button class="btn btn-ghost btn-sm preview-allow" id="tn-project-top">🖥️ Chiếu mã QR lên màn hình</button>
               <button class="btn btn-primary btn-sm preview-allow" id="tn-share-top">🔗 Gửi cho học viên</button>
             </div>
           </div>
@@ -1040,6 +1048,8 @@ ${tnMaterialsBlock(c)}`;
     bindField('#tn-f-call', 'defaultCall', 20);
     bindField('#tn-f-glabel', 'groupLabel', TN_GROUP_LABEL_MAX);
     const ct = el.querySelector('#tn-clone-top'); if(ct) ct.onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnCloneModal(x); };
+    el.querySelector('#tn-qr-top').onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnQrModal(x); };
+    el.querySelector('#tn-project-top').onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnProjector(x); };
     const af = el.querySelector('#tn-add-files'); if(af) af.onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnAddFiles(x); };
     const ap = el.querySelector('#tn-add-paste'); if(ap) ap.onclick = ()=>{ const x = tnFind(S.editingId); if(x) tnAddPaste(x); };
     tnPaintEditorParts(el);
@@ -1171,7 +1181,9 @@ ${tnMaterialsBlock(c)}`;
           <div class="tn-share-btns">
             <button class="btn btn-primary btn-sm preview-allow" id="tn-sh-copy">📋 Sao chép link</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="tn-sh-zalo">💬 Sao chép lời mời gửi Zalo</button>
+            <button class="btn btn-ghost btn-sm preview-allow" id="tn-sh-project">🖥️ Chiếu mã QR lên màn hình</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="tn-sh-png">⬇️ Tải áp phích mã QR</button>
+            <button class="btn btn-ghost btn-sm preview-allow" id="tn-sh-print">🖨️ In áp phích A4</button>
             <button class="btn btn-ghost btn-sm preview-allow" id="tn-sh-try">🧑‍🎓 Học thử</button>
           </div>
           <p class="mt-hint">Học viên bấm link (hoặc quét mã bằng Zalo/Camera) là học được ngay — không cài đặt, không lập tài khoản. Tiến độ được tự lưu trên máy của học viên để quay lại học tiếp.</p>
@@ -1187,18 +1199,83 @@ ${tnMaterialsBlock(c)}`;
     box.querySelector('#tn-sh-copy').onclick = ()=> copyMessageText(url);
     box.querySelector('#tn-sh-zalo').onclick = ()=> copyMessageText(`📚 Mời ${c.audience ? c.audience.toLowerCase() : 'bà con'} tham gia lớp tập huấn “${c.title}”${c.issuer ? ` của ${c.issuer}` : ''}.\nHọc ngay trên điện thoại, lúc nào rảnh thì học — có trợ giảng AI giải thích tận tình, hỏi bao nhiêu cũng được.\n👉 Bấm vào đây để học: ${url}`);
     box.querySelector('#tn-sh-try').onclick = ()=> tnOpenPreview(c);
+    box.querySelector('#tn-sh-project').onclick = ()=> tnProjector(tnFind(c.id) || c);
     if(canEdit && !c.sample){
       box.querySelector('#tn-sh-open').onchange = async e=>{ if(!await tnUpdate(c.id, { status: e.target.checked ? 'open' : 'closed' })) e.target.checked = !e.target.checked; else mtFlashSaved(); };
       box.querySelector('#tn-sh-close').onchange = async e=>{ if(await tnUpdate(c.id, { closeAt: mtLocalInputToIso(e.target.value) })) mtFlashSaved(); };
     }
-    const png = box.querySelector('#tn-sh-png');
-    png.disabled = true;
+    const png = box.querySelector('#tn-sh-png'), prt = box.querySelector('#tn-sh-print');
+    png.disabled = prt.disabled = true;
     mtQrCanvas(url).then(qr=>{
       const q = box.querySelector('#tn-share-qr'); if(!q) return;
       q.innerHTML = `<img src="${qr.toDataURL('image/png')}" alt="Mã QR vào học">`;
-      png.disabled = false;
+      png.disabled = prt.disabled = false;
+      prt.onclick = ()=> tnPrintPoster(tnFind(c.id) || c, qr.toDataURL('image/png'), url);
       png.onclick = ()=> tnQrPoster(c, qr, url).toBlob(b=>{ if(b) downloadBlob(`QR_tap-huan_${surveyFileSlug(c.title||'tap-huan')}.png`, b, 'image/png'); }, 'image/png');
     }).catch(e=>{ const q = box.querySelector('#tn-share-qr'); if(q) q.innerHTML = `<span class="mt-hint">⚠️ Không tạo được mã QR (kiểm tra kết nối mạng).</span>`; });
+  }
+  // ---- Chiếu mã QR lên màn hình (dùng chung qrProjectorOpen) + hộp "📱 Mã QR" giống Phòng họp ----
+  function tnEyebrowText(c){ return `🎓 Lớp tập huấn có trợ giảng AI${c && c.issuer ? ' · ' + c.issuer : ''}`; }
+  function tnProjector(c){
+    const st = tnStatus(c);
+    qrProjectorOpen({
+      url: tnShareUrl(c.id), title: c.title||'Bài tập huấn', eyebrow: tnEyebrowText(c),
+      meta: c.audience ? `👥 ${c.audience}` : '',
+      sampleNote: c.sample ? '⚠️ Bài tập huấn MẪU — thông tin có thể sai sót, chưa đầy đủ hoặc đã thay đổi' : '',
+      cta: '📱 Mở Zalo hoặc Camera, quét mã để vào học',
+      closedMsg: st.open ? null : `Lớp tập huấn đang ở trạng thái “${st.label}”`,
+      // Bài mẫu không lưu kết quả -> không có con số người học.
+      counter: (c.sample || isTourMode()) ? null : { ref: rtdb.ref(`training_learners/${c.id}`), count: snap=> (snap && snap.exists()) ? snap.numChildren() : 0, label: n=> `🎓 Đã có ${n} người vào học` },
+    });
+  }
+  function tnPrintPoster(c, qrUrl, url){
+    const area = document.getElementById('print-area'); if(!area) return;
+    area.innerHTML = `<div class="sv-qr-poster" style="--ps-accent:#2F4A3C;">
+      <div class="sv-qr-poster-desc">${escapeHtml(tnEyebrowText(c))}</div>
+      <div class="sv-qr-poster-title">${escapeHtml(c.title||'Bài tập huấn')}</div>
+      ${c.audience ? `<div class="sv-qr-poster-desc">👥 ${escapeHtml(c.audience)}</div>` : ''}
+      ${c.sample ? `<div class="sv-qr-poster-desc" style="color:#c62828; font-weight:700;">⚠️ Bài tập huấn MẪU — thông tin có thể sai sót, chưa đầy đủ hoặc đã thay đổi</div>` : ''}
+      <img src="${qrUrl}" alt="Mã QR" class="sv-qr-poster-img">
+      <div class="sv-qr-poster-cta">📱 Quét mã QR bằng Zalo hoặc Camera điện thoại để vào học — không cần cài đặt, không cần đăng nhập</div>
+      <div class="sv-qr-poster-url">${escapeHtml(url)}</div>
+    </div>`;
+    printAreaNow(false);
+  }
+  async function tnQrModal(c){
+    const url = tnShareUrl(c.id), st = tnStatus(c);
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg tn-font';
+    wrap.innerHTML = `<div class="modal" style="max-width:480px;" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>📱 Mã QR — ${escapeHtml(c.title||'Bài tập huấn')}</h3><button class="modal-close preview-allow" data-x aria-label="Đóng">✕</button></div>
+      <div class="modal-body" style="text-align:center;">
+        ${st.open ? '' : `<div class="mt-warn">⚠️ Lớp tập huấn đang ở trạng thái “${escapeHtml(st.label)}” — học viên quét mã sẽ chưa vào học được.</div>`}
+        ${c.sample ? tnSampleWarnHtml() : ''}
+        <div id="tnq-box" class="sv-qr-box"><div class="mt-hint" style="padding:40px 0;">Đang tạo mã QR…</div></div>
+        <p class="mt-hint" style="margin:10px 0 4px;">Học viên dùng Zalo hoặc Camera điện thoại quét mã này để vào học — không cần cài đặt, không cần đăng nhập.</p>
+        <div style="word-break:break-all; font-size:13px;"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a></div>
+      </div>
+      <div class="modal-foot" style="flex-wrap:wrap; gap:8px;">
+        <button class="btn btn-primary btn-sm preview-allow" id="tnq-project">🖥️ Chiếu lên màn hình</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="tnq-png" disabled>⬇️ Tải ảnh PNG</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="tnq-print" disabled>🖨️ In áp phích A4</button>
+        <button class="btn btn-ghost btn-sm preview-allow" id="tnq-copy">📋 Sao chép link</button>
+      </div></div>`;
+    document.body.appendChild(wrap);
+    const close = ()=> wrap.remove();
+    wrap.querySelector('[data-x]').onclick = close;
+    wrap.addEventListener('click', e=>{ if(e.target===wrap) close(); });
+    wrap.querySelector('#tnq-copy').onclick = ()=> copyMessageText(url);
+    wrap.querySelector('#tnq-project').onclick = ()=>{ close(); tnProjector(c); };
+    const box = wrap.querySelector('#tnq-box');
+    let qr;
+    try{ qr = await mtQrCanvas(url); }
+    catch(e){ box.innerHTML = `<div style="color:#b71c1c; padding:24px 0;">⚠️ Không tạo được mã QR. Vui lòng kiểm tra kết nối mạng rồi thử lại.</div>`; return; }
+    const qrUrl = qr.toDataURL('image/png');
+    box.innerHTML = `<img src="${qrUrl}" alt="Mã QR" class="sv-qr-img">`;
+    const png = wrap.querySelector('#tnq-png'), pr = wrap.querySelector('#tnq-print');
+    png.disabled = pr.disabled = false;
+    png.onclick = ()=> tnQrPoster(c, qr, url).toBlob(b=>{ if(b) downloadBlob(`QR_tap-huan_${surveyFileSlug(c.title||'tap-huan')}.png`, b, 'image/png'); }, 'image/png');
+    pr.onclick = ()=> tnPrintPoster(c, qrUrl, url);
   }
   function tnQrPoster(c, qrCanvas, url){
     const W = 1080, font = '"Be Vietnam Pro", Arial, sans-serif';

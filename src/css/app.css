@@ -1883,3 +1883,8 @@ body.tnp-lock{overflow:hidden;}
 .tnp-basis{margin-top:12px; padding:10px 12px; border-radius:12px; background:#f3f0e4; font-size:14.5px; line-height:1.55;}
 .tn-radio{display:flex; align-items:center; gap:8px; font-weight:500; margin:6px 0;}
 .tn-radio input{width:18px; height:18px;}
+/* Màn chiếu mã QR dùng chung (qrProjectorOpen): dòng phụ phía trên tiêu đề, vạch bài mẫu, bộ đếm trực tiếp */
+.mt-projector-eyebrow{font-size:clamp(14px,2vw,24px); font-weight:700; color:#8a6d1c; overflow-wrap:anywhere;}
+.mt-projector-sample{display:inline-block; margin-top:8px; padding:6px 14px; border-radius:10px; background:#fdecea; color:#b71c1c; font-weight:800; font-size:clamp(13px,1.8vw,22px);}
+.mt-projector-count{position:absolute; left:18px; bottom:16px; padding:10px 18px; border-radius:14px; background:#2F4A3C; color:#fff; font-weight:800; font-size:clamp(16px,2.4vw,30px); box-shadow:0 2px 10px rgba(0,0,0,.2);}
+@media (max-width:600px){ .mt-projector-count{left:50%; transform:translateX(-50%); bottom:10px; white-space:nowrap;} }

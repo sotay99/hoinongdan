@@ -658,6 +658,7 @@
         <div class="mt-card-actions">
           <button class="btn btn-ghost btn-sm preview-allow" data-mt-open="${escapeHtml(m.id)}">${canEdit ? '✏️ Mở / Sửa' : '👁 Xem'}</button>
           <button class="btn btn-ghost btn-sm preview-allow" data-mt-qr="${escapeHtml(m.id)}">📱 Mã QR</button>
+          <button class="btn btn-ghost btn-sm preview-allow" data-mt-project="${escapeHtml(m.id)}" title="Chiếu mã QR thật to lên máy chiếu/TV hội trường">🖥️ Chiếu</button>
           <button class="btn btn-ghost btn-sm preview-allow" data-mt-copy="${escapeHtml(m.id)}">🔗 Sao chép link</button>
           ${canEdit ? `<button class="btn btn-ghost btn-sm preview-allow" data-mt-trash="${escapeHtml(m.id)}" style="color:var(--red);">Xoá</button>` : ''}
         </div>
@@ -665,6 +666,7 @@
     box.querySelectorAll('[data-mt-open]').forEach(b=> b.onclick = ()=>{ S.view = 'editor'; S.editingId = b.dataset.mtOpen; renderMeetingTab(el); window.scrollTo(0,0); });
     box.querySelectorAll('[data-mt-qr]').forEach(b=> b.onclick = ()=>{ const m = mtFind(b.dataset.mtQr); if(m) mtQrModal(m); });
     box.querySelectorAll('[data-mt-copy]').forEach(b=> b.onclick = ()=> copyMessageText(mtShareUrl(b.dataset.mtCopy)));
+    box.querySelectorAll('[data-mt-project]').forEach(b=> b.onclick = ()=>{ const m = mtFind(b.dataset.mtProject); if(m) mtProjector(m); });
     box.querySelectorAll('[data-mt-trash]').forEach(b=> b.onclick = ()=> mtTrashMeeting(b.dataset.mtTrash));
     mtPaintTrash(el);
   }
@@ -911,7 +913,7 @@
     const canEdit = mtCanEdit(), st = mtStatus(m), url = mtShareUrl(m.id);
     box.innerHTML = `
       <div class="mt-link-box">
-        <div class="mt-link-row"><span class="mt-link-url">${escapeHtml(url)}</span><button class="btn btn-ghost btn-sm preview-allow" id="mt-copy">📋 Sao chép</button></div>
+        <div class="mt-link-row"><span class="mt-link-url">${escapeHtml(url)}</span><button class="btn btn-ghost btn-sm preview-allow" id="mt-copy">📋 Sao chép</button><button class="btn btn-ghost btn-sm preview-allow" id="mt-link-qr">📱 Mã QR</button><button class="btn btn-ghost btn-sm preview-allow" id="mt-link-project">🖥️ Chiếu mã QR lên màn hình</button></div>
         <div class="mt-link-state">Trạng thái: ${mtStatusPill(m)} <span class="mt-hint">${escapeHtml(st.key==='open' && m.closeAt ? 'Tự đóng lúc '+mtFmtIso(m.closeAt) : st.key==='open' ? 'Ai có link hoặc quét mã QR đều xem được, không cần đăng nhập.' : 'Đại biểu mở link sẽ thấy thông báo tài liệu đã đóng.')}</span></div>
         ${canEdit ? `<div class="mt-link-actions">
           ${st.open ? `<button class="btn btn-ghost btn-sm" id="mt-close-now" style="color:var(--red);">🔒 Đóng liên kết ngay</button>` : `<button class="btn btn-primary btn-sm" id="mt-reopen">🔓 Mở lại liên kết</button>`}
@@ -921,6 +923,8 @@
         <p class="mt-hint mt-link-note">Đóng liên kết thì đại biểu không mở và không tải được tài liệu nữa, kể cả khi đã chép sẵn đường dẫn. Ai đã tải tệp về máy trước đó thì vẫn giữ bản đó.</p>
       </div>`;
     box.querySelector('#mt-copy').onclick = ()=> copyMessageText(url);
+    box.querySelector('#mt-link-qr').onclick = ()=>{ const x = mtFind(m.id) || m; mtQrModal(x); };
+    box.querySelector('#mt-link-project').onclick = ()=>{ const x = mtFind(m.id) || m; mtProjector(x); };
     const cn = box.querySelector('#mt-close-now');
     if(cn) cn.onclick = async ()=>{ if(confirm('Đóng liên kết ngay? Đại biểu sẽ không mở được tài liệu nữa (có thể mở lại bất cứ lúc nào).')) await mtUpdate(m.id, { status:'closed', closedAt:new Date().toISOString() }); };
     const ro = box.querySelector('#mt-reopen');
@@ -1099,27 +1103,10 @@
   }
   // Toàn màn hình: mã QR thật to để chiếu lên máy chiếu/TV hội trường.
   async function mtProjector(m){
-    const url = mtShareUrl(m.id);
-    const wrap = document.createElement('div');
-    wrap.className = 'mt-projector';
-    wrap.innerHTML = `<button class="mt-projector-close" aria-label="Đóng">✕ Đóng</button>
-      <div class="mt-projector-inner">
-        <h1 class="${Array.from(m.title||'').length>80 ? 'long' : ''}">${escapeHtml(m.title||'Cuộc họp')}</h1>
-        ${mtWhenWhere(m) ? `<div class="mt-projector-meta">${escapeHtml(mtWhenWhere(m))}</div>` : ''}
-        <div class="mt-projector-qr" id="mtp-qr"><span>Đang tạo mã QR…</span></div>
-        <div class="mt-projector-cta">📱 Mở Zalo hoặc Camera, quét mã để xem tài liệu</div>
-        <div class="mt-projector-url">${escapeHtml(url.replace(/^https?:\/\//,''))}</div>
-      </div>`;
-    document.body.appendChild(wrap);
-    const close = ()=>{ try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(e){} wrap.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = e=>{ if(e.key==='Escape') close(); };
-    document.addEventListener('keydown', onKey);
-    wrap.querySelector('.mt-projector-close').onclick = close;
-    try{ if(wrap.requestFullscreen) wrap.requestFullscreen().catch(()=>{}); }catch(e){}
-    try{
-      const qr = await mtQrCanvas(url);
-      wrap.querySelector('#mtp-qr').innerHTML = `<img src="${qr.toDataURL('image/png')}" alt="Mã QR">`;
-    }catch(e){ wrap.querySelector('#mtp-qr').innerHTML = `<span>⚠️ Không tạo được mã QR — kiểm tra kết nối mạng.</span>`; }
+    const st = mtStatus(m);
+    qrProjectorOpen({ url: mtShareUrl(m.id), title: m.title||'Cuộc họp', meta: mtWhenWhere(m),
+      cta:'📱 Mở Zalo hoặc Camera, quét mã để xem tài liệu',
+      closedMsg: st.open ? null : `Liên kết tài liệu cuộc họp đang ở trạng thái “${st.label}”` });
   }
 
   // =====================================================================
