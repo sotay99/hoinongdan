@@ -1972,14 +1972,14 @@ body.tnp-lock{overflow:hidden;}
 .bt-letter-band{flex:0 0 auto; border-radius:16px 16px 0 0; height:74px; display:flex; align-items:center; justify-content:center; font-size:40px;
   background:repeating-linear-gradient(135deg, #2e7d32 0 14px, #c79a2b 14px 20px, #fffdf6 20px 26px, #c62828 26px 32px, #fffdf6 32px 38px);}
 .bt-letter-close{position:absolute; top:10px; right:10px; background:#fff; border-radius:50%;}
-.bt-letter .bt-letter-body{padding:18px 24px 6px; font-family:var(--app-font-serif); font-size:15.5px; line-height:1.7; color:#2b2a24;}
+.bt-letter .bt-letter-body{padding:18px 24px 6px; font-family:var(--app-font-sans); font-size:15.5px; line-height:1.7; color:#2b2a24;}
 .bt-letter-body h3{margin:0 0 10px; font-family:var(--app-font-sans); font-size:21px; color:#1b5e20; text-align:center;}
 .bt-letter-body p{margin:0 0 10px;}
 .bt-letter-body ul{margin:0 0 12px; padding-left:20px;}
 .bt-letter-body li{margin-bottom:5px;}
 .bt-letter-credit{font-family:var(--app-font-sans); margin:6px 0 4px; padding:10px 12px; border-radius:10px; background:#f1f7ec; border:1px solid #cfe3c5;}
 .bt-letter-credit .field{margin:8px 0 0;}
-.bt-letter-sign{text-align:right; font-style:italic; font-weight:700; color:#1b5e20; margin:8px 0 6px;}
+.bt-letter-sign{text-align:right; font-weight:700; color:#1b5e20; margin:8px 0 6px;}
 
 /* Cài đặt Admin */
 .bt-admin-entry .panel-body{padding:14px;}
