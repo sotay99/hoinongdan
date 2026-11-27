@@ -943,15 +943,15 @@
       lead:'Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người, tạo cuộc thi trực tuyến và chấm điểm tự động. Người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ tham gia bằng đường link do đồng chí cung cấp!',
       blocks:[], note:null },
     training: { icon:'🎓', eyebrow:'ĐÀO TẠO', title:'Tập huấn bằng AI',
-      lead:'Thay vì tập trung hàng trăm hội viên vào hội trường rồi giảng một lượt cho tất cả, đồng chí soạn bài giảng một lần và mỗi người được AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
+      lead:'Đồng chí soạn bài tập huấn một lần, gửi một đường liên kết — mỗi học viên được trợ giảng AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
       blocks:[
-        ['📚','Soạn bài giảng rồi cho AI tiêu hoá','Đưa vào tài liệu dưới bất kỳ dạng nào — văn bản, slide, PDF, ảnh chụp tài liệu giấy.'],
-        ['🔗','Gửi bài giảng bằng một đường liên kết','Hội viên bấm vào liên kết là học được ngay, không cần cài phần mềm hay lập tài khoản.'],
-        ['💬','Học bằng cách trò chuyện, không phải đọc suông','Người học hỏi, AI trả lời, giải thích lại chỗ chưa hiểu, cho ví dụ gần gũi với công việc nhà nông.'],
-        ['🎯','AI tự dò xem người học đang ở đâu','Nhận ra người này đã biết gì và chưa biết gì, đi sâu vào phần họ còn yếu.'],
-        ['🧪','Kiểm tra hiểu bài ngay trong lúc học','AI đặt câu hỏi ngược lại để chắc rằng người học thật sự hiểu.'],
-        ['📈','Cán bộ Hội thấy được kết quả','Bao nhiêu người đã học, học đến đâu, chỗ nào nhiều người vướng nhất.'],
-      ], note:['Bài toán thực tế','Cách này giữ được nội dung do chính cán bộ Hội biên soạn, nhưng cách truyền đạt thì tuỳ theo từng người nghe.'] },
+        ['📚','Đưa tài liệu vào, AI đọc và soạn giáo án','PDF, Word, PowerPoint, Excel, ảnh chụp tài liệu giấy. AI chia thành các phần học, ghi mục tiêu, ý chính và soạn sẵn bộ câu hỏi trắc nghiệm để đồng chí rà lại, sửa tay.'],
+        ['🔗','Gửi bằng một đường liên kết hoặc mã QR','Học viên bấm link hay quét mã là học được ngay, không cài đặt, không lập tài khoản. Có sẵn lời mời để dán vào nhóm Zalo.'],
+        ['💬','Học bằng cách trò chuyện','Trợ giảng chỉ giảng trong phạm vi tài liệu, ví dụ gần gũi nhà nông, có nút trả lời nhanh và nói thay vì gõ.'],
+        ['🎯','Tự dò trình độ, hỏi ngược để chắc là hiểu','Vài câu thăm dò đầu buổi, rồi giảng từng phần; cuối mỗi phần hỏi lại, sai thì giảng cách khác.'],
+        ['📝','Bài kiểm tra cuối và giấy xác nhận','Lấy ngẫu nhiên từ bộ câu hỏi, đảo phương án. Đạt thì học viên tải được giấy xác nhận hoàn thành.'],
+        ['📈','Cán bộ Hội thấy được kết quả','Ai đã học, học đến phần nào, điểm bao nhiêu, chỗ nào nhiều người vướng — AI tổng hợp và gợi ý bổ sung tài liệu. Xuất ra Excel.'],
+      ], note:['Bài toán thực tế','Nội dung do chính cán bộ Hội biên soạn, còn cách truyền đạt thì tuỳ theo từng người nghe.'] },
     carecare: { icon:'💚', eyebrow:'CÔNG TÁC HỘI VIÊN', title:'Chăm sóc Hội viên',
       lead:'Giữ liên lạc thường xuyên với hàng trăm hội viên là việc quá sức nếu nhắn tay từng người. Module này để AI nhắn thay, nhưng vẫn ra chất riêng cho từng người chứ không phải tin nhắn hàng loạt vô hồn.',
       blocks:[
@@ -1287,6 +1287,7 @@
     else if(upcomingModules()[state.activeTab]) renderUpcomingModule(content, upcomingModules()[state.activeTab]);
     else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='meeting') renderMeetingTab(content);
+    else if(state.activeTab==='training') renderTrainingTab(content);
     else if(state.activeTab==='settings') renderSettingsTab(content);
     else if(state.activeTab==='guide') renderGuideTab(content);
     else if(state.activeTab==='about') renderAboutTab(content);

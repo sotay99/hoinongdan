@@ -231,6 +231,7 @@
     {key:'internal', label:'Thu – Chi nội bộ'},
     {key:'survey', label:'Biểu mẫu/Khảo sát (Bộ dùng chung)'},
     {key:'meeting', label:'Phòng họp không giấy (Bộ dùng chung)'},
+    {key:'training', label:'Tập huấn bằng AI (Bộ dùng chung)'},
   ];
   const PERM_OPTIONS = [
     {v:'none', label:'Không được xem'},

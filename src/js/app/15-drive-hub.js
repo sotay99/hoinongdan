@@ -1253,9 +1253,9 @@
   }
 
   // =====================================================================
-  // CÁC MODULE ĐANG NÂNG CẤP — Danh sách công việc, Tập huấn bằng AI,
-  // Quản lý Fanpage, Chăm sóc hội viên, Công tác Chi hội. (Phòng họp không giấy đã có
-  // giao diện thật ở 18-meeting.js.)
+  // CÁC MODULE ĐANG NÂNG CẤP — Danh sách công việc, Quản lý Fanpage, Chăm sóc hội viên,
+  // Công tác Chi hội. (Phòng họp không giấy và Tập huấn bằng AI đã có giao diện thật ở
+  // 18-meeting.js và 19-training.js.)
   // Hiện mới có trang giới thiệu; dùng chung một hàm dựng để khỏi lặp mã.
   // =====================================================================
   function renderUpcomingModule(el, cfg){
@@ -1306,25 +1306,6 @@
          'Cán bộ phụ trách giao việc cho từng người, thấy được ai đang làm đến đâu, việc nào sắp trễ hạn để nhắc trước khi muộn.'],
       ],
       note:['Điều khác biệt','Phần mềm quản lý công việc thông thường bắt đồng chí ngồi nhập từng đầu việc — mà chính việc nhập ấy đã đủ mất công để người ta bỏ dùng. Ở đây đồng chí chỉ cần ném nguyên tài liệu hoặc đoạn chat vào, phần bóc tách để AI lo.'],
-    },
-    training: {
-      icon:'🎓', eyebrow:'ĐÀO TẠO', title:'Tập huấn bằng AI',
-      lead:'Thay vì tập trung hàng trăm hội viên vào hội trường rồi giảng một lượt cho tất cả, đồng chí soạn bài giảng một lần và mỗi người được AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
-      blocks:[
-        ['📚','Soạn bài giảng rồi cho AI tiêu hoá',
-         'Đưa vào tài liệu tập huấn dưới bất kỳ dạng nào — văn bản, slide, PDF, ảnh chụp tài liệu giấy. AI đọc kỹ, nắm chắc nội dung và ghi nhớ để làm nguồn kiến thức duy nhất khi giảng, không nói ra ngoài phạm vi bài.'],
-        ['🔗','Gửi bài giảng bằng một đường liên kết',
-         'Hội viên bấm vào liên kết là học được ngay, không cần cài phần mềm, không cần lập tài khoản. Gửi qua Zalo, tin nhắn hay dán vào nhóm đều được.'],
-        ['💬','Học bằng cách trò chuyện, không phải đọc suông',
-         'Người học hỏi, AI trả lời, giải thích lại chỗ chưa hiểu, cho ví dụ gần gũi với công việc nhà nông. Hỏi bao nhiêu lần cũng được, không ngại như giơ tay giữa hội trường đông người.'],
-        ['🎯','AI tự dò xem người học đang ở đâu',
-         'Qua vài câu trao đổi đầu, AI nhận ra người này đã biết gì và chưa biết gì, rồi bỏ qua phần họ đã nắm, đi sâu vào phần họ còn yếu. Người đã rành thì học nhanh, người mới thì được giảng kỹ.'],
-        ['🧪','Kiểm tra hiểu bài ngay trong lúc học',
-         'AI đặt câu hỏi ngược lại để chắc rằng người học thật sự hiểu chứ không phải gật cho xong, và quay lại giảng thêm chỗ nào còn lệch.'],
-        ['📈','Cán bộ Hội thấy được kết quả',
-         'Bao nhiêu người đã học, học đến đâu, chỗ nào nhiều người vướng nhất — từ đó biết cần bổ sung gì vào tài liệu cho đợt sau.'],
-      ],
-      note:['Bài toán thực tế','Tập huấn tập trung tốn thời gian đi lại của cả trăm người, mà mỗi người lại có trình độ và nhu cầu khác nhau. Cách này giữ được nội dung do chính cán bộ Hội biên soạn, nhưng cách truyền đạt thì tuỳ theo từng người nghe.'],
     },
     fanpage: {
       icon:'📣', eyebrow:'TRUYỀN THÔNG', title:'Quản lý Fanpage',
