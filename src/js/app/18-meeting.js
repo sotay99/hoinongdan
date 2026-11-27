@@ -599,6 +599,7 @@
   function renderMeetingTab(el){
     if(!el) return;
     mtAttach();
+    introIfBothSpacesEmpty({ flag:'_mtIntroChecked', node:'meetings', perm:'meeting', tab:'meeting', intro:'meeting', tourHasItems:true });
     const S = mtS();
     if(S.view==='editor' && mtFind(S.editingId)) mtRenderEditor(el);
     else { S.view = 'list'; S.editingId = null; mtRenderList(el); }

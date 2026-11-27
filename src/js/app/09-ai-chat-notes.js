@@ -814,7 +814,7 @@
     if(!sameTab) rememberTabScroll();
     state.activeTab = tabId;
     if(!sameTab) state._schedIntroShown = false; // vào lại module Lịch công tác thì cho phép hiện lại Bản giới thiệu (khi chưa có người nào)
-    if(!sameTab){ state._tnIntroShown = false; state._tnEntryChecked = false; } // Tập huấn bằng AI: mỗi lần vào lại thì đếm bài ở 2 bộ nhớ, trống cả hai -> tab mẫu + Bản giới thiệu
+    if(!sameTab){ state._tnIntroShown = false; state._tnEntryChecked = false; state._svIntroChecked = false; state._mtIntroChecked = false; } // Tập huấn bằng AI: mỗi lần vào lại thì đếm bài ở 2 bộ nhớ, trống cả hai -> tab mẫu + Bản giới thiệu
     state.bellOpen = false;
     render();
     if(sameTab) scrollWindowTo(keepTop);
@@ -932,6 +932,7 @@
       ], note:null },
     meeting: { icon:'📋', eyebrow:'HỘI HỌP', title:'Phòng họp không giấy',
       lead:'Mỗi cuộc họp có một trang tài liệu riêng. Đại biểu quét mã QR là đọc được toàn bộ tài liệu trên điện thoại — không cần cài phần mềm, không cần đăng nhập.',
+      steps:['Đưa tài liệu','Phát mã QR','Đóng liên kết khi họp xong'],
       blocks:[
         ['📄','Tài liệu xếp đúng thứ tự chương trình','Tải tệp lên hoặc chọn từ Trung tâm dữ liệu, chia thư mục nhiều tầng như Google Drive, kéo thả để sắp thứ tự hoặc chuyển thư mục, tạo bản sao, đặt tên hiển thị dễ hiểu cho đại biểu.'],
         ['📱','Mã QR và liên kết riêng','Chiếu mã QR lên màn hình hội trường, in áp phích hoặc in thẻ nhỏ dán bàn, hay gửi liên kết qua Zalo.'],
@@ -941,10 +942,21 @@
         ['👁','Xem trước như đại biểu','Kiểm tra trang tài liệu đúng như đại biểu sẽ thấy trước khi phát mã QR.'],
       ], note:['Đơn giản là điểm mạnh','Ai biết quét mã QR là dùng được — kể cả các bác lớn tuổi.'] },
     survey: { icon:'📝', eyebrow:'BIỂU MẪU — KHẢO SÁT — KIỂM TRA', title:'Biểu mẫu khảo sát',
-      lead:'Giúp tạo các biểu mẫu để KHẢO SÁT hội viên, nhân dân, thu thập thông tin mọi người, hoặc lấy ý kiến và lắng nghe trình báo từ người khác, hoặc tạo bài kiểm tra cho mọi người, tạo cuộc thi trực tuyến và chấm điểm tự động. Người tham gia khảo sát (hoặc làm bài kiểm tra) sẽ tham gia bằng đường link do đồng chí cung cấp!',
-      blocks:[], note:null },
+      lead:'Tạo phiếu khảo sát, lấy ý kiến, thu thập thông tin, nhận đơn trình báo, ra bài kiểm tra hay tổ chức cuộc thi trực tuyến. Gửi một đường link hoặc mã QR, mọi người điền ngay trên điện thoại — không cần cài phần mềm, không cần đăng nhập.',
+      steps:['Tạo biểu mẫu (tự soạn hoặc nhờ AI)','Gửi link / mã QR','Xem kết quả, xuất Excel'],
+      blocks:[
+        ['✨','Tạo nhanh bằng AI','Gõ, nói yêu cầu hoặc đưa tài liệu (Word, PDF, Excel, ảnh) — AI soạn sẵn câu hỏi, đồng chí sửa lại theo ý.'],
+        ['🧩','11 loại câu hỏi','Trả lời ngắn, đoạn văn, trắc nghiệm, hộp kiểm, danh sách thả xuống, thang điểm, lưới trắc nghiệm, lưới hộp kiểm, ngày, giờ, tải ảnh hoặc tệp lên.'],
+        ['🔀','Chia phần và rẽ nhánh','Chia biểu mẫu thành nhiều phần; chọn đáp án nào thì chuyển tới phần tương ứng; xáo trộn thứ tự phương án.'],
+        ['🏆','Bài kiểm tra, cuộc thi chấm điểm tự động','Đặt đáp án đúng, điểm từng câu, lời phản hồi khi đúng hoặc sai; câu tự luận thì chấm tay; công bố điểm ngay hoặc khi chấm xong; người làm bài xem lại bài qua link riêng.'],
+        ['📱','Link, mã QR, chiếu lên màn hình','Gửi qua Zalo, Messenger có khung xem trước với ảnh riêng theo từng loại biểu mẫu; in áp phích A4; chiếu mã QR ở hội nghị, có số phiếu chạy trực tiếp.'],
+        ['🛡️','Kiểm soát nhận phiếu','Hẹn giờ đóng, giới hạn tổng số phiếu, mỗi người tối đa 1–3 lần (nhận biết theo trình duyệt hoặc tài khoản Google), lời nhắn hiện ra khi đã đóng.'],
+        ['📊','Kết quả có ngay khi phiếu về','Xem tổng hợp từng câu, dạng bảng hoặc từng phiếu; lọc, chọn cột; xuất Excel, in; tải về hết ảnh và tệp người gửi; AI tổng hợp ý kiến.'],
+        ['🗂️','Dùng chung hay cá nhân','Bộ dùng chung theo quyền Chủ mã cấp, bộ cá nhân theo tài khoản Google; nhân bản biểu mẫu; Thùng rác khôi phục được.'],
+      ], note:['Thay cho phiếu giấy','Không phải in phiếu, phát phiếu, đi thu từng nhà rồi ngồi cộng tay — phiếu gửi về là có số liệu ngay.'] },
     training: { icon:'🎓', eyebrow:'ĐÀO TẠO', title:'Tập huấn bằng AI',
       lead:'Đồng chí soạn bài tập huấn một lần, gửi một đường liên kết — mỗi học viên được trợ giảng AI kèm riêng, đúng trình độ và đúng lúc họ rảnh.',
+      steps:['Đưa tài liệu','AI soạn giáo án','Gửi link','Xem kết quả'],
       blocks:[
         ['📚','Đưa tài liệu vào, AI đọc và soạn giáo án','PDF, Word, PowerPoint, Excel, ảnh chụp tài liệu giấy. AI chia thành các phần học, ghi mục tiêu, ý chính và soạn sẵn bộ câu hỏi trắc nghiệm để đồng chí rà lại, sửa tay.'],
         ['🔗','Gửi bằng một đường liên kết hoặc mã QR','Học viên bấm link hay quét mã là học được ngay, không cài đặt, không lập tài khoản. Có sẵn lời mời để dán vào nhóm Zalo.'],
@@ -992,6 +1004,7 @@
           <div><div class="eyebrow">${escapeHtml(cfg.eyebrow)}</div><h3>${escapeHtml(cfg.title)}</h3></div>
         </div>
         <p class="upcoming-lead">${escapeHtml(cfg.lead)}</p>
+        ${cfg.steps && cfg.steps.length? `<ol class="intro-steps" aria-label="Các bước">${cfg.steps.map((t,i)=>`<li><b>${i+1}</b><span>${escapeHtml(t)}</span></li>`).join('')}</ol>` : ''}
         ${cfg.blocks && cfg.blocks.length? `<div class="upcoming-grid">
           ${cfg.blocks.map(([ico,h,p])=>`
             <div class="upcoming-feature">

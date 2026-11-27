@@ -638,6 +638,7 @@
 
   function renderSurveyTab(el){
     attachSurveysRealtime();
+    introIfBothSpacesEmpty({ flag:'_svIntroChecked', node:'surveys', perm:'survey', tab:'survey', intro:'survey' });
     if(state.surveyView==='editor' && state.surveyDraft){
       renderSurveyEditorView(el);
     } else {
@@ -809,6 +810,28 @@
   // ngang và chia đều, chữ dài xuống dòng NGAY TRONG nút chứ không đẩy nút xuống hàng dưới.
   function surveyTabsHtml(items, extraCls){
     return `<div class="sv-tabs ${extraCls||''}" role="tablist">${items.map(it=>`<button type="button" role="tab" aria-selected="${it.active?'true':'false'}" class="sv-tab preview-allow ${it.active?'active':''}" ${it.id? `id="${it.id}"` : ''} ${it.attrs||''} ${it.disabled?'disabled':''}>${escapeHtml(it.label)}</button>`).join('')}</div>`;
+  }
+  // Bản giới thiệu tự hiện khi CHƯA CÓ GÌ ở cả hai bộ nhớ (Biểu mẫu: surveys/, Phòng họp: meetings/) — mỗi lần
+  // VÀO module một lần (cờ đặt lại trong switchTab), đóng được. Không tính mục trong Thùng rác. Lỗi đọc (mạng,
+  // quyền) thì coi như không rõ -> không hiện. Tập huấn bằng AI có cơ chế riêng (tnProbeEntry, kèm tab mẫu).
+  async function introIfBothSpacesEmpty(o){
+    if(state[o.flag]) return;
+    state[o.flag] = true;
+    // Môi trường tham quan không đọc Firebase: module có dữ liệu mẫu (Phòng họp) thì báo qua o.tourHasItems.
+    let total = isTourMode() && o.tourHasItems ? 1 : 0, unknown = false;
+    if(!isTourMode()){
+      const count = async (ref, wantPersonal)=>{
+        try{ const snap = await ref.once('value'); return Object.values((snap && snap.val()) || {}).filter(x=> x && x.id && !x.deleted && ((x.scope==='personal')===wantPersonal)).length; }
+        catch(e){ console.warn('[Bản giới thiệu] Không đếm được:', e); unknown = true; return 0; }
+      };
+      const email = state.identity && state.identity.email, jobs = [];
+      if(wardId() && canViewModule(o.perm)) jobs.push(count(rtdb.ref(o.node).orderByChild('wardId').equalTo(wardId()), false).then(n=> total += n));
+      if(email) jobs.push(count(rtdb.ref(o.node).orderByChild('ownerEmail').equalTo(email), true).then(n=> total += n));
+      await Promise.all(jobs);
+    }
+    if(unknown || total) return;
+    if(state.view!=='app' || state.activeTab!==o.tab) return;
+    if(MODULE_INTRO_CONTENT && MODULE_INTRO_CONTENT[o.intro] && !document.querySelector('.modal-bg')) openModuleIntroModal(MODULE_INTRO_CONTENT[o.intro]);
   }
   // Dòng chữ ĐỎ ngay dưới dải tab chọn bộ nhớ (Biểu mẫu, Phòng họp, Tập huấn bằng AI): nói rõ đồng chí đang
   // làm việc ở bộ nhớ nào để khỏi soạn nhầm chỗ. space: 'shared' | 'personal' | 'sample'.
