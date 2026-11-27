@@ -620,7 +620,7 @@
           <div style="margin-bottom:14px;">${surveyTabsHtml([
             { id:'mt-space-shared', label:`🏛️ Bộ nhớ dùng chung ${adminLevelLabelLower()}`, active:isShared },
             { id:'mt-space-personal', label:'🔒 Bộ nhớ cá nhân', active:!isShared },
-          ])}</div>
+          ])}${spaceNoteHtml(isShared ? 'shared' : 'personal', 'cuộc họp')}</div>
           ${!canView ? `<div class="empty-state" style="padding:30px;"><div class="e-ico">🔒</div>${isShared
               ? (wardId() ? 'Đồng chí chưa được cấp quyền xem Phòng họp dùng chung. Vui lòng liên hệ Chủ mã để được cấp quyền tại "Cài đặt & Chia sẻ".' : `Phòng họp dùng chung cần vào bằng mã ${adminLevelLabelLower()}.`)
               : 'Phòng họp cá nhân yêu cầu đăng nhập bằng tài khoản Google.'}</div>` : `
@@ -737,6 +737,7 @@
               <button class="btn btn-primary btn-sm preview-allow" id="mt-project">🖥️ Chiếu mã QR lên màn hình</button>
             </div>
           </div>
+          ${spaceNoteHtml(S.space==='personal' ? 'personal' : 'shared', 'cuộc họp')}
 
           <div class="divider-lbl">1. Thông tin cuộc họp</div>
           <div class="mt-info-grid">
