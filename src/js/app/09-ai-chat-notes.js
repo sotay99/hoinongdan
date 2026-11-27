@@ -753,7 +753,8 @@
     items.push({id:'about', ico:'ℹ️', label:'Thông tin phần mềm'});
     // Chỉ Admin (2 Admin tối cao + Admin được thêm vào) mới nhìn thấy mục này — luôn ở cuối cùng.
     if(isAdmin()) items.push({id:'knowledgeBase', ico:'🧠', label:'Huấn luyện AI (Admin)'});
-    if(isAdmin()) items.push({id:'adminSettings', ico:'🛠️', label:'CÀI ĐẶT ADMIN'});
+    // Chấm đỏ = số tài liệu đóng góp cho Kho mẫu văn bản chi hội đang chờ duyệt (20-branch-templates.js).
+    if(isAdmin()) items.push({id:'adminSettings', ico:'🛠️', label:'CÀI ĐẶT ADMIN', badge: btAdminPendingBadge()});
     return items;
   }
 
@@ -1298,6 +1299,7 @@
     else if(state.activeTab==='drive') renderDriveHubTab(content);
     else if(state.activeTab==='schedule') renderScheduleTab(content);
     // docs/sheets/slides KHÔNG còn là tab: chúng mở overlay toàn màn hình từ menu thả xuống.
+    else if(state.activeTab==='branch') renderBranchTab(content);
     else if(upcomingModules()[state.activeTab]) renderUpcomingModule(content, upcomingModules()[state.activeTab]);
     else if(state.activeTab==='survey') renderSurveyTab(content);
     else if(state.activeTab==='meeting') renderMeetingTab(content);

@@ -2056,7 +2056,10 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
 
   function renderAdminSettingsTab(el){
     if(!isAdmin()){ el.innerHTML = '<div class="empty-state">Đồng chí không có quyền truy cập mục này.</div>'; return; }
+    // Màn "Cài đặt module Công tác Chi hội (Kho tài liệu mẫu)" — 20-branch-templates.js
+    if(btAdminIsOpen()){ renderBranchTemplatesAdmin(el); return; }
     el.innerHTML = `
+      ${btAdminEntryPanelHtml()}
       <div class="panel">
         <div class="panel-head"><h3>👑 Quản lý Admin</h3></div>
         <div class="panel-body">
@@ -2117,6 +2120,7 @@ CHỈ trả lời bằng ĐÚNG 1 khối JSON hợp lệ, không thêm bất k�
         </div>
       </div>`;
 
+    btWireAdminEntry(el);
     // ---- Khu vực 1: Quản lý Admin (chỉ Admin tối cao mới có nút bấm) ----
     const admAddBtn = document.getElementById('adm-add-btn');
     if(admAddBtn) admAddBtn.onclick = async ()=>{

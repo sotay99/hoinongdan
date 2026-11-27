@@ -76,8 +76,10 @@
     return [f ? `${f} tệp` : '', s ? `${s} thư mục` : ''].filter(Boolean).join(' · ') || 'Thư mục trống';
   }
   // Thanh địa chỉ: gốc › … › thư mục đang mở (in đậm, không bấm). attr = tên data-* để gắn sự kiện.
-  function mtCrumbsHtml(path, attr){
-    const items = [{ id:'', title: MT_ROOT_NAME }].concat(path.map(f=> ({ id:f.id, title: mtDocTitle(f) })));
+  // rootName (tuỳ chọn): tên thư mục gốc khác "Tài liệu cuộc họp" — Kho mẫu văn bản chi hội (20-branch-templates.js)
+  // dùng lại đúng hàm này với tên gốc riêng.
+  function mtCrumbsHtml(path, attr, rootName){
+    const items = [{ id:'', title: rootName || MT_ROOT_NAME }].concat(path.map(f=> ({ id:f.id, title: mtDocTitle(f) })));
     // Chữ chảy liền (inline) để tên dài tự xuống hàng; dấu "›" dính liền với tên PHÍA SAU nó (&nbsp;) nên
     // không bao giờ đứng trơ trọi một mình ở cuối/đầu dòng.
     // Đang ở trong thư mục con (bất kỳ tầng nào) thì thanh địa chỉ nền đỏ nhạt, viền đỏ đậm cho dễ nhận ra —
@@ -88,14 +90,14 @@
       return sep + (i===items.length-1
         ? `<span class="mt-crumb cur" aria-current="page">${label}</span>`
         : `<span role="button" tabindex="0" class="mt-crumb preview-allow" data-${attr}="${escapeHtml(it.id)}">${label}</span>`);
-    }).join(' ')}</nav>${path.length ? mtCrumbBackHtml(path, attr) : ''}`;
+    }).join(' ')}</nav>${path.length ? mtCrumbBackHtml(path, attr, rootName) : ''}`;
   }
   // Nút "‹ Quay lại thư mục trước": sát dưới thanh địa chỉ, bên trái; chỉ có khi đang ở thư mục con. Mang cùng
   // data-* với các mục trên thanh địa chỉ (trỏ tới thư mục cha, '' = gốc) nên dùng chung luôn việc bấm, phím
   // Enter và thả kéo (thả tệp lên nút = chuyển tệp lên thư mục cha) ở mọi nơi.
-  function mtCrumbBackHtml(path, attr){
+  function mtCrumbBackHtml(path, attr, rootName){
     const parent = path.length >= 2 ? path[path.length-2] : null;
-    const to = parent ? mtDocTitle(parent) : MT_ROOT_NAME;
+    const to = parent ? mtDocTitle(parent) : (rootName || MT_ROOT_NAME);
     return `<div class="mt-crumb-back-row"><button type="button" class="mt-crumb-back preview-allow" data-${attr}="${escapeHtml(parent ? parent.id : '')}" title="Về “${escapeHtml(to)}”">‹ Quay lại thư mục trước</button></div>`;
   }
   // Mục trên thanh địa chỉ là <span role="button"> (thẻ <button> không ngắt dòng giữa chừng được, tên thư mục
@@ -109,12 +111,12 @@
   }
   // Thư mục đang đứng còn tồn tại không; mất (bị xoá/chuyển đi) thì lùi về thư mục cha gần nhất còn lại trên
   // đường dẫn cũ. Trả về { id, notice }.
-  function mtResolveFolder(m, wantedId, oldPathIds){
+  function mtResolveFolder(m, wantedId, oldPathIds, rootName){
     const map = mtFolderMap(m);
     if(!wantedId || map[wantedId]) return { id: wantedId || null, notice:'' };
     const keep = (oldPathIds||[]).filter(id=> map[id]);
     const id = keep.length ? keep[keep.length-1] : null;
-    return { id, notice:`Thư mục đang mở vừa bị xoá hoặc chuyển đi — đã quay về “${id ? mtDocTitle(map[id]) : MT_ROOT_NAME}”.` };
+    return { id, notice:`Thư mục đang mở vừa bị xoá hoặc chuyển đi — đã quay về “${id ? mtDocTitle(map[id]) : (rootName || MT_ROOT_NAME)}”.` };
   }
   // Nhãn ô nhập: dấu * đỏ cho ô bắt buộc, chữ xám "(không bắt buộc)" cho ô tuỳ chọn.
   function mtLabel(text, required, extra){
