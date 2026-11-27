@@ -13,7 +13,7 @@
   // CÁ NHÂN theo tài khoản Google. Danh sách lọc bằng orderByChild('wardId'|'ownerEmail') — nên thêm
   // ".indexOn":["wardId","ownerEmail"] cho nút meetings trong Firebase Rules.
   //
-  // Phần này đứng CUỐI manifest nên chứa khối khởi động boot() ở cuối tệp.
+  // Khối khởi động boot() đã chuyển xuống phần cuối manifest (19-training.js).
   // =====================================================================
   const MT_MAX_FILE_MB = 30;
   // Giới hạn ký tự: tên cuộc họp/tài liệu hiện ở nhiều chỗ chật (áp phích QR, màn hình chiếu, khung xem
@@ -1415,26 +1415,3 @@
       root.innerHTML = `<div class="mtp"><div class="mtp-closed"><div>⚠️</div><h2>Không tải được tài liệu</h2><p>Vui lòng kiểm tra kết nối mạng rồi tải lại trang.</p></div></div>`;
     });
   }
-
-  // =====================================================================
-  // ĐIỂM KHỞI ĐỘNG ỨNG DỤNG — PHẢI LUÔN NẰM Ở CUỐI PHẦN CUỐI CÙNG trong
-  // manifest.json. Toàn bộ các phần được nối lại thành MỘT hàm bọc (IIFE)
-  // duy nhất mở ở 01-foundation.js và đóng ngay bên dưới, nhờ vậy mọi phần
-  // dùng chung được `state`, `render`, `escapeHtml`... Nếu sau này thêm
-  // phần mới, hãy CHUYỂN nguyên khối này xuống cuối phần đó — để mọi khai
-  // báo `let/const` đều đã khởi tạo xong trước khi boot() chạy (tránh lỗi
-  // "Cannot access before initialization").
-  // =====================================================================
-  const _publicReceiptId = publicReceiptRouteId();
-  const _publicSurveyId = publicSurveyRouteId();
-  const _publicMeetingId = publicMeetingRouteId();
-  if(_publicReceiptId){
-    renderPublicReceiptPage(_publicReceiptId);
-  } else if(_publicSurveyId){
-    renderPublicSurveyPage(_publicSurveyId);
-  } else if(_publicMeetingId){
-    renderPublicMeetingPage(_publicMeetingId);
-  } else {
-    boot();
-  }
-})();
