@@ -1894,3 +1894,105 @@ body.tnp-lock{overflow:hidden;}
 .intro-steps li b{flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:hsl(var(--accent)); color:hsl(var(--accent-foreground)); display:inline-flex; align-items:center; justify-content:center; font-size:12.5px;}
 .intro-steps li + li{position:relative;}
 @media (max-width:560px){ .intro-steps{flex-direction:column; align-items:flex-start;} }
+
+/* =====================================================================
+   CÔNG TÁC CHI HỘI — Kho mẫu văn bản của chi hội (20-branch-templates.js)
+   ===================================================================== */
+.bt-page{display:flex; flex-direction:column; gap:18px;}
+.bt-hero .upcoming-lead{margin-bottom:0;}
+/* Thẻ tính năng đã dùng được: viền xanh lúa đậm, nền ngả xanh nhạt, to hơn thẻ thường */
+.bt-feature{position:relative; background:linear-gradient(160deg, #f3f8ee 0%, var(--white) 70%); border:2px solid #4c7a3d;
+  border-radius:18px; padding:22px 22px 20px; box-shadow:0 2px 4px rgba(37,50,31,.06), 0 10px 26px rgba(47,74,60,.12);}
+.bt-feature-head{display:flex; align-items:center; gap:14px; margin-bottom:10px;}
+.bt-feature-ico{flex:0 0 auto; width:58px; height:58px; border-radius:16px; background:#e3efdc; display:flex; align-items:center; justify-content:center; font-size:32px;}
+.bt-feature-head h3{margin:6px 0 0; font-size:clamp(19px,3vw,24px); color:var(--ink); line-height:1.25;}
+.bt-feature-tag{display:inline-block; padding:4px 11px; border-radius:999px; background:#2e7d32; color:#fff; font-size:12px; font-weight:800; letter-spacing:.2px;}
+.bt-feature-lead{margin:0 0 10px; font-size:15px; line-height:1.7; color:var(--ink); max-width:80ch;}
+.bt-feature-stats{margin:0 0 16px; font-size:13.5px; font-weight:600; color:#4c6b40;}
+.bt-open-btn{width:100%; display:flex; align-items:center; gap:14px; text-align:left; border:none; cursor:pointer; font:inherit;
+  padding:16px 18px; border-radius:15px; color:#fff; background:linear-gradient(135deg,#2e7d32,#1b5e20);
+  box-shadow:0 6px 18px rgba(27,94,32,.35); transition:transform .12s ease, box-shadow .12s ease;}
+.bt-open-btn:hover{transform:translateY(-1px); box-shadow:0 9px 22px rgba(27,94,32,.42);}
+.bt-open-btn:active{transform:translateY(0);}
+.bt-open-btn:focus-visible{outline:3px solid hsl(var(--accent)); outline-offset:3px;}
+.bt-open-ico{flex:0 0 auto; font-size:30px; line-height:1;}
+.bt-open-text{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px;}
+.bt-open-text b{font-size:clamp(16px,2.6vw,19px); line-height:1.3;}
+.bt-open-text small{font-size:13px; opacity:.9; line-height:1.4;}
+.bt-open-go{flex:0 0 auto; font-size:34px; line-height:1; opacity:.9;}
+.bt-contrib-btn{width:100%; margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; text-align:left; cursor:pointer; font:inherit;
+  font-size:14.5px; font-weight:700; color:#1b5e20; background:#fff; border:1.5px dashed #4c7a3d; border-radius:13px; padding:12px 16px;}
+.bt-contrib-btn:hover{background:#f1f7ec;}
+.bt-contrib-btn:focus-visible{outline:3px solid hsl(var(--accent)); outline-offset:2px;}
+.bt-contrib-btn > span:nth-child(2){flex:1 1 220px;}
+.bt-fresh{flex:0 0 auto; padding:3px 10px; border-radius:999px; background:#fff3e0; color:#e65100; font-size:12.5px; font-weight:800;}
+.bt-soon-title{margin:14px 0 0; font-size:clamp(19px,3vw,24px); color:var(--ink); line-height:1.3; padding-bottom:8px; border-bottom:2px solid var(--line);}
+
+/* Xem kho: dùng lại giao diện danh sách tài liệu của trang Phòng họp (mtp-*) */
+.bt-mtp{font-size:16px; color:#1f2a1b;}
+.bt-mtp .mt-crumbs{margin-bottom:10px;}
+.bt-li{display:flex; align-items:stretch; gap:8px;}
+.bt-li .mtp-doc{flex:1 1 auto; min-width:0;}
+.bt-kind{flex:0 0 auto; font-size:24px; line-height:1;}
+.bt-credit{color:#4c6b40 !important; font-weight:600;}
+.bt-dl{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-width:64px;
+  border:1px solid #2e7d32; background:#e8f5e9; color:#1b5e20; border-radius:14px; font:inherit; font-size:20px; font-weight:800; cursor:pointer;}
+.bt-dl span{font-size:11.5px;}
+.bt-dl:hover{background:#d7ecd8;}
+.bt-search-head{margin:0 0 10px; font-size:14px; color:#4c6b40;}
+.bt-lib-foot{margin:14px 0 0;}
+.mtp-notice{margin-bottom:10px; padding:8px 12px; border-radius:10px; background:#fff3e0; color:#e65100; font-weight:700; font-size:14px;}
+
+/* Ngăn đóng góp */
+.bt-steps{list-style:none; margin:4px 0 12px; padding:0; display:flex; flex-wrap:wrap; gap:8px;}
+.bt-steps li{flex:1 1 220px; display:flex; align-items:flex-start; gap:8px; padding:9px 12px; border-radius:12px; background:var(--paper-2); font-size:13px; line-height:1.45;}
+.bt-steps li b{flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#2e7d32; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:12px;}
+.bt-meters{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px 14px; margin:0 0 12px;}
+.bt-meter-top{display:flex; justify-content:space-between; gap:8px; font-size:12.5px; color:#5f5a4e; margin-bottom:4px;}
+.bt-meter-top b{color:var(--ink); white-space:nowrap;}
+.bt-meter-bar{height:8px; border-radius:99px; background:#e4e1d6; overflow:hidden;}
+.bt-meter-bar i{display:block; height:100%; border-radius:99px; background:#2e7d32; transition:width .3s;}
+.bt-meter.near .bt-meter-bar i{background:#ef8a00;}
+.bt-meter.full .bt-meter-bar i{background:#c62828;}
+.bt-meter.full .bt-meter-top b{color:#c62828;}
+.bt-cap{margin:0 0 14px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--paper-2);}
+.bt-chip{display:inline-block; padding:1px 8px; border-radius:99px; font-size:11px; font-weight:800; white-space:nowrap; vertical-align:1px;}
+.bt-chip.draft{background:#eceff1; color:#455a64;}
+.bt-chip.pending{background:#fff3e0; color:#e65100;}
+.bt-chip.accepted{background:#e8f5e9; color:#1b5e20;}
+.bt-chip.declined{background:#fdecea; color:#b71c1c;}
+.bt-submit-bar{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:14px; padding:12px 14px; border-radius:12px; background:#f1f7ec; border:1px solid #cfe3c5;}
+.bt-submit{font-size:15px; padding:10px 16px;}
+.bt-check{display:flex; align-items:flex-start; gap:8px; font-size:13.5px; line-height:1.45; margin:6px 0; cursor:pointer;}
+.bt-check input{margin-top:3px; flex:0 0 auto;}
+.bt-hidden-toggle{margin-top:10px; color:#6b6b5e;}
+
+/* Thư cảm ơn */
+.bt-letter{position:relative; max-width:560px; background:#fffdf6;}
+.bt-letter-band{flex:0 0 auto; border-radius:16px 16px 0 0; height:74px; display:flex; align-items:center; justify-content:center; font-size:40px;
+  background:repeating-linear-gradient(135deg, #2e7d32 0 14px, #c79a2b 14px 20px, #fffdf6 20px 26px, #c62828 26px 32px, #fffdf6 32px 38px);}
+.bt-letter-close{position:absolute; top:10px; right:10px; background:#fff; border-radius:50%;}
+.bt-letter .bt-letter-body{padding:18px 24px 6px; font-family:var(--app-font-sans); font-size:15.5px; line-height:1.7; color:#2b2a24;}
+.bt-letter-body h3{margin:0 0 10px; font-family:var(--app-font-sans); font-size:21px; color:#1b5e20; text-align:center;}
+.bt-letter-body p{margin:0 0 10px;}
+.bt-letter-body ul{margin:0 0 12px; padding-left:20px;}
+.bt-letter-body li{margin-bottom:5px;}
+.bt-letter-credit{font-family:var(--app-font-sans); margin:6px 0 4px; padding:10px 12px; border-radius:10px; background:#f1f7ec; border:1px solid #cfe3c5;}
+.bt-letter-credit .field{margin:8px 0 0;}
+.bt-letter-sign{text-align:right; font-weight:700; color:#1b5e20; margin:8px 0 6px;}
+
+/* Cài đặt Admin */
+.bt-admin-entry .panel-body{padding:14px;}
+.bt-pending-pill{flex:0 0 auto; padding:4px 10px; border-radius:999px; background:#fff; color:#c62828; font-size:12.5px; font-weight:800;}
+.bt-user-card{margin:8px 0 12px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--paper-2); display:flex; flex-direction:column; gap:3px;}
+.bt-acc-sum{margin:0 0 10px; padding:9px 12px; border-radius:10px; background:#e8f5e9; color:#1b5e20; font-size:13.5px;}
+
+@media (max-width:640px){
+  .bt-feature{padding:16px 14px;}
+  .bt-feature-ico{width:48px; height:48px; font-size:26px;}
+  .bt-open-btn{padding:14px;}
+  .bt-dl{min-width:54px;}
+  .bt-kind{display:none;}
+  .bt-letter .bt-letter-body{padding:14px 16px 4px; font-size:15px;}
+  .bt-letter-band{border-radius:0;}
+}

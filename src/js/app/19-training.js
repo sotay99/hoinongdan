@@ -18,7 +18,7 @@
   // Trang học viên: /taphuan/{mã} (bản xem trước/máy chạy thử dùng dạng #/taphuan/{mã}). Không đăng nhập,
   // không menu. Cuộc trò chuyện được giữ trong bộ nhớ trình duyệt của học viên để quay lại học tiếp.
   //
-  // Phần này đứng CUỐI manifest nên chứa khối khởi động boot() ở cuối tệp.
+  // Khối khởi động boot() đã chuyển xuống phần cuối manifest (20-branch-templates.js).
   // =====================================================================
   const TN_TITLE_MAX = 150, TN_INTRO_MAX = 1500, TN_AUDIENCE_MAX = 200;
   const TN_ISSUER_MAX = 150, TN_BASIS_MAX = 600, TN_GROUP_LABEL_MAX = 40;
@@ -1865,29 +1865,3 @@ ${tnMaterialsBlock(c)}`;
       root.innerHTML = `<div class="tnp"><div class="tnp-closed"><div>⚠️</div><h2>Không mở được lớp tập huấn</h2><p>Vui lòng kiểm tra kết nối mạng rồi tải lại trang.</p></div></div>`;
     });
   }
-
-  // =====================================================================
-  // ĐIỂM KHỞI ĐỘNG ỨNG DỤNG — PHẢI LUÔN NẰM Ở CUỐI PHẦN CUỐI CÙNG trong
-  // manifest.json. Toàn bộ các phần được nối lại thành MỘT hàm bọc (IIFE)
-  // duy nhất mở ở 01-foundation.js và đóng ngay bên dưới, nhờ vậy mọi phần
-  // dùng chung được `state`, `render`, `escapeHtml`... Nếu sau này thêm
-  // phần mới, hãy CHUYỂN nguyên khối này xuống cuối phần đó — để mọi khai
-  // báo `let/const` đều đã khởi tạo xong trước khi boot() chạy (tránh lỗi
-  // "Cannot access before initialization").
-  // =====================================================================
-  const _publicReceiptId = publicReceiptRouteId();
-  const _publicSurveyId = publicSurveyRouteId();
-  const _publicMeetingId = publicMeetingRouteId();
-  const _publicTrainingId = publicTrainingRouteId();
-  if(_publicReceiptId){
-    renderPublicReceiptPage(_publicReceiptId);
-  } else if(_publicSurveyId){
-    renderPublicSurveyPage(_publicSurveyId);
-  } else if(_publicMeetingId){
-    renderPublicMeetingPage(_publicMeetingId);
-  } else if(_publicTrainingId){
-    renderPublicTrainingPage(_publicTrainingId);
-  } else {
-    boot();
-  }
-})();

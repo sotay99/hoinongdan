@@ -1253,9 +1253,9 @@
   }
 
   // =====================================================================
-  // CÁC MODULE ĐANG NÂNG CẤP — Danh sách công việc, Quản lý Fanpage, Chăm sóc hội viên,
-  // Công tác Chi hội. (Phòng họp không giấy và Tập huấn bằng AI đã có giao diện thật ở
-  // 18-meeting.js và 19-training.js.)
+  // CÁC MODULE ĐANG NÂNG CẤP — Danh sách công việc, Quản lý Fanpage, Chăm sóc hội viên.
+  // (Phòng họp không giấy, Tập huấn bằng AI và Công tác Chi hội đã có giao diện thật ở
+  // 18-meeting.js, 19-training.js và 20-branch-templates.js.)
   // Hiện mới có trang giới thiệu; dùng chung một hàm dựng để khỏi lặp mã.
   // =====================================================================
   function renderUpcomingModule(el, cfg){
@@ -1344,24 +1344,5 @@
          'Xem lại đã trao đổi gì với hội viên nào, họ từng nêu khó khăn gì, đã được hỗ trợ ra sao — để lần sau tiếp xúc không hỏi lại từ đầu.'],
       ],
       note:['Giữ cái tình trong công việc','Công nghệ ở đây chỉ để cán bộ Hội có thời gian dành cho những cuộc gặp thật sự cần gặp. Những việc lặp đi lặp lại thì máy làm, còn thăm hỏi lúc bà con khó khăn vẫn phải là con người.'],
-    },
-    branch: {
-      icon:'🌾', eyebrow:'CẤP CHI HỘI', title:'Công tác Chi hội',
-      lead:'Chi hội khu dân cư và chi hội nghề nghiệp là cấp gần hội viên nhất, nhưng lại thiếu công cụ nhất — thường chỉ có cuốn sổ tay và vài tờ giấy. Module này dành riêng cho cán bộ chi hội.',
-      blocks:[
-        ['👥','Quản lý hội viên của chi hội mình',
-         'Danh sách hội viên trong chi hội, tổ hội trực thuộc, thông tin liên lạc, ngành nghề, hoàn cảnh cần lưu ý. Chi hội trưởng chỉ thấy phần của chi hội mình, không lẫn sang nơi khác.'],
-        ['📄','Kho mẫu văn bản của chi hội',
-         'Biên bản sinh hoạt chi hội, danh sách điểm danh, báo cáo tháng gửi lên Hội xã, đơn xin vào Hội, biên bản bình xét thi đua — có sẵn mẫu, chỉ việc điền.'],
-        ['📊','Thống kê tự động',
-         'Số hội viên tăng giảm trong kỳ, tỷ lệ tham gia sinh hoạt, tình hình đóng hội phí, kết quả các phong trào — tự tổng hợp thành số liệu để báo cáo, khỏi ngồi đếm tay.'],
-        ['🏡','Theo dõi tổ hội',
-         'Chi hội có nhiều tổ hội thì quản lý được từng tổ: ai làm tổ trưởng, bao nhiêu hội viên, sinh hoạt đến đâu.'],
-        ['💬','Chăm sóc hội viên trong chi hội',
-         'Nhắn tin, thông báo lịch sinh hoạt, hỏi thăm — dùng chung cơ chế với module Chăm sóc hội viên nhưng gói gọn trong phạm vi chi hội mình phụ trách.'],
-        [`🔄`,`Nối liền với Hội cấp ${adminLevelLabelLower()}`,
-         'Số liệu chi hội báo lên tự động cộng vào số liệu chung của Hội xã/phường; chỉ đạo từ Hội xã cũng chuyển thẳng xuống chi hội, không còn tam sao thất bản qua nhiều khâu.'],
-      ],
-      note:['Vì sao tách riêng?','Cán bộ chi hội phần lớn kiêm nhiệm, làm ngoài giờ và không được đào tạo về phần mềm. Nên module này cố tình làm gọn, chỉ giữ đúng những việc chi hội thật sự cần, không bắt học cả hệ thống lớn.'],
     },
   }; }
