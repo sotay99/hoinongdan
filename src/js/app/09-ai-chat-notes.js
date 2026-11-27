@@ -814,6 +814,7 @@
     if(!sameTab) rememberTabScroll();
     state.activeTab = tabId;
     if(!sameTab) state._schedIntroShown = false; // vào lại module Lịch công tác thì cho phép hiện lại Bản giới thiệu (khi chưa có người nào)
+    if(!sameTab) state._tnIntroShown = false; // tương tự cho Tập huấn bằng AI (khi chưa có bài nào)
     state.bellOpen = false;
     render();
     if(sameTab) scrollWindowTo(keepTop);

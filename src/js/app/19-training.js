@@ -812,6 +812,12 @@ ${tnMaterialsBlock(c)}`;
     box.querySelectorAll('[data-tn-copy]').forEach(b=> b.onclick = ()=>{ const c = tnFind(b.dataset.tnCopy); if(c && !tnStatus(c).open) showToast('Lưu ý: liên kết đang ' + tnStatus(c).label.toLowerCase() + '.'); copyMessageText(tnShareUrl(b.dataset.tnCopy)); });
     box.querySelectorAll('[data-tn-trash]').forEach(b=> b.onclick = ()=> tnTrash(b.dataset.tnTrash));
     tnPaintTrash(el);
+    // Chưa có bài nào: mỗi lần VÀO module (không phải mỗi lần vẽ lại) hiện Bản giới thiệu, đóng được —
+    // giống Lịch công tác khi chưa có người nào. Cờ được đặt lại trong switchTab khi đổi sang module khác.
+    if(S.loaded && !S.error && !S.list.length && !state._tnIntroShown){
+      state._tnIntroShown = true;
+      if(MODULE_INTRO_CONTENT && MODULE_INTRO_CONTENT.training && !document.querySelector('.modal-bg')) openModuleIntroModal(MODULE_INTRO_CONTENT.training);
+    }
   }
   function tnPaintTrash(el){
     const S = tnS(), box = el.querySelector('#tn-trash'); if(!box) return;
