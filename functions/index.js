@@ -632,3 +632,9 @@ exports.trainingMeta = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
+// ============================================================================
+// Cloud Function: aiGemini — máy chủ trung gian AI duy nhất của app (giữ khoá
+// Gemini, xác minh đăng nhập, áp hạn mức). Toàn bộ mã nằm ở ai-gemini.js.
+// ============================================================================
+exports.aiGemini = require("./ai-gemini").aiGemini;
